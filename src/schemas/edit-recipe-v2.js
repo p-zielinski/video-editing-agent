@@ -282,8 +282,66 @@ export const AudioMixPlanSchema = z.object({
   segments: z.array(AudioMixSegmentSchema).default([]),
 });
 
+export const SfxPlanSourceSchema = z.enum(["audio_event", "library"]);
+
+export const SfxPlanEntrySchema = z.object({
+  sfxId: z.string(),
+  source: SfxPlanSourceSchema,
+  clipId: z.string().optional(),
+  anchorTimeSec: z.number().nonnegative().optional(),
+  outputStartSec: z.number().nonnegative(),
+  outputEndSec: z.number().positive(),
+  volumeDb: z.number().default(-6),
+  label: z.string(),
+  reason: z.string().optional(),
+});
+
+export const ColorGradeSchema = z.object({
+  lutId: z.string().optional(),
+  exposure: z.number().optional(),
+  contrast: z.number().optional(),
+  saturation: z.number().optional(),
+});
+
+export const SubtitleStylePresetSchema = z.object({
+  presetId: z.string(),
+  fontFamily: z.string().optional(),
+  fontSizePx: z.number().positive().optional(),
+  color: z.string().optional(),
+  strokeColor: z.string().optional(),
+  safeMarginPct: z.number().min(0).max(50).optional(),
+});
+
+export const OverlayStylePresetSchema = z.object({
+  position: z.string(),
+  fontSizePx: z.number().positive().optional(),
+  fontFamily: z.string().optional(),
+  color: z.string().optional(),
+  strokeColor: z.string().optional(),
+});
+
+export const FormatRenderPresetSchema = z.object({
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  safeZone: z.object({
+    top: z.number().nonnegative(),
+    bottom: z.number().nonnegative(),
+    left: z.number().nonnegative(),
+    right: z.number().nonnegative(),
+  }).optional(),
+});
+
+export const RenderStylePresetsSchema = z.object({
+  subtitles: SubtitleStylePresetSchema.optional(),
+  overlays: z.record(OverlayStylePresetSchema).optional(),
+  formats: z.object({
+    "16:9": FormatRenderPresetSchema,
+    "9:16": FormatRenderPresetSchema,
+  }).partial().optional(),
+});
+
 export const EditRecipeV2Schema = z.object({
-  version: z.enum(["2.0", "2.1", "2.2", "2.3"]),
+  version: z.enum(["2.0", "2.1", "2.2", "2.3", "2.4"]),
   batchId: z.string(),
   batchContext: BatchContextV2Schema,
   clipRegistry: z.array(ClipRegistryEntrySchema).default([]),
@@ -294,6 +352,9 @@ export const EditRecipeV2Schema = z.object({
   creativeMoments: z.array(CreativeMomentSchema).default([]),
   shortsRetentionProfile: ShortsRetentionProfileSchema.optional(),
   audioMixPlan: AudioMixPlanSchema.optional(),
+  sfxPlan: z.array(SfxPlanEntrySchema).default([]),
+  colorGrade: ColorGradeSchema.optional(),
+  renderStylePresets: RenderStylePresetsSchema.optional(),
   needsHumanReview: z.boolean().default(false),
   reviewNotes: z.string().optional(),
 });

@@ -4,7 +4,8 @@ Analiza wideo i reżyseria AI — od surowych klipów do **EditRecipe** (receptu
 
 **Ten projekt nie renderuje wideo.** Nie wykonuje cięć FFmpeg, nie eksportuje MP4 ani nie miksuje ścieżek audio. Artefakt końcowy to `09-edit-recipe-final.json` — plan montażu gotowy pod przyszły moduł renderu.
 
-Kanoniczna referencja kroków, grafu zależności, schematów v2.0–v2.3 i DSL kontekstu: [`docs/PRE_RENDER_PIPELINE.md`](docs/PRE_RENDER_PIPELINE.md).
+Kanoniczna referencja kroków, grafu zależności, schematów v2.0–v2.3 i DSL kontekstu: [`docs/PRE_RENDER_PIPELINE.md`](docs/PRE_RENDER_PIPELINE.md).  
+Formaty odpowiedzi AI, EditRecipe i gotowość do montażu: [`docs/FORMATY_AI_I_GOTOWOSC_MONTAZU.md`](docs/FORMATY_AI_I_GOTOWOSC_MONTAZU.md).
 
 ## Architektura (skrót)
 
@@ -305,6 +306,8 @@ Bez librosa analiza audio wraca do **`ffmpeg_astats`** (`analysisMode` w `01b`) 
 Contract tests: `tests/contracts/` (schematy agentów, katalog technik, golden recipe). Szczegóły fixture'ów: `fixtures/batches/*/README.md`.
 
 ## Roadmap
+
+Kontrakt renderu i plan zamknięcia luk: [`docs/RENDER_MODULE_SPEC.md`](docs/RENDER_MODULE_SPEC.md), [`docs/LUKI_PLAN_NAPRAWCZY.md`](docs/LUKI_PLAN_NAPRAWCZY.md).
 
 | Status | Zakres |
 |--------|--------|

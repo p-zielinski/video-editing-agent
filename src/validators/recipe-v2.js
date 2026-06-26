@@ -1,4 +1,5 @@
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
+import { resolveTrackById } from "../editorial/music-library.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import {
   computeCreativityBudget,
@@ -404,10 +405,63 @@ export function validateWholeClipInSingleMode(recipe) {
   return issues;
 }
 
-export function validateAudioMixPlan(recipe) {
+const LUFS_RANGE_MIN = -24;
+const LUFS_RANGE_MAX = -12;
+
+function parseRecipeVersion(version) {
+  const majorMinor = parseFloat(String(version ?? "0"));
+  return Number.isFinite(majorMinor) ? majorMinor : 0;
+}
+
+function hasV24SfxFields(recipe) {
+  return parseRecipeVersion(recipe.version) >= 2.4
+    || (recipe.sfxPlan?.length ?? 0) > 0;
+}
+
+function hasV24PresetFields(recipe) {
+  return parseRecipeVersion(recipe.version) >= 2.4
+    || recipe.renderStylePresets != null;
+}
+
+function buildClipDurationMap(clipRegistry = []) {
+  return new Map(clipRegistry.map((clip) => [clip.clipId, clip.durationSec ?? 0]));
+}
+
+export function validateAudioMixPlan(recipe, { catalogPath } = {}) {
   const issues = [];
   const plan = recipe.audioMixPlan;
-  if (!plan?.musicBed) {
+  if (!plan) {
+    return issues;
+  }
+
+  for (const [field, label] of [
+    ["voiceTargetLufs", "voiceTargetLufs"],
+    ["preWhisperNormalizeLufs", "preWhisperNormalizeLufs"],
+  ]) {
+    const value = plan[field];
+    if (value != null && (value < LUFS_RANGE_MIN || value > LUFS_RANGE_MAX)) {
+      issues.push({
+        severity: "warning",
+        code: "V23-02",
+        message: `${label} ${value} LUFS poza zalecanym zakresem [${LUFS_RANGE_MIN}, ${LUFS_RANGE_MAX}]`,
+      });
+    }
+  }
+
+  if (plan.musicBed?.trackId) {
+    const { track, reason } = resolveTrackById(plan.musicBed.trackId, { catalogPath });
+    if (!track) {
+      issues.push({
+        severity: "error",
+        code: "V23-03",
+        message: reason === "track_not_in_catalog"
+          ? `musicBed.trackId "${plan.musicBed.trackId}" nie występuje w katalogu muzyki`
+          : `Plik muzyki dla trackId "${plan.musicBed.trackId}" nie istnieje na dysku`,
+      });
+    }
+  }
+
+  if (!plan.musicBed) {
     return issues;
   }
 
@@ -432,6 +486,77 @@ export function validateAudioMixPlan(recipe) {
         outputId,
       });
     }
+  }
+
+  return issues;
+}
+
+export function validateSfxPlan(recipe, { clipDurations } = {}) {
+  const issues = [];
+  const sfxPlan = recipe.sfxPlan;
+  if (!sfxPlan?.length) {
+    return issues;
+  }
+
+  const durations = clipDurations ?? buildClipDurationMap(recipe.clipRegistry);
+  const clipIds = new Set((recipe.clipRegistry ?? []).map((clip) => clip.clipId));
+
+  for (const entry of sfxPlan) {
+    const {
+      sfxId,
+      source,
+      clipId,
+      outputStartSec,
+      outputEndSec,
+      anchorTimeSec,
+    } = entry;
+
+    if (source === "audio_event" && (!clipId || !clipIds.has(clipId))) {
+      issues.push({
+        severity: "error",
+        code: "V24-01",
+        message: `sfxPlan ${sfxId}: source=audio_event wymaga clipId z clipRegistry`,
+      });
+    }
+
+    if (outputStartSec >= outputEndSec) {
+      issues.push({
+        severity: "error",
+        code: "V24-02",
+        message: `sfxPlan ${sfxId}: outputStartSec (${outputStartSec}) >= outputEndSec (${outputEndSec})`,
+      });
+    }
+
+    if (clipId && anchorTimeSec != null) {
+      const durationSec = durations.get(clipId);
+      if (durationSec != null && durationSec > 0
+        && (anchorTimeSec < 0 || anchorTimeSec > durationSec)) {
+        issues.push({
+          severity: "error",
+          code: "V24-03",
+          message: `sfxPlan ${sfxId}: anchorTimeSec ${anchorTimeSec} poza zakresem clipu ${clipId} (0–${durationSec}s)`,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+export function validateRenderStylePresets(recipe) {
+  const issues = [];
+  const hasVerticalOutput = (recipe.outputs ?? []).some((output) => output.format === "9:16");
+  if (!hasVerticalOutput) {
+    return issues;
+  }
+
+  const safeZone = recipe.renderStylePresets?.formats?.["9:16"]?.safeZone;
+  if (!safeZone) {
+    issues.push({
+      severity: "warning",
+      code: "V24-04",
+      message: "Output 9:16 bez safeZone w renderStylePresets.formats[\"9:16\"]",
+    });
   }
 
   return issues;
@@ -492,7 +617,7 @@ export function validatePacingGuard(recipe, { estimatedKeepRatio } = {}) {
   if (qualityOverQuantity && ratio > PACING_TOLERANCE) {
     issues.push({
       severity: "warning",
-      code: "V24-01",
+      code: "V24-05",
       message: `Main output ${outputDurationSec.toFixed(1)}s przekracza ${(PACING_TOLERANCE * 100).toFixed(0)}% materiału źródłowego (${sourceDurationSec.toFixed(1)}s) przy qualityOverQuantity`,
       outputId: recipe.outputs?.find((output) => output.outputKind === "main")?.outputId,
     });
@@ -505,7 +630,7 @@ export function validatePacingGuard(recipe, { estimatedKeepRatio } = {}) {
     const targetSec = sourceDurationSec * estimatedKeepRatio;
     issues.push({
       severity: "warning",
-      code: "V24-01",
+      code: "V24-05",
       message: `Main output ${outputDurationSec.toFixed(1)}s przekracza L3 estimatedKeepRatio (${(estimatedKeepRatio * 100).toFixed(0)}% → ~${targetSec.toFixed(1)}s)`,
       outputId: recipe.outputs?.find((output) => output.outputKind === "main")?.outputId,
     });
@@ -523,6 +648,7 @@ export function validateRecipeV2(recipe, {
   techniqueCatalog,
   creativityBudget,
   estimatedKeepRatio,
+  musicCatalogPath,
 } = {}) {
   const parsed = EditRecipeV2Schema.parse(recipe);
   const formats = requiredFormats ?? getRequiredFormats(parsed);
@@ -576,8 +702,10 @@ export function validateRecipeV2(recipe, {
     ...validateMaxBroll(parsed),
     ...validateBrollReuseWarning(parsed),
     ...validateWholeClipInSingleMode(parsed),
-    ...validateAudioMixPlan(parsed),
+    ...validateAudioMixPlan(parsed, { catalogPath: musicCatalogPath }),
     ...validatePacingGuard(parsed, { estimatedKeepRatio }),
+    ...(hasV24SfxFields(parsed) ? validateSfxPlan(parsed) : []),
+    ...(hasV24PresetFields(parsed) ? validateRenderStylePresets(parsed) : []),
     ...validateCreativeMoments(parsed, catalog, budget, {
       wordIds: allWordIds.size > 0 ? allWordIds : null,
       spatialIndex,

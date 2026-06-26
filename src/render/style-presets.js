@@ -1,0 +1,75 @@
+/**
+ * Default render style presets for subtitles and text overlays.
+ * Recipe may override via renderStylePresets; renderer falls back to these.
+ */
+export const DEFAULT_RENDER_STYLE_PRESETS = {
+  subtitles: {
+    default: {
+      fontFamily: "Arial",
+      fontSizePx: 42,
+      fontWeight: 700,
+      color: "#FFFFFF",
+      outlineColor: "#000000",
+      outlineWidthPx: 2,
+      position: "bottom_center",
+      safeMarginPct: 0.08,
+      maxLines: 2,
+    },
+    shorts: {
+      fontFamily: "Arial",
+      fontSizePx: 48,
+      fontWeight: 700,
+      color: "#FFFFFF",
+      outlineColor: "#000000",
+      outlineWidthPx: 3,
+      position: "bottom_center",
+      safeMarginPct: 0.12,
+      maxLines: 2,
+    },
+  },
+  overlays: {
+    hook_large: {
+      fontFamily: "Arial Black",
+      fontSizePx: 72,
+      fontWeight: 900,
+      color: "#FFFFFF",
+      strokeColor: "#000000",
+      strokeWidthPx: 3,
+      position: "center",
+      textTransform: "uppercase",
+      safeMarginPct: 0.1,
+    },
+    hook_question: {
+      fontFamily: "Arial Black",
+      fontSizePx: 64,
+      fontWeight: 800,
+      color: "#FFFFFF",
+      strokeColor: "#1A1A1A",
+      strokeWidthPx: 2,
+      position: "center",
+      textTransform: "none",
+      safeMarginPct: 0.1,
+    },
+    hook_number: {
+      fontFamily: "Arial Black",
+      fontSizePx: 80,
+      fontWeight: 900,
+      color: "#FFE600",
+      strokeColor: "#000000",
+      strokeWidthPx: 4,
+      position: "top_center",
+      textTransform: "none",
+      safeMarginPct: 0.12,
+    },
+    caption_bar: {
+      fontFamily: "Arial",
+      fontSizePx: 36,
+      fontWeight: 600,
+      color: "#FFFFFF",
+      backgroundColor: "rgba(0,0,0,0.65)",
+      position: "bottom_center",
+      paddingPx: 12,
+      safeMarginPct: 0.08,
+    },
+  },
+};

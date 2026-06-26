@@ -4,7 +4,8 @@ import { extractFrameAt } from "../../lib/ffmpeg.js";
 import { writeJson, readJson, ARTIFACTS, removeClipArtifact } from "../work-paths.js";
 import { shouldUseCachedClipArtifact } from "../artifact-deps.js";
 
-const DEFAULT_MAX_FRAMES_PER_MIN = 6;
+export const DEFAULT_MAX_FRAMES_PER_MIN = 6;
+export const BROLL_MAX_FRAMES_PER_MIN = 12;
 const SPEECH_WINDOW_SEC = 2;
 const MOTION_DURATION_DELTA_SEC = 5;
 const MOTION_CUT_SCORE_THRESHOLD = 0.35;
@@ -129,8 +130,32 @@ export function speechTimestampsFromWords(words, windowSec = SPEECH_WINDOW_SEC) 
   return [...timestamps].sort((a, b) => a - b);
 }
 
+function loadClipRegistryEntries(workDir) {
+  const registryPath = path.join(workDir, ARTIFACTS.clipRegistry);
+  if (!fs.existsSync(registryPath)) {
+    return [];
+  }
+  const data = readJson(registryPath);
+  return data.clipRegistry ?? data;
+}
+
+/**
+ * Higher keyframe density for B-roll pool clips and clips without speech.
+ */
+export function resolveMaxFramesPerMin({ clipEntry, words = [] }) {
+  if (clipEntry?.clipRole === "broll_pool") {
+    return BROLL_MAX_FRAMES_PER_MIN;
+  }
+  const hasSpeech = clipEntry?.hasSpeech ?? words.length > 0;
+  if (!hasSpeech) {
+    return BROLL_MAX_FRAMES_PER_MIN;
+  }
+  return DEFAULT_MAX_FRAMES_PER_MIN;
+}
+
 export async function runKeyframesStep({ workDir, extractImages = true, force = false }) {
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
+  const clipRegistry = loadClipRegistryEntries(workDir);
   const allKeyframes = [];
 
   for (const clip of catalog.clips) {
@@ -145,12 +170,18 @@ export async function runKeyframesStep({ workDir, extractImages = true, force = 
 
     const wordIndex = readJson(path.join(workDir, ARTIFACTS.words(clip.clipId)));
     const scenes = catalog.scenes.filter((s) => s.clipId === clip.clipId);
+    const clipEntry = clipRegistry.find((entry) => entry.clipId === clip.clipId);
+    const maxFramesPerMin = resolveMaxFramesPerMin({
+      clipEntry,
+      words: wordIndex.words,
+    });
 
     const planned = planHybridKeyframes({
       scenes,
       words: wordIndex.words,
       clipId: clip.clipId,
       durationSec: clip.durationSec,
+      maxFramesPerMin,
     });
 
     const framesDir = path.join(workDir, "frames", clip.clipId);

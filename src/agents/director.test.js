@@ -162,6 +162,8 @@ describe("director agent v2", () => {
     });
 
     assert.deepEqual(brief.audioIndex.clips[0].beatTimestamps, [0.5, 1.0, 1.5]);
+    assert.ok(Array.isArray(brief.sfxPlanDefaults));
+    assert.equal(brief.sfxPlanDefaults.length, 0);
   });
 
   it("includes spatialIndex summary when provided", () => {

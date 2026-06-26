@@ -18,6 +18,11 @@ import {
 import { buildSpatialRefExamples } from "../editorial/spatial-ref.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
 import {
+  buildBrollSyncHints,
+  buildKeyframesByClip,
+} from "../editorial/broll-sync-hints.js";
+import { buildSfxPlanFromAudio } from "../editorial/sfx-plan.js";
+import {
   buildEditorialContext,
   buildTranscriptExcerpts,
   formatSpatialSummary,
@@ -360,6 +365,7 @@ export function buildDirectorBrief({
   includeL1 = false,
   creativityProfile,
   targetDurationSec,
+  keyframesByClip = null,
 }) {
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
   const { parsedCreativity, creativityBudget, techniqueCatalog, shortsRetention, retentionGrammarSummary, retentionBeatTargets } = buildCreativityContext({
@@ -490,6 +496,24 @@ export function buildDirectorBrief({
     qualityOverQuantity: batchContext.qualityOverQuantity ?? true,
     ...(sceneMapPolicy ? { sceneMapPolicy, sceneMapOmittedCount } : {}),
   };
+
+  if ((topicIndex?.topics ?? []).length > 0) {
+    const resolvedKeyframesByClip = keyframesByClip ?? buildKeyframesByClip(timelineIndex);
+    brief.brollSyncHints = buildBrollSyncHints({
+      topicIndex,
+      timelineIndex,
+      keyframesByClip: resolvedKeyframesByClip,
+      abstractL1: abstraction.L1,
+    }).slice(0, 15);
+  }
+
+  if (audioIndex?.clips?.length) {
+    brief.sfxPlanDefaults = buildSfxPlanFromAudio(audioIndex, {
+      maxEntries: 15,
+      perClipAnalysis,
+    });
+  }
+
   if (sceneCount <= 5) {
     brief.l1SceneSummaries = buildL1SceneSummaries(abstraction, timelineIndex.scenes);
   }

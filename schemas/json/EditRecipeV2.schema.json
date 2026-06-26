@@ -10,7 +10,8 @@
             "2.0",
             "2.1",
             "2.2",
-            "2.3"
+            "2.3",
+            "2.4"
           ]
         },
         "batchId": {
@@ -963,6 +964,238 @@
                 "additionalProperties": false
               },
               "default": []
+            }
+          },
+          "additionalProperties": false
+        },
+        "sfxPlan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sfxId": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "audio_event",
+                  "library"
+                ]
+              },
+              "clipId": {
+                "type": "string"
+              },
+              "anchorTimeSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "outputStartSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "outputEndSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "volumeDb": {
+                "type": "number",
+                "default": -6
+              },
+              "label": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sfxId",
+              "source",
+              "outputStartSec",
+              "outputEndSec",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "colorGrade": {
+          "type": "object",
+          "properties": {
+            "lutId": {
+              "type": "string"
+            },
+            "exposure": {
+              "type": "number"
+            },
+            "contrast": {
+              "type": "number"
+            },
+            "saturation": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "renderStylePresets": {
+          "type": "object",
+          "properties": {
+            "subtitles": {
+              "type": "object",
+              "properties": {
+                "presetId": {
+                  "type": "string"
+                },
+                "fontFamily": {
+                  "type": "string"
+                },
+                "fontSizePx": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "color": {
+                  "type": "string"
+                },
+                "strokeColor": {
+                  "type": "string"
+                },
+                "safeMarginPct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 50
+                }
+              },
+              "required": [
+                "presetId"
+              ],
+              "additionalProperties": false
+            },
+            "overlays": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string"
+                  },
+                  "fontSizePx": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "fontFamily": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  },
+                  "strokeColor": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "position"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "formats": {
+              "type": "object",
+              "properties": {
+                "16:9": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "height": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "safeZone": {
+                      "type": "object",
+                      "properties": {
+                        "top": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "bottom": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "left": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "right": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "top",
+                        "bottom",
+                        "left",
+                        "right"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "width",
+                    "height"
+                  ],
+                  "additionalProperties": false
+                },
+                "9:16": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "height": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "safeZone": {
+                      "type": "object",
+                      "properties": {
+                        "top": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "bottom": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "left": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "right": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "top",
+                        "bottom",
+                        "left",
+                        "right"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "width",
+                    "height"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

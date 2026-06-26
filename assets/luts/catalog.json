@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "luts": [
+    {
+      "lutId": "neutral_vlog",
+      "fileName": "neutral_vlog.cube",
+      "label": "Neutral vlog",
+      "description": "Domyślny balans — lekko cieplejsze skóry, bez agresywnego kontrastu."
+    },
+    {
+      "lutId": "warm_golden_hour",
+      "fileName": "warm_golden_hour.cube",
+      "label": "Warm golden hour",
+      "description": "Ciepły look na ujęcia outdoor / zachód słońca."
+    }
+  ]
+}

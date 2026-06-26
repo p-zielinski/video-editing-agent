@@ -257,3 +257,42 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
 ```
 
 Zwracaj wyłącznie JSON EditRecipe v2.3. Gdy `audioMixDefaults.musicBed` jest ustawione — dołącz `audioMixPlan` (lub v2.2/v2.1/v2.0 bez creativeMoments / audioMixPlan).
+
+## Pola pre-render v2.4
+
+Gdy brief zawiera `sfxPlanDefaults`, `brollSyncHints` lub gdy montaż wymaga stylu/LUT — ustaw `version: "2.4"` i opcjonalne pola poniżej.
+
+### `sfxPlan[]` (z `sfxPlanDefaults`)
+
+Brief może zawierać `sfxPlanDefaults[]` — propozycje z analizy audio (`audioEvents`, `editorialTags`):
+
+- Skopiuj wybrane wpisy do `sfxPlan[]`; dopasuj `outputStartSec` / `outputEndSec` do osi outputu
+- `source: "audio_event"` — zdarzenie z timestampem (`clipId`, `anchorTimeSec` wymagane)
+- `source: "library"` — sugestia z tagu bez precyzyjnego czasu (np. whoosh, impact)
+- Nie duplikuj tego samego `sfxId`; pomiń wpisy bez sensu narracyjnego
+
+### `brollSyncHints`
+
+Gdy brief zawiera `brollSyncHints[]` — sugestie `videoInSec` dla segmentów B-roll (keyframes + L1 `keyMoments`):
+
+- Dla segmentu `broll` z `topicId` / `sceneId` z hintu — ustaw `videoInSec` ≈ `suggestedVideoInSec` (±0.5 s)
+- `confidence` < 0.6 — traktuj jako luźną sugestię; możesz wybrać inny moment w scenie
+
+### `colorGrade`
+
+Opcjonalny LUT / korekcja globalna (egzekucja w rendererze):
+
+- `lutId` — identyfikator z katalogu LUT (np. `vlog_warm`)
+- `exposure`, `contrast`, `saturation` — korekcja liczbowa gdy brak LUT lub jako dodatek
+- Używaj oszczędnie — jeden profil na cały output; shorty mogą mieć wyższy `contrast` / `saturation`
+
+### `renderStylePresets`
+
+Nadpisania stylów napisów i overlayów (renderer ma domyślne presety w `style-presets.js`):
+
+- `subtitles.presetId` — np. `default` | `shorts`
+- `overlays.hook_large` itd. — nadpisanie fontu, koloru, marginesu dla `textOverlays[].style`
+- `formats["9:16"]` / `formats["16:9"]` — safe area i skala per format
+- Ustaw tylko gdy userContext lub `outputKind` wymaga odbicia od domyślnych (np. short z `hook_large`)
+
+Zwracaj JSON EditRecipe v2.4 gdy używasz któregokolwiek z powyższych pól; w przeciwnym razie v2.3 wystarczy.
