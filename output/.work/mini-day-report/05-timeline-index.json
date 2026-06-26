@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "batchId": "miniday1",
+  "userContext": "vlog dzień 66/100 — restauracja i spacer",
+  "clips": [
+    { "clipId": "clip01", "sourcePath": "/inbox/01_talk.MOV", "durationSec": 180 },
+    { "clipId": "clip02", "sourcePath": "/inbox/02_broll.MOV", "durationSec": 45 }
+  ],
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/01_talk.MOV",
+      "startSec": 0,
+      "endSec": 90,
+      "durationSec": 90,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/01_talk.MOV",
+      "startSec": 90,
+      "endSec": 180,
+      "durationSec": 90,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "clipId": "clip02",
+      "sourcePath": "/inbox/02_broll.MOV",
+      "startSec": 0,
+      "endSec": 45,
+      "durationSec": 45,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "hasSpeech": false
+    }
+  ],
+  "words": [
+    { "wordId": "clip01_w001", "word": "cześć", "start": 2, "end": 2.4, "isFiller": false },
+    { "wordId": "clip01_w002", "word": "dzisiaj", "start": 3, "end": 3.5, "isFiller": false },
+    { "wordId": "clip01_w003", "word": "idziemy", "start": 4, "end": 4.5, "isFiller": false },
+    { "wordId": "clip01_w004", "word": "do", "start": 4.6, "end": 4.8, "isFiller": false },
+    { "wordId": "clip01_w005", "word": "restauracji", "start": 5, "end": 5.8, "isFiller": false },
+    { "wordId": "clip01_w006", "word": "w", "start": 6, "end": 6.2, "isFiller": false },
+    { "wordId": "clip01_w007", "word": "mieście", "start": 6.3, "end": 6.9, "isFiller": false },
+    { "wordId": "clip01_w008", "word": "jedzenie", "start": 12, "end": 12.6, "isFiller": false },
+    { "wordId": "clip01_w009", "word": "wygląda", "start": 13, "end": 13.5, "isFiller": false },
+    { "wordId": "clip01_w010", "word": "świetnie", "start": 13.6, "end": 14.2, "isFiller": false },
+    { "wordId": "clip01_w011", "word": "restauracja", "start": 95, "end": 95.8, "isFiller": false },
+    { "wordId": "clip01_w012", "word": "była", "start": 96, "end": 96.3, "isFiller": false },
+    { "wordId": "clip01_w013", "word": "super", "start": 96.5, "end": 97, "isFiller": false }
+  ],
+  "keyframes": [
+    { "sceneId": "clip02_scene001", "timestampSec": 5, "trigger": "scene_cut" },
+    { "sceneId": "clip02_scene001", "timestampSec": 25, "trigger": "motion" }
+  ],
+  "visionCaptions": [
+    { "timestampSec": 8, "sceneId": "clip01_scene001", "caption": "vloger mówi do kamery przy stoliku w restauracji, rozmyte tło sali", "tags": ["restauracja", "osoba", "vlog"] },
+    { "timestampSec": 42, "sceneId": "clip01_scene001", "caption": "zbliżenie na twarz vlogera, gestykuluje opisując menu", "tags": ["twarz", "restauracja"] },
+    { "timestampSec": 110, "sceneId": "clip01_scene002", "caption": "vloger podsumowuje wizytę, uśmiecha się do kamery po posiłku", "tags": ["restauracja", "podsumowanie"] },
+    { "timestampSec": 5, "sceneId": "clip02_scene001", "caption": "apetyczne danie na białym talerzu, restauracja w tle", "tags": ["jedzenie", "restauracja"] },
+    { "timestampSec": 12, "sceneId": "clip02_scene001", "caption": "zbliżenie na makaron z parmezanem i ziołami", "tags": ["jedzenie", "makaron"] },
+    { "timestampSec": 20, "sceneId": "clip02_scene001", "caption": "widełki podnoszą porcję jedzenia, płytka głębia ostrości", "tags": ["jedzenie", "zbliżenie"] },
+    { "timestampSec": 30, "sceneId": "clip02_scene001", "caption": "wnętrze restauracji, ciepłe oświetlenie, stoliki i dekoracje", "tags": ["restauracja", "wnętrze"] }
+  ],
+  "objectDetections": [
+    {
+      "sceneId": "clip01_scene001",
+      "label": "person",
+      "confidence": 0.88,
+      "timestampSec": 8,
+      "bbox": [0.35, 0.15, 0.55, 0.85]
+    },
+    {
+      "sceneId": "clip01_scene001",
+      "label": "face",
+      "confidence": 0.75,
+      "timestampSec": 8.5,
+      "bbox": [0.4, 0.2, 0.5, 0.4]
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "label": "food",
+      "confidence": 0.92,
+      "timestampSec": 12,
+      "bbox": [0.25, 0.35, 0.75, 0.8]
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "label": "plate",
+      "confidence": 0.81,
+      "timestampSec": 20,
+      "bbox": [0.3, 0.4, 0.7, 0.75]
+    }
+  ],
+  "stats": {
+    "totalDurationSec": 225,
+    "totalWords": 13,
+    "totalScenes": 3,
+    "fillerWordCount": 0
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "cut_on_beat",
+  "version": "1.0",
+  "category": "edit",
+  "label": "Cut on beat",
+  "description": "Cięcie na pauzie lub końcu frazy.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["classic_youtube", "rhythm"],
+  "params": {
+    "snapToleranceSec": { "type": "number", "min": 0, "max": 2, "default": 0.5 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 5,
+    "maxPerOutputMinutes": 2.0,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Naturalna pauza, koniec zdania, zmiana tematu.",
+  "whenToAvoid": "Środek ważnego zdania bez allowMidSentenceCuts.",
+  "syncHints": ["pause", "sentence_end"]
+}

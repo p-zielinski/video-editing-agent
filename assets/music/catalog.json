@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "tracks": [
+    {
+      "trackId": "upbeat_vlog_01",
+      "fileName": "upbeat_vlog_01.mp3",
+      "title": "Upbeat Vlog Bed 01",
+      "mood": ["upbeat", "vlog", "energetic"],
+      "bpm": 120,
+      "durationSec": 180,
+      "integratedLufs": -14
+    },
+    {
+      "trackId": "calm_reflective_01",
+      "fileName": "calm_reflective_01.mp3",
+      "title": "Calm Reflective Bed 01",
+      "mood": ["calm", "reflective", "soft"],
+      "bpm": 85,
+      "durationSec": 240,
+      "integratedLufs": -16
+    },
+    {
+      "trackId": "shorts_energy_01",
+      "fileName": "shorts_energy_01.mp3",
+      "title": "Shorts Energy Hook 01",
+      "mood": ["shorts", "energetic", "hook"],
+      "bpm": 128,
+      "durationSec": 60,
+      "integratedLufs": -13
+    }
+  ]
+}

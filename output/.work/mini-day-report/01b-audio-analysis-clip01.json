@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "clipId": "clip01",
+  "durationSec": 180,
+  "voiceLufs": -17.2,
+  "energyCurve": [
+    { "startSec": 0, "endSec": 1, "rmsDb": -22.5 },
+    { "startSec": 1, "endSec": 2, "rmsDb": -20.1 }
+  ],
+  "silenceGaps": [
+    { "startSec": 72, "endSec": 73.2, "durationSec": 1.2 }
+  ],
+  "beats": [
+    { "timeSec": 0.5, "strength": 0.72 },
+    { "timeSec": 1.0, "strength": 0.68 },
+    { "timeSec": 1.5, "strength": 0.7 }
+  ],
+  "musicBedRecommendation": {
+    "mood": "vlog",
+    "trackId": "upbeat_vlog_01",
+    "bpm": 120,
+    "confidence": 0.7
+  },
+  "cutSuggestions": [
+    { "timeSec": 0.5, "reason": "beat", "strength": 0.72 },
+    { "timeSec": 72, "reason": "silence_start", "strength": 0.65 }
+  ],
+  "estimatedBpm": 120,
+  "analysisMode": "stub"
+}

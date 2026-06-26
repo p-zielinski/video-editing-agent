@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "defaultPack": "youtube_vlog_2026",
+  "techniqueFiles": [
+    "camera/zoom_punch_in.json",
+    "camera/zoom_punch_out.json",
+    "camera/zoom_slow_push.json",
+    "camera/snap_zoom.json",
+    "camera/ken_burns_light.json",
+    "camera/reframe_follow_subject.json",
+    "edit/cut_on_beat.json",
+    "edit/cut_mid_sentence.json",
+    "edit/jump_cut.json",
+    "edit/match_cut.json",
+    "edit/hard_cut_energy.json",
+    "transition/crossfade.json",
+    "transition/dip_to_black.json",
+    "transition/whip_pan.json",
+    "transition/j_cut.json",
+    "transition/l_cut.json",
+    "audio/music_swell.json",
+    "audio/music_drop.json",
+    "audio/silence_beat.json",
+    "graphics/hook_title_overlay.json",
+    "graphics/hook_visual_punch.json",
+    "graphics/emphasis_text.json",
+    "graphics/chapter_card.json",
+    "graphics/pattern_interrupt.json",
+    "graphics/retention_beat.json"
+  ],
+  "packFiles": [
+    "packs/youtube_vlog_2026.json",
+    "packs/shorts_energy.json",
+    "packs/shorts_retention_2026.json"
+  ]
+}

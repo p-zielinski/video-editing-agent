@@ -1,0 +1,122 @@
+{
+  "$ref": "#/definitions/SpatialIndex",
+  "definitions": {
+    "SpatialIndex": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sceneId": {
+                "type": "string"
+              },
+              "clipId": {
+                "type": "string"
+              },
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "face",
+                        "subject",
+                        "object"
+                      ]
+                    },
+                    "bbox": {
+                      "type": "array",
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "items": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "timestampSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "bbox",
+                    "timestampSec",
+                    "label",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "sceneId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "builtFrom": {
+          "type": "object",
+          "properties": {
+            "timelineIndexMtime": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "objectDetectionCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "faceDetectionCount": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "timelineIndexMtime",
+            "objectDetectionCount"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "scenes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

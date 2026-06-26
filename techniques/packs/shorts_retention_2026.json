@@ -1,0 +1,28 @@
+{
+  "id": "shorts_retention_2026",
+  "version": "1.0",
+  "label": "Shorts retention 2026",
+  "description": "Pack shortów z gramatyką retencji: hook, beats, graphics.",
+  "platforms": ["shorts"],
+  "enabledTechniqueIds": [
+    "hook_title_overlay",
+    "hook_visual_punch",
+    "emphasis_text",
+    "chapter_card",
+    "pattern_interrupt",
+    "retention_beat",
+    "snap_zoom",
+    "jump_cut",
+    "hard_cut_energy",
+    "cut_mid_sentence",
+    "whip_pan",
+    "reframe_follow_subject"
+  ],
+  "defaultCreativityLevel": "shorts",
+  "retentionDefaults": {
+    "hookWindowSec": 3,
+    "retentionBeatIntervalSec": 25,
+    "minRetentionBeats": 2
+  },
+  "paramOverrides": {}
+}

@@ -1,0 +1,272 @@
+{
+  "$ref": "#/definitions/ClipAudioAnalysis",
+  "definitions": {
+    "ClipAudioAnalysis": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "clipId": {
+          "type": "string"
+        },
+        "durationSec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "voiceLufs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "energyCurve": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "rmsDb": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "startSec",
+              "endSec",
+              "rmsDb"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "silenceGaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "startSec",
+              "endSec",
+              "durationSec"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timeSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "strength": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "timeSec",
+              "strength"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "musicBedRecommendation": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "mood": {
+                  "type": "string"
+                },
+                "trackId": {
+                  "type": "string"
+                },
+                "bpm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "mood"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cutSuggestions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timeSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string"
+              },
+              "strength": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "timeSec",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "analysisMode": {
+          "type": "string",
+          "enum": [
+            "librosa",
+            "ffmpeg",
+            "ffmpeg_astats",
+            "stub",
+            "speech_onsets",
+            "musical_beats"
+          ]
+        },
+        "estimatedBpm": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audioEvents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "label": {
+                "type": "string"
+              },
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "editorialTag": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "startSec",
+              "endSec",
+              "label",
+              "score"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "editorialTags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tag": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "peakScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "totalDurationSec": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "tag",
+              "count",
+              "peakScore",
+              "totalDurationSec"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "eventDetectionMode": {
+          "type": "string",
+          "enum": [
+            "panns",
+            "stub",
+            "none"
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "clipId",
+        "durationSec",
+        "voiceLufs",
+        "analysisMode"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -1,0 +1,10 @@
+{
+  "sceneId": "clip01_scene001",
+  "summary": "Powitanie widzów w pokoju.",
+  "mood": "luźny",
+  "keyMoments": ["cześć"],
+  "brollPotential": 0.15,
+  "topics": ["twarz", "pokój"],
+  "visualQuality": "high",
+  "stability": "stable"
+}

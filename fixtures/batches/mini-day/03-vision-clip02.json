@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "clipId": "clip02",
+  "captions": [
+    {
+      "timestampSec": 5,
+      "sceneId": "clip02_scene001",
+      "caption": "apetyczne danie na białym talerzu, restauracja w tle",
+      "tags": ["jedzenie", "restauracja"]
+    },
+    {
+      "timestampSec": 12,
+      "sceneId": "clip02_scene001",
+      "caption": "zbliżenie na makaron z parmezanem i ziołami",
+      "tags": ["jedzenie", "makaron"]
+    },
+    {
+      "timestampSec": 20,
+      "sceneId": "clip02_scene001",
+      "caption": "widełki podnoszą porcję jedzenia, płytka głębia ostrości",
+      "tags": ["jedzenie", "zbliżenie"]
+    },
+    {
+      "timestampSec": 30,
+      "sceneId": "clip02_scene001",
+      "caption": "wnętrze restauracji, ciepłe oświetlenie, stoliki i dekoracje",
+      "tags": ["restauracja", "wnętrze"]
+    }
+  ]
+}

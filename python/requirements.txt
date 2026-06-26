@@ -1,0 +1,22 @@
+# Zależności Python dla pipeline analizy wideo.
+# Bez python3 pipeline nie uruchomi scene detection.
+#
+# Wymagane (Florence-2 — krok objects, domyślnie live):
+torch>=2.0
+torchvision
+transformers>=4.40
+pillow
+
+# Detekcja twarzy na keyframes (krok spatial_index, domyślnie live — OpenCV Haar):
+opencv-python-headless>=4.8
+# mediapipe>=0.10  # opcjonalnie — wyższa jakość, wymaga też opencv
+
+# Audio analysis (krok audio_analysis, domyślnie live):
+librosa>=0.10
+soundfile>=0.12
+
+# Audio event tagging — AudioSet CNN14 (PANNs SED); opcjonalne, zalecane dla editorialTags (śmiech, uderzenia):
+panns_inference>=0.1.0
+
+# Opcjonalne — lokalny Qwen2.5-VL (--vision-live); pip install mlx-vlm
+# mlx-vlm

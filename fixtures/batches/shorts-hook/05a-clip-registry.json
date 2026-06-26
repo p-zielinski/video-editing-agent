@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "batchId": "shook01",
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "hook_clip.MOV",
+      "durationSec": 55,
+      "sortIndex": 0,
+      "clipRole": "aroll_primary",
+      "roleConfidence": 0.75,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 9,
+      "visualSummary": "szokujący hook do kamery — obiekty: person, face",
+      "topics": [
+        "person",
+        "face",
+        "hook"
+      ],
+      "visualQuality": "medium",
+      "excludeFromMainStory": false,
+      "excludeReason": null
+    }
+  ]
+}

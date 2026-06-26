@@ -1,0 +1,7 @@
+{
+  "segmentId": "seg001",
+  "startSec": 0,
+  "endSec": 120,
+  "sceneIds": ["clip01_scene001", "clip01_scene002"],
+  "summary": "Cały klip — intro i spacer."
+}

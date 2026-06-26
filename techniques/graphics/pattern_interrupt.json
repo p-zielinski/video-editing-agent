@@ -1,0 +1,24 @@
+{
+  "id": "pattern_interrupt",
+  "version": "1.0",
+  "category": "graphics",
+  "label": "Pattern interrupt",
+  "description": "Pakiet resetu uwagi: cut + zoom LUB tekst — retention beat.",
+  "platforms": ["shorts"],
+  "trendTags": ["shorts", "retention", "high_energy"],
+  "params": {
+    "mode": {
+      "type": "enum",
+      "values": ["cut_zoom", "cut_text", "zoom_text"],
+      "default": "cut_zoom"
+    }
+  },
+  "constraints": {
+    "requiresOutputKind": "short",
+    "requiresCreativityLevel": "shorts",
+    "minGapFromSameTechniqueSec": 18
+  },
+  "whenToUse": "Co 20–30 s — reset scrolla, zmiana tempa przed spadkiem retencji.",
+  "whenToAvoid": "Spokojna narracja bez short output.",
+  "syncHints": ["beat", "word_emphasis"]
+}

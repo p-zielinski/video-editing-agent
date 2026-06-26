@@ -1,0 +1,23 @@
+{
+  "id": "cut_mid_sentence",
+  "version": "1.0",
+  "category": "edit",
+  "label": "Cut mid-sentence",
+  "description": "Cięcie w połowie zdania — agresywny styl montażu.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["jump_cut_style", "bold"],
+  "params": {
+    "energy": { "type": "enum", "values": ["low", "medium", "high"], "default": "medium" }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 8,
+    "maxPerOutputMinutes": 0.5,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "bold",
+    "allowMidSentenceCuts": true
+  },
+  "whenToUse": "Energiczny vlog, usuwanie wypełniaczy, shorts.",
+  "whenToAvoid": "Bez creativityProfile.allowMidSentenceCuts, spokojna narracja.",
+  "syncHints": ["word_boundary", "filler_removal"]
+}

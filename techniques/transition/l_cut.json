@@ -1,0 +1,22 @@
+{
+  "id": "l_cut",
+  "version": "1.0",
+  "category": "transition",
+  "label": "L-cut",
+  "description": "Wideo z następnego segmentu pod kontynuacją audio.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["professional"],
+  "params": {
+    "overlapSec": { "type": "number", "min": 0.3, "max": 3, "default": 1.0 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 15,
+    "maxPerOutputMinutes": 0.3,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Wyjście z B-roll z kontynuacją narracji.",
+  "whenToAvoid": "Niespójne audio/wideo refs.",
+  "syncHints": ["broll_outro"]
+}

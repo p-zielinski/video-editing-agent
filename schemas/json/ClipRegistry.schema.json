@@ -1,0 +1,118 @@
+{
+  "$ref": "#/definitions/ClipRegistry",
+  "definitions": {
+    "ClipRegistry": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "clipRegistry": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clipId": {
+                "type": "string"
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "sortIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "clipRole": {
+                "type": "string",
+                "enum": [
+                  "aroll_primary",
+                  "aroll_secondary",
+                  "broll_pool",
+                  "outtakes",
+                  "undecided"
+                ]
+              },
+              "roleConfidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "roleSource": {
+                "type": "string",
+                "enum": [
+                  "clip_profile",
+                  "context_override",
+                  "director"
+                ]
+              },
+              "hasSpeech": {
+                "type": "boolean"
+              },
+              "speechWordCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "visualSummary": {
+                "type": "string"
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "audioTags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "visualQuality": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "excludeFromMainStory": {
+                "type": "boolean"
+              },
+              "excludeReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "clipId",
+              "fileName",
+              "durationSec",
+              "sortIndex",
+              "clipRole",
+              "hasSpeech",
+              "speechWordCount"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "clipRegistry"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

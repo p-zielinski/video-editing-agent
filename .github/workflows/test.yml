@@ -1,0 +1,59 @@
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ffmpeg — extract audio, keyframes, loudness measurement
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # Python 3.11 for pipeline scripts. CI installs only librosa + soundfile so
+      # audio preflight smoke passes without pulling torch/Florence (~GB downloads).
+      # Full stack: pip install -r python/requirements.txt (local/dev).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal Python deps (audio CI smoke)
+        run: pip install "librosa>=0.10" "soundfile>=0.12"
+
+      # Optional — full requirements include torch, transformers, panns_inference;
+      # too heavy/slow for required CI; kept as smoke signal only.
+      - name: Install full Python requirements (optional, non-blocking)
+        continue-on-error: true
+        run: pip install -r python/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      # Optional — mirrors orchestrator audioLive preflight (librosa + soundfile required;
+      # torch/opencv/PANNs warn only when vision/objects/face/audio-event modes are off).
+      - name: Python audio preflight smoke (optional)
+        continue-on-error: true
+        run: |
+          node -e "import('./src/lib/python-bridge.js').then(m => m.checkPythonPreflight({visionLive:false,objectsLive:false,audioLive:true,faceLive:false})).then(r => console.log('preflight OK', r)).catch(e => { console.error(e); process.exit(1); })"
+
+      - run: npm test
+
+      - run: npm run test:e2e
+
+      - run: npm run export-schemas
+
+      - name: Check schema export drift
+        run: |
+          if ! git diff --exit-code schemas/json; then
+            echo "::error::schemas/json is out of date — run npm run export-schemas and commit"
+            exit 1
+          fi

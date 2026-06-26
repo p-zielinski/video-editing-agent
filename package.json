@@ -1,0 +1,41 @@
+{
+  "name": "video-editing-agent",
+  "version": "0.1.0",
+  "description": "Analiza wideo i reżyseria AI (bez montażu) — Whisper, Qwen2.5-VL, GPT director",
+  "type": "module",
+  "main": "src/cli.js",
+  "bin": {
+    "video-editing-agent": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "run": "node src/cli.js run",
+    "analyze": "node src/cli.js analyze",
+    "direct": "node src/cli.js direct",
+    "full": "node src/cli.js full",
+    "test": "node --test $(find src tests -name '*.test.js' 2>/dev/null | sort)",
+    "test:e2e": "node --test tests/e2e/*.test.js",
+    "export-schemas": "node src/schemas/export-json-schema.js"
+  },
+  "keywords": [
+    "video",
+    "whisper",
+    "ai",
+    "editing",
+    "director"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0 <=22.x"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "openai": "^4.77.0",
+    "sharp": "^0.35.2",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0"
+  }
+}

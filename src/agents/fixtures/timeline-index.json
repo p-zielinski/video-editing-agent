@@ -1,0 +1,49 @@
+{
+  "version": "1.0",
+  "batchId": "testbatch",
+  "userContext": "vlog dzień 66/100",
+  "clips": [
+    { "clipId": "clip01", "sourcePath": "/inbox/clip01.mp4", "durationSec": 120 }
+  ],
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "startSec": 0,
+      "endSec": 60,
+      "durationSec": 60,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "startSec": 60,
+      "endSec": 120,
+      "durationSec": 60,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "hasSpeech": true,
+      "cutScore": 0.42
+    }
+  ],
+  "words": [
+    { "wordId": "clip01_w001", "word": "cześć", "start": 1, "end": 1.4, "isFiller": false },
+    { "wordId": "clip01_w002", "word": "yyy", "start": 2, "end": 2.3, "isFiller": true },
+    { "wordId": "clip01_w003", "word": "świat", "start": 65, "end": 65.5, "isFiller": false }
+  ],
+  "keyframes": [],
+  "visionCaptions": [
+    { "timestampSec": 5, "sceneId": "clip01_scene001", "caption": "vlog w pokoju" }
+  ],
+  "objectDetections": [],
+  "stats": {
+    "totalDurationSec": 120,
+    "totalWords": 3,
+    "totalScenes": 2,
+    "fillerWordCount": 1
+  }
+}

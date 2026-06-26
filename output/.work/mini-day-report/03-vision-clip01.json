@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "clipId": "clip01",
+  "captions": [
+    {
+      "timestampSec": 8,
+      "sceneId": "clip01_scene001",
+      "caption": "vloger mówi do kamery przy stoliku w restauracji, rozmyte tło sali",
+      "tags": ["restauracja", "osoba", "vlog"]
+    },
+    {
+      "timestampSec": 42,
+      "sceneId": "clip01_scene001",
+      "caption": "zbliżenie na twarz vlogera, gestykuluje opisując menu",
+      "tags": ["twarz", "restauracja"]
+    },
+    {
+      "timestampSec": 110,
+      "sceneId": "clip01_scene002",
+      "caption": "vloger podsumowuje wizytę, uśmiecha się do kamery po posiłku",
+      "tags": ["restauracja", "podsumowanie"]
+    }
+  ]
+}

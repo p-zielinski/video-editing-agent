@@ -1,0 +1,70 @@
+{
+  "$ref": "#/definitions/ReviewResult",
+  "definitions": {
+    "ReviewResult": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "iteration": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "approved": {
+          "type": "boolean"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "error",
+                  "warning",
+                  "suggestion"
+                ]
+              },
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "outputId": {
+                "type": "string"
+              },
+              "sceneId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "severity",
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "iteration",
+        "approved"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

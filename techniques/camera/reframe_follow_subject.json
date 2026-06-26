@@ -1,0 +1,23 @@
+{
+  "id": "reframe_follow_subject",
+  "version": "1.0",
+  "category": "camera",
+  "label": "Reframe follow subject",
+  "description": "Kadrowanie na twarz/obiekt — szczególnie 9:16.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["vertical", "talking_head"],
+  "params": {
+    "anchor": { "type": "enum", "values": ["face", "subject", "center"], "default": "face" },
+    "padding": { "type": "number", "min": 0.05, "max": 0.3, "default": 0.12 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.2,
+    "requiresSpatialAnchor": true,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Konwersja 16:9 → 9:16, śledzenie mówcy.",
+  "whenToAvoid": "Grupa osób bez wyraźnego tematu.",
+  "syncHints": ["segment_start"]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "shorts_energy",
+  "version": "1.0",
+  "label": "Shorts energy",
+  "description": "Pack dla krótkich form 9:16 z wysoką gęstością montażu.",
+  "platforms": ["shorts"],
+  "enabledTechniqueIds": [
+    "snap_zoom",
+    "zoom_punch_in",
+    "reframe_follow_subject",
+    "cut_on_beat",
+    "cut_mid_sentence",
+    "jump_cut",
+    "hard_cut_energy",
+    "whip_pan",
+    "j_cut",
+    "l_cut",
+    "music_swell",
+    "music_drop"
+  ],
+  "defaultCreativityLevel": "shorts",
+  "paramOverrides": {}
+}

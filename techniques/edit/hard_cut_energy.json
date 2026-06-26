@@ -1,0 +1,22 @@
+{
+  "id": "hard_cut_energy",
+  "version": "1.0",
+  "category": "edit",
+  "label": "Hard cut (energy)",
+  "description": "Ostre cięcie bez dissolve — podbicie energii.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["high_energy"],
+  "params": {
+    "preRollSec": { "type": "number", "min": 0, "max": 0.5, "default": 0 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 2,
+    "maxPerOutputMinutes": 1.5,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Zmiana tematu, punchline, przejście do B-roll.",
+  "whenToAvoid": "Delikatne momenty emocjonalne wymagające crossfade.",
+  "syncHints": ["beat", "topic_change"]
+}

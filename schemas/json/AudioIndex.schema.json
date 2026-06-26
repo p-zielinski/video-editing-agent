@@ -1,0 +1,182 @@
+{
+  "$ref": "#/definitions/AudioIndex",
+  "definitions": {
+    "AudioIndex": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "clips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clipId": {
+                "type": "string"
+              },
+              "voiceLufs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "beatCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "silenceGapCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalSilenceSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "recommendedTrackId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "estimatedBpm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "beatTimes": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "default": []
+              },
+              "audioEventCount": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0
+              },
+              "editorialTags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "eventDetectionMode": {
+                "type": "string",
+                "enum": [
+                  "panns",
+                  "stub",
+                  "none"
+                ]
+              }
+            },
+            "required": [
+              "clipId",
+              "voiceLufs",
+              "beatCount",
+              "silenceGapCount",
+              "totalSilenceSec"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "batchSummary": {
+          "type": "object",
+          "properties": {
+            "avgVoiceLufs": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "totalSilenceSec": {
+              "type": "number",
+              "minimum": 0
+            },
+            "dominantMood": {
+              "type": "string"
+            },
+            "estimatedBpm": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "clipCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "eventDetectionMode": {
+              "type": "string",
+              "enum": [
+                "panns",
+                "stub",
+                "none"
+              ]
+            }
+          },
+          "required": [
+            "avgVoiceLufs",
+            "totalSilenceSec",
+            "clipCount"
+          ],
+          "additionalProperties": false
+        },
+        "musicLibrary": {
+          "type": "object",
+          "properties": {
+            "trackCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tracks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "trackId": {
+                    "type": "string"
+                  },
+                  "mood": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "bpm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "trackId",
+                  "mood",
+                  "bpm"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "trackCount"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "clips",
+        "batchSummary",
+        "musicLibrary"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

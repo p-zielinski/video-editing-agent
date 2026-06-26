@@ -1,0 +1,118 @@
+{
+  "version": "2.2",
+  "batchId": "shook01",
+  "batchContext": {
+    "requiredFormats": ["16:9", "9:16"]
+  },
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "hook_clip.MOV",
+      "durationSec": 55,
+      "sortIndex": 0,
+      "clipRole": "aroll_primary",
+      "roleConfidence": 0.75,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 9
+    }
+  ],
+  "outputs": [
+    {
+      "outputId": "main_16x9",
+      "format": "16:9",
+      "outputKind": "main",
+      "title": "Main",
+      "timeline": [
+        {
+          "segmentId": "m1",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoInSec": 0,
+          "videoOutSec": 50,
+          "audioInSec": 0,
+          "audioOutSec": 50,
+          "audioPolicy": "from_video_ref",
+          "outputEndSec": 50
+        }
+      ]
+    },
+    {
+      "outputId": "short_9x16",
+      "format": "9:16",
+      "outputKind": "short",
+      "title": "Short hook",
+      "targetDurationSec": 45,
+      "timeline": [
+        {
+          "segmentId": "s1",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoInSec": 0,
+          "videoOutSec": 45,
+          "audioInSec": 0,
+          "audioOutSec": 45,
+          "audioPolicy": "from_video_ref",
+          "outputEndSec": 45
+        }
+      ]
+    }
+  ],
+  "excluded": [],
+  "sceneUsageRegistry": [],
+  "creativityProfile": {
+    "level": "shorts",
+    "techniquePack": "shorts_retention_2026",
+    "allowMidSentenceCuts": true,
+    "maxTechniqueDensityPerMin": 2
+  },
+  "shortsRetentionProfile": {
+    "enabled": true,
+    "hookWindowSec": 3,
+    "retentionBeatIntervalSec": 25,
+    "retentionBeatToleranceSec": 5,
+    "minRetentionBeats": 2,
+    "requireHookMoment": true,
+    "requireHookOverlay": true
+  },
+  "creativeMoments": [
+    {
+      "momentId": "cm_hook",
+      "techniqueId": "snap_zoom",
+      "outputId": "short_9x16",
+      "outputStartSec": 0.5,
+      "outputEndSec": 2,
+      "retentionRole": "hook",
+      "reason": "Hook wizualny"
+    },
+    {
+      "momentId": "cm_hook_text",
+      "techniqueId": "hook_title_overlay",
+      "outputId": "short_9x16",
+      "outputStartSec": 0,
+      "outputEndSec": 2.5,
+      "retentionRole": "hook",
+      "reason": "Hook tekstowy"
+    },
+    {
+      "momentId": "cm_beat1",
+      "techniqueId": "pattern_interrupt",
+      "outputId": "short_9x16",
+      "outputStartSec": 24,
+      "outputEndSec": 26,
+      "retentionRole": "beat",
+      "reason": "Beat 1"
+    },
+    {
+      "momentId": "cm_beat2",
+      "techniqueId": "retention_beat",
+      "outputId": "short_9x16",
+      "outputStartSec": 40,
+      "outputEndSec": 42,
+      "retentionRole": "beat",
+      "reason": "Beat 2"
+    }
+  ]
+}

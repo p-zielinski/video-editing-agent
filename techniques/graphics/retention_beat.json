@@ -1,0 +1,20 @@
+{
+  "id": "retention_beat",
+  "version": "1.0",
+  "category": "graphics",
+  "label": "Retention beat",
+  "description": "Meta-zabieg: dowolny moment oznaczony jako beat retencji na osi shorta.",
+  "platforms": ["shorts"],
+  "trendTags": ["shorts", "retention"],
+  "params": {
+    "linkedTechniqueId": { "type": "string", "default": "pattern_interrupt" }
+  },
+  "constraints": {
+    "requiresOutputKind": "short",
+    "requiresCreativityLevel": "shorts",
+    "minGapFromSameTechniqueSec": 15
+  },
+  "whenToUse": "Oznacz beat retencji — zoom, cut lub tekst w cadence 20–30 s.",
+  "whenToAvoid": "Output main 16:9.",
+  "syncHints": ["beat"]
+}

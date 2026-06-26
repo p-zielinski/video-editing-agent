@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "batchId": "shook01",
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "anchors": [
+        {
+          "type": "face",
+          "bbox": [
+            0.4,
+            0.15,
+            0.6,
+            0.35
+          ],
+          "timestampSec": 1.2,
+          "label": "face",
+          "confidence": 0.85
+        },
+        {
+          "type": "subject",
+          "bbox": [
+            0.3,
+            0.1,
+            0.7,
+            0.9
+          ],
+          "timestampSec": 1,
+          "label": "person",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "clipId": "clip01",
+      "anchors": []
+    }
+  ]
+}

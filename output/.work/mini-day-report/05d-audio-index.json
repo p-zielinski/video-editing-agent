@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "batchId": "miniday1",
+  "clips": [
+    {
+      "clipId": "clip01",
+      "voiceLufs": -17.2,
+      "beatCount": 360,
+      "silenceGapCount": 1,
+      "totalSilenceSec": 1.2,
+      "recommendedTrackId": "upbeat_vlog_01",
+      "estimatedBpm": 120,
+      "beatTimes": [0.5, 1.0, 1.5]
+    },
+    {
+      "clipId": "clip02",
+      "voiceLufs": null,
+      "beatCount": 90,
+      "silenceGapCount": 0,
+      "totalSilenceSec": 0,
+      "recommendedTrackId": "calm_reflective_01",
+      "estimatedBpm": 85,
+      "beatTimes": [0.5]
+    }
+  ],
+  "batchSummary": {
+    "avgVoiceLufs": -17.2,
+    "totalSilenceSec": 1.2,
+    "dominantMood": "vlog",
+    "estimatedBpm": 102,
+    "clipCount": 2
+  },
+  "musicLibrary": {
+    "trackCount": 3,
+    "tracks": [
+      { "trackId": "upbeat_vlog_01", "mood": ["upbeat", "vlog", "energetic"], "bpm": 120 },
+      { "trackId": "calm_reflective_01", "mood": ["calm", "reflective", "soft"], "bpm": 85 },
+      { "trackId": "shorts_energy_01", "mood": ["shorts", "energetic", "hook"], "bpm": 128 }
+    ]
+  }
+}

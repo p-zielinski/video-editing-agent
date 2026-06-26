@@ -1,0 +1,84 @@
+{
+  "version": "2.0",
+  "batchId": "testbatch",
+  "batchContext": {
+    "inputMode": "single_clip",
+    "theme": "vlog",
+    "qualityOverQuantity": true,
+    "targetPlatforms": ["youtube"],
+    "requiredFormats": ["16:9", "9:16"],
+    "brollStrategy": "match_speech_topics",
+    "brollMatchThreshold": 0.55,
+    "allowBrollReuse": false,
+    "maxBrollSegmentsPerOutput": 30,
+    "shortsStrategy": "standalone_highlights",
+    "shortsMaxDurationSec": 60
+  },
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "clip01.mp4",
+      "durationSec": 120,
+      "sortIndex": 0,
+      "clipRole": "aroll_primary",
+      "roleConfidence": 0.75,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 3
+    }
+  ],
+  "outputs": [
+    {
+      "outputId": "horizontal_main",
+      "format": "16:9",
+      "outputKind": "main",
+      "targetDurationSec": 60,
+      "title": "Vlog skrót",
+      "synopsis": "Najlepsze momenty",
+      "timeline": [
+        {
+          "segmentId": "seg_h1",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoInSec": 0,
+          "videoOutSec": 30,
+          "audioInSec": 0,
+          "audioOutSec": 30,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": []
+        }
+      ],
+      "chapterMarkers": []
+    },
+    {
+      "outputId": "vertical_main",
+      "format": "9:16",
+      "outputKind": "main",
+      "targetDurationSec": 45,
+      "title": "Short",
+      "timeline": [
+        {
+          "segmentId": "seg_v1",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene002" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene002" },
+          "videoInSec": 60,
+          "videoOutSec": 90,
+          "audioInSec": 60,
+          "audioOutSec": 90,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": []
+        }
+      ],
+      "chapterMarkers": []
+    }
+  ],
+  "excluded": [],
+  "sceneUsageRegistry": [],
+  "needsHumanReview": false
+}

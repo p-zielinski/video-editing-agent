@@ -1,0 +1,24 @@
+{
+  "id": "ken_burns_light",
+  "version": "1.0",
+  "category": "camera",
+  "label": "Ken Burns (light)",
+  "description": "Lekki ruch na statycznym B-roll.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["broll", "photo_style"],
+  "params": {
+    "startScale": { "type": "number", "min": 1.0, "max": 1.1, "default": 1.0 },
+    "endScale": { "type": "number", "min": 1.05, "max": 1.2, "default": 1.08 },
+    "panDirection": { "type": "enum", "values": ["left", "right", "up", "down", "none"], "default": "right" }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 20,
+    "maxPerOutputMinutes": 0.25,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": ["aroll"],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Statyczne ujęcia B-roll, zdjęcia, ekrany.",
+  "whenToAvoid": "A-roll z ruchem kamery.",
+  "syncHints": ["broll_segment"]
+}

@@ -1,0 +1,15 @@
+{
+  "description": "Golden validation expectations for mini-day pre-render E2E",
+  "expectedErrorCount": 0,
+  "exercisedValidatorCodes": [
+    "MISSING_REQUIRED_FORMAT",
+    "INVALID_EXCLUSION",
+    "SCENE_DUPLICATE_IN_OUTPUT",
+    "SCENE_REUSE_SAME_FORMAT",
+    "BROLL_SCENE_NOT_IN_TOPIC_INDEX",
+    "AUDIO_POLICY_VIOLATION",
+    "INVALID_TIME_RANGE",
+    "SOURCE_REF_IN_V2_SEGMENT"
+  ],
+  "allowedWarningCodes": []
+}

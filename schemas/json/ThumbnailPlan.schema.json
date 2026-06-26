@@ -1,0 +1,191 @@
+{
+  "$ref": "#/definitions/ThumbnailPlan",
+  "definitions": {
+    "ThumbnailPlan": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "publishVoice": {
+          "type": "object",
+          "properties": {
+            "thumbnailVoice": {
+              "type": "string",
+              "enum": [
+                "loud",
+                "balanced"
+              ],
+              "default": "loud"
+            },
+            "titleVoice": {
+              "type": "string",
+              "enum": [
+                "loud",
+                "curious",
+                "lowercase_casual"
+              ],
+              "default": "lowercase_casual"
+            },
+            "descriptionVoice": {
+              "type": "string",
+              "enum": [
+                "marketing",
+                "lowercase_casual",
+                "utility"
+              ],
+              "default": "lowercase_casual"
+            },
+            "descriptionRules": {
+              "type": "object",
+              "properties": {
+                "maxSentences": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "default": 2
+                },
+                "noClickbait": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "noQuestions": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "allLowercase": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "noExclamation": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "noRepeatHeadline": {
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false,
+              "default": {}
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "outputId": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16"
+                ]
+              },
+              "variants": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "variantId": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": [
+                        "safe",
+                        "controlled",
+                        "risk"
+                      ]
+                    },
+                    "sourceRef": {
+                      "type": "object",
+                      "properties": {
+                        "clipId": {
+                          "type": "string"
+                        },
+                        "sceneId": {
+                          "type": "string"
+                        },
+                        "timestampSec": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "clipId",
+                        "sceneId",
+                        "timestampSec"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "headline": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "titleVariant": {
+                      "type": "string",
+                      "maxLength": 120
+                    },
+                    "descriptionVariant": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "style": {
+                      "type": "string",
+                      "enum": [
+                        "frame_only",
+                        "frame_plus_text",
+                        "frame_text_accent"
+                      ]
+                    },
+                    "rationale": {
+                      "type": "string"
+                    },
+                    "renderedPath": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "variantId",
+                    "strategy",
+                    "sourceRef",
+                    "headline",
+                    "titleVariant",
+                    "style",
+                    "rationale"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 3,
+                "maxItems": 3
+              }
+            },
+            "required": [
+              "outputId",
+              "format",
+              "variants"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "outputs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

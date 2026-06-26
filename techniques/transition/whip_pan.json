@@ -1,0 +1,23 @@
+{
+  "id": "whip_pan",
+  "version": "1.0",
+  "category": "transition",
+  "label": "Whip pan",
+  "description": "Dynamiczne przejście ruchem — styl shorts.",
+  "platforms": ["shorts"],
+  "trendTags": ["shorts", "high_energy"],
+  "params": {
+    "direction": { "type": "enum", "values": ["left", "right", "up", "down"], "default": "right" },
+    "durationSec": { "type": "number", "min": 0.15, "max": 0.5, "default": 0.25 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 8,
+    "maxPerOutputMinutes": 0.2,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "shorts"
+  },
+  "whenToUse": "Szybkie shorts, zmiana ujęcia z energią.",
+  "whenToAvoid": "Długi vlog, spokojna narracja.",
+  "syncHints": ["beat"]
+}

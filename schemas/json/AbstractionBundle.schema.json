@@ -1,0 +1,156 @@
+{
+  "$ref": "#/definitions/AbstractionBundle",
+  "definitions": {
+    "AbstractionBundle": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "L1": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sceneId": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "mood": {
+                "type": "string"
+              },
+              "keyMoments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "brollPotential": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.5
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "visualQuality": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "default": "medium"
+              },
+              "stability": {
+                "type": "string",
+                "enum": [
+                  "stable",
+                  "shaky",
+                  "unknown"
+                ],
+                "default": "unknown"
+              }
+            },
+            "required": [
+              "sceneId",
+              "summary"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "L2": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "segmentId": {
+                "type": "string"
+              },
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "sceneIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "segmentId",
+              "startSec",
+              "endSec",
+              "sceneIds",
+              "summary"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "L3": {
+          "type": "object",
+          "properties": {
+            "sessionSummary": {
+              "type": "string"
+            },
+            "narrativeArc": {
+              "type": "string"
+            },
+            "recommendedFormats": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16"
+                ]
+              },
+              "default": [
+                "16:9",
+                "9:16"
+              ]
+            },
+            "estimatedKeepRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "sessionSummary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

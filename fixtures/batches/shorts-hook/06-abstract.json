@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "batchId": "shook01",
+  "L1": [
+    {
+      "sceneId": "clip01_scene001",
+      "summary": "Hook — nie uwierzysz co się stało.",
+      "mood": "szok",
+      "keyMoments": ["nie uwierzysz"],
+      "topics": ["hook"],
+      "brollPotential": 0.1,
+      "visualQuality": "high",
+      "stability": "stable"
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "summary": "Payoff — potem wszystko się zmieniło.",
+      "mood": "napięcie",
+      "keyMoments": ["zmieniło"],
+      "topics": ["payoff"],
+      "brollPotential": 0.1,
+      "visualQuality": "high",
+      "stability": "stable"
+    }
+  ],
+  "L2": [
+    {
+      "segmentId": "seg001",
+      "startSec": 0,
+      "endSec": 55,
+      "sceneIds": ["clip01_scene001", "clip01_scene002"],
+      "summary": "Krótki short z hookiem i payoffem."
+    }
+  ],
+  "L3": {
+    "sessionSummary": "Short retention test — hook w 0-3s.",
+    "narrativeArc": "hook → payoff",
+    "recommendedFormats": ["9:16"],
+    "estimatedKeepRatio": 0.8
+  }
+}

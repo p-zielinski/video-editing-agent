@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "batchId": "shook01",
+  "topics": [
+    {
+      "topicId": "topic_001",
+      "label": "Short retention test — hook w 0-3s.",
+      "wordIds": [
+        "clip01_w001",
+        "clip01_w002",
+        "clip01_w003",
+        "clip01_w004",
+        "clip01_w005",
+        "clip01_w006",
+        "clip01_w007",
+        "clip01_w008",
+        "clip01_w009"
+      ],
+      "timeRange": {
+        "clipId": "clip01",
+        "startSec": 0.5,
+        "endSec": 34.8
+      },
+      "matchingScenes": []
+    }
+  ]
+}

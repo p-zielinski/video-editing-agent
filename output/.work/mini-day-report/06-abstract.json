@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "batchId": "miniday1",
+  "L1": [
+    {
+      "sceneId": "clip01_scene001",
+      "summary": "Intro vloga — idziemy do restauracji w mieście.",
+      "mood": "luźny",
+      "keyMoments": ["restauracji", "jedzenie"],
+      "topics": ["restauracja", "jedzenie"],
+      "brollPotential": 0.2,
+      "visualQuality": "high",
+      "stability": "stable"
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "summary": "Podsumowanie wizyty w restauracji.",
+      "mood": "zadowolony",
+      "keyMoments": ["restauracja", "super"],
+      "topics": ["restauracja"],
+      "brollPotential": 0.15,
+      "visualQuality": "medium",
+      "stability": "stable"
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "summary": "B-roll jedzenia i wnętrza restauracji.",
+      "mood": "apetyczny",
+      "keyMoments": ["jedzenie"],
+      "topics": ["jedzenie", "restauracja"],
+      "brollPotential": 0.95,
+      "visualQuality": "high",
+      "stability": "stable"
+    }
+  ],
+  "L2": [
+    {
+      "segmentId": "seg001",
+      "startSec": 0,
+      "endSec": 90,
+      "sceneIds": ["clip01_scene001"],
+      "summary": "Rozmowa o restauracji i jedzeniu w mieście."
+    },
+    {
+      "segmentId": "seg002",
+      "startSec": 90,
+      "endSec": 180,
+      "sceneIds": ["clip01_scene002"],
+      "summary": "Podsumowanie wizyty — restauracja była super."
+    }
+  ],
+  "L3": {
+    "sessionSummary": "Vlog o restauracji i jedzeniu w mieście.",
+    "narrativeArc": "intro → restauracja → podsumowanie",
+    "recommendedFormats": ["16:9", "9:16"],
+    "estimatedKeepRatio": 0.35
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "clipId": "clip01",
+  "detections": [
+    {
+      "sceneId": "clip01_scene001",
+      "label": "person",
+      "confidence": 0.88,
+      "timestampSec": 8,
+      "bbox": [0.35, 0.15, 0.55, 0.85]
+    },
+    {
+      "sceneId": "clip01_scene001",
+      "label": "face",
+      "confidence": 0.75,
+      "timestampSec": 8.5,
+      "bbox": [0.4, 0.2, 0.5, 0.4]
+    }
+  ]
+}

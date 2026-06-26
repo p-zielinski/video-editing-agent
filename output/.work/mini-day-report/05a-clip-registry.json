@@ -1,0 +1,47 @@
+{
+  "version": "1.0",
+  "batchId": "miniday1",
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "01_talk.MOV",
+      "durationSec": 180,
+      "sortIndex": 0,
+      "clipRole": "aroll_primary",
+      "roleConfidence": 0.75,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 13,
+      "visualSummary": "vlog w restauracji — obiekty: person, face",
+      "topics": [
+        "person",
+        "face",
+        "restauracja"
+      ],
+      "visualQuality": "medium",
+      "excludeFromMainStory": false,
+      "excludeReason": null
+    },
+    {
+      "clipId": "clip02",
+      "fileName": "02_broll.MOV",
+      "durationSec": 45,
+      "sortIndex": 1,
+      "clipRole": "broll_pool",
+      "roleConfidence": 0.7,
+      "roleSource": "clip_profile",
+      "hasSpeech": false,
+      "speechWordCount": 0,
+      "visualSummary": "jedzenie na talerzu; zbliżenie na danie; wnętrze restauracji — obiekty: food, plate",
+      "topics": [
+        "food",
+        "plate",
+        "jedzenie",
+        "restauracja"
+      ],
+      "visualQuality": "high",
+      "excludeFromMainStory": false,
+      "excludeReason": null
+    }
+  ]
+}

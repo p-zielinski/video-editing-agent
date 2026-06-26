@@ -1,0 +1,18 @@
+{
+  "clipId": "clip01",
+  "words": [
+    { "wordId": "clip01_w001", "word": "cześć", "start": 2, "end": 2.4, "isFiller": false },
+    { "wordId": "clip01_w002", "word": "dzisiaj", "start": 3, "end": 3.5, "isFiller": false },
+    { "wordId": "clip01_w003", "word": "idziemy", "start": 4, "end": 4.5, "isFiller": false },
+    { "wordId": "clip01_w004", "word": "do", "start": 4.6, "end": 4.8, "isFiller": false },
+    { "wordId": "clip01_w005", "word": "restauracji", "start": 5, "end": 5.8, "isFiller": false },
+    { "wordId": "clip01_w006", "word": "w", "start": 6, "end": 6.2, "isFiller": false },
+    { "wordId": "clip01_w007", "word": "mieście", "start": 6.3, "end": 6.9, "isFiller": false },
+    { "wordId": "clip01_w008", "word": "jedzenie", "start": 12, "end": 12.6, "isFiller": false },
+    { "wordId": "clip01_w009", "word": "wygląda", "start": 13, "end": 13.5, "isFiller": false },
+    { "wordId": "clip01_w010", "word": "świetnie", "start": 13.6, "end": 14.2, "isFiller": false },
+    { "wordId": "clip01_w011", "word": "restauracja", "start": 95, "end": 95.8, "isFiller": false },
+    { "wordId": "clip01_w012", "word": "była", "start": 96, "end": 96.3, "isFiller": false },
+    { "wordId": "clip01_w013", "word": "super", "start": 96.5, "end": 97, "isFiller": false }
+  ]
+}

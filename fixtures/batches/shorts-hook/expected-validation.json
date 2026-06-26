@@ -1,0 +1,13 @@
+{
+  "description": "Golden validation expectations for shorts-hook retention E2E",
+  "expectedErrorCount": 0,
+  "exercisedValidatorCodes": [
+    "V22-01",
+    "V22-02",
+    "V22-03",
+    "V22-04",
+    "MISSING_REQUIRED_FORMAT",
+    "AUDIO_POLICY_VIOLATION"
+  ],
+  "allowedWarningCodes": []
+}

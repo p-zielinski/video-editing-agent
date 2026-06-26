@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "clipId": "clip01",
+  "keyframes": [
+    {
+      "timestampSec": 0,
+      "sceneId": "clip01_scene001",
+      "trigger": "speech",
+      "imagePath": "frames/clip01/frame-0000.jpg"
+    },
+    {
+      "timestampSec": 8,
+      "sceneId": "clip01_scene001",
+      "trigger": "speech",
+      "imagePath": "frames/clip01/frame-0001.jpg"
+    },
+    {
+      "timestampSec": 45,
+      "sceneId": "clip01_scene001",
+      "trigger": "scene_cut",
+      "imagePath": "frames/clip01/frame-0002.jpg"
+    },
+    {
+      "timestampSec": 93,
+      "sceneId": "clip01_scene002",
+      "trigger": "speech",
+      "imagePath": "frames/clip01/frame-0003.jpg"
+    },
+    {
+      "timestampSec": 135,
+      "sceneId": "clip01_scene002",
+      "trigger": "scene_cut",
+      "imagePath": "frames/clip01/frame-0004.jpg"
+    }
+  ]
+}

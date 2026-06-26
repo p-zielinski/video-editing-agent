@@ -1,0 +1,185 @@
+{
+  "$ref": "#/definitions/SceneCatalog",
+  "definitions": {
+    "SceneCatalog": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "clips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clipId": {
+                "type": "string"
+              },
+              "sourcePath": {
+                "type": "string"
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "creationTime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sortIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "aspectRatio": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16",
+                  "1:1",
+                  "4:3",
+                  "other"
+                ]
+              },
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "w": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "h": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "w",
+                  "h"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "clipId",
+              "sourcePath",
+              "fileName",
+              "durationSec",
+              "sortIndex"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sceneId": {
+                "type": "string"
+              },
+              "clipId": {
+                "type": "string"
+              },
+              "sourcePath": {
+                "type": "string"
+              },
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "aspectRatio": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16",
+                  "1:1",
+                  "4:3",
+                  "other"
+                ]
+              },
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "w": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "h": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "w",
+                  "h"
+                ],
+                "additionalProperties": false
+              },
+              "hasSpeech": {
+                "type": "boolean",
+                "default": false
+              },
+              "wordRange": {
+                "type": "object",
+                "properties": {
+                  "firstWordId": {
+                    "type": "string"
+                  },
+                  "lastWordId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "firstWordId",
+                  "lastWordId"
+                ],
+                "additionalProperties": false
+              },
+              "cutScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "sceneId",
+              "clipId",
+              "sourcePath",
+              "startSec",
+              "endSec",
+              "durationSec",
+              "aspectRatio",
+              "resolution"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "clips",
+        "scenes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

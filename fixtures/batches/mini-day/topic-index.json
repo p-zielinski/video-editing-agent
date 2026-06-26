@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "batchId": "miniday1",
+  "topics": [
+    {
+      "topicId": "topic_001",
+      "label": "restauracji",
+      "wordIds": [
+        "clip01_w005"
+      ],
+      "timeRange": {
+        "clipId": "clip01",
+        "startSec": 5,
+        "endSec": 5.8
+      },
+      "matchingScenes": [
+        {
+          "sceneId": "clip02_scene001",
+          "score": 0.585,
+          "reason": "brollPotential"
+        }
+      ]
+    },
+    {
+      "topicId": "topic_002",
+      "label": "mieście",
+      "wordIds": [
+        "clip01_w007"
+      ],
+      "timeRange": {
+        "clipId": "clip01",
+        "startSec": 6.3,
+        "endSec": 6.9
+      },
+      "matchingScenes": [
+        {
+          "sceneId": "clip02_scene001",
+          "score": 0.585,
+          "reason": "brollPotential"
+        }
+      ]
+    },
+    {
+      "topicId": "topic_003",
+      "label": "restauracja",
+      "wordIds": [
+        "clip01_w011"
+      ],
+      "timeRange": {
+        "clipId": "clip01",
+        "startSec": 95,
+        "endSec": 95.8
+      },
+      "matchingScenes": [
+        {
+          "sceneId": "clip02_scene001",
+          "score": 0.785,
+          "reason": "keyword: restauracja, brollPotential"
+        }
+      ]
+    }
+  ]
+}

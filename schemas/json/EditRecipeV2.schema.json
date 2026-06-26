@@ -1,0 +1,988 @@
+{
+  "$ref": "#/definitions/EditRecipeV2",
+  "definitions": {
+    "EditRecipeV2": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "enum": [
+            "2.0",
+            "2.1",
+            "2.2",
+            "2.3"
+          ]
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "batchContext": {
+          "type": "object",
+          "properties": {
+            "inputMode": {
+              "type": "string",
+              "enum": [
+                "single_clip",
+                "multi_clip_day",
+                "multi_clip_collection"
+              ]
+            },
+            "theme": {
+              "type": "string"
+            },
+            "dayLabel": {
+              "type": "string"
+            },
+            "challengeDay": {
+              "type": "string"
+            },
+            "targetPlatforms": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "string"
+            },
+            "qualityOverQuantity": {
+              "type": "boolean",
+              "default": true
+            },
+            "allowWholeClipExclusion": {
+              "type": "boolean",
+              "default": true
+            },
+            "brollStrategy": {
+              "type": "string",
+              "enum": [
+                "match_speech_topics",
+                "chronological",
+                "director_choice",
+                "minimal"
+              ],
+              "default": "match_speech_topics"
+            },
+            "brollMatchThreshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.55
+            },
+            "allowBrollReuse": {
+              "type": "boolean",
+              "default": false
+            },
+            "maxBrollSegmentsPerOutput": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 30
+            },
+            "requiredFormats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2
+            },
+            "minOutputs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "shortsStrategy": {
+              "type": "string",
+              "enum": [
+                "standalone_highlights"
+              ],
+              "default": "standalone_highlights"
+            },
+            "shortsMaxDurationSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 60
+            },
+            "publishVoice": {
+              "type": "object",
+              "properties": {
+                "thumbnailVoice": {
+                  "type": "string",
+                  "enum": [
+                    "loud",
+                    "balanced"
+                  ],
+                  "default": "loud"
+                },
+                "titleVoice": {
+                  "type": "string",
+                  "enum": [
+                    "loud",
+                    "curious",
+                    "lowercase_casual"
+                  ],
+                  "default": "lowercase_casual"
+                },
+                "descriptionVoice": {
+                  "type": "string",
+                  "enum": [
+                    "marketing",
+                    "lowercase_casual",
+                    "utility"
+                  ],
+                  "default": "lowercase_casual"
+                },
+                "descriptionRules": {
+                  "type": "object",
+                  "properties": {
+                    "maxSentences": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "default": 2
+                    },
+                    "noClickbait": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "noQuestions": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "allLowercase": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "noExclamation": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "noRepeatHeadline": {
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false,
+                  "default": {}
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "requiredFormats"
+          ],
+          "additionalProperties": false
+        },
+        "clipRegistry": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clipId": {
+                "type": "string"
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "sortIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "clipRole": {
+                "type": "string",
+                "enum": [
+                  "aroll_primary",
+                  "aroll_secondary",
+                  "broll_pool",
+                  "outtakes",
+                  "undecided"
+                ]
+              },
+              "roleConfidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "roleSource": {
+                "type": "string",
+                "enum": [
+                  "clip_profile",
+                  "context_override",
+                  "director"
+                ]
+              },
+              "hasSpeech": {
+                "type": "boolean"
+              },
+              "speechWordCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "visualSummary": {
+                "type": "string"
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "audioTags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "visualQuality": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "excludeFromMainStory": {
+                "type": "boolean"
+              },
+              "excludeReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "clipId",
+              "fileName",
+              "durationSec",
+              "sortIndex",
+              "clipRole",
+              "hasSpeech",
+              "speechWordCount"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "outputId": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16"
+                ]
+              },
+              "outputKind": {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "short"
+                ],
+                "default": "main"
+              },
+              "title": {
+                "type": "string"
+              },
+              "synopsis": {
+                "type": "string"
+              },
+              "targetDurationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "timeline": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "segmentId": {
+                      "type": "string"
+                    },
+                    "segmentRole": {
+                      "type": "string",
+                      "enum": [
+                        "aroll",
+                        "broll"
+                      ]
+                    },
+                    "videoRef": {
+                      "type": "object",
+                      "properties": {
+                        "clipId": {
+                          "type": "string"
+                        },
+                        "sceneId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "clipId",
+                        "sceneId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "audioRef": {
+                      "type": "object",
+                      "properties": {
+                        "clipId": {
+                          "type": "string"
+                        },
+                        "sceneId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "clipId",
+                        "sceneId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "videoInSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "videoOutSec": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "audioInSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "audioOutSec": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "outputStartSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "outputEndSec": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "overlapSec": {
+                      "type": "number",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "audioPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "from_audio_ref",
+                        "from_video_ref",
+                        "from_prev",
+                        "from_next",
+                        "external",
+                        "mute"
+                      ]
+                    },
+                    "syncMode": {
+                      "type": "string",
+                      "enum": [
+                        "align_start",
+                        "align_end",
+                        "fit_video_to_audio",
+                        "fit_audio_to_video",
+                        "loop_video"
+                      ],
+                      "default": "align_start"
+                    },
+                    "allowBrollReuse": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "cuts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "startWordId": {
+                            "type": "string"
+                          },
+                          "endWordId": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "keepIfStoryCritical": {
+                            "type": "boolean",
+                            "default": false
+                          }
+                        },
+                        "required": [
+                          "startWordId",
+                          "endWordId",
+                          "reason"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "subtitles": {
+                      "type": "object",
+                      "properties": {
+                        "policy": {
+                          "type": "string",
+                          "enum": [
+                            "word_by_word",
+                            "phrase",
+                            "off"
+                          ]
+                        },
+                        "sourceClipId": {
+                          "type": "string"
+                        },
+                        "outputStartSec": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "outputEndSec": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "style": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "policy",
+                        "sourceClipId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "textOverlays": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "outputStartSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "outputEndSec": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "position": {
+                            "type": "string"
+                          },
+                          "style": {
+                            "type": "string",
+                            "enum": [
+                              "hook_large",
+                              "hook_question",
+                              "hook_number",
+                              "emphasis",
+                              "chapter_card",
+                              "subtitle_style"
+                            ]
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "hook",
+                              "retention_beat",
+                              "payoff",
+                              "cta"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "outputStartSec",
+                          "outputEndSec"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "videoTransform": {
+                      "type": "object",
+                      "properties": {
+                        "crop": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "w": {
+                              "type": "number"
+                            },
+                            "h": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "reframe": {
+                          "type": "string",
+                          "enum": [
+                            "center",
+                            "face",
+                            "subject"
+                          ]
+                        },
+                        "speed": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "default": 1
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "intent": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "object",
+                      "properties": {
+                        "clipId": {
+                          "type": "string"
+                        },
+                        "sceneId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "clipId",
+                        "sceneId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "audioOffsetSec": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "segmentId",
+                    "segmentRole",
+                    "videoRef",
+                    "audioRef",
+                    "videoInSec",
+                    "videoOutSec",
+                    "audioInSec",
+                    "audioOutSec",
+                    "audioPolicy"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "chapterMarkers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "startSec": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "startSec"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "outputId",
+              "format",
+              "title",
+              "timeline"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clipId": {
+                "type": "string"
+              },
+              "sceneId": {
+                "type": "string"
+              },
+              "exclusionType": {
+                "type": "string",
+                "enum": [
+                  "whole_clip",
+                  "scene",
+                  "time_range"
+                ]
+              },
+              "timeRange": {
+                "type": "object",
+                "properties": {
+                  "startSec": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "endSec": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "startSec",
+                  "endSec"
+                ],
+                "additionalProperties": false
+              },
+              "usableAsBroll": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "exclusionType",
+              "usableAsBroll",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "sceneUsageRegistry": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sceneId": {
+                "type": "string"
+              },
+              "outputId": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16"
+                ]
+              }
+            },
+            "required": [
+              "sceneId",
+              "outputId",
+              "format"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "creativityProfile": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": [
+                "safe",
+                "balanced",
+                "bold",
+                "shorts"
+              ],
+              "default": "balanced"
+            },
+            "allowMidSentenceCuts": {
+              "type": "boolean",
+              "default": false
+            },
+            "techniquePack": {
+              "type": "string",
+              "default": "youtube_vlog_2026"
+            },
+            "maxTechniqueDensityPerMin": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 0.3
+            }
+          },
+          "additionalProperties": false
+        },
+        "creativeMoments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "momentId": {
+                "type": "string"
+              },
+              "techniqueId": {
+                "type": "string"
+              },
+              "outputId": {
+                "type": "string"
+              },
+              "outputStartSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "outputEndSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {},
+                "default": {}
+              },
+              "anchorWordId": {
+                "type": "string"
+              },
+              "segmentId": {
+                "type": "string"
+              },
+              "spatialRef": {
+                "type": "object",
+                "properties": {
+                  "clipId": {
+                    "type": "string"
+                  },
+                  "sceneId": {
+                    "type": "string"
+                  },
+                  "timestampSec": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "anchorType": {
+                    "type": "string",
+                    "enum": [
+                      "face",
+                      "subject",
+                      "object"
+                    ]
+                  },
+                  "bbox": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "clipId",
+                  "sceneId"
+                ],
+                "additionalProperties": false
+              },
+              "retentionRole": {
+                "type": "string",
+                "enum": [
+                  "hook",
+                  "beat",
+                  "payoff"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "momentId",
+              "techniqueId",
+              "outputId",
+              "outputStartSec",
+              "outputEndSec",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "shortsRetentionProfile": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "hookWindowSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 3
+            },
+            "retentionBeatIntervalSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 25
+            },
+            "retentionBeatToleranceSec": {
+              "type": "number",
+              "minimum": 0,
+              "default": 5
+            },
+            "minRetentionBeats": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 2
+            },
+            "requireHookMoment": {
+              "type": "boolean",
+              "default": true
+            },
+            "requireHookOverlay": {
+              "type": "boolean",
+              "default": true
+            },
+            "maxHookOverlayDurationSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 4
+            },
+            "techniquePack": {
+              "type": "string",
+              "default": "shorts_retention_2026"
+            }
+          },
+          "additionalProperties": false
+        },
+        "audioMixPlan": {
+          "type": "object",
+          "properties": {
+            "voiceTargetLufs": {
+              "type": "number",
+              "default": -16
+            },
+            "musicBed": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "trackId": {
+                      "type": "string"
+                    },
+                    "volumeDb": {
+                      "type": "number"
+                    },
+                    "duckingDb": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "trackId",
+                    "volumeDb",
+                    "duckingDb"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "preWhisperNormalizeLufs": {
+              "type": "number",
+              "default": -18
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "outputId": {
+                    "type": "string"
+                  },
+                  "musicInSec": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "musicOutSec": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "duckUnderVoice": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "outputId",
+                  "duckUnderVoice"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        },
+        "needsHumanReview": {
+          "type": "boolean",
+          "default": false
+        },
+        "reviewNotes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "batchContext",
+        "outputs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

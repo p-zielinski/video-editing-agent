@@ -1,0 +1,30 @@
+{
+  "id": "youtube_vlog_2026",
+  "version": "1.0",
+  "label": "YouTube vlog 2026",
+  "description": "Domyślny pack dla talking-head vlogów YouTube.",
+  "platforms": ["youtube"],
+  "enabledTechniqueIds": [
+    "zoom_punch_in",
+    "zoom_punch_out",
+    "zoom_slow_push",
+    "ken_burns_light",
+    "reframe_follow_subject",
+    "cut_on_beat",
+    "cut_mid_sentence",
+    "jump_cut",
+    "match_cut",
+    "hard_cut_energy",
+    "crossfade",
+    "dip_to_black",
+    "j_cut",
+    "l_cut",
+    "music_swell",
+    "music_drop",
+    "silence_beat"
+  ],
+  "defaultCreativityLevel": "balanced",
+  "paramOverrides": {
+    "zoom_punch_in": { "factor": { "default": 1.08 } }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "match_cut",
+  "version": "1.0",
+  "category": "edit",
+  "label": "Match cut",
+  "description": "Dopasowanie ruchu lub kompozycji między ujęciami.",
+  "platforms": ["youtube"],
+  "trendTags": ["cinematic"],
+  "params": {
+    "matchType": { "type": "enum", "values": ["motion", "shape", "color"], "default": "motion" }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.1,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "bold"
+  },
+  "whenToUse": "Przejście między scenami o podobnej kompozycji.",
+  "whenToAvoid": "Szybki montaż vlog, brak pasujących ujęć.",
+  "syncHints": ["scene_boundary"]
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://video-editing-agent.local/techniques/technique.schema.json",
+  "title": "EditingTechnique",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "category",
+    "label",
+    "description",
+    "platforms",
+    "params",
+    "constraints",
+    "whenToUse",
+    "whenToAvoid"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "version": { "type": "string" },
+    "category": {
+      "type": "string",
+      "enum": ["camera", "edit", "transition", "audio", "graphics"]
+    },
+    "label": { "type": "string" },
+    "description": { "type": "string" },
+    "platforms": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "trendTags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["number", "enum", "boolean", "string"] },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "default": {},
+          "values": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "minGapFromSameTechniqueSec": { "type": "number", "minimum": 0 },
+        "maxPerOutputMinutes": { "type": "number", "minimum": 0 },
+        "requiresSpatialAnchor": { "type": "boolean" },
+        "forbiddenOnSegmentRole": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["aroll", "broll"] }
+        },
+        "requiresCreativityLevel": {
+          "type": ["string", "null"],
+          "enum": ["safe", "balanced", "bold", "shorts", null]
+        },
+        "requiresOutputKind": {
+          "type": "string",
+          "enum": ["main", "short"]
+        },
+        "mustOccurWithinOutputStartSec": { "type": "number", "minimum": 0 },
+        "maxDurationSec": { "type": "number", "minimum": 0 },
+        "allowMidSentenceCuts": { "type": "boolean" }
+      }
+    },
+    "whenToUse": { "type": "string" },
+    "whenToAvoid": { "type": "string" },
+    "syncHints": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

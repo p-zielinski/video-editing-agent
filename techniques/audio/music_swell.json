@@ -1,0 +1,23 @@
+{
+  "id": "music_swell",
+  "version": "1.0",
+  "category": "audio",
+  "label": "Music swell",
+  "description": "Podbicie muzyki w momencie akcentu.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["audio_mix"],
+  "params": {
+    "gainDb": { "type": "number", "min": 1, "max": 6, "default": 3 },
+    "durationSec": { "type": "number", "min": 1, "max": 8, "default": 3 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.1,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Reveal, punchline, koniec sekcji.",
+  "whenToAvoid": "Ciągła mowa bez przerw.",
+  "syncHints": ["beat", "reveal"]
+}

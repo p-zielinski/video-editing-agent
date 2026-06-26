@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "clipId": "clip02",
+  "keyframes": [
+    {
+      "timestampSec": 0,
+      "sceneId": "clip02_scene001",
+      "trigger": "scene_cut",
+      "imagePath": "frames/clip02/frame-0000.jpg"
+    },
+    {
+      "timestampSec": 22.5,
+      "sceneId": "clip02_scene001",
+      "trigger": "scene_cut",
+      "imagePath": "frames/clip02/frame-0001.jpg"
+    }
+  ]
+}

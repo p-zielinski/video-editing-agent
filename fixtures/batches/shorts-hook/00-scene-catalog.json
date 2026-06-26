@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "batchId": "shook01",
+  "clips": [
+    {
+      "clipId": "clip01",
+      "sourcePath": "/inbox/hook_clip.MOV",
+      "fileName": "hook_clip.MOV",
+      "durationSec": 55,
+      "sortIndex": 0,
+      "aspectRatio": "9:16",
+      "resolution": { "w": 1080, "h": 1920 }
+    }
+  ],
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/hook_clip.MOV",
+      "startSec": 0,
+      "endSec": 30,
+      "durationSec": 30,
+      "aspectRatio": "9:16",
+      "resolution": { "w": 1080, "h": 1920 },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/hook_clip.MOV",
+      "startSec": 30,
+      "endSec": 55,
+      "durationSec": 25,
+      "aspectRatio": "9:16",
+      "resolution": { "w": 1080, "h": 1920 },
+      "hasSpeech": true
+    }
+  ]
+}

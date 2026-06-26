@@ -1,0 +1,324 @@
+{
+  "$ref": "#/definitions/TimelineIndex",
+  "definitions": {
+    "TimelineIndex": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "userContext": {
+          "type": "string"
+        },
+        "clips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clipId": {
+                "type": "string"
+              },
+              "sourcePath": {
+                "type": "string"
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "clipId",
+              "sourcePath",
+              "durationSec"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sceneId": {
+                "type": "string"
+              },
+              "clipId": {
+                "type": "string"
+              },
+              "sourcePath": {
+                "type": "string"
+              },
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "aspectRatio": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16",
+                  "1:1",
+                  "4:3",
+                  "other"
+                ]
+              },
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "w": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "h": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "w",
+                  "h"
+                ],
+                "additionalProperties": false
+              },
+              "hasSpeech": {
+                "type": "boolean",
+                "default": false
+              },
+              "wordRange": {
+                "type": "object",
+                "properties": {
+                  "firstWordId": {
+                    "type": "string"
+                  },
+                  "lastWordId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "firstWordId",
+                  "lastWordId"
+                ],
+                "additionalProperties": false
+              },
+              "cutScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "sceneId",
+              "clipId",
+              "sourcePath",
+              "startSec",
+              "endSec",
+              "durationSec",
+              "aspectRatio",
+              "resolution"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "words": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "wordId": {
+                "type": "string"
+              },
+              "word": {
+                "type": "string"
+              },
+              "start": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "isFiller": {
+                "type": "boolean"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "wordId",
+              "word",
+              "start",
+              "end"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timestampSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sceneId": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "scene_cut",
+                  "speech",
+                  "motion"
+                ]
+              },
+              "imagePath": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "timestampSec",
+              "sceneId",
+              "trigger"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "visionCaptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timestampSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sceneId": {
+                "type": "string"
+              },
+              "caption": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "timestampSec",
+              "sceneId",
+              "caption"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "objectDetections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timestampSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sceneId": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "bbox": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "items": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "timestampSec",
+              "sceneId",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "totalDurationSec": {
+              "type": "number",
+              "minimum": 0
+            },
+            "totalWords": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "totalScenes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fillerWordCount": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "totalDurationSec",
+            "totalWords",
+            "totalScenes",
+            "fillerWordCount"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "batchId",
+        "clips",
+        "scenes",
+        "words"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

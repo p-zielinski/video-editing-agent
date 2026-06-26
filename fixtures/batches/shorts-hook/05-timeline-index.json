@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "batchId": "shook01",
+  "userContext": "shorts: retention — hook test clip",
+  "clips": [
+    { "clipId": "clip01", "sourcePath": "/inbox/hook_clip.MOV", "durationSec": 55 }
+  ],
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/hook_clip.MOV",
+      "startSec": 0,
+      "endSec": 30,
+      "durationSec": 30,
+      "aspectRatio": "9:16",
+      "resolution": { "w": 1080, "h": 1920 },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/hook_clip.MOV",
+      "startSec": 30,
+      "endSec": 55,
+      "durationSec": 25,
+      "aspectRatio": "9:16",
+      "resolution": { "w": 1080, "h": 1920 },
+      "hasSpeech": true
+    }
+  ],
+  "words": [
+    { "wordId": "clip01_w001", "word": "nie", "start": 0.5, "end": 0.8, "isFiller": false },
+    { "wordId": "clip01_w002", "word": "uwierzysz", "start": 0.9, "end": 1.5, "isFiller": false },
+    { "wordId": "clip01_w003", "word": "co", "start": 1.6, "end": 1.8, "isFiller": false },
+    { "wordId": "clip01_w004", "word": "się", "start": 1.9, "end": 2.1, "isFiller": false },
+    { "wordId": "clip01_w005", "word": "stało", "start": 2.2, "end": 2.8, "isFiller": false },
+    { "wordId": "clip01_w006", "word": "potem", "start": 32, "end": 32.5, "isFiller": false },
+    { "wordId": "clip01_w007", "word": "wszystko", "start": 33, "end": 33.6, "isFiller": false },
+    { "wordId": "clip01_w008", "word": "się", "start": 33.7, "end": 33.9, "isFiller": false },
+    { "wordId": "clip01_w009", "word": "zmieniło", "start": 34, "end": 34.8, "isFiller": false }
+  ],
+  "keyframes": [
+    { "sceneId": "clip01_scene001", "timestampSec": 0.5, "trigger": "scene_cut" }
+  ],
+  "visionCaptions": [
+    { "timestampSec": 1, "sceneId": "clip01_scene001", "caption": "szokujący hook do kamery", "tags": ["hook"] }
+  ],
+  "objectDetections": [
+    {
+      "sceneId": "clip01_scene001",
+      "label": "person",
+      "confidence": 0.9,
+      "timestampSec": 1,
+      "bbox": [0.3, 0.1, 0.7, 0.9]
+    },
+    {
+      "sceneId": "clip01_scene001",
+      "label": "face",
+      "confidence": 0.85,
+      "timestampSec": 1.2,
+      "bbox": [0.4, 0.15, 0.6, 0.35]
+    }
+  ],
+  "stats": {
+    "totalDurationSec": 55,
+    "totalWords": 9,
+    "totalScenes": 2,
+    "fillerWordCount": 0
+  }
+}

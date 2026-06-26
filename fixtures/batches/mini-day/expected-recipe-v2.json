@@ -1,0 +1,123 @@
+{
+  "version": "2.0",
+  "batchId": "miniday1",
+  "batchContext": {
+    "inputMode": "multi_clip_day",
+    "theme": "vlog",
+    "qualityOverQuantity": true,
+    "targetPlatforms": ["youtube"],
+    "requiredFormats": ["16:9", "9:16"],
+    "brollStrategy": "match_speech_topics",
+    "brollMatchThreshold": 0.55,
+    "allowBrollReuse": false,
+    "maxBrollSegmentsPerOutput": 30,
+    "shortsStrategy": "standalone_highlights",
+    "shortsMaxDurationSec": 60
+  },
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "01_talk.MOV",
+      "durationSec": 180,
+      "sortIndex": 0,
+      "clipRole": "aroll_primary",
+      "roleConfidence": 0.75,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 13
+    },
+    {
+      "clipId": "clip02",
+      "fileName": "02_broll.MOV",
+      "durationSec": 45,
+      "sortIndex": 1,
+      "clipRole": "broll_pool",
+      "roleConfidence": 0.7,
+      "roleSource": "clip_profile",
+      "hasSpeech": false,
+      "speechWordCount": 0
+    }
+  ],
+  "outputs": [
+    {
+      "outputId": "horizontal_main",
+      "format": "16:9",
+      "outputKind": "main",
+      "targetDurationSec": 60,
+      "title": "Dzień 66 — restauracja",
+      "synopsis": "Vlog o restauracji z B-roll jedzenia",
+      "timeline": [
+        {
+          "segmentId": "seg_h1",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoInSec": 0,
+          "videoOutSec": 30,
+          "audioInSec": 0,
+          "audioOutSec": 30,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": []
+        },
+        {
+          "segmentId": "seg_h2",
+          "segmentRole": "broll",
+          "videoRef": { "clipId": "clip02", "sceneId": "clip02_scene001" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoInSec": 5,
+          "videoOutSec": 12,
+          "audioInSec": 8,
+          "audioOutSec": 15,
+          "audioPolicy": "from_audio_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": []
+        },
+        {
+          "segmentId": "seg_h3",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene002" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene002" },
+          "videoInSec": 90,
+          "videoOutSec": 110,
+          "audioInSec": 90,
+          "audioOutSec": 110,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": []
+        }
+      ],
+      "chapterMarkers": []
+    },
+    {
+      "outputId": "vertical_main",
+      "format": "9:16",
+      "outputKind": "main",
+      "targetDurationSec": 45,
+      "title": "Short — restauracja",
+      "timeline": [
+        {
+          "segmentId": "seg_v1",
+          "segmentRole": "aroll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoInSec": 2,
+          "videoOutSec": 25,
+          "audioInSec": 2,
+          "audioOutSec": 25,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": []
+        }
+      ],
+      "chapterMarkers": []
+    }
+  ],
+  "excluded": [],
+  "sceneUsageRegistry": [],
+  "needsHumanReview": false
+}

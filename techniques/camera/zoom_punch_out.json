@@ -1,0 +1,25 @@
+{
+  "id": "zoom_punch_out",
+  "version": "1.0",
+  "category": "camera",
+  "label": "Punch-out zoom",
+  "description": "Krótkie oddalenie — koniec myśli lub przejście do szerszego planu.",
+  "platforms": ["youtube", "shorts"],
+  "trendTags": ["talking_head"],
+  "params": {
+    "factor": { "type": "number", "min": 0.85, "max": 0.98, "default": 0.92 },
+    "durationSec": { "type": "number", "min": 0.5, "max": 4, "default": 2.0 },
+    "anchor": { "type": "enum", "values": ["face", "subject", "center"], "default": "center" },
+    "easeSec": { "type": "number", "default": 0.4 }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 60,
+    "maxPerOutputMinutes": 0.1,
+    "requiresSpatialAnchor": true,
+    "forbiddenOnSegmentRole": ["broll"],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Zakończenie sekcji, reveal szerszego kontekstu.",
+  "whenToAvoid": "W środku zdania, przy słabym świetle.",
+  "syncHints": ["sentence_end", "pause"]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "emphasis_text",
+  "version": "1.0",
+  "category": "graphics",
+  "label": "Emphasis text",
+  "description": "Średni napis na punchline lub kluczową myśl (3–5 s).",
+  "platforms": ["shorts"],
+  "trendTags": ["shorts", "retention"],
+  "params": {
+    "style": {
+      "type": "enum",
+      "values": ["emphasis", "hook_question"],
+      "default": "emphasis"
+    },
+    "position": {
+      "type": "enum",
+      "values": ["center", "bottom_third"],
+      "default": "bottom_third"
+    }
+  },
+  "constraints": {
+    "maxDurationSec": 5,
+    "requiresOutputKind": "short",
+    "requiresCreativityLevel": "balanced",
+    "minGapFromSameTechniqueSec": 15
+  },
+  "whenToUse": "Punchline, liczba, cytat — podkreślenie bez pełnego hooka.",
+  "whenToAvoid": "Co drugie zdanie — max 1 duży napis na 15 s.",
+  "syncHints": ["word_emphasis"]
+}

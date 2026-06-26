@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "clipId": "clip02",
+  "durationSec": 45,
+  "voiceLufs": null,
+  "energyCurve": [
+    { "startSec": 0, "endSec": 1, "rmsDb": -28.0 }
+  ],
+  "silenceGaps": [],
+  "beats": [
+    { "timeSec": 0.5, "strength": 0.5 }
+  ],
+  "musicBedRecommendation": {
+    "mood": "calm",
+    "trackId": "calm_reflective_01",
+    "bpm": 85,
+    "confidence": 0.6
+  },
+  "cutSuggestions": [],
+  "estimatedBpm": 85,
+  "analysisMode": "stub"
+}
