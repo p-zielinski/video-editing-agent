@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSfxPlanFromAudio } from "../../src/editorial/sfx-plan.js";
+import { buildSfxPlanFromAudio, enrichRecipeSfxPlan, trimSfxPlanToDensityCap } from "../../src/editorial/sfx-plan.js";
 import { SfxPlanEntrySchema } from "../../src/schemas/edit-recipe-v2.js";
 
 describe("sfx-plan", () => {
@@ -54,7 +54,7 @@ describe("sfx-plan", () => {
     const impact = plan.find((entry) => entry.label === "impact");
     assert.ok(impact);
     assert.equal(impact.source, "library");
-    assert.equal(impact.sfxId, "library/sfx/impact");
+    assert.equal(impact.sfxId, "impact_heavy_01");
     assert.ok(!plan.some((entry) => entry.label === "traffic"));
   });
 
@@ -89,5 +89,266 @@ describe("sfx-plan", () => {
     for (const entry of plan) {
       SfxPlanEntrySchema.parse(entry);
     }
+  });
+});
+
+describe("enrichRecipeSfxPlan", () => {
+  const audioIndex = {
+    clips: [{ clipId: "clip01", editorialTags: ["laughter"] }],
+  };
+  const perClipAnalysis = [{
+    clipId: "clip01",
+    audioEvents: [
+      { startSec: 8.5, endSec: 9.1, label: "Laughter", score: 0.74 },
+      { startSec: 22.0, endSec: 22.4, label: "Squeak", score: 0.61 },
+      { startSec: 1.2, endSec: 2.0, label: "Speech", score: 0.88 },
+    ],
+  }];
+  const clipRegistry = [{ clipId: "clip01", sourcePath: "clip01.mp4" }];
+
+  it("fills empty sfxPlan with high-confidence audio_event entries", () => {
+    const recipe = {
+      outputs: [{ outputId: "main" }],
+      sfxPlan: [],
+      clipRegistry,
+    };
+
+    const plan = enrichRecipeSfxPlan(recipe, { audioIndex, clipRegistry, perClipAnalysis });
+
+    assert.ok(plan.length >= 1);
+    assert.ok(plan.every((entry) => entry.source === "audio_event"));
+    const laughter = plan.find((entry) => entry.label === "laughter");
+    assert.ok(laughter);
+    assert.equal(laughter.clipId, "clip01");
+    assert.ok(!plan.some((entry) => entry.label === "speech"));
+  });
+
+  it("preserves existing director entries and only adds missing events", () => {
+    const recipe = {
+      outputs: [{ outputId: "main" }],
+      sfxPlan: [{
+        sfxId: "sfx_whoosh_hook",
+        source: "library",
+        label: "whoosh",
+        outputStartSec: 0,
+        outputEndSec: 0.5,
+        volumeDb: -6,
+      }],
+      clipRegistry,
+    };
+
+    const plan = enrichRecipeSfxPlan(recipe, { audioIndex, clipRegistry, perClipAnalysis });
+
+    assert.equal(plan[0].label, "whoosh");
+    assert.ok(plan.length > 1);
+    assert.ok(plan.some((entry) => entry.label === "laughter" && entry.source === "audio_event"));
+  });
+
+  it("does not duplicate events already covered by director", () => {
+    const recipe = {
+      outputs: [{ outputId: "main" }],
+      sfxPlan: [{
+        sfxId: "evt_clip01_8500",
+        source: "audio_event",
+        clipId: "clip01",
+        anchorTimeSec: 8.5,
+        label: "laughter",
+        outputStartSec: 8.5,
+        outputEndSec: 9.1,
+        volumeDb: -6,
+      }],
+      clipRegistry,
+    };
+
+    const plan = enrichRecipeSfxPlan(recipe, { audioIndex, clipRegistry, perClipAnalysis });
+
+    const laughter = plan.filter((entry) => entry.label === "laughter");
+    assert.equal(laughter.length, 1);
+  });
+
+  it("caps total entries at 6 per output", () => {
+    const manyEvents = Array.from({ length: 20 }, (_, index) => ({
+      startSec: index + 10,
+      endSec: index + 10.5,
+      label: "Laughter",
+      score: 0.9 - index * 0.01,
+    }));
+    const recipe = {
+      outputs: [{ outputId: "main" }, { outputId: "short" }],
+      sfxPlan: [],
+      clipRegistry,
+    };
+
+    const plan = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry,
+      perClipAnalysis: [{ clipId: "clip01", audioEvents: manyEvents }],
+    });
+
+    assert.equal(plan.length, 12);
+  });
+
+  it("skips tags without catalog stub", () => {
+    const recipe = {
+      outputs: [{ outputId: "main" }],
+      sfxPlan: [],
+      clipRegistry,
+    };
+    const squeakOnly = {
+      clips: [{ clipId: "clip01" }],
+    };
+    const squeakAnalysis = [{
+      clipId: "clip01",
+      audioEvents: [{ startSec: 3, endSec: 3.4, label: "Squeak", score: 0.8 }],
+    }];
+
+    const plan = enrichRecipeSfxPlan(recipe, {
+      audioIndex: squeakOnly,
+      clipRegistry,
+      perClipAnalysis: squeakAnalysis,
+    });
+
+    assert.equal(plan.length, 0);
+  });
+
+  it("returns existing plan when audio index is missing", () => {
+    const existing = [{
+      sfxId: "whoosh",
+      source: "library",
+      label: "whoosh",
+      outputStartSec: 0,
+      outputEndSec: 0.4,
+      volumeDb: -6,
+    }];
+    const recipe = { outputs: [{ outputId: "main" }], sfxPlan: existing };
+
+    assert.deepEqual(enrichRecipeSfxPlan(recipe, { audioIndex: null }), existing);
+  });
+
+  it("trims merged sfxPlan to V24-06 density cap preferring director entries", () => {
+    const manyEvents = Array.from({ length: 10 }, (_, index) => ({
+      startSec: index + 10,
+      endSec: index + 10.5,
+      label: "Laughter",
+      score: 0.9 - index * 0.05,
+    }));
+    const recipe = {
+      outputs: [{
+        outputId: "main",
+        outputKind: "main",
+        timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+      }],
+      sfxPlan: [{
+        sfxId: "sfx_whoosh_hook",
+        source: "library",
+        label: "whoosh",
+        outputStartSec: 0,
+        outputEndSec: 0.5,
+        volumeDb: -6,
+      }],
+      clipRegistry,
+    };
+
+    const plan = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry,
+      perClipAnalysis: [{ clipId: "clip01", audioEvents: manyEvents }],
+    });
+
+    assert.equal(plan.length, 2);
+    assert.equal(plan[0].label, "whoosh");
+    assert.ok(plan.some((entry) => entry.label === "laughter" && entry.source === "audio_event"));
+  });
+});
+
+describe("trimSfxPlanToDensityCap", () => {
+  it("keeps all entries when within cap", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main",
+        outputKind: "main",
+        timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+      }],
+      sfxPlan: [
+        { sfxId: "a", source: "library", label: "whoosh", outputStartSec: 0, outputEndSec: 0.5 },
+        { sfxId: "b", source: "library", label: "click", outputStartSec: 50, outputEndSec: 50.5 },
+      ],
+    };
+
+    const trimmed = trimSfxPlanToDensityCap(recipe, { directorEntryCount: 1 });
+    assert.equal(trimmed.length, 2);
+  });
+
+  it("drops lowest-score enrich candidates first", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main",
+        outputKind: "main",
+        timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+      }],
+      sfxPlan: [
+        { sfxId: "director", source: "library", label: "whoosh", outputStartSec: 0, outputEndSec: 0.5 },
+        {
+          sfxId: "enrich_low",
+          source: "audio_event",
+          label: "laughter",
+          outputStartSec: 10,
+          outputEndSec: 10.5,
+          reason: "Detected laughter (score 0.55)",
+        },
+        {
+          sfxId: "enrich_high",
+          source: "audio_event",
+          label: "laughter",
+          outputStartSec: 20,
+          outputEndSec: 20.5,
+          reason: "Detected laughter (score 0.90)",
+        },
+      ],
+    };
+
+    const trimmed = trimSfxPlanToDensityCap(recipe, { directorEntryCount: 1 });
+    assert.equal(trimmed.length, 2);
+    assert.equal(trimmed[0].sfxId, "director");
+    assert.equal(trimmed[1].sfxId, "enrich_high");
+  });
+
+  it("remapSfxPlanToOutputTimeline maps clip-local times to output timeline", async () => {
+    const { remapSfxPlanToOutputTimeline } = await import("../../src/editorial/sfx-plan.js");
+
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 10,
+          videoOutSec: 20,
+          audioInSec: 10,
+          audioOutSec: 20,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 10,
+        }],
+      }],
+      sfxPlan: [{
+        sfxId: "evt_clip01_15000",
+        source: "audio_event",
+        clipId: "clip01",
+        anchorTimeSec: 15,
+        outputStartSec: 15,
+        outputEndSec: 15.4,
+        volumeDb: -6,
+        label: "laughter",
+      }],
+    };
+
+    const remapped = remapSfxPlanToOutputTimeline(recipe);
+    assert.equal(remapped[0].outputStartSec, 5);
+    assert.equal(remapped[0].outputEndSec, 5.4);
   });
 });

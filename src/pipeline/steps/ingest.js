@@ -21,8 +21,37 @@ const VIDEO_EXTENSIONS = new Set([
   ".m4v",
 ]);
 
-function isVideoFile(fileName) {
+const AUDIO_EXTENSIONS = new Set([
+  ".wav",
+  ".mp3",
+  ".m4a",
+]);
+
+const AUDIO_ONLY_PLACEHOLDER = {
+  aspectRatio: "16:9",
+  resolution: { w: 1920, h: 1080 },
+};
+
+export function isVideoFile(fileName) {
   return VIDEO_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+}
+
+export function isAudioFile(fileName) {
+  return AUDIO_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+}
+
+export function isMediaFile(fileName) {
+  return isVideoFile(fileName) || isAudioFile(fileName);
+}
+
+export function getMediaType(fileName) {
+  if (isAudioFile(fileName)) {
+    return "audio_only";
+  }
+  if (isVideoFile(fileName)) {
+    return "video";
+  }
+  return null;
 }
 
 function sortClips(clips, sortBy = "mtime") {
@@ -42,7 +71,7 @@ export async function scanInputFolder(inputDir, { dateFrom, dateTo, sortBy = "mt
   const clips = [];
 
   for (const entry of entries) {
-    if (!entry.isFile() || !isVideoFile(entry.name)) {
+    if (!entry.isFile() || !isMediaFile(entry.name)) {
       continue;
     }
 
@@ -78,6 +107,7 @@ export function buildSceneCatalogFromDetection(batchId, clips, sceneDetectionByC
     sortIndex: index,
     aspectRatio: clip.aspectRatio,
     resolution: clip.resolution,
+    ...(clip.mediaType ? { mediaType: clip.mediaType } : {}),
   }));
 
   const scenes = [];
@@ -94,6 +124,7 @@ export function buildSceneCatalogFromDetection(batchId, clips, sceneDetectionByC
         durationSec: clip.durationSec,
         aspectRatio: clip.aspectRatio,
         resolution: clip.resolution,
+        ...(clip.mediaType ? { mediaType: clip.mediaType } : {}),
         hasSpeech: false,
       });
       continue;
@@ -109,6 +140,7 @@ export function buildSceneCatalogFromDetection(batchId, clips, sceneDetectionByC
         durationSec: scene.endSec - scene.startSec,
         aspectRatio: clip.aspectRatio,
         resolution: clip.resolution,
+        ...(clip.mediaType ? { mediaType: clip.mediaType } : {}),
         hasSpeech: false,
         ...(scene.cutScore != null ? { cutScore: scene.cutScore } : {}),
       });
@@ -137,16 +169,30 @@ export async function runIngestStep({ inputDir, workDir, batchId, options = {}, 
   const rawClips = await scanInputFolder(inputDir, options);
 
   if (rawClips.length === 0) {
-    throw new Error(`Brak plików wideo w folderze: ${inputDir}`);
+    throw new Error(`Brak plików wideo lub audio w folderze: ${inputDir}`);
   }
 
   const clips = [];
   for (const raw of rawClips) {
     const durationSec = await probeDuration(raw.sourcePath);
+    const mediaType = getMediaType(raw.fileName);
+
+    if (mediaType === "audio_only") {
+      clips.push({
+        ...raw,
+        durationSec,
+        mediaType,
+        aspectRatio: AUDIO_ONLY_PLACEHOLDER.aspectRatio,
+        resolution: { ...AUDIO_ONLY_PLACEHOLDER.resolution },
+      });
+      continue;
+    }
+
     const { width, height } = await probeVideoDimensions(raw.sourcePath);
     clips.push({
       ...raw,
       durationSec,
+      mediaType: "video",
       aspectRatio: computeAspectRatio(width, height),
       resolution: { w: width, h: height },
     });
@@ -165,6 +211,7 @@ export async function runIngestStep({ inputDir, workDir, batchId, options = {}, 
       sourcePath: c.sourcePath,
       durationSec: c.durationSec,
       creationTime: c.creationTime,
+      ...(c.mediaType ? { mediaType: c.mediaType } : {}),
     })),
   };
 

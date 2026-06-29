@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runPipeline } from "./orchestrator.js";
+import { runPipeline, applyEffectiveRequiredFormats } from "./orchestrator.js";
 import { ensureSpatialIndex } from "./steps/agents.js";
 import { SpatialIndexSchema } from "../schemas/spatial-index.js";
 import { writeJson, ARTIFACTS, resolveWorkDir } from "./work-paths.js";
@@ -53,6 +53,39 @@ describe("orchestrator", () => {
     assert.ok(Array.isArray(spatialIndex.scenes));
     assert.ok(spatialIndex.builtFrom);
     assert.equal(typeof spatialIndex.builtFrom.objectDetectionCount, "number");
+  });
+
+  it("applyEffectiveRequiredFormats uses L3 recommendedFormats when not explicit", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-orch-formats-"));
+    try {
+      writeJson(path.join(dir, ARTIFACTS.abstraction), {
+        version: "1.0",
+        batchId: "fmt01",
+        L1: [],
+        L2: [],
+        L3: {
+          sessionSummary: "Short only",
+          recommendedFormats: ["9:16"],
+        },
+      });
+
+      const context = {
+        workDir: dir,
+        batchContext: { requiredFormats: ["16:9", "9:16"] },
+        requiredFormats: ["16:9", "9:16"],
+      };
+
+      const effective = applyEffectiveRequiredFormats(context, {
+        requiredFormatsExplicit: false,
+        userContext: "",
+        cliRequiredFormats: ["16:9", "9:16"],
+      });
+
+      assert.deepEqual(effective, ["9:16"]);
+      assert.equal(context.batchContext.formatsSource, "l3");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("ensureSpatialIndex rebuilds stale 05c when objects are newer", async () => {

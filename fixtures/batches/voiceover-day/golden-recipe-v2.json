@@ -1,0 +1,140 @@
+{
+  "version": "2.4",
+  "batchId": "voiceoverday",
+  "batchContext": {
+    "inputMode": "multi_clip_day",
+    "theme": "vlog",
+    "qualityOverQuantity": true,
+    "targetPlatforms": ["youtube"],
+    "requiredFormats": ["16:9", "9:16"],
+    "brollStrategy": "match_speech_topics",
+    "brollMatchThreshold": 0.55,
+    "allowBrollReuse": false,
+    "maxBrollSegmentsPerOutput": 30
+  },
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "01_broll_city.MOV",
+      "durationSec": 30,
+      "sortIndex": 0,
+      "clipRole": "broll_pool",
+      "roleConfidence": 0.8,
+      "roleSource": "clip_profile",
+      "hasSpeech": false,
+      "speechWordCount": 0,
+      "mediaType": "video"
+    },
+    {
+      "clipId": "clip02",
+      "fileName": "02_broll_food.MOV",
+      "durationSec": 25,
+      "sortIndex": 1,
+      "clipRole": "broll_pool",
+      "roleConfidence": 0.8,
+      "roleSource": "clip_profile",
+      "hasSpeech": false,
+      "speechWordCount": 0,
+      "mediaType": "video"
+    },
+    {
+      "clipId": "clip03",
+      "fileName": "03_narration.wav",
+      "durationSec": 20,
+      "sortIndex": 2,
+      "clipRole": "narration_track",
+      "roleConfidence": 0.9,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 10,
+      "mediaType": "audio_only"
+    }
+  ],
+  "outputs": [
+    {
+      "outputId": "horizontal_main",
+      "format": "16:9",
+      "outputKind": "main",
+      "targetDurationSec": 20,
+      "title": "Spacer po mieście — narracja",
+      "synopsis": "B-roll miasta i kawiarni z osobną ścieżką voice-over",
+      "timeline": [
+        {
+          "segmentId": "seg_vo_01",
+          "segmentRole": "broll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip03", "sceneId": "clip03_scene001" },
+          "videoInSec": 0,
+          "videoOutSec": 12,
+          "audioInSec": 0,
+          "audioOutSec": 10,
+          "audioPolicy": "from_audio_ref",
+          "syncMode": "fit_video_to_audio",
+          "overlapSec": 0,
+          "cuts": [],
+          "subtitles": { "policy": "word_by_word", "sourceClipId": "clip03" },
+          "textOverlays": []
+        },
+        {
+          "segmentId": "seg_vo_02",
+          "segmentRole": "broll",
+          "videoRef": { "clipId": "clip02", "sceneId": "clip02_scene001" },
+          "audioRef": { "clipId": "clip03", "sceneId": "clip03_scene001" },
+          "videoInSec": 5,
+          "videoOutSec": 15,
+          "audioInSec": 10,
+          "audioOutSec": 20,
+          "audioPolicy": "from_audio_ref",
+          "syncMode": "loop_video",
+          "overlapSec": 0,
+          "cuts": [],
+          "subtitles": { "policy": "word_by_word", "sourceClipId": "clip03" },
+          "textOverlays": []
+        }
+      ],
+      "chapterMarkers": []
+    },
+    {
+      "outputId": "short_9x16",
+      "format": "9:16",
+      "outputKind": "short",
+      "targetDurationSec": 20,
+      "title": "Short — narracja",
+      "timeline": [
+        {
+          "segmentId": "seg_s1",
+          "segmentRole": "broll",
+          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "audioRef": { "clipId": "clip03", "sceneId": "clip03_scene001" },
+          "videoInSec": 0,
+          "videoOutSec": 20,
+          "audioInSec": 0,
+          "audioOutSec": 20,
+          "audioPolicy": "from_audio_ref",
+          "syncMode": "fit_video_to_audio",
+          "overlapSec": 0,
+          "cuts": [],
+          "subtitles": { "policy": "word_by_word", "sourceClipId": "clip03" },
+          "textOverlays": []
+        }
+      ],
+      "chapterMarkers": []
+    }
+  ],
+  "excluded": [],
+  "sceneUsageRegistry": [],
+  "creativityProfile": {
+    "level": "balanced",
+    "techniquePack": "youtube_vlog_2026",
+    "allowMidSentenceCuts": false,
+    "maxTechniqueDensityPerMin": 1
+  },
+  "audioMixPlan": {
+    "voiceTargetLufs": -16,
+    "preWhisperNormalizeLufs": -18
+  },
+  "needsHumanReview": false,
+  "vlogRetentionProfile": {
+    "enabled": false
+  }
+}

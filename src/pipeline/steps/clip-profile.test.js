@@ -82,6 +82,46 @@ describe("clip_profile", () => {
     assert.equal(outtakes.excludeFromMainStory, true);
   });
 
+  it("assigns narration_track to audio-only clip with speech", () => {
+    const catalog = {
+      ...baseCatalog,
+      clips: [
+        {
+          clipId: "clip04",
+          fileName: "04_narration.wav",
+          sourcePath: "/in/04_narration.wav",
+          durationSec: 95,
+          mediaType: "audio_only",
+        },
+      ],
+    };
+    const timeline = makeTimelineIndex({
+      scenes: [
+        {
+          sceneId: "clip04_scene001",
+          clipId: "clip04",
+          startSec: 0,
+          endSec: 95,
+          durationSec: 95,
+          hasSpeech: true,
+        },
+      ],
+      words: Array.from({ length: 30 }, (_, i) => ({
+        wordId: `clip04_w${String(i + 1).padStart(3, "0")}`,
+        word: "narracja",
+        start: i,
+        end: i + 0.4,
+        isFiller: false,
+      })),
+    });
+
+    const registry = buildClipRegistry(timeline, catalog);
+    const narration = registry.find((c) => c.clipId === "clip04");
+    assert.equal(narration.clipRole, "narration_track");
+    assert.equal(narration.mediaType, "audio_only");
+    assert.equal(narration.hasSpeech, true);
+  });
+
   it("merges audioTags from 01b into clip registry topics", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-clip-audio-"));
     writeJson(path.join(dir, ARTIFACTS.audioAnalysis("clip02")), {

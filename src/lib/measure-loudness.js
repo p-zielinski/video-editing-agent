@@ -57,6 +57,7 @@ export async function measureLoudness(audioPath, {
       const truePeakDb = Number.parseFloat(parsed.input_tp);
       const measuredLra = Number.parseFloat(parsed.input_lra);
       const threshold = Number.parseFloat(parsed.input_thresh);
+      const targetOffset = Number.parseFloat(parsed.target_offset);
 
       if (!Number.isFinite(integratedLufs)) {
         reject(new Error("Brak pola input_i w wyniku loudnorm"));
@@ -68,6 +69,7 @@ export async function measureLoudness(audioPath, {
         truePeakDb: Number.isFinite(truePeakDb) ? truePeakDb : null,
         lra: Number.isFinite(measuredLra) ? measuredLra : null,
         threshold: Number.isFinite(threshold) ? threshold : null,
+        targetOffset: Number.isFinite(targetOffset) ? targetOffset : null,
       });
     });
   });

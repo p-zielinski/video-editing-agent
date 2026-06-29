@@ -8,14 +8,33 @@ import {
 import {
   computeRetentionBeatTargets,
   mergeShortsRetentionProfile,
+  mergeVlogRetentionProfile,
+  resolveMainOutputDurationSec,
   resolveShortOutputDurationSec,
   shouldRunShortsRetentionValidation,
+  shouldRunVlogRetentionValidation,
 } from "../editorial/shorts-retention.js";
 import {
   buildEditorialContext,
   spreadEditorialToPayload,
 } from "../editorial/editorial-context.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
+
+/** V22-VLOG warnings the fixer should attempt to repair (not only errors). */
+export const FIXABLE_VLOG_WARNING_CODES = new Set([
+  "V22-VLOG-03",
+  "V22-VLOG-04",
+  "V22-VLOG-05",
+]);
+
+export function shouldInvokeFixer(issues = []) {
+  if (issues.some((issue) => issue.severity === "error")) {
+    return true;
+  }
+  return issues.some(
+    (issue) => issue.severity === "warning" && FIXABLE_VLOG_WARNING_CODES.has(issue.code),
+  );
+}
 
 function resolveFixerPromptVersion(recipe) {
   if (recipe.version === "2.0" || recipe.version === "2.1" || recipe.version === "2.2" || recipe.version === "2.3") {
@@ -114,31 +133,52 @@ function buildCreativeFixerContext({ recipe }) {
 }
 
 function buildRetentionFixerContext(recipe) {
-  const retention = mergeShortsRetentionProfile(recipe.shortsRetentionProfile ?? {}, {
-    outputs: recipe.outputs ?? [],
-    requiredFormats: recipe.batchContext?.requiredFormats ?? [],
-    creativityProfile: recipe.creativityProfile ?? {},
-  });
+  const requiredFormats = recipe.batchContext?.requiredFormats ?? [];
+  const context = {};
 
-  if (!shouldRunShortsRetentionValidation({
+  if (shouldRunShortsRetentionValidation({
     recipeVersion: recipe.version,
     outputs: recipe.outputs ?? [],
-    requiredFormats: recipe.batchContext?.requiredFormats ?? [],
+    requiredFormats,
     creativityProfile: recipe.creativityProfile ?? {},
     shortsRetentionProfile: recipe.shortsRetentionProfile ?? {},
   })) {
-    return {};
+    const retention = mergeShortsRetentionProfile(recipe.shortsRetentionProfile ?? {}, {
+      outputs: recipe.outputs ?? [],
+      requiredFormats,
+      creativityProfile: recipe.creativityProfile ?? {},
+    });
+    const durationSec = resolveShortOutputDurationSec({
+      outputs: recipe.outputs ?? [],
+      batchContext: recipe.batchContext ?? {},
+    });
+    context.shortsRetentionProfile = retention;
+    context.retentionBeatTargets = computeRetentionBeatTargets(durationSec, retention);
   }
 
-  const durationSec = resolveShortOutputDurationSec({
+  if (shouldRunVlogRetentionValidation({
+    recipeVersion: recipe.version,
     outputs: recipe.outputs ?? [],
-    batchContext: recipe.batchContext ?? {},
-  });
+    requiredFormats,
+    vlogRetentionProfile: recipe.vlogRetentionProfile ?? {},
+  })) {
+    const vlogRetention = mergeVlogRetentionProfile(recipe.vlogRetentionProfile ?? {}, {
+      outputs: recipe.outputs ?? [],
+      requiredFormats,
+    });
+    const durationSec = resolveMainOutputDurationSec({
+      outputs: recipe.outputs ?? [],
+      batchContext: recipe.batchContext ?? {},
+    });
+    context.vlogRetentionProfile = vlogRetention;
+    context.retentionBeatTargetsMain = computeRetentionBeatTargets(
+      durationSec,
+      vlogRetention,
+      { mode: "vlog" },
+    );
+  }
 
-  return {
-    shortsRetentionProfile: retention,
-    retentionBeatTargets: computeRetentionBeatTargets(durationSec, retention),
-  };
+  return context;
 }
 
 export async function runFixer(client, {
@@ -161,6 +201,12 @@ export async function runFixer(client, {
       requiredFormats: recipe.batchContext?.requiredFormats ?? [],
       creativityProfile: recipe.creativityProfile ?? {},
       shortsRetentionProfile: recipe.shortsRetentionProfile ?? {},
+    })
+    || shouldRunVlogRetentionValidation({
+      recipeVersion: recipe.version,
+      outputs: recipe.outputs ?? [],
+      requiredFormats: recipe.batchContext?.requiredFormats ?? [],
+      vlogRetentionProfile: recipe.vlogRetentionProfile ?? {},
     })
     ? buildRetentionFixerContext(recipe)
     : {};

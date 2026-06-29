@@ -1,6 +1,8 @@
 # Pre-render pipeline
 
-Pipeline analizy i reżyserii AI (**bez montażu wideo** — brak eksportu MP4 i miksu FFmpeg). Artefakt końcowy: `09-edit-recipe-final.json`. Artefakty pośrednie zapisywane są w `output/.work/<batch-id>/`. Invalidacja cache opiera się na grafie zależności (`src/pipeline/artifact-deps.js`) — krok jest ponawiany, gdy którykolwiek plik wejściowy ma nowszy `mtime` niż artefakt wyjściowy.
+> **Render MP4 jest osobnym krokiem.** Ten dokument opisuje analizę i reżyserię AI (kroki 1–12) — bez eksportu MP4 w tym etapie. Po wygenerowaniu `09-edit-recipe-final.json` uruchom `npm run render` / `node src/cli.js render`, aby wyprodukować pliki wideo (w tym miks audio wg `audioMixPlan`).
+
+Pipeline analizy i reżyserii AI (**bez montażu wideo w krokach 1–12** — brak eksportu MP4 w pre-renderze). Artefakt końcowy pre-renderu: `09-edit-recipe-final.json`. Artefakty pośrednie zapisywane są w `output/.work/<batch-id>/`. Invalidacja cache opiera się na grafie zależności (`src/pipeline/artifact-deps.js`) — krok jest ponawiany, gdy którykolwiek plik wejściowy ma nowszy `mtime` niż artefakt wyjściowy.
 
 **Domyślne tryby analizy:** vision, face i audio są **live** (pełny Python). Stuby: `--fast` lub jawne `--vision-stub`, `--face-stub`, `--audio-stub`. Objects (Florence-2) live domyślnie; `--fast` go nie wyłącza. Szczegółowa tabela: [README — Domyślne tryby](../README.md#domyślne-tryby-live-vs-stub).
 
@@ -188,7 +190,7 @@ Bez `--force` każdy krok sprawdza `shouldUseCachedArtifact` przed pominięciem 
 
 ## EditRecipe v2.3 — plan miksowania audio (pre-render)
 
-Od v2.3 receptura może zawierać opcjonalne `audioMixPlan` — **plan** poziomów LUFS, muzyki bed i duckingu dla przyszłego renderu. Pipeline pre-render **nie** wykonuje FFmpeg ani miksu; pole służy directorowi i walidatorowi.
+Od v2.3 receptura może zawierać opcjonalne `audioMixPlan` — **plan** poziomów LUFS, muzyki bed i duckingu. Pipeline pre-render (kroki 1–12) **nie** wykonuje FFmpeg ani miksu; pole służy directorowi i walidatorowi. **Wykonanie miksu** odbywa się w rendererze (`src/render/audio-mix.js`, `npm run render`).
 
 | Pole | Typ | Domyślnie | Opis |
 |------|-----|-----------|------|

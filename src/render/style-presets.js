@@ -71,5 +71,23 @@ export const DEFAULT_RENDER_STYLE_PRESETS = {
       paddingPx: 12,
       safeMarginPct: 0.08,
     },
+    emphasis: {
+      fontFamily: "Arial Black",
+      fontSizePx: 56,
+      fontWeight: 800,
+      color: "#FFE600",
+      strokeColor: "#000000",
+      strokeWidthPx: 2,
+      position: "center",
+      safeMarginPct: 0.1,
+    },
+  },
+  formats: {
+    "16:9": { width: 1920, height: 1080 },
+    "9:16": {
+      width: 1080,
+      height: 1920,
+      safeZone: { top: 120, bottom: 200, left: 48, right: 48 },
+    },
   },
 };

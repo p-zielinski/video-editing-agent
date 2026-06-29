@@ -4,7 +4,7 @@ import { createOpenAIClient } from "../../agents/openai-client.js";
 import { buildAbstractionBundle } from "../../agents/summarizer.js";
 import { runDirector, directorDrillDown, extractSceneIdsFromRecipe } from "../../agents/director.js";
 import { runCritic } from "../../agents/critic.js";
-import { runFixer } from "../../agents/fixer.js";
+import { runFixer, shouldInvokeFixer } from "../../agents/fixer.js";
 import { EditRecipeV2Schema } from "../../schemas/edit-recipe-v2.js";
 import { validateRecipeV2, buildSceneUsageRegistryV2 } from "../../validators/recipe-v2.js";
 import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
@@ -12,6 +12,9 @@ import { shouldUseCachedArtifact, isArtifactStale } from "../artifact-deps.js";
 import { runSpatialIndexStep } from "./spatial-index.js";
 import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/audio-mix-plan.js";
+import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
+import { enrichRecipeChapterCards } from "../../editorial/chapter-hints.js";
+import { enrichRecipeRetentionBeats } from "../../editorial/shorts-retention.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
 
@@ -35,8 +38,12 @@ export async function runAbstractStep({
   }
 
   const timelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
+  const clipRegistry = loadClipRegistry(workDir);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
-  const bundle = await buildAbstractionBundle(client, timelineIndex, { userContext });
+  const bundle = await buildAbstractionBundle(client, timelineIndex, {
+    userContext,
+    clipRegistry,
+  });
 
   writeJson(path.join(workDir, ARTIFACTS.abstractionL1), bundle.L1);
   writeJson(path.join(workDir, ARTIFACTS.abstractionL2), bundle.L2);
@@ -165,6 +172,20 @@ export async function runDirectStep({
     },
   }));
 
+  recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
+    audioIndex,
+    clipRegistry,
+    perClipAnalysis,
+  });
+
+  recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
+    audioIndex,
+    abstraction,
+    timelineIndex,
+    spatialIndex,
+  });
+  enrichRecipeChapterCards(recipe, { abstraction });
+
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
   writeJson(draftPath, recipe);
   return recipe;
@@ -230,8 +251,7 @@ export async function runReviewStep({
       break;
     }
 
-    const hasErrors = lastReview.issues.some((i) => i.severity === "error");
-    if (!hasErrors) {
+    if (!shouldInvokeFixer(lastReview.issues)) {
       break;
     }
 
@@ -248,6 +268,18 @@ export async function runReviewStep({
         perClipAnalysis,
       }),
     );
+    recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry: recipe.clipRegistry,
+      perClipAnalysis,
+    });
+    recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction,
+      timelineIndex,
+      spatialIndex,
+    });
+    enrichRecipeChapterCards(recipe, { abstraction });
     recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
     writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
   }

@@ -3,6 +3,10 @@ import path from "node:path";
 import { createLogger } from "../lib/logger.js";
 import { checkPythonPreflight } from "../lib/python-bridge.js";
 import { detectInputMode, parseBatchContextFromUserContext } from "../lib/input-mode.js";
+import {
+  resolveEffectiveRequiredFormats,
+  resolveFormatsSource,
+} from "../lib/resolve-required-formats.js";
 import { resolvePublishVoice } from "../editorial/publish-voice.js";
 import {
   createBatchId,
@@ -66,12 +70,13 @@ function ensureManifestBatchContext(workDir, batchContext) {
   writeJson(manifestPath, manifest);
 }
 
-function resolveBatchContext(userContext, clipCount, requiredFormats) {
+function resolveBatchContext(userContext, clipCount, requiredFormats, { contextExplicit = false } = {}) {
   const parsed = parseBatchContextFromUserContext(userContext);
+  const hasContextFormats = Array.isArray(parsed.requiredFormats) && parsed.requiredFormats.length > 0;
   return {
     ...parsed,
     inputMode: detectInputMode(clipCount, parsed),
-    requiredFormats: parsed.requiredFormats ?? requiredFormats,
+    requiredFormats: (contextExplicit || hasContextFormats) ? parsed.requiredFormats : requiredFormats,
     qualityOverQuantity: parsed.qualityOverQuantity ?? true,
     brollStrategy: parsed.brollStrategy ?? "match_speech_topics",
     brollMatchThreshold: parsed.brollMatchThreshold ?? 0.55,
@@ -85,6 +90,44 @@ function resolveBatchContext(userContext, clipCount, requiredFormats) {
   };
 }
 
+export function applyEffectiveRequiredFormats(context, {
+  requiredFormatsExplicit = false,
+  userContext,
+  cliRequiredFormats,
+} = {}) {
+  const parsed = parseBatchContextFromUserContext(userContext);
+  const contextExplicit = Array.isArray(parsed.requiredFormats) && parsed.requiredFormats.length > 0;
+
+  let abstraction;
+  const abstractPath = path.join(context.workDir, ARTIFACTS.abstraction);
+  if (fs.existsSync(abstractPath)) {
+    abstraction = readJson(abstractPath);
+  }
+
+  const effective = resolveEffectiveRequiredFormats({
+    cliFormats: cliRequiredFormats,
+    cliExplicit: requiredFormatsExplicit,
+    contextFormats: parsed.requiredFormats,
+    contextExplicit,
+    l3RecommendedFormats: abstraction?.L3?.recommendedFormats,
+  });
+
+  const formatsSource = resolveFormatsSource({
+    cliExplicit: requiredFormatsExplicit,
+    contextExplicit,
+    l3RecommendedFormats: abstraction?.L3?.recommendedFormats,
+  });
+
+  context.requiredFormats = effective;
+  context.batchContext = {
+    ...context.batchContext,
+    requiredFormats: effective,
+    formatsSource,
+  };
+  ensureManifestBatchContext(context.workDir, context.batchContext);
+  return effective;
+}
+
 export async function runPipeline(options) {
   const {
     inputDir,
@@ -94,6 +137,7 @@ export async function runPipeline(options) {
     apiKey,
     userContext = "",
     requiredFormats = ["16:9", "9:16"],
+    requiredFormatsExplicit = false,
     visionStub = false,
     faceStub = false,
     audioStub = false,
@@ -119,7 +163,9 @@ export async function runPipeline(options) {
     log.log("Tryb --force: pomijanie cache artefaktów");
   }
 
-  const batchContext = resolveBatchContext(userContext, 0, requiredFormats);
+  const parsedContext = parseBatchContextFromUserContext(userContext);
+  const contextExplicit = Array.isArray(parsedContext.requiredFormats) && parsedContext.requiredFormats.length > 0;
+  const batchContext = resolveBatchContext(userContext, 0, requiredFormats, { contextExplicit });
   const context = {
     workDir,
     batchId,
@@ -127,6 +173,7 @@ export async function runPipeline(options) {
     openaiClient,
     userContext,
     requiredFormats,
+    requiredFormatsExplicit,
     batchContext,
     force,
     faceStub,
@@ -301,17 +348,28 @@ export async function runPipeline(options) {
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.spatialIndex]);
     }
 
+    if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
+      const effectiveFormats = applyEffectiveRequiredFormats(context, {
+        requiredFormatsExplicit,
+        userContext,
+        cliRequiredFormats: requiredFormats,
+      });
+      if (effectiveFormats.join(",") !== requiredFormats.join(",")) {
+        log.detail(`Formaty wyjściowe z L3: ${effectiveFormats.join(", ")} (źródło: ${context.batchContext.formatsSource})`);
+      }
+    }
+
     if (shouldRunStep("direct", fromStep, toStep)) {
       log.step("direct", stepIndex("direct") + 1, TOTAL_STEPS);
       await ensureSpatialIndex(workDir, { force, faceStub });
-      await runDirectStep({ ...context, requiredFormats, faceStub });
+      await runDirectStep({ ...context, requiredFormats: context.requiredFormats, faceStub });
       log.stepDone();
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.recipeDraft]);
     }
 
     if (shouldRunStep("review", fromStep, toStep)) {
       log.step("review", stepIndex("review") + 1, TOTAL_STEPS);
-      reviewResult = await runReviewStep({ ...context, requiredFormats, faceStub });
+      reviewResult = await runReviewStep({ ...context, requiredFormats: context.requiredFormats, faceStub });
       log.stepDone(reviewResult.review?.approved ? "zatwierdzono" : "wymaga przeglądu");
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.review, ARTIFACTS.recipeFinal]);
     }

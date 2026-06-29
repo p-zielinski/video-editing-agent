@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { loadTechniqueCatalog } from "../../src/editorial/load-technique-catalog.js";
-import { computeCreativityBudget } from "../../src/editorial/technique-budget.js";
+import { computeCreativityBudget, computeCreativityBudgetForRecipe } from "../../src/editorial/technique-budget.js";
 import { validateCreativeMoments } from "../../src/validators/creative-moments.js";
 import { EditRecipeV2Schema } from "../../src/schemas/edit-recipe-v2.js";
 
@@ -727,5 +727,312 @@ describe("validateCreativeMoments", () => {
     };
     const issues = validateCreativeMoments(recipe, catalog, budget, { spatialIndex });
     assert.equal(issues.filter((i) => i.code === "V21-10").length, 0);
+  });
+
+  it("warns V21-15 on partial crossfade pattern with 4+ segments", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "seg_a",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 20,
+        audioInSec: 0,
+        audioOutSec: 20,
+        outputStartSec: 0,
+        outputEndSec: 20,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_b",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        videoInSec: 20,
+        videoOutSec: 40,
+        audioInSec: 20,
+        audioOutSec: 40,
+        outputStartSec: 20,
+        outputEndSec: 40,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_c",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        videoInSec: 40,
+        videoOutSec: 60,
+        audioInSec: 40,
+        audioOutSec: 60,
+        outputStartSec: 40,
+        outputEndSec: 60,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_d",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene004" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene004" },
+        videoInSec: 60,
+        videoOutSec: 80,
+        audioInSec: 60,
+        audioOutSec: 80,
+        outputStartSec: 60,
+        outputEndSec: 80,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+    recipe.creativeMoments = [
+      {
+        momentId: "cm_xf_1",
+        techniqueId: "crossfade",
+        outputId: "main_16x9",
+        outputStartSec: 20,
+        outputEndSec: 20.3,
+        reason: "Crossfade join 1 only",
+      },
+      {
+        momentId: "cm_xf_2",
+        techniqueId: "crossfade",
+        outputId: "main_16x9",
+        outputStartSec: 40,
+        outputEndSec: 40.3,
+        reason: "Crossfade join 2 only",
+      },
+    ];
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    const issue = issues.find((i) => i.code === "V21-15");
+    assert.ok(issue);
+    assert.equal(issue.severity, "warning");
+    assert.ok(issue.message.includes("main_16x9"));
+    assert.ok(issue.message.includes("2/3"));
+  });
+
+  it("skips V21-15 when crossfade at exactly one join on 3 segments", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "seg_a",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 30,
+        audioInSec: 0,
+        audioOutSec: 30,
+        outputStartSec: 0,
+        outputEndSec: 30,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_b",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        videoInSec: 30,
+        videoOutSec: 60,
+        audioInSec: 30,
+        audioOutSec: 60,
+        outputStartSec: 30,
+        outputEndSec: 60,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_c",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        videoInSec: 60,
+        videoOutSec: 90,
+        audioInSec: 60,
+        audioOutSec: 90,
+        outputStartSec: 60,
+        outputEndSec: 90,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+    recipe.creativeMoments = [
+      {
+        momentId: "cm_xf_only",
+        techniqueId: "crossfade",
+        outputId: "main_16x9",
+        outputStartSec: 30,
+        outputEndSec: 30.3,
+        reason: "Single crossfade join",
+      },
+    ];
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.equal(issues.some((i) => i.code === "V21-15"), false);
+  });
+
+  it("skips V21-15 when crossfade at every join on 4 segments", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "seg_a",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 20,
+        audioInSec: 0,
+        audioOutSec: 20,
+        outputStartSec: 0,
+        outputEndSec: 20,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_b",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        videoInSec: 20,
+        videoOutSec: 40,
+        audioInSec: 20,
+        audioOutSec: 40,
+        outputStartSec: 20,
+        outputEndSec: 40,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_c",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        videoInSec: 40,
+        videoOutSec: 60,
+        audioInSec: 40,
+        audioOutSec: 60,
+        outputStartSec: 40,
+        outputEndSec: 60,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "seg_d",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene004" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene004" },
+        videoInSec: 60,
+        videoOutSec: 80,
+        audioInSec: 60,
+        audioOutSec: 80,
+        outputStartSec: 60,
+        outputEndSec: 80,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+    recipe.creativeMoments = [
+      {
+        momentId: "cm_xf_1",
+        techniqueId: "crossfade",
+        outputId: "main_16x9",
+        outputStartSec: 20,
+        outputEndSec: 20.3,
+        reason: "Crossfade join 1",
+      },
+      {
+        momentId: "cm_xf_2",
+        techniqueId: "crossfade",
+        outputId: "main_16x9",
+        outputStartSec: 40,
+        outputEndSec: 40.3,
+        reason: "Crossfade join 2",
+      },
+      {
+        momentId: "cm_xf_3",
+        techniqueId: "crossfade",
+        outputId: "main_16x9",
+        outputStartSec: 60,
+        outputEndSec: 60.3,
+        reason: "Crossfade join 3",
+      },
+    ];
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.equal(issues.some((i) => i.code === "V21-15"), false);
+  });
+
+  const tenMinMainRecipe = {
+    ...baseRecipe,
+    outputs: [
+      {
+        ...baseRecipe.outputs[0],
+        timeline: [{
+          ...baseRecipe.outputs[0].timeline[0],
+          videoOutSec: 600,
+          audioOutSec: 600,
+          outputEndSec: 600,
+        }],
+      },
+      baseRecipe.outputs[1],
+    ],
+    vlogRetentionProfile: { retentionBeatIntervalSec: 45, minRetentionBeats: 2 },
+  };
+
+  it("allows 13 retention beat moments on 10 min main without V21-05 total cap", () => {
+    const budget = computeCreativityBudgetForRecipe(tenMinMainRecipe, tenMinMainRecipe.creativityProfile);
+    const beatMoments = Array.from({ length: 13 }, (_, i) => ({
+      momentId: `cm_beat_${i}`,
+      techniqueId: "cut_on_beat",
+      outputId: "main_16x9",
+      outputStartSec: 45 * (i + 1),
+      outputEndSec: 45 * (i + 1) + 0.1,
+      retentionRole: "beat",
+      segmentId: "seg_001",
+      reason: `Retention beat ${i + 1}`,
+    }));
+    const recipe = { ...tenMinMainRecipe, creativeMoments: beatMoments };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    const totalCapErrors = issues.filter(
+      (issue) => issue.code === "V21-05" && issue.message.includes("maxTotalTechniqueMoments"),
+    );
+    assert.equal(totalCapErrors.length, 0);
+  });
+
+  it("rejects 4 non-beat moments on 10 min main balanced (V21-05)", () => {
+    const budget = computeCreativityBudgetForRecipe(tenMinMainRecipe, tenMinMainRecipe.creativityProfile);
+    const recipe = {
+      ...tenMinMainRecipe,
+      creativeMoments: Array.from({ length: 4 }, (_, i) => ({
+        momentId: `cm_zoom_${i}`,
+        techniqueId: "cut_on_beat",
+        outputId: "main_16x9",
+        outputStartSec: 50 * (i + 1),
+        outputEndSec: 50 * (i + 1) + 0.1,
+        segmentId: "seg_001",
+        reason: `Accent ${i + 1}`,
+      })),
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(
+      issues.some(
+        (issue) => issue.code === "V21-05" && issue.message.includes("bez beat pool"),
+      ),
+    );
+  });
+
+  it("short output keeps density cap independent of main beat pool", () => {
+    const budget = computeCreativityBudgetForRecipe(tenMinMainRecipe, tenMinMainRecipe.creativityProfile);
+    const shortCap = budget.byOutputId.short_9x16.maxTotalTechniqueMoments;
+    const recipe = {
+      ...tenMinMainRecipe,
+      creativeMoments: Array.from({ length: shortCap + 2 }, (_, i) => ({
+        momentId: `cm_short_${i}`,
+        techniqueId: "cut_on_beat",
+        outputId: "short_9x16",
+        outputStartSec: 5 * (i + 1),
+        outputEndSec: 5 * (i + 1) + 0.1,
+        segmentId: "seg_short",
+        reason: `Short accent ${i + 1}`,
+      })),
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(
+      issues.some(
+        (issue) => issue.code === "V21-05" && issue.message.includes("short_9x16"),
+      ),
+    );
   });
 });

@@ -268,4 +268,35 @@ describe("critic agent", () => {
     assert.equal(payload.shortsRetentionProfile.enabled, true);
     assert.ok(payload.retentionBeatTargets?.length >= 1);
   });
+
+  it("critic payload includes vlog retention context when vlog retention applies", async () => {
+    const base = loadFixture("recipe-draft.json");
+    const recipe = {
+      ...base,
+      version: "2.2",
+      batchContext: {
+        ...base.batchContext,
+        requiredFormats: ["16:9", "9:16"],
+      },
+      vlogRetentionProfile: { enabled: true },
+      creativeMoments: [],
+    };
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    const criticResponse = loadFixture("critic-response.json");
+    const client = createMockOpenAIClient([criticResponse], { captureRequests: true });
+
+    await runCritic(client, {
+      recipe,
+      abstraction,
+      timelineIndex,
+      iteration: 1,
+      requiredFormats: ["16:9", "9:16"],
+    });
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.ok(payload.vlogRetentionProfile);
+    assert.equal(payload.vlogRetentionProfile.enabled, true);
+    assert.ok(payload.retentionBeatTargetsMain?.length >= 1);
+  });
 });

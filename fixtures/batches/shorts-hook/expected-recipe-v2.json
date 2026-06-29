@@ -1,8 +1,11 @@
 {
-  "version": "2.2",
+  "version": "2.4",
   "batchId": "shook01",
   "batchContext": {
-    "requiredFormats": ["16:9", "9:16"]
+    "requiredFormats": [
+      "16:9",
+      "9:16"
+    ]
   },
   "clipRegistry": [
     {
@@ -27,8 +30,14 @@
         {
           "segmentId": "m1",
           "segmentRole": "aroll",
-          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
-          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene001"
+          },
+          "audioRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene001"
+          },
           "videoInSec": 0,
           "videoOutSec": 50,
           "audioInSec": 0,
@@ -48,8 +57,14 @@
         {
           "segmentId": "s1",
           "segmentRole": "aroll",
-          "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
-          "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
+          "videoRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene001"
+          },
+          "audioRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene001"
+          },
           "videoInSec": 0,
           "videoOutSec": 45,
           "audioInSec": 0,
@@ -79,15 +94,6 @@
   },
   "creativeMoments": [
     {
-      "momentId": "cm_hook",
-      "techniqueId": "snap_zoom",
-      "outputId": "short_9x16",
-      "outputStartSec": 0.5,
-      "outputEndSec": 2,
-      "retentionRole": "hook",
-      "reason": "Hook wizualny"
-    },
-    {
       "momentId": "cm_hook_text",
       "techniqueId": "hook_title_overlay",
       "outputId": "short_9x16",
@@ -114,5 +120,8 @@
       "retentionRole": "beat",
       "reason": "Beat 2"
     }
-  ]
+  ],
+  "vlogRetentionProfile": {
+    "enabled": false
+  }
 }

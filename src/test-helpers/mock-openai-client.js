@@ -75,7 +75,7 @@ export function buildMiniDaySummarizerResponses() {
  * Valid EditRecipe v2 draft for mini-day (passes validateRecipeV2 with fixture indexes).
  */
 export function buildMiniDayRecipeDraft() {
-  return structuredClone(loadMiniDayFixture("expected-recipe-v2.json"));
+  return structuredClone(loadMiniDayFixture("golden-recipe-v2.json"));
 }
 
 /**

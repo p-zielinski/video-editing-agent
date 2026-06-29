@@ -1,3 +1,8 @@
+import {
+  computeScaledMinRetentionBeats,
+  DEFAULT_VLOG_RETENTION_PROFILE,
+} from "./shorts-retention.js";
+
 export const CREATIVITY_LEVELS = ["safe", "balanced", "bold", "shorts"];
 
 export const CREATIVITY_LEVEL_ORDER = {
@@ -175,4 +180,125 @@ export function computeCreativityBudget(durationSec, creativityProfile = DEFAULT
     safeAllowedTechniqueIds: SAFE_ALLOWED_TECHNIQUE_IDS,
     cameraZoomTechniqueIds: CAMERA_ZOOM_IDS,
   };
+}
+
+/**
+ * @param {{ timeline?: object[], targetDurationSec?: number }} output
+ */
+export function estimateOutputDurationSec(output) {
+  if (output?.targetDurationSec) {
+    return output.targetDurationSec;
+  }
+  let maxSec = 0;
+  for (const seg of output?.timeline ?? []) {
+    const end = seg.outputEndSec
+      ?? (seg.outputStartSec ?? 0) + (seg.videoOutSec - seg.videoInSec);
+    maxSec = Math.max(maxSec, end);
+  }
+  return maxSec;
+}
+
+/**
+ * Brief-safe subset of a creativity budget (director / critic payloads).
+ * @param {ReturnType<typeof computeCreativityBudget>} budget
+ */
+export function summarizeCreativityBudgetForBrief(budget) {
+  const summary = {
+    level: budget.level,
+    allowMidSentenceCuts: budget.allowMidSentenceCuts,
+    maxZoomMoments: budget.maxZoomMoments,
+    minZoomGapSec: budget.minZoomGapSec,
+    maxTotalZoomDutySec: budget.maxTotalZoomDutySec,
+    maxTotalTechniqueMoments: budget.maxTotalTechniqueMoments,
+  };
+  if (budget.maxRetentionBeatMoments != null) {
+    summary.maxRetentionBeatMoments = budget.maxRetentionBeatMoments;
+  }
+  return summary;
+}
+
+function resolveOutputKind(output) {
+  if (output.outputKind) {
+    return output.outputKind;
+  }
+  return output.format === "9:16" ? "short" : "main";
+}
+
+function isMainOutput(output) {
+  const kind = resolveOutputKind(output);
+  return kind === "main" || output.format === "16:9";
+}
+
+/**
+ * Placeholder outputs for budget planning before a recipe draft exists.
+ * @param {{ outputs?: object[], requiredFormats?: string[], durationSec?: number, batchContext?: object }} params
+ */
+export function synthesizeOutputsForBudget({
+  outputs = [],
+  requiredFormats = [],
+  durationSec = 600,
+  batchContext = {},
+} = {}) {
+  if (outputs.length > 0) {
+    return outputs;
+  }
+
+  const formats = requiredFormats.length > 0 ? requiredFormats : ["16:9"];
+  return formats.map((format) => {
+    const isShort = format === "9:16";
+    const outputDuration = isShort
+      ? (batchContext.shortsMaxDurationSec ?? 60)
+      : durationSec;
+    return {
+      outputId: isShort ? "short_9x16" : "main_16x9",
+      format,
+      outputKind: isShort ? "short" : "main",
+      targetDurationSec: outputDuration,
+      timeline: [],
+    };
+  });
+}
+
+/**
+ * Per-output creativity budgets. Main outputs get a separate retention beat pool
+ * (`maxRetentionBeatMoments`) so vlog beats do not consume `maxTotalTechniqueMoments`.
+ *
+ * @param {{ outputs?: object[], vlogRetentionProfile?: object }} recipe
+ * @param {import('../schemas/edit-recipe-v2.js').CreativityProfile} [creativityProfile]
+ */
+export function computeCreativityBudgetForRecipe(
+  recipe,
+  creativityProfile = DEFAULT_CREATIVITY_PROFILE,
+) {
+  const outputs = recipe?.outputs ?? [];
+  const vlogProfile = recipe?.vlogRetentionProfile ?? DEFAULT_VLOG_RETENTION_PROFILE;
+  const byOutputId = {};
+
+  for (const output of outputs) {
+    const durationSec = estimateOutputDurationSec(output) || 600;
+    const outputKind = resolveOutputKind(output);
+    const budget = {
+      ...computeCreativityBudget(durationSec, creativityProfile),
+      outputId: output.outputId,
+      outputKind,
+      durationSec,
+    };
+
+    if (isMainOutput(output)) {
+      budget.maxRetentionBeatMoments = computeScaledMinRetentionBeats(
+        durationSec,
+        vlogProfile,
+      );
+    }
+
+    byOutputId[output.outputId] = budget;
+  }
+
+  const mainOutput = outputs.find((output) => isMainOutput(output));
+  const defaultOutput = mainOutput ?? outputs[0];
+  const defaultBudget = defaultOutput
+    ? byOutputId[defaultOutput.outputId]
+    : computeCreativityBudget(600, creativityProfile);
+
+  return { byOutputId, default: defaultBudget };
 }

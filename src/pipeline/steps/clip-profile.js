@@ -55,7 +55,7 @@ function computeClipStats(clip, timelineIndex) {
   };
 }
 
-function assignClipRole(stats, medianWordCount) {
+function assignClipRole(stats, medianWordCount, clip = {}) {
   const {
     hasSpeech,
     speechWordCount,
@@ -66,6 +66,10 @@ function assignClipRole(stats, medianWordCount) {
     lowStability,
     speechSceneRatio,
   } = stats;
+
+  if (clip.mediaType === "audio_only" && hasSpeech) {
+    return { clipRole: "narration_track", roleConfidence: 0.85 };
+  }
 
   if (!hasSpeech && (captions.length >= 1 || detections.length >= 1 || keyframes.length >= 2)) {
     return { clipRole: "broll_pool", roleConfidence: 0.7 };
@@ -165,7 +169,7 @@ export function buildClipRegistry(timelineIndex, catalog, { userContext = "", wo
 
   const clipRegistry = catalog.clips.map((clip, sortIndex) => {
     const stats = computeClipStats(clip, timelineIndex);
-    const { clipRole, roleConfidence } = assignClipRole(stats, medianWordCount);
+    const { clipRole, roleConfidence } = assignClipRole(stats, medianWordCount, clip);
 
     const visualTopics = extractTopicsFromDetections(stats.detections, stats.captions);
     const audioTags = workDir ? loadClipAudioTags(workDir, clip.clipId) : [];
@@ -180,6 +184,7 @@ export function buildClipRegistry(timelineIndex, catalog, { userContext = "", wo
       roleSource: "clip_profile",
       hasSpeech: stats.hasSpeech,
       speechWordCount: stats.speechWordCount,
+      ...(clip.mediaType ? { mediaType: clip.mediaType } : {}),
       visualSummary: buildVisualSummary(stats),
       topics: mergeTopics(visualTopics, audioTags),
       audioTags: audioTags.length ? audioTags : undefined,

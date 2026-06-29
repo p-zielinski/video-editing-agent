@@ -7,6 +7,8 @@ export const ResolutionSchema = z.object({
 
 export const AspectRatioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "other"]);
 
+export const MediaTypeSchema = z.enum(["audio_only", "video"]);
+
 export const WordRangeSchema = z.object({
   firstWordId: z.string(),
   lastWordId: z.string(),
@@ -21,6 +23,7 @@ export const SceneSchema = z.object({
   durationSec: z.number().positive(),
   aspectRatio: AspectRatioSchema,
   resolution: ResolutionSchema,
+  mediaType: MediaTypeSchema.optional(),
   hasSpeech: z.boolean().default(false),
   wordRange: WordRangeSchema,
   cutScore: z.number().min(0).max(1).optional(),
@@ -38,6 +41,7 @@ export const SceneCatalogSchema = z.object({
     sortIndex: z.number().int().nonnegative(),
     aspectRatio: AspectRatioSchema.optional(),
     resolution: ResolutionSchema.optional(),
+    mediaType: MediaTypeSchema.optional(),
   })),
   scenes: z.array(SceneSchema),
 });

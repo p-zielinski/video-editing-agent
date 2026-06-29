@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
+  buildDeadAirMontageHints,
   buildEditorialContext,
   buildTranscriptExcerpts,
   extractSceneIdsFromRecipe,
@@ -170,6 +171,25 @@ describe("editorial-context", () => {
     const hints = ctx.audioIndex.clips[0].deadAirHints;
     assert.ok(hints?.length >= 1);
     assert.ok(hints.some((hint) => hint.source === "transcript" || hint.source === "both"));
+  });
+
+  it("buildDeadAirMontageHints suggests silence_beat for source both only", () => {
+    const audioSummary = {
+      clips: [{
+        clipId: "clip01",
+        deadAirHints: [
+          { startSec: 72, endSec: 73.2, source: "both" },
+          { startSec: 9, endSec: 72, source: "transcript" },
+        ],
+      }],
+    };
+
+    const montageHints = buildDeadAirMontageHints(audioSummary);
+    assert.equal(montageHints.length, 1);
+    assert.equal(montageHints[0].clipId, "clip01");
+    assert.equal(montageHints[0].source, "both");
+    assert.deepEqual(montageHints[0].suggestedTechniques, ["silence_beat", "hard_cut_energy"]);
+    assert.match(montageHints[0].suggestion, /silence_beat/);
   });
 
   it("spreadEditorialToPayload spreads all fields at top level when nestKey is null", () => {

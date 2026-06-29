@@ -37,6 +37,19 @@ function applyPackOverrides(technique, pack) {
   return { ...technique, params };
 }
 
+function applyPackConstraintOverrides(technique, pack) {
+  if (!pack?.constraintOverrides?.[technique.id]) {
+    return technique;
+  }
+  return {
+    ...technique,
+    constraints: {
+      ...technique.constraints,
+      ...pack.constraintOverrides[technique.id],
+    },
+  };
+}
+
 function matchesPlatforms(technique, platforms) {
   if (!platforms?.length) {
     return true;
@@ -80,6 +93,7 @@ export function loadTechniqueCatalog({
       continue;
     }
     technique = applyPackOverrides(technique, packDef);
+    technique = applyPackConstraintOverrides(technique, packDef);
     techniques.push(technique);
   }
 

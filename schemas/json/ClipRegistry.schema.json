@@ -36,6 +36,7 @@
                   "aroll_primary",
                   "aroll_secondary",
                   "broll_pool",
+                  "narration_track",
                   "outtakes",
                   "undecided"
                 ]
@@ -90,6 +91,13 @@
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "mediaType": {
+                "type": "string",
+                "enum": [
+                  "audio_only",
+                  "video"
                 ]
               }
             },

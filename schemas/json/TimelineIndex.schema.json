@@ -92,6 +92,13 @@
                 ],
                 "additionalProperties": false
               },
+              "mediaType": {
+                "type": "string",
+                "enum": [
+                  "audio_only",
+                  "video"
+                ]
+              },
               "hasSpeech": {
                 "type": "boolean",
                 "default": false

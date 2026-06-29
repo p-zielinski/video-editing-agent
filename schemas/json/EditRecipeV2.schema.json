@@ -83,9 +83,11 @@
             "requiredFormats": {
               "type": "array",
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": ["16:9", "9:16"]
               },
-              "minItems": 2
+              "minItems": 1,
+              "maxItems": 2
             },
             "minOutputs": {
               "type": "array",
@@ -200,6 +202,7 @@
                   "aroll_primary",
                   "aroll_secondary",
                   "broll_pool",
+                  "narration_track",
                   "outtakes",
                   "undecided"
                 ]
@@ -254,6 +257,13 @@
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "mediaType": {
+                "type": "string",
+                "enum": [
+                  "audio_only",
+                  "video"
                 ]
               }
             },
@@ -501,7 +511,8 @@
                               "hook",
                               "retention_beat",
                               "payoff",
-                              "cta"
+                              "cta",
+                              "chapter"
                             ]
                           }
                         },

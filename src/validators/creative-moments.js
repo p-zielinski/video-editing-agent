@@ -3,6 +3,12 @@ import {
   meetsCreativityLevel,
   SAFE_ALLOWED_TECHNIQUE_IDS,
 } from "../editorial/technique-budget.js";
+import { isRetentionBeatMoment } from "../editorial/shorts-retention.js";
+import { collectCrossfadesAtBoundaries } from "../render/ffmpeg-concat.js";
+import { hasJlCutOverlap } from "../render/audio-jlcut.js";
+
+/** J/L-cut are segment audioPolicy techniques — not creativeMoment filters. */
+const SEGMENT_AUDIO_POLICY_TECHNIQUES = new Set(["j_cut", "l_cut"]);
 
 function momentDuration(moment) {
   return (moment.outputEndSec ?? 0) - (moment.outputStartSec ?? 0);
@@ -423,8 +429,174 @@ function validateBeatSync(moment, recipe, audioIndexByClip, toleranceSec = 0.5) 
   }];
 }
 
+function validatePartialCrossfadePattern(recipe, creativeMoments) {
+  const issues = [];
+
+  for (const output of recipe.outputs ?? []) {
+    const segments = output.timeline ?? [];
+    if (segments.length < 3 || hasJlCutOverlap(segments)) {
+      continue;
+    }
+
+    const outputMoments = (creativeMoments ?? []).filter(
+      (m) => !m.outputId || m.outputId === output.outputId,
+    );
+    const boundaries = collectCrossfadesAtBoundaries(outputMoments, segments);
+    const crossfadeCount = boundaries.filter(Boolean).length;
+    if (crossfadeCount === 0) {
+      continue;
+    }
+
+    const numBoundaries = segments.length - 1;
+    const eligible = crossfadeCount === 1 || crossfadeCount === numBoundaries;
+    if (!eligible) {
+      issues.push({
+        severity: "warning",
+        code: "V21-15",
+        message: `Output ${output.outputId}: crossfade na ${crossfadeCount}/${numBoundaries} joinach — renderer wymaga crossfade na każdym joinie lub dokładnie jednym; usuń częściowy wzór albo uzupełnij wszystkie joiny`,
+        outputId: output.outputId,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function resolveBudgetEnvelope(budget) {
+  if (budget?.byOutputId) {
+    return { byOutputId: budget.byOutputId, default: budget.default ?? budget };
+  }
+  return { byOutputId: null, default: budget };
+}
+
+function momentsForOutput(moments, outputId, recipe) {
+  return moments.filter((moment) => {
+    if (moment.outputId) {
+      return moment.outputId === outputId;
+    }
+    const mainOutput = (recipe.outputs ?? []).find((output) => output.outputKind === "main");
+    return mainOutput?.outputId === outputId;
+  });
+}
+
+function validateOutputBudgetLimits(moments, outputBudget, catalog, outputLabel) {
+  const issues = [];
+  if (!outputBudget) {
+    return issues;
+  }
+
+  const isMain = outputBudget.outputKind === "main";
+  const beatMoments = isMain ? moments.filter(isRetentionBeatMoment) : [];
+  const nonBeatMoments = isMain
+    ? moments.filter((moment) => !isRetentionBeatMoment(moment))
+    : moments;
+
+  const zoomMoments = moments.filter((moment) => countsTowardZoomBudget(moment.techniqueId, catalog));
+  if (zoomMoments.length > outputBudget.maxZoomMoments) {
+    issues.push({
+      severity: "error",
+      code: "V21-05",
+      message: `Output ${outputLabel}: camera moments ${zoomMoments.length} > maxZoomMoments=${outputBudget.maxZoomMoments}`,
+    });
+  }
+
+  let zoomDuty = 0;
+  const sortedZoom = [...zoomMoments].sort((a, b) => a.outputStartSec - b.outputStartSec);
+  for (let i = 0; i < sortedZoom.length; i++) {
+    zoomDuty += momentDuration(sortedZoom[i]);
+    if (i > 0) {
+      const gap = sortedZoom[i].outputStartSec - sortedZoom[i - 1].outputEndSec;
+      if (gap < outputBudget.minZoomGapSec) {
+        issues.push({
+          severity: "error",
+          code: "V21-04",
+          message: `Output ${outputLabel}: camera gap ${gap.toFixed(1)}s < minZoomGapSec=${outputBudget.minZoomGapSec} (end→start)`,
+          momentId: sortedZoom[i].momentId,
+        });
+      }
+    }
+  }
+  if (zoomDuty > outputBudget.maxTotalZoomDutySec) {
+    issues.push({
+      severity: "error",
+      code: "V21-05",
+      message: `Output ${outputLabel}: camera duty ${zoomDuty.toFixed(1)}s > maxTotalZoomDutySec=${outputBudget.maxTotalZoomDutySec.toFixed(1)}`,
+    });
+  }
+
+  if (nonBeatMoments.length > outputBudget.maxTotalTechniqueMoments) {
+    issues.push({
+      severity: "error",
+      code: "V21-05",
+      message: `Output ${outputLabel}: ${nonBeatMoments.length} momentów (bez beat pool) > maxTotalTechniqueMoments=${outputBudget.maxTotalTechniqueMoments}`,
+    });
+  }
+
+  if (isMain && outputBudget.maxRetentionBeatMoments != null) {
+    if (beatMoments.length > outputBudget.maxRetentionBeatMoments) {
+      issues.push({
+        severity: "error",
+        code: "V21-05",
+        message: `Output ${outputLabel}: ${beatMoments.length} beatów > maxRetentionBeatMoments=${outputBudget.maxRetentionBeatMoments}`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function validateGlobalBudgetLimits(moments, budget, catalog) {
+  const issues = [];
+  if (!budget) {
+    return issues;
+  }
+
+  const zoomMoments = moments.filter((moment) => countsTowardZoomBudget(moment.techniqueId, catalog));
+  if (zoomMoments.length > budget.maxZoomMoments) {
+    issues.push({
+      severity: "error",
+      code: "V21-05",
+      message: `Camera moments: ${zoomMoments.length} > budżet maxZoomMoments=${budget.maxZoomMoments}`,
+    });
+  }
+
+  let zoomDuty = 0;
+  const sortedZoom = [...zoomMoments].sort((a, b) => a.outputStartSec - b.outputStartSec);
+  for (let i = 0; i < sortedZoom.length; i++) {
+    zoomDuty += momentDuration(sortedZoom[i]);
+    if (i > 0) {
+      const gap = sortedZoom[i].outputStartSec - sortedZoom[i - 1].outputEndSec;
+      if (gap < budget.minZoomGapSec) {
+        issues.push({
+          severity: "error",
+          code: "V21-04",
+          message: `Camera gap ${gap.toFixed(1)}s < minZoomGapSec=${budget.minZoomGapSec} (end→start)`,
+          momentId: sortedZoom[i].momentId,
+        });
+      }
+    }
+  }
+  if (zoomDuty > budget.maxTotalZoomDutySec) {
+    issues.push({
+      severity: "error",
+      code: "V21-05",
+      message: `Camera duty ${zoomDuty.toFixed(1)}s > maxTotalZoomDutySec=${budget.maxTotalZoomDutySec.toFixed(1)}`,
+    });
+  }
+
+  if (moments.length > budget.maxTotalTechniqueMoments) {
+    issues.push({
+      severity: "error",
+      code: "V21-05",
+      message: `Łącznie ${moments.length} momentów > maxTotalTechniqueMoments=${budget.maxTotalTechniqueMoments}`,
+    });
+  }
+
+  return issues;
+}
+
 /**
- * Walidacja creativeMoments vs katalog i budżet (V21-01 … V21-13).
+ * Walidacja creativeMoments vs katalog i budżet (V21-01 … V21-15).
  */
 export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spatialIndex, audioIndexByClip } = {}) {
   const moments = recipe.creativeMoments ?? [];
@@ -434,6 +606,7 @@ export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spat
 
   const issues = [];
   const profile = recipe.creativityProfile ?? {};
+  const { default: levelBudget } = resolveBudgetEnvelope(budget);
   const byTechnique = new Map();
   const byTechniqueOutput = new Map();
   const seenMomentIds = new Set();
@@ -481,13 +654,24 @@ export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spat
     }
 
     issues.push(...validateParams(moment, technique));
-    issues.push(...validateCreativityLevelGate(moment, technique, budget));
+    issues.push(...validateCreativityLevelGate(moment, technique, levelBudget));
+
+    // V21-14 j_cut / l_cut belong on segment audioPolicy, not creativeMoments
+    if (SEGMENT_AUDIO_POLICY_TECHNIQUES.has(moment.techniqueId)) {
+      issues.push({
+        severity: "error",
+        code: "V21-14",
+        message: `Moment ${moment.momentId}: ${moment.techniqueId} nie jako creativeMoment — użyj audioPolicy from_prev/from_next + overlapSec na segmencie`,
+        momentId: moment.momentId,
+      });
+      continue;
+    }
 
     // V21-03 cut_mid_sentence
     if (
       technique.constraints?.allowMidSentenceCuts
       && !profile.allowMidSentenceCuts
-      && !budget?.allowMidSentenceCuts
+      && !levelBudget?.allowMidSentenceCuts
     ) {
       issues.push({
         severity: "error",
@@ -592,47 +776,25 @@ export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spat
   }
 
   if (budget) {
-    const zoomMoments = moments.filter((m) => countsTowardZoomBudget(m.techniqueId, catalog));
-    if (zoomMoments.length > budget.maxZoomMoments) {
-      issues.push({
-        severity: "error",
-        code: "V21-05",
-        message: `Camera moments: ${zoomMoments.length} > budżet maxZoomMoments=${budget.maxZoomMoments}`,
-      });
-    }
-
-    let zoomDuty = 0;
-    const sortedZoom = [...zoomMoments].sort((a, b) => a.outputStartSec - b.outputStartSec);
-    for (let i = 0; i < sortedZoom.length; i++) {
-      zoomDuty += momentDuration(sortedZoom[i]);
-      if (i > 0) {
-        const gap = sortedZoom[i].outputStartSec - sortedZoom[i - 1].outputEndSec;
-        if (gap < budget.minZoomGapSec) {
-          issues.push({
-            severity: "error",
-            code: "V21-04",
-            message: `Camera gap ${gap.toFixed(1)}s < minZoomGapSec=${budget.minZoomGapSec} (end→start)`,
-            momentId: sortedZoom[i].momentId,
-          });
-        }
+    const { byOutputId, default: defaultBudget } = resolveBudgetEnvelope(budget);
+    if (byOutputId && Object.keys(byOutputId).length > 0) {
+      for (const [outputId, outputBudget] of Object.entries(byOutputId)) {
+        const outputMoments = momentsForOutput(moments, outputId, recipe);
+        issues.push(
+          ...validateOutputBudgetLimits(
+            outputMoments,
+            outputBudget,
+            catalog,
+            outputId,
+          ),
+        );
       }
-    }
-    if (zoomDuty > budget.maxTotalZoomDutySec) {
-      issues.push({
-        severity: "error",
-        code: "V21-05",
-        message: `Camera duty ${zoomDuty.toFixed(1)}s > maxTotalZoomDutySec=${budget.maxTotalZoomDutySec.toFixed(1)}`,
-      });
-    }
-
-    if (moments.length > budget.maxTotalTechniqueMoments) {
-      issues.push({
-        severity: "error",
-        code: "V21-05",
-        message: `Łącznie ${moments.length} momentów > maxTotalTechniqueMoments=${budget.maxTotalTechniqueMoments}`,
-      });
+    } else {
+      issues.push(...validateGlobalBudgetLimits(moments, defaultBudget, catalog));
     }
   }
+
+  issues.push(...validatePartialCrossfadePattern(recipe, moments));
 
   return issues;
 }

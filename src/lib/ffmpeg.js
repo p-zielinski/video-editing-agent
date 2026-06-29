@@ -119,6 +119,32 @@ export async function probeVideoDimensions(filePath) {
   return { width, height };
 }
 
+export async function probeAudioStream(filePath) {
+  const { ffprobe } = bins();
+  const { stdout } = await execFileAsync(ffprobe, [
+    "-v",
+    "error",
+    "-show_entries",
+    "stream=codec_type,codec_name",
+    "-select_streams",
+    "a",
+    "-of",
+    "json",
+    filePath,
+  ]);
+
+  const parsed = JSON.parse(stdout);
+  const stream = parsed.streams?.find((s) => s.codec_type === "audio");
+  if (!stream) {
+    throw new Error(`Brak strumienia audio: ${filePath}`);
+  }
+
+  return {
+    codecType: stream.codec_type,
+    codecName: stream.codec_name,
+  };
+}
+
 export async function probeCreationTime(filePath) {
   const { ffprobe } = bins();
   try {

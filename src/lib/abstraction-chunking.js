@@ -57,10 +57,25 @@ export function sceneSummaryInput(scene, words, captions) {
 
   return {
     sceneId: scene.sceneId,
+    clipId: scene.clipId,
     durationSec: scene.durationSec,
     transcript: sceneWords.map((w) => w.word).join(" "),
     fillers: sceneWords.filter((w) => w.isFiller).map((w) => w.word),
     visual: sceneCaptions.map((c) => c.caption).join(" "),
+  };
+}
+
+export function enrichSceneInputWithClipMeta(sceneInput, clipRegistry = []) {
+  const clip = clipRegistry.find((entry) => entry.clipId === sceneInput.clipId);
+  if (!clip) {
+    return sceneInput;
+  }
+
+  return {
+    ...sceneInput,
+    clipRole: clip.clipRole,
+    mediaType: clip.mediaType,
+    hasSpeech: clip.hasSpeech ?? Boolean(sceneInput.transcript?.trim()),
   };
 }
 

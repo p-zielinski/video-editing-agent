@@ -4,8 +4,10 @@ import {
   resolveTrackById,
   resolveTrackFilePath,
 } from "../editorial/music-library.js";
+import { ARTIFACTS } from "../pipeline/work-paths.js";
 
 const SCENE_CATALOG_FILE = "00-scene-catalog.json";
+const SPATIAL_INDEX_FILE = "05c-spatial-index.json";
 const WORDS_FILE_PATTERN = /^01-words-(.+)\.json$/;
 
 function loadWordIndexes(workDir) {
@@ -29,22 +31,40 @@ function mapClipsFromCatalog(sceneCatalog) {
       sourcePath: clip.sourcePath,
       fileName: clip.fileName,
       resolution: clip.resolution ?? null,
+      ...(clip.mediaType ? { mediaType: clip.mediaType } : {}),
     };
   }
   return clips;
 }
 
-function resolveMusicBed(recipe) {
+function validateClipSourcePaths(clips) {
+  for (const [clipId, clip] of Object.entries(clips)) {
+    if (!clip.sourcePath || !fs.existsSync(clip.sourcePath)) {
+      throw new Error(
+        `Brak pliku źródłowego dla clipId ${clipId}: ${clip.sourcePath ?? "(brak ścieżki)"}`,
+      );
+    }
+  }
+}
+
+function resolveWorkDirMusicCatalogPath(workDir) {
+  const catalogPath = path.join(workDir, "music", "catalog.json");
+  return fs.existsSync(catalogPath) ? catalogPath : null;
+}
+
+function resolveMusicBed(workDir, recipe) {
   const bed = recipe?.audioMixPlan?.musicBed;
   if (!bed?.trackId) {
     return null;
   }
 
-  const { track, reason } = resolveTrackById(bed.trackId);
+  const catalogPath = resolveWorkDirMusicCatalogPath(workDir);
+  const resolveOptions = catalogPath ? { catalogPath } : {};
+  const { track, reason } = resolveTrackById(bed.trackId, resolveOptions);
   return {
     ...bed,
     track,
-    trackFilePath: track ? resolveTrackFilePath(track) : null,
+    trackFilePath: track ? resolveTrackFilePath(track, catalogPath) : null,
     resolveReason: reason,
   };
 }
@@ -59,18 +79,39 @@ function resolveMusicBed(recipe) {
  *   clips: Record<string, { sourcePath: string, fileName: string, resolution: object|null }>,
  *   wordIndexes: Record<string, object>,
  *   musicBed: object|null,
+ *   spatialIndex: object|null,
  *   sceneCatalog: object,
  * }}
  */
+function loadSpatialIndex(workDir) {
+  const spatialPath = path.join(workDir, SPATIAL_INDEX_FILE);
+  if (!fs.existsSync(spatialPath)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(spatialPath, "utf8"));
+}
+
+function loadAudioIndex(workDir) {
+  const audioIndexPath = path.join(workDir, ARTIFACTS.audioIndex);
+  if (!fs.existsSync(audioIndexPath)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(audioIndexPath, "utf8"));
+}
+
 export function resolveRenderContext(workDir, recipe) {
   const sceneCatalogPath = path.join(workDir, SCENE_CATALOG_FILE);
   const sceneCatalog = JSON.parse(fs.readFileSync(sceneCatalogPath, "utf8"));
+  const clips = mapClipsFromCatalog(sceneCatalog);
+  validateClipSourcePaths(clips);
 
   return {
     batchId: sceneCatalog.batchId ?? recipe?.batchId ?? "",
-    clips: mapClipsFromCatalog(sceneCatalog),
+    clips,
     wordIndexes: loadWordIndexes(workDir),
-    musicBed: resolveMusicBed(recipe),
+    musicBed: resolveMusicBed(workDir, recipe),
+    spatialIndex: loadSpatialIndex(workDir),
     sceneCatalog,
+    audioIndex: loadAudioIndex(workDir),
   };
 }

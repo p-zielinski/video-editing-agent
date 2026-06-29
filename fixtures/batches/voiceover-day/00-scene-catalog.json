@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "batchId": "voiceoverday",
+  "clips": [
+    {
+      "clipId": "clip01",
+      "sourcePath": "/inbox/01_broll_city.MOV",
+      "fileName": "01_broll_city.MOV",
+      "durationSec": 30,
+      "sortIndex": 0,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "mediaType": "video"
+    },
+    {
+      "clipId": "clip02",
+      "sourcePath": "/inbox/02_broll_food.MOV",
+      "fileName": "02_broll_food.MOV",
+      "durationSec": 25,
+      "sortIndex": 1,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "mediaType": "video"
+    },
+    {
+      "clipId": "clip03",
+      "sourcePath": "/inbox/03_narration.wav",
+      "fileName": "03_narration.wav",
+      "durationSec": 20,
+      "sortIndex": 2,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "mediaType": "audio_only"
+    }
+  ],
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/01_broll_city.MOV",
+      "startSec": 0,
+      "endSec": 30,
+      "durationSec": 30,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "mediaType": "video",
+      "hasSpeech": false
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "clipId": "clip02",
+      "sourcePath": "/inbox/02_broll_food.MOV",
+      "startSec": 0,
+      "endSec": 25,
+      "durationSec": 25,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "mediaType": "video",
+      "hasSpeech": false
+    },
+    {
+      "sceneId": "clip03_scene001",
+      "clipId": "clip03",
+      "sourcePath": "/inbox/03_narration.wav",
+      "startSec": 0,
+      "endSec": 20,
+      "durationSec": 20,
+      "aspectRatio": "16:9",
+      "resolution": { "w": 1920, "h": 1080 },
+      "mediaType": "audio_only",
+      "hasSpeech": true
+    }
+  ]
+}

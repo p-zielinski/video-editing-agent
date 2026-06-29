@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   listTracks,
   pickByMood,
@@ -15,10 +16,15 @@ import {
   MUSIC_DEFAULT_DUCKING_DB,
 } from "../../src/editorial/music-library.js";
 
-function createTempCatalog(track) {
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const UPBEAT_BED = path.join(REPO_ROOT, "assets", "music", "upbeat_vlog_01.mp3");
+
+function createTempCatalog(track, { createFile = true } = {}) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "music-lib-"));
   const filePath = path.join(tmpDir, track.fileName);
-  fs.writeFileSync(filePath, "");
+  if (createFile) {
+    fs.writeFileSync(filePath, "");
+  }
   const catalogPath = path.join(tmpDir, "catalog.json");
   fs.writeFileSync(catalogPath, JSON.stringify({
     version: "1.0",
@@ -38,6 +44,7 @@ describe("music-library", () => {
     const tracks = listTracks();
     assert.ok(tracks.length >= 3);
     assert.ok(tracks.some((t) => t.trackId === "upbeat_vlog_01"));
+    assert.ok(!tracks.some((t) => t.trackId === "test_bed_01"));
   });
 
   it("pickByMood prefers mood match when audio file exists", () => {
@@ -56,16 +63,44 @@ describe("music-library", () => {
   });
 
   it("pickByMood returns null when no track files exist on disk", () => {
-    resetMusicCatalogCache();
-    const track = pickByMood("upbeat", { bpm: 120 });
-    assert.equal(track, null);
+    const { catalogPath, cleanup } = createTempCatalog({
+      trackId: "upbeat_vlog_01",
+      fileName: "missing_bed.mp3",
+      mood: ["upbeat", "vlog", "energetic"],
+      bpm: 120,
+    }, { createFile: false });
+    try {
+      resetMusicCatalogCache();
+      const track = pickByMood("upbeat", { bpm: 120, catalogPath });
+      assert.equal(track, null);
+    } finally {
+      cleanup();
+    }
   });
 
   it("resolveTrackById returns null with reason when file is missing", () => {
+    const { catalogPath, cleanup } = createTempCatalog({
+      trackId: "missing_track",
+      fileName: "missing_track.mp3",
+      mood: ["upbeat"],
+      bpm: 120,
+    }, { createFile: false });
+    try {
+      resetMusicCatalogCache();
+      const result = resolveTrackById("missing_track", { catalogPath });
+      assert.equal(result.track, null);
+      assert.equal(result.reason, "track_file_missing");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("resolveTrackById returns upbeat_vlog_01 when repo bed file exists", () => {
+    assert.equal(fs.existsSync(UPBEAT_BED), true);
     resetMusicCatalogCache();
     const result = resolveTrackById("upbeat_vlog_01");
-    assert.equal(result.track, null);
-    assert.equal(result.reason, "track_file_missing");
+    assert.equal(result.track?.trackId, "upbeat_vlog_01");
+    assert.equal(result.reason, null);
   });
 
   it("resolveTrackById returns track when file exists", () => {
@@ -86,9 +121,13 @@ describe("music-library", () => {
 
   it("summarizeMusicLibraryForIndex excludes tracks with missing files", () => {
     resetMusicCatalogCache();
+    const available = listTracks().filter((track) => resolveTrackById(track.trackId).track);
     const summary = summarizeMusicLibraryForIndex();
-    assert.equal(summary.trackCount, 0);
-    assert.deepEqual(summary.tracks, []);
+    assert.equal(summary.trackCount, available.length);
+    assert.deepEqual(
+      summary.tracks.map((track) => track.trackId),
+      available.map((track) => track.trackId),
+    );
   });
 
   it("calculateMusicGain adjusts relative to voice and track LUFS", () => {

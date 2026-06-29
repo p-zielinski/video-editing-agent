@@ -1,0 +1,15 @@
+{
+  "clipId": "clip03",
+  "words": [
+    { "wordId": "clip03_w001", "word": "dzisiaj", "start": 0.5, "end": 1.0, "isFiller": false },
+    { "wordId": "clip03_w002", "word": "spacerujemy", "start": 1.2, "end": 2.0, "isFiller": false },
+    { "wordId": "clip03_w003", "word": "po", "start": 2.1, "end": 2.3, "isFiller": false },
+    { "wordId": "clip03_w004", "word": "starym", "start": 2.4, "end": 2.9, "isFiller": false },
+    { "wordId": "clip03_w005", "word": "mieście", "start": 3.0, "end": 3.6, "isFiller": false },
+    { "wordId": "clip03_w006", "word": "a", "start": 10.2, "end": 10.3, "isFiller": false },
+    { "wordId": "clip03_w007", "word": "potem", "start": 10.5, "end": 11.0, "isFiller": false },
+    { "wordId": "clip03_w008", "word": "wchodzimy", "start": 11.2, "end": 12.0, "isFiller": false },
+    { "wordId": "clip03_w009", "word": "do", "start": 12.1, "end": 12.3, "isFiller": false },
+    { "wordId": "clip03_w010", "word": "kawiarni", "start": 12.4, "end": 13.2, "isFiller": false }
+  ]
+}

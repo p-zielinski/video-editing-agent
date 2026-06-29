@@ -107,6 +107,22 @@ describe("director agent v2", () => {
     assert.equal(scene2.words[0].word, "świat");
   });
 
+  it("includes aspectMix, clipAspectById, and sfxCatalogSummary in brief", () => {
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.ok(brief.aspectMix);
+    assert.ok(brief.clipAspectById);
+    assert.ok(Array.isArray(brief.sfxCatalogSummary));
+    assert.ok(brief.sfxCatalogSummary.length > 0);
+    assert.ok(brief.sfxCatalogSummary[0].sfxId);
+  });
+
   it("caps transcriptExcerpts at 80 words per scene", () => {
     const manyWords = Array.from({ length: 100 }, (_, i) => ({
       wordId: `clip01_w${String(i + 1).padStart(3, "0")}`,
@@ -164,6 +180,115 @@ describe("director agent v2", () => {
     assert.deepEqual(brief.audioIndex.clips[0].beatTimestamps, [0.5, 1.0, 1.5]);
     assert.ok(Array.isArray(brief.sfxPlanDefaults));
     assert.equal(brief.sfxPlanDefaults.length, 0);
+  });
+
+  it("includes deadAirMontageHints when fused dead air has source both", () => {
+    const wordIndexes = [{
+      clipId: "clip01",
+      durationSec: 73.5,
+      words: [
+        { wordId: "clip01_w001", word: "cześć", start: 0, end: 1 },
+        { wordId: "clip01_w002", word: "świat", start: 72.5, end: 73.5 },
+      ],
+    }];
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 72, endSec: 73.2, durationSec: 1.2 }],
+    }];
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      audioIndex,
+      perClipAnalysis,
+      wordIndexes,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.ok(Array.isArray(brief.deadAirMontageHints));
+    assert.ok(brief.deadAirMontageHints.length >= 1);
+    assert.equal(brief.deadAirMontageHints[0].source, "both");
+    assert.ok(brief.deadAirMontageHints[0].suggestion.includes("silence_beat"));
+  });
+
+  it("includes retentionBeatAnchors when vlog retention and audio peaks present", () => {
+    const richAudioIndex = {
+      ...audioIndex,
+      clips: [{
+        ...audioIndex.clips[0],
+        energyCurve: [
+          { startSec: 39, endSec: 41, rmsDb: -12 },
+          { startSec: 46, endSec: 50, rmsDb: -10 },
+        ],
+      }],
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      audioIndex: richAudioIndex,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.ok(brief.vlogRetentionProfile);
+    assert.ok(Array.isArray(brief.retentionBeatAnchors));
+    assert.ok(brief.retentionBeatAnchors.length >= 1);
+    assert.equal(brief.retentionBeatAnchors[0].retentionRole, "beat");
+    assert.ok(brief.retentionBeatAnchors[0].suggestedTechniqueId);
+  });
+
+  it("includes chapterCardHints and narrativeOpenLoops in brief", () => {
+    const longAbstraction = {
+      ...abstraction,
+      L2: [
+        {
+          segmentId: "seg001",
+          startSec: 0,
+          endSec: 300,
+          sceneIds: ["clip01_scene001"],
+          summary: "Rozmowa o restauracji.",
+        },
+        {
+          segmentId: "seg002",
+          startSec: 300,
+          endSec: 600,
+          sceneIds: ["clip01_scene002"],
+          summary: "Podsumowanie wizyty.",
+        },
+      ],
+      L3: {
+        sessionSummary: "Vlog o restauracji i jedzeniu.",
+        narrativeArc: "intro → restauracja → podsumowanie",
+      },
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction: longAbstraction,
+      timelineIndex: {
+        ...timelineIndex,
+        clips: [{ clipId: "clip01", durationSec: 720 }],
+      },
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.ok(Array.isArray(brief.chapterCardHints));
+    assert.ok(brief.chapterCardHints.length >= 1);
+    assert.equal(brief.chapterCardHints[0].style, "chapter_card");
+
+    assert.ok(Array.isArray(brief.narrativeOpenLoops));
+    assert.equal(brief.narrativeOpenLoops.length, 2);
+    assert.equal(brief.narrativeOpenLoops[0].type, "cold_open");
+    assert.equal(brief.narrativeOpenLoops[1].type, "payoff_tease");
+
+    assert.ok(brief.coldOpenSegmentHint);
+    assert.equal(brief.coldOpenSegmentHint.type, "cold_open");
+    assert.equal(brief.coldOpenSegmentHint.suggestedSceneId, "clip01_scene002");
   });
 
   it("includes spatialIndex summary when provided", () => {
@@ -227,10 +352,16 @@ describe("director agent v2", () => {
     assert.equal(brief.sceneSummariesL1, undefined);
     assert.ok(brief.l1SceneSummaries);
     assert.equal(brief.l1SceneSummaries.length, 2);
-    assert.equal(brief.shortsRetentionProfile, undefined);
-    assert.equal(brief.retentionGrammarSummary, null);
-    assert.equal(brief.retentionBeatTargets, undefined);
-    assert.equal(brief.constraints.retentionRules, undefined);
+    assert.ok(brief.shortsRetentionProfile);
+    assert.ok(brief.vlogRetentionProfile);
+    assert.ok(brief.retentionGrammarSummary?.main);
+    assert.ok(brief.retentionGrammarSummary?.short);
+    assert.ok(brief.retentionBeatTargetsMain?.length >= 1);
+    assert.ok(brief.retentionBeatTargetsShort?.length >= 1);
+    assert.equal(
+      brief.constraints.retentionRules,
+      "V22-VLOG-01 … V22-VLOG-05 + V22-01 … V22-07",
+    );
   });
 
   it("injects retention for short-only requiredFormats", () => {
@@ -249,7 +380,7 @@ describe("director agent v2", () => {
     assert.equal(brief.constraints.retentionRules, "V22-01 … V22-07");
   });
 
-  it("omits retention injection when 9:16 not required", () => {
+  it("injects vlog retention for 16:9-only requiredFormats", () => {
     const brief = buildDirectorBrief({
       abstraction,
       timelineIndex,
@@ -259,10 +390,71 @@ describe("director agent v2", () => {
       batchContext: {},
     });
 
+    assert.ok(brief.vlogRetentionProfile);
+    assert.equal(brief.vlogRetentionProfile.retentionBeatIntervalSec, 45);
+    assert.ok(brief.retentionGrammarSummary);
+    assert.ok(brief.retentionBeatTargets?.length >= 1);
+    assert.ok(brief.retentionTechniqueRotation?.length >= 1);
+    assert.equal(brief.retentionTechniqueRotation[0], "zoom_slow_push");
+    assert.equal(brief.constraints.retentionRules, "V22-VLOG-01 … V22-VLOG-05");
     assert.equal(brief.shortsRetentionProfile, undefined);
-    assert.equal(brief.retentionGrammarSummary, null);
+  });
+
+  it("dual format enables both vlog and shorts retention profiles", () => {
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9", "9:16"],
+      batchContext: {},
+    });
+
+    assert.ok(brief.shortsRetentionProfile);
+    assert.ok(brief.vlogRetentionProfile);
+    assert.ok(brief.retentionBeatTargetsMain?.length >= 1);
+    assert.ok(brief.retentionBeatTargetsShort?.length >= 1);
+    assert.ok(brief.retentionTechniqueRotationMain?.length >= 1);
+    assert.ok(brief.retentionTechniqueRotationShort?.length >= 1);
+    assert.ok(brief.retentionGrammarSummary?.main);
+    assert.ok(brief.retentionGrammarSummary?.short);
     assert.equal(brief.retentionBeatTargets, undefined);
-    assert.equal(brief.constraints.retentionRules, undefined);
+    assert.equal(
+      brief.constraints.retentionRules,
+      "V22-VLOG-01 … V22-VLOG-05 + V22-01 … V22-07",
+    );
+  });
+
+  it("dual format exposes separate retentionBeatAnchorsMain and Short", () => {
+    const richAudioIndex = {
+      ...audioIndex,
+      clips: [{
+        ...audioIndex.clips[0],
+        energyPeaks: [
+          { startSec: 39, endSec: 41, rmsDb: -12 },
+          { startSec: 46, endSec: 50, rmsDb: -10 },
+        ],
+      }],
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      audioIndex: richAudioIndex,
+      requiredFormats: ["16:9", "9:16"],
+      batchContext: {},
+    });
+
+    assert.ok(Array.isArray(brief.retentionBeatAnchorsMain));
+    assert.ok(brief.retentionBeatAnchorsMain.length >= 1);
+    assert.equal(brief.retentionBeatAnchorsMain[0].retentionRole, "beat");
+    assert.equal(brief.retentionBeatAnchorsMain[0].suggestedTechniqueId, "zoom_slow_push");
+    assert.ok(Array.isArray(brief.retentionBeatAnchorsShort));
+    assert.ok(brief.retentionBeatAnchorsShort.length >= 1);
+    assert.equal(brief.retentionBeatAnchorsShort[0].suggestedTechniqueId, "pattern_interrupt");
+    assert.equal(brief.retentionBeatAnchors, undefined);
   });
 
   it("shorts: energy high keeps shorts_energy pack while enabling retention", () => {
@@ -342,6 +534,7 @@ describe("director agent v2", () => {
       topics: ["intro"],
       visualQuality: "high",
       stability: "stable",
+      isNarrationSource: false,
     });
     assert.equal(brief.l1SceneSummaries[1].sceneId, "clip01_scene002");
     assert.equal(brief.l1SceneSummaries[1].mood, "energetyczny");

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   computeCreativityBudget,
+  computeCreativityBudgetForRecipe,
   computeDurationTuning,
   meetsCreativityLevel,
   mergeCreativityProfile,
@@ -67,5 +68,50 @@ describe("technique-budget", () => {
     assert.equal(meetsCreativityLevel("balanced", "bold"), false);
     assert.equal(meetsCreativityLevel("bold", "bold"), true);
     assert.equal(meetsCreativityLevel("shorts", "bold"), true);
+  });
+
+  it("computeCreativityBudgetForRecipe gives main 10 min balanced 3 technique + 13 beat pool", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        timeline: [{
+          outputStartSec: 0,
+          outputEndSec: 600,
+          videoInSec: 0,
+          videoOutSec: 600,
+        }],
+      }],
+      vlogRetentionProfile: { retentionBeatIntervalSec: 45, minRetentionBeats: 2 },
+    };
+    const { byOutputId } = computeCreativityBudgetForRecipe(recipe, { level: "balanced" });
+    const main = byOutputId.main_16x9;
+    assert.equal(main.maxTotalTechniqueMoments, 3);
+    assert.equal(main.maxRetentionBeatMoments, 13);
+  });
+
+  it("computeCreativityBudgetForRecipe keeps short density separate from main", () => {
+    const recipe = {
+      outputs: [
+        {
+          outputId: "main_16x9",
+          outputKind: "main",
+          format: "16:9",
+          timeline: [{ outputStartSec: 0, outputEndSec: 600, videoInSec: 0, videoOutSec: 600 }],
+        },
+        {
+          outputId: "short_9x16",
+          outputKind: "short",
+          format: "9:16",
+          timeline: [{ outputStartSec: 0, outputEndSec: 60, videoInSec: 0, videoOutSec: 60 }],
+        },
+      ],
+      vlogRetentionProfile: { retentionBeatIntervalSec: 45, minRetentionBeats: 2 },
+    };
+    const { byOutputId } = computeCreativityBudgetForRecipe(recipe, { level: "balanced" });
+    assert.equal(byOutputId.main_16x9.maxRetentionBeatMoments, 13);
+    assert.equal(byOutputId.short_9x16.maxRetentionBeatMoments, undefined);
+    assert.equal(byOutputId.short_9x16.maxTotalTechniqueMoments, 1);
   });
 });

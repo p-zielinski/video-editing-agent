@@ -1,5 +1,5 @@
 {
-  "version": "2.2",
+  "version": "2.4",
   "batchId": "miniday1",
   "batchContext": {
     "inputMode": "multi_clip_day",
@@ -58,7 +58,13 @@
           "audioOutSec": 30,
           "audioPolicy": "from_video_ref",
           "overlapSec": 0,
-          "cuts": [],
+          "cuts": [
+            {
+              "startWordId": "clip01_w004",
+              "endWordId": "clip01_w004",
+              "reason": "tighten_pacing"
+            }
+          ],
           "textOverlays": []
         },
         {
@@ -67,10 +73,11 @@
           "videoRef": { "clipId": "clip02", "sceneId": "clip02_scene001" },
           "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
           "videoInSec": 5,
-          "videoOutSec": 12,
+          "videoOutSec": 10,
           "audioInSec": 8,
-          "audioOutSec": 15,
+          "audioOutSec": 20,
           "audioPolicy": "from_audio_ref",
+          "syncMode": "loop_video",
           "overlapSec": 0,
           "cuts": [],
           "textOverlays": []
@@ -84,8 +91,8 @@
           "videoOutSec": 110,
           "audioInSec": 90,
           "audioOutSec": 110,
-          "audioPolicy": "from_video_ref",
-          "overlapSec": 0,
+          "audioPolicy": "from_prev",
+          "overlapSec": 0.5,
           "cuts": [],
           "textOverlays": []
         }
@@ -105,12 +112,14 @@
           "videoRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
           "audioRef": { "clipId": "clip01", "sceneId": "clip01_scene001" },
           "videoInSec": 2,
-          "videoOutSec": 60,
+          "videoOutSec": 62,
           "audioInSec": 2,
           "audioOutSec": 60,
           "audioPolicy": "from_video_ref",
+          "syncMode": "fit_video_to_audio",
           "overlapSec": 0,
           "cuts": [],
+          "subtitles": { "policy": "word_by_word", "sourceClipId": "clip01" },
           "textOverlays": [
             {
               "text": "NAJLEPSZA RESTAURACJA?",
@@ -130,7 +139,7 @@
   "sceneUsageRegistry": [],
   "creativityProfile": {
     "level": "shorts",
-    "techniquePack": "shorts_retention_2026",
+    "techniquePack": "youtube_vlog_2026",
     "allowMidSentenceCuts": true,
     "maxTechniqueDensityPerMin": 2
   },
@@ -142,6 +151,12 @@
     "minRetentionBeats": 2,
     "requireHookMoment": true,
     "requireHookOverlay": true
+  },
+  "vlogRetentionProfile": {
+    "enabled": true,
+    "retentionBeatIntervalSec": 45,
+    "retentionBeatToleranceSec": 8,
+    "minRetentionBeats": 2
   },
   "creativeMoments": [
     {
@@ -185,7 +200,64 @@
       "outputEndSec": 42,
       "retentionRole": "beat",
       "reason": "Beat retencji przed zakończeniem"
+    },
+    {
+      "momentId": "cm_main_beat1",
+      "techniqueId": "zoom_slow_push",
+      "outputId": "horizontal_main",
+      "outputStartSec": 35,
+      "outputEndSec": 35.9,
+      "retentionRole": "beat",
+      "spatialRef": {
+        "clipId": "clip01",
+        "sceneId": "clip01_scene001",
+        "anchorType": "face",
+        "bbox": [0.4, 0.2, 0.5, 0.4],
+        "timestampSec": 8.5
+      },
+      "reason": "Subtelny push zoom — beat retencji vlog"
+    },
+    {
+      "momentId": "cm_main_beat2",
+      "techniqueId": "ken_burns_light",
+      "outputId": "horizontal_main",
+      "outputStartSec": 51,
+      "outputEndSec": 51.9,
+      "retentionRole": "beat",
+      "reason": "Ken Burns na B-roll — rotacja technik vlog"
     }
   ],
+  "sfxPlan": [
+    {
+      "sfxId": "sfx_whoosh_hook",
+      "source": "library",
+      "label": "whoosh",
+      "outputStartSec": 0,
+      "outputEndSec": 0.5,
+      "volumeDb": -6,
+      "reason": "Hook whoosh on short open"
+    }
+  ],
+  "colorGrade": {
+    "lutId": "warm_golden_hour",
+    "exposure": 0.02
+  },
+  "audioMixPlan": {
+    "voiceTargetLufs": -16,
+    "preWhisperNormalizeLufs": -18,
+    "musicBed": {
+      "trackId": "upbeat_vlog_01",
+      "volumeDb": -20,
+      "duckingDb": -12
+    },
+    "segments": [
+      {
+        "outputId": "horizontal_main",
+        "musicInSec": 0,
+        "musicOutSec": 62,
+        "duckUnderVoice": true
+      }
+    ]
+  },
   "needsHumanReview": false
 }

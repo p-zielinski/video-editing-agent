@@ -40,9 +40,10 @@ export function listTracks(catalogPath) {
 }
 
 export function resolveTrackFilePath(track, catalogPath = DEFAULT_CATALOG_PATH) {
-  const musicDir = catalogPath === DEFAULT_CATALOG_PATH
+  const resolvedCatalogPath = catalogPath ?? DEFAULT_CATALOG_PATH;
+  const musicDir = resolvedCatalogPath === DEFAULT_CATALOG_PATH
     ? DEFAULT_MUSIC_DIR
-    : path.dirname(resolveMusicCatalogPath(catalogPath));
+    : path.dirname(resolveMusicCatalogPath(resolvedCatalogPath));
   return path.join(musicDir, track.fileName);
 }
 

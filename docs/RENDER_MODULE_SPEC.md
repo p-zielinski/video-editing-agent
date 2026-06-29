@@ -1,171 +1,177 @@
 # Render module specification
 
-> Last updated: 2026-06-26  
-> Status: **scaffold** (pre-FFmpeg)  
-> Related: [`LUKI_PLAN_NAPRAWCZY.md`](./LUKI_PLAN_NAPRAWCZY.md) W1, [`EDITING_RECIPE_V2_SPEC.md`](./EDITING_RECIPE_V2_SPEC.md) §14
+> Last updated: 2026-06-27  
+> Status: **implemented** (FFmpeg executor)  
+> Related: [`LUKI_PLAN_NAPRAWCZY.md`](./LUKI_PLAN_NAPRAWCZY.md) W4, [`EDITING_RECIPE_V2_SPEC.md`](./EDITING_RECIPE_V2_SPEC.md) §14
 
 ## Purpose
 
-The render module bridges **analysis artifacts** and a future **FFmpeg renderer**. It does not encode video today. It defines:
+The render module executes **EditRecipe** → **MP4** using FFmpeg. It reads batch artifacts from `output/.work/<batchId>/` and writes outputs to `renders/`.
 
-1. How batch work-dir files and `EditRecipe` resolve to concrete paths.
-2. An **EDL** (edit decision list) per output.
-3. Helpers for **9:16 reframe** and **style presets**.
+## CLI
+
+```bash
+node src/cli.js render --batch-id <id>
+node src/cli.js render --batch-id <id> --output-id horizontal_main
+node src/cli.js render --batch-id <id> --encode-profile draft   # szybki podgląd
+node src/cli.js render --batch-id <id> --encode-profile production  # domyślny
+node src/cli.js render --batch-id <id> --dry-run
+node src/cli.js render --batch-id <id> --force
+```
+
+Wymaga: FFmpeg (+ libass dla napisów ASS).
 
 ## Module layout
 
 | File | Role |
 |------|------|
-| `src/render/resolve-render-context.js` | Load `00-scene-catalog.json`, `01-words-*.json`; map `clipId` → paths; resolve `audioMixPlan.musicBed` |
-| `src/render/build-render-edl.js` | Build per-output EDL from `buildOutputTimeline()` + context |
-| `src/render/reframe.js` | `computeReframeCrop()` — normalized crop box for target format |
-| `src/render/style-presets.js` | `DEFAULT_RENDER_STYLE_PRESETS` for subtitles and overlays |
+| `execute-render.js` | Orchestrator: recipe → MP4 per output, manifest |
+| `render-config.js` | Profile `draft` / `production`, wymiary output |
+| `resolve-render-context.js` | clipId → paths, word indexes, music bed, spatialIndex |
+| `build-render-edl.js` | EDL z `buildOutputTimeline()` |
+| `ffmpeg-segment.js` | Trim segmentu → temp MP4 |
+| `ffmpeg-concat.js` | Concat segmentów |
+| `ffmpeg-reframe.js` | Crop/scale 9:16 z `computeReframeCrop()` |
+| `ffmpeg-creative.js` | `creativeMoments` (zoom, ken burns, …) |
+| `ffmpeg-graphics.js` | `textOverlays` (drawtext) |
+| `ass-subtitles.js` | Napisy ASS word-by-word |
+| `audio-cuts.js` | `cuts[]` na word timestamps (video+audio splice) |
+| `audio-jlcut.js` | J/L-cut (`acrossfade` gdy `overlapSec > 0`) |
+| `audio-mix.js` | `audioMixPlan` + `sfxPlan` |
+| `color-grade.js` | `colorGrade` eq + lut3d |
+| `technique-to-ffmpeg.js` | Mapowanie `techniqueId` → filtry |
+| `reframe.js` | Normalized crop box |
+| `style-presets.js` | Domyślne style napisów/overlayów |
 
-## Inputs
+## Render pipeline (multi-pass)
 
-### Work directory (`workDir`)
+1. `resolveRenderContext()` + `buildRenderEdl()` per output
+2. **Segment pass** — każdy segment → `renders/.tmp/<outputId>/seg_NNN.mp4`
+3. **Concat** — `concat.mp4` (chained `xfade`+`acrossfade` when eligible; otherwise plain concat)
+4. **Creative** — `creativeMoments` (camera zoom, …); boundary `crossfade` omitted when already applied or ineligible
+5. **Subtitles** — ASS burn-in gdy `subtitles.policy !== off`
+6. **Graphics** — `textOverlays` (hook_large, emphasis, …)
+7. **Audio mix** — music bed ducking + sfxPlan
+8. **Color grade** — eq / LUT
+9. Export → `renders/<outputId>_<format>.mp4`
+10. Manifest → `13-render-manifest.json`
 
-Typical layout (from pipeline `output/.work/<batchId>/`):
+## Artefakty wyjściowe
 
 ```
-workDir/
-  00-scene-catalog.json    # clipId → sourcePath, resolution
-  01-words-<clipId>.json   # WordIndex per clip (subtitles)
-  09-edit-recipe-final.json  # EditRecipe v2.x (passed separately)
+output/.work/<batchId>/
+  renders/
+    horizontal_main_16x9.mp4
+    short_9x16_9x16.mp4
+  13-render-manifest.json
 ```
 
-Raw video lives at paths from `sceneCatalog.clips[].sourcePath` (often under `inbox/`).
+## Obsługiwane możliwości EditRecipe
 
-### Recipe (`recipe`)
+| Obszar | Status |
+|--------|--------|
+| A-roll / B-roll cross-clip | ✅ |
+| `from_video_ref` / `from_audio_ref` | ✅ |
+| `syncMode` loop_video, fit_video_to_audio | ✅ częściowo |
+| `cuts[]` word-level | ✅ (video+audio splice via trim/concat) |
+| 9:16 reframe + spatial anchor | ✅ |
+| ASS subtitles word_by_word | ✅ |
+| textOverlays | ✅ drawtext |
+| creativeMoments camera | ✅ scale/zoompan |
+| creativeMoments graphics | ✅ `hook_visual_punch`, `retention_beat` (video); `hook_title_overlay` via textOverlays |
+| audioMixPlan + music bed | ✅ gdy plik istnieje; loudnorm voice (`voiceTargetLufs`); ducking via `buildSidechainCompressFilter(duckingDb)` |
+| sfxPlan library | ✅ gdy plik w `assets/sfx/` |
+| colorGrade | ✅ eq + lut3d |
+| J/L-cut overlap | ✅ `acrossfade` gdy `overlapSec > 0`; concat bez overlap |
+| `crossfade` | ✅ chained `xfade`+`acrossfade` (2 segmenty; 3+ gdy **jeden** join z crossfade lub **wszystkie** joiny); brak J/L; inaczej `CROSSFADE_NOT_APPLIED` |
+| `jump_cut` | ✅ minimal pulse brightness/contrast w creative pass (jak `hard_cut_energy`; nie prawdziwe cięcie na granicy segmentu) |
+| `cut_on_beat` | ✅ beat snap na granicy segmentu w concat (±`snapToleranceSec`, `audioIndex` beats); `CUT_ON_BEAT_SNAPPED` w manifeście; brak beatów → `CUT_ON_BEAT_NOT_APPLIED` |
+| `hard_cut_energy` | ✅ pulse brightness/contrast w creative pass (nie prawdziwe cięcie na granicy segmentu) |
+| `zoom_punch_out` | ✅ scale/zoompan punch-out (factor &lt; 1, domyślnie 0.92) w creative pass |
+| `dip_to_black` | ✅ minimal fade out/in (`fade=t=out` + `fade=t=in`, 0.3–0.8 s) w creative pass |
+| `cut_mid_sentence` | ✅ silniejszy retention pulse w creative pass; `CUT_MID_SENTENCE_ACK` gdy moment na granicy segmentu (±0.1 s) |
+| `match_cut` | ✅ best-effort: krótki kierunkowy motion blur + subtelny scale (0.15–0.25 s) w creative pass |
+| `whip_pan` | ✅ kierunkowy gblur w creative pass |
+| music_swell, music_drop | ✅ volume automation na music bed w `audio-mix.js` gdy `musicBed` |
+| silence_beat | ✅ dip głosu w `audio-mix.js` (wymaga `audioMixPlan` aby uruchomić mix pass) |
 
-`EditRecipe` v2.0–2.4 with `outputs[]`, optional `audioMixPlan`, `creativeMoments`, `renderStylePresets` (v2.4+).
+### J/L-cut (`from_prev` / `from_next`)
 
-### `resolveRenderContext(workDir, recipe)`
+**Segment pass (video-only for borrowed audio):** segmenty z `audioPolicy: "from_prev"` lub `"from_next"` renderują **tylko wideo** (`-an`, bez ścieżki audio w pliku segmentu). Audio sąsiada jest składane w pass concat (`audio-jlcut.js`): carry-forward z `[i-1:a]` przy J-cut lub early-pull z `[i+1:a]` przy L-cut, z `acrossfade` gdy `overlapSec > 0`.
 
-Returns:
+**Carry-forward w concat:** `applyJlCutAudio` (`audio-jlcut.js`) skleja wideo zwykłym `concat` (bez overlap na wideo), a audio łączy `acrossfade` na granicach gdzie `overlapSec > 0`. `buildOutputTimeline()` przedłuża `outputEndSec` poprzedniego segmentu o `overlapSec`, żeby okno audio carry-forward było spójne z EDL (np. seg N-1 kończy się w `outputStartSec(seg N) + overlapSec`).
 
-```json
-{
-  "batchId": "miniday1",
-  "clips": {
-    "clip01": {
-      "sourcePath": "/inbox/01_talk.MOV",
-      "fileName": "01_talk.MOV",
-      "resolution": { "w": 1920, "h": 1080 }
-    }
-  },
-  "wordIndexes": {
-    "clip01": { "clipId": "clip01", "words": [] }
-  },
-  "musicBed": {
-    "trackId": "upbeat_vlog_01",
-    "volumeDb": -18,
-    "track": { "trackId": "...", "fileName": "..." },
-    "trackFilePath": "/abs/path/assets/music/upbeat_vlog_01.mp3",
-    "resolveReason": null
-  },
-  "sceneCatalog": { }
-}
-```
+Gdy `overlapSec === 0`, concat używa zwykłego demuxera concat (bez acrossfade).
 
-`musicBed` is `null` when `audioMixPlan.musicBed` is absent. When `trackId` is set but the file is missing, `track` is `null` and `resolveReason` is `track_not_in_catalog` or `track_file_missing`.
+### Crossfade (concat)
 
-## EDL format
+Concat applies real video+audio crossfade when **all** of the following hold:
 
-`buildRenderEdl(output, recipe, context)` produces:
+1. A `creativeMoments` entry with `techniqueId: "crossfade"` aligned to at least one join (`outputStartSec` ≈ `segments[i].outputStartSec`, ±0.1 s).
+2. No J/L overlap (`overlapSec` / `from_prev` audio policy).
+3. Eligible segment layout:
+   - **2 segments** — crossfade at the single join, or
+   - **3+ segments** — crossfade at **exactly one** internal join (xfade at that join + hard `concat` for remaining), **or** crossfade at **every** internal join (fully chained xfade).
 
-```json
-{
-  "outputId": "horizontal_main",
-  "format": "16:9",
-  "durationSec": 50,
-  "segments": [
-    {
-      "segmentId": "seg_h1",
-      "videoSourcePath": "/inbox/01_talk.MOV",
-      "audioSourcePath": "/inbox/01_talk.MOV",
-      "videoInSec": 0,
-      "videoOutSec": 30,
-      "audioInSec": 0,
-      "audioOutSec": 30,
-      "audioPolicy": "from_video_ref",
-      "outputStartSec": 0,
-      "outputEndSec": 30,
-      "cuts": []
-    }
-  ]
-}
-```
+Segment durations for offset math come from EDL (`outputEndSec - outputStartSec`). Chained offsets: first join `offset = dur(seg0) - durationSec`; each subsequent xfade uses cumulative duration minus prior crossfade overlaps.
 
-### Segment fields
+When a boundary crossfade is requested but concat cannot apply it (e.g. partial crossfade on 4+ segments, or J/L overlap), `execute-render` emits manifest warning `CROSSFADE_NOT_APPLIED`. Reasons: `requires timeline without J/L overlap` or `requires crossfade at every internal join or exactly one join`. The moment is **not** passed to the creative pass. When concat **does** apply xfade, the crossfade moment is excluded from the creative pass.
 
-| Field | Source | Notes |
-|-------|--------|-------|
-| `videoSourcePath` | `context.clips[videoRef.clipId].sourcePath` | B-roll or A-roll video file |
-| `audioSourcePath` | Policy-dependent | See below |
-| `videoInSec` / `videoOutSec` | Segment | Source trim range (seconds) |
-| `audioInSec` / `audioOutSec` | Segment | Audio trim range |
-| `audioPolicy` | Segment | `from_video_ref`, `from_audio_ref`, `from_prev`, `from_next`, `external` |
-| `outputStartSec` / `outputEndSec` | `buildOutputTimeline()` | Position on master output timeline |
-| `cuts` | Segment | Word-level audio cuts (applied before concat) |
+Helpers: `buildMultiSegmentXfadeFilterComplex`, `computeXfadeOffsetAtBoundary`, `isTwoSegmentCrossfadeEligible`, `isMultiSegmentCrossfadeEligible`, `isCrossfadeEligible`, `shouldDeferCrossfadeToCreative`, `resolvePostConcatCreativeMoments` in `ffmpeg-concat.js`.
 
-### Audio source resolution
+**Limitations:** crossfade at join 2 only on a 3-segment timeline (not join 1) is supported via xfade+concat chain but output duration may differ slightly from EDL when only one of two joins is soft. Partial patterns (e.g. 2 of 3 joins) are not supported.
 
-| `audioPolicy` | `audioSourcePath` |
-|---------------|-------------------|
-| `from_video_ref` | Same clip as `videoRef` |
-| `from_audio_ref` | `audioRef.clipId` clip |
-| `from_prev` / `from_next` | `videoRef` or `audioRef` clip (J/L-cut scaffold) |
-| `external` | `context.musicBed.trackFilePath` |
+### Cut on beat (concat snap)
 
-## Reframe (`computeReframeCrop`)
+When a `cut_on_beat` `creativeMoment` aligns with a segment join (±0.1 s, same as crossfade) and `05d-audio-index.json` provides beats for the outgoing clip (`beatTimes`, `beatTimestamps`, or `beats`), concat snaps the join to the nearest beat within `params.snapToleranceSec` (default **0.5 s** from `techniques/edit/cut_on_beat.json`).
 
-Input:
+- Snap **before** concat: trims end of outgoing segment or start of incoming segment via FFmpeg re-encode (`applyBeatSnapTrims`).
+- Manifest warning `CUT_ON_BEAT_SNAPPED` with `originalJoinSec`, `snappedJoinSec`, `beatSourceSec`, `clipId`.
+- No beat within tolerance or missing `audioIndex` → `CUT_ON_BEAT_NOT_APPLIED`; moment excluded from creative pass (no `TECHNIQUE_DEFERRED_CONCAT`).
+- Skipped when J/L overlap is present (same as crossfade).
 
-```js
-computeReframeCrop({
-  format: "9:16",
-  spatialAnchor: { bbox: [x, y, w, h], anchorType: "face" },
-  sourceResolution: { w: 1920, h: 1080 },
-});
-```
+Helpers: `findCutOnBeatAtBoundary`, `computeBeatSnapAtBoundary`, `collectBeatSnapsAtBoundaries` in `ffmpeg-concat.js`. `resolveRenderContext` loads optional `audioIndex` from `05d-audio-index.json`.
 
-Output: normalized crop box `{ x, y, w, h }` in 0–1 coordinates.
+### Cut mid-sentence (creative pulse)
 
-- **16:9** source → **9:16** output: crop width, full height, center on face/subject bbox (or frame center).
-- Matching aspect ratios → `{ x: 0, y: 0, w: 1, h: 1 }`.
+When a `cut_mid_sentence` `creativeMoment` aligns with a segment join (±0.1 s), the creative pass applies a **stronger** brightness/contrast retention pulse than `jump_cut` (scaled by `params.energy`: low/medium/high). Manifest warning `CUT_MID_SENTENCE_ACK` records the boundary join. The actual cut is already in the EDL; this is a visual montage acknowledgment only.
 
-Used by `videoTransform.reframe` and `creativeMoments` with `spatialRef`.
+Helper: `findCutMidSentenceAtBoundary` in `ffmpeg-concat.js`.
 
-## Style presets
+### Dip to black (creative fade)
 
-`DEFAULT_RENDER_STYLE_PRESETS` in `style-presets.js` defines font, color, position for:
+`dip_to_black` renders a short fade-out to black and fade-in (`fade=t=out` + `fade=t=in`, duration clamped 0.3–0.8 s) centered at `outputStartSec`. Optional `holdBlackSec` (default 0.2 s). Implemented in `technique-to-ffmpeg.js` (`buildDipToBlackFilter`).
 
-- `subtitles.default`, `subtitles.shorts`
-- `overlays.hook_large`, `hook_question`, `hook_number`, `caption_bar`
+### Music bed ducking (`duckingDb`)
 
-Recipe `renderStylePresets` (v2.4+) overrides these at render time.
+`audioMixPlan.musicBed.duckingDb` (negative dB, default **-12**) controls how much the bed is compressed under voice during the audio mix pass. `buildSidechainCompressFilter(duckingDb)` in `audio-mix.js` maps depth to FFmpeg `sidechaincompress` params:
 
-## FFmpeg mapping outline (future)
+| `duckingDb` | Approx. `ratio` | `threshold` |
+|-------------|-----------------|---------------|
+| -12 (default) | 6.0 | 0.050 |
+| -18 | 9.0 | 0.033 |
 
-Per output:
+Deeper ducking (more negative) → higher ratio and lower threshold. Skipped when `mixSegment.duckUnderVoice === false`.
 
-1. `context = resolveRenderContext(workDir, recipe)`
-2. `edl = buildRenderEdl(output, recipe, context)`
-3. For each EDL segment:
-   - `ffmpeg -ss <in> -to <out> -i <videoSourcePath>` (video stream)
-   - Separate audio input when `audioSourcePath !== videoSourcePath`
-   - Apply `computeReframeCrop()` when `output.format === "9:16"`
-4. Apply `cuts[]` on audio (word timestamps from `context.wordIndexes`)
-5. Concat segments respecting `outputStartSec` / J-cut overlap from timeline
-6. Overlay `creativeMoments`, burn subtitles from word indexes + `renderStylePresets`
-7. Mix `musicBed` per `audioMixPlan` (LUFS, ducking)
-8. Export to `<outputId>_<format>.mp4`
+Manifest per-output fields:
+
+- `audioMixApplied: true` — mix pass ran FFmpeg (not passthrough copy)
+- `sfxApplied: true` — at least one `sfxPlan` entry mixed (`library` or `audio_event`)
+- `segmentWarnings[]` — segment-pass warnings only (e.g. `broll_av_desync`)
+- `segmentErrors[]` — per-segment render failures (`segmentId`, `message`); output aborted, `outputPath` null
+
+`sfxPlan` `source: "audio_event"` uses `context.clips[clipId].sourcePath` + `anchorTimeSec` (`atrim`/`adelay`). Unresolved SFX → `warnings` with `SFX_UNRESOLVED`.
+
+## Encode profiles
+
+| Profile | Video | Audio |
+|---------|-------|-------|
+| `production` (domyślny) | libx264 slow CRF 18 | AAC 192k |
+| `draft` | libx264 ultrafast CRF 23 | AAC 128k |
 
 ## Verification
 
 ```bash
 npm test -- src/render/
+npm run test:e2e   # tests/e2e/render-mvp.test.js, render-shorts.test.js
 ```
-
-Fixtures: `fixtures/batches/mini-day/` (`golden-recipe-v2.json`, scene catalog, words, spatial index).

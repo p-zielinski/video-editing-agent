@@ -3,17 +3,24 @@ import { drillDownSceneDetails } from "../lib/abstraction-chunking.js";
 import { detectInputMode } from "../lib/input-mode.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import {
-  computeCreativityBudget,
+  computeCreativityBudgetForRecipe,
   mergeCreativityProfile,
   parseCreativityFromContext,
+  summarizeCreativityBudgetForBrief,
+  synthesizeOutputsForBudget,
 } from "../editorial/technique-budget.js";
 import { formatCatalogForPrompt } from "../editorial/format-catalog-for-prompt.js";
 import {
+  buildRetentionBeatAnchors,
+  buildRetentionTechniqueRotation,
   computeRetentionBeatTargets,
   formatRetentionGrammarForPrompt,
   mergeShortsRetentionProfile,
+  mergeVlogRetentionProfile,
   parseRetentionFromContext,
+  resolveMainOutputDurationSec,
   resolveShortOutputDurationSec,
+  suggestRetentionMoments,
 } from "../editorial/shorts-retention.js";
 import { buildSpatialRefExamples } from "../editorial/spatial-ref.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
@@ -22,7 +29,14 @@ import {
   buildKeyframesByClip,
 } from "../editorial/broll-sync-hints.js";
 import { buildSfxPlanFromAudio } from "../editorial/sfx-plan.js";
+import { listSfxCatalog } from "../editorial/sfx-library.js";
 import {
+  buildChapterCardHints,
+  buildColdOpenSegmentHint,
+  buildNarrativeOpenLoops,
+} from "../editorial/chapter-hints.js";
+import {
+  buildDeadAirMontageHints,
   buildEditorialContext,
   buildTranscriptExcerpts,
   formatSpatialSummary,
@@ -164,6 +178,8 @@ function buildCreativityContext({
   outputs = [],
   requiredFormats = [],
   shortsRetentionProfile,
+  vlogRetentionProfile,
+  recipe = null,
 }) {
   const contextProfile = creativityProfile ?? parseCreativityFromContext(userContext);
   const durationSec = targetDurationSec
@@ -220,29 +236,273 @@ function buildCreativityContext({
     },
   );
 
+  const vlogRetention = mergeVlogRetentionProfile(
+    vlogRetentionProfile ?? {},
+    {
+      outputs,
+      requiredFormats,
+    },
+  );
+
   const shortDurationSec = resolveShortOutputDurationSec({
     outputs,
     batchContext,
     targetDurationSec: durationSec,
   });
-  const creativityBudget = computeCreativityBudget(durationSec, parsedCreativity);
-  const techniqueCatalog = formatCatalogForPrompt(catalog, creativityBudget);
-  const retentionBeatTargets = shortsRetention.enabled
-    ? computeRetentionBeatTargets(shortDurationSec, shortsRetention)
-    : [];
-  const retentionGrammarSummary = formatRetentionGrammarForPrompt(
-    shortsRetention,
-    retentionBeatTargets,
+  const mainDurationSec = resolveMainOutputDurationSec({
+    outputs,
+    batchContext,
+    targetDurationSec: durationSec,
+  });
+  const outputsForBudget = synthesizeOutputsForBudget({
+    outputs,
+    requiredFormats,
+    durationSec,
+    batchContext,
+  });
+  const recipeBudget = computeCreativityBudgetForRecipe(
+    { outputs: outputsForBudget, vlogRetentionProfile: vlogRetention },
+    parsedCreativity,
   );
+  const creativityBudget = recipeBudget.default;
+  const creativityBudgetByOutput = Object.fromEntries(
+    Object.entries(recipeBudget.byOutputId).map(([outputId, outputBudget]) => [
+      outputId,
+      summarizeCreativityBudgetForBrief(outputBudget),
+    ]),
+  );
+  const techniqueCatalog = formatCatalogForPrompt(catalog, creativityBudget);
+
+  let retentionBeatTargets = [];
+  let retentionBeatTargetsMain = [];
+  let retentionBeatTargetsShort = [];
+  let retentionTechniqueRotation;
+  let retentionTechniqueRotationMain;
+  let retentionTechniqueRotationShort;
+  let retentionGrammarSummary = null;
+  let activeRetentionProfile;
+
+  const dualRetention = vlogRetention.enabled && shortsRetention.enabled;
+
+  if (dualRetention) {
+    retentionBeatTargetsMain = computeRetentionBeatTargets(mainDurationSec, vlogRetention, { mode: "vlog" });
+    retentionTechniqueRotationMain = buildRetentionTechniqueRotation(
+      retentionBeatTargetsMain.length,
+      "vlog",
+    );
+    retentionBeatTargetsShort = computeRetentionBeatTargets(shortDurationSec, shortsRetention, { mode: "shorts" });
+    retentionTechniqueRotationShort = buildRetentionTechniqueRotation(
+      retentionBeatTargetsShort.length,
+      "shorts",
+    );
+    retentionGrammarSummary = {
+      main: formatRetentionGrammarForPrompt(
+        vlogRetention,
+        retentionBeatTargetsMain,
+        { mode: "vlog", techniqueRotation: retentionTechniqueRotationMain },
+      ),
+      short: formatRetentionGrammarForPrompt(
+        shortsRetention,
+        retentionBeatTargetsShort,
+        { mode: "shorts", techniqueRotation: retentionTechniqueRotationShort },
+      ),
+    };
+    activeRetentionProfile = vlogRetention;
+  } else if (vlogRetention.enabled) {
+    retentionBeatTargets = computeRetentionBeatTargets(mainDurationSec, vlogRetention, { mode: "vlog" });
+    retentionTechniqueRotation = buildRetentionTechniqueRotation(
+      retentionBeatTargets.length,
+      "vlog",
+    );
+    retentionGrammarSummary = formatRetentionGrammarForPrompt(
+      vlogRetention,
+      retentionBeatTargets,
+      { mode: "vlog", techniqueRotation: retentionTechniqueRotation },
+    );
+    activeRetentionProfile = vlogRetention;
+  } else if (shortsRetention.enabled) {
+    retentionBeatTargets = computeRetentionBeatTargets(shortDurationSec, shortsRetention, { mode: "shorts" });
+    retentionTechniqueRotation = buildRetentionTechniqueRotation(
+      retentionBeatTargets.length,
+      "shorts",
+    );
+    retentionGrammarSummary = formatRetentionGrammarForPrompt(
+      shortsRetention,
+      retentionBeatTargets,
+      { mode: "shorts", techniqueRotation: retentionTechniqueRotation },
+    );
+    activeRetentionProfile = shortsRetention;
+  }
+
+  const retentionMomentSuggestions = recipe && activeRetentionProfile?.enabled
+    ? suggestRetentionMoments(recipe, activeRetentionProfile, {
+      mode: activeRetentionProfile.mode ?? "vlog",
+    })
+    : [];
+
+  const retentionDurationSec = dualRetention
+    ? mainDurationSec
+    : (vlogRetention.enabled ? mainDurationSec : shortDurationSec);
 
   return {
     parsedCreativity,
     creativityBudget,
+    creativityBudgetByOutput,
     techniqueCatalog,
     shortsRetention,
+    vlogRetention,
+    dualRetention,
+    activeRetentionProfile,
     retentionGrammarSummary,
     retentionBeatTargets,
+    retentionBeatTargetsMain,
+    retentionBeatTargetsShort,
+    retentionTechniqueRotation,
+    retentionTechniqueRotationMain,
+    retentionTechniqueRotationShort,
+    retentionMomentSuggestions,
+    retentionDurationSec,
+    mainDurationSec,
+    shortDurationSec,
   };
+}
+
+function buildRetentionBeatAnchorFields({
+  dualRetention,
+  activeRetentionProfile,
+  vlogRetention,
+  shortsRetention,
+  editorialContext,
+  abstraction,
+  timelineIndex,
+  mainDurationSec,
+  shortDurationSec,
+  retentionDurationSec,
+  recipe,
+  outputs,
+}) {
+  if (!editorialContext.audioIndex) {
+    return {};
+  }
+
+  const mapOptions = {
+    timelineIndex,
+    recipe,
+    outputs,
+  };
+
+  if (dualRetention) {
+    const retentionBeatAnchorsMain = buildRetentionBeatAnchors(
+      editorialContext.audioIndex,
+      abstraction,
+      vlogRetention,
+      {
+        ...mapOptions,
+        durationSec: mainDurationSec,
+        mode: "vlog",
+        outputKind: "main",
+      },
+    );
+    const retentionBeatAnchorsShort = buildRetentionBeatAnchors(
+      editorialContext.audioIndex,
+      abstraction,
+      shortsRetention,
+      {
+        ...mapOptions,
+        durationSec: shortDurationSec,
+        mode: "shorts",
+        outputKind: "short",
+      },
+    );
+
+    return {
+      ...(retentionBeatAnchorsMain.length ? { retentionBeatAnchorsMain } : {}),
+      ...(retentionBeatAnchorsShort.length ? { retentionBeatAnchorsShort } : {}),
+    };
+  }
+
+  if (!activeRetentionProfile?.enabled) {
+    return {};
+  }
+
+  const retentionBeatAnchors = buildRetentionBeatAnchors(
+    editorialContext.audioIndex,
+    abstraction,
+    activeRetentionProfile,
+    {
+      ...mapOptions,
+      durationSec: retentionDurationSec,
+      mode: activeRetentionProfile.mode ?? "vlog",
+      outputKind: activeRetentionProfile.mode === "shorts" ? "short" : "main",
+    },
+  );
+
+  return retentionBeatAnchors.length ? { retentionBeatAnchors } : {};
+}
+
+function buildRetentionBriefFields({
+  shortsRetention,
+  vlogRetention,
+  dualRetention,
+  activeRetentionProfile,
+  retentionGrammarSummary,
+  retentionBeatTargets,
+  retentionBeatTargetsMain,
+  retentionBeatTargetsShort,
+  retentionTechniqueRotation,
+  retentionTechniqueRotationMain,
+  retentionTechniqueRotationShort,
+  retentionMomentSuggestions,
+}) {
+  const base = {
+    shortsRetentionProfile: shortsRetention.enabled ? shortsRetention : undefined,
+    vlogRetentionProfile: vlogRetention.enabled ? vlogRetention : undefined,
+    retentionGrammarSummary,
+    retentionMomentSuggestions: retentionMomentSuggestions.length
+      ? retentionMomentSuggestions
+      : undefined,
+  };
+
+  if (dualRetention) {
+    return {
+      ...base,
+      retentionBeatTargetsMain: retentionBeatTargetsMain.length
+        ? retentionBeatTargetsMain
+        : undefined,
+      retentionBeatTargetsShort: retentionBeatTargetsShort.length
+        ? retentionBeatTargetsShort
+        : undefined,
+      retentionTechniqueRotationMain: retentionTechniqueRotationMain?.length
+        ? retentionTechniqueRotationMain
+        : undefined,
+      retentionTechniqueRotationShort: retentionTechniqueRotationShort?.length
+        ? retentionTechniqueRotationShort
+        : undefined,
+    };
+  }
+
+  return {
+    ...base,
+    retentionBeatTargets: activeRetentionProfile?.enabled && retentionBeatTargets.length
+      ? retentionBeatTargets
+      : undefined,
+    retentionTechniqueRotation: activeRetentionProfile?.enabled && retentionTechniqueRotation?.length
+      ? retentionTechniqueRotation
+      : undefined,
+  };
+}
+
+function resolveRetentionRules(vlogRetention, shortsRetention) {
+  if (!vlogRetention.enabled && !shortsRetention.enabled) {
+    return undefined;
+  }
+  if (vlogRetention.enabled && shortsRetention.enabled) {
+    return "V22-VLOG-01 … V22-VLOG-05 + V22-01 … V22-07";
+  }
+  if (vlogRetention.enabled) {
+    return "V22-VLOG-01 … V22-VLOG-05";
+  }
+  return "V22-01 … V22-07";
 }
 
 function buildL1SceneSummaries(abstraction, scenes) {
@@ -257,6 +517,7 @@ function buildL1SceneSummaries(abstraction, scenes) {
       topics: l1.topics ?? [],
       visualQuality: l1.visualQuality,
       stability: l1.stability,
+      isNarrationSource: l1.isNarrationSource ?? false,
     };
   });
 }
@@ -280,7 +541,36 @@ function buildSceneMapEntry(scene, abstraction) {
     topics: l1.topics ?? [],
     visualQuality: l1.visualQuality,
     stability: l1.stability,
+    isNarrationSource: l1.isNarrationSource ?? false,
   };
+}
+
+function buildAspectMix(scenes = []) {
+  const counts = {};
+  for (const scene of scenes) {
+    const key = scene.aspectRatio ?? "unknown";
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function buildClipAspectById(timelineIndex) {
+  const map = {};
+  for (const clip of timelineIndex?.clips ?? []) {
+    if (clip.clipId && clip.aspectRatio) {
+      map[clip.clipId] = clip.aspectRatio;
+    }
+  }
+  return map;
+}
+
+function buildSfxCatalogSummary() {
+  return listSfxCatalog().map((sound) => ({
+    sfxId: sound.sfxId,
+    tags: sound.tags ?? [],
+    durationSec: sound.durationSec,
+    label: sound.label ?? sound.sfxId,
+  }));
 }
 
 function buildBrollCandidates(sceneEntries) {
@@ -289,6 +579,7 @@ function buildBrollCandidates(sceneEntries) {
     .map((s) => ({
       sceneId: s.sceneId,
       clipId: s.clipId,
+      aspectRatio: s.aspectRatio,
       brollPotential: s.brollPotential ?? (s.hasSpeech ? 0.1 : 0.8),
       topics: s.topics,
       visualQuality: s.visualQuality,
@@ -366,9 +657,31 @@ export function buildDirectorBrief({
   creativityProfile,
   targetDurationSec,
   keyframesByClip = null,
+  recipe = null,
+  outputs = null,
 }) {
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
-  const { parsedCreativity, creativityBudget, techniqueCatalog, shortsRetention, retentionGrammarSummary, retentionBeatTargets } = buildCreativityContext({
+  const {
+    parsedCreativity,
+    creativityBudget,
+    creativityBudgetByOutput,
+    techniqueCatalog,
+    shortsRetention,
+    vlogRetention,
+    dualRetention,
+    activeRetentionProfile,
+    retentionGrammarSummary,
+    retentionBeatTargets,
+    retentionBeatTargetsMain,
+    retentionBeatTargetsShort,
+    retentionTechniqueRotation,
+    retentionTechniqueRotationMain,
+    retentionTechniqueRotationShort,
+    retentionMomentSuggestions,
+    retentionDurationSec,
+    mainDurationSec,
+    shortDurationSec,
+  } = buildCreativityContext({
     creativityProfile,
     userContext,
     batchContext,
@@ -462,6 +775,9 @@ export function buildDirectorBrief({
     spatialIndex: editorialContext.spatialIndex,
     spatialRefExamples: buildSpatialRefExamples(spatialIndex),
     sceneMap,
+    aspectMix: buildAspectMix(timelineIndex.scenes ?? []),
+    clipAspectById: buildClipAspectById(timelineIndex),
+    sfxCatalogSummary: buildSfxCatalogSummary(),
     brollCandidates,
     excludedHints,
     fillerStats: {
@@ -471,19 +787,24 @@ export function buildDirectorBrief({
     transcriptExcerpts: editorialContext.transcriptExcerpts,
     creativityProfile: parsedCreativity,
     techniqueCatalog,
-    shortsRetentionProfile: shortsRetention.enabled ? shortsRetention : undefined,
-    retentionGrammarSummary,
-    retentionBeatTargets: shortsRetention.enabled ? retentionBeatTargets : undefined,
+    ...buildRetentionBriefFields({
+      shortsRetention,
+      vlogRetention,
+      dualRetention,
+      activeRetentionProfile,
+      retentionGrammarSummary,
+      retentionBeatTargets,
+      retentionBeatTargetsMain,
+      retentionBeatTargetsShort,
+      retentionTechniqueRotation,
+      retentionTechniqueRotationMain,
+      retentionTechniqueRotationShort,
+      retentionMomentSuggestions,
+    }),
     audioIndex: editorialContext.audioIndex,
     audioMixDefaults,
-    creativityBudget: {
-      level: creativityBudget.level,
-      allowMidSentenceCuts: creativityBudget.allowMidSentenceCuts,
-      maxZoomMoments: creativityBudget.maxZoomMoments,
-      minZoomGapSec: creativityBudget.minZoomGapSec,
-      maxTotalZoomDutySec: creativityBudget.maxTotalZoomDutySec,
-      maxTotalTechniqueMoments: creativityBudget.maxTotalTechniqueMoments,
-    },
+    creativityBudget: summarizeCreativityBudgetForBrief(creativityBudget),
+    creativityBudgetByOutput,
     constraints: {
       requiredFormats,
       brollMatchThreshold: batchContext.brollMatchThreshold ?? 0.55,
@@ -491,7 +812,7 @@ export function buildDirectorBrief({
       shortsMaxDurationSec: batchContext.shortsMaxDurationSec ?? 60,
       sceneRegistryRules: "SR1-SR6",
       creativityRules: "V21-01 … V21-09",
-      retentionRules: shortsRetention.enabled ? "V22-01 … V22-07" : undefined,
+      retentionRules: resolveRetentionRules(vlogRetention, shortsRetention),
     },
     qualityOverQuantity: batchContext.qualityOverQuantity ?? true,
     ...(sceneMapPolicy ? { sceneMapPolicy, sceneMapOmittedCount } : {}),
@@ -512,6 +833,62 @@ export function buildDirectorBrief({
       maxEntries: 15,
       perClipAnalysis,
     });
+  }
+
+  const deadAirMontageHints = buildDeadAirMontageHints(editorialContext.audioIndex);
+  if (deadAirMontageHints.length > 0) {
+    brief.deadAirMontageHints = deadAirMontageHints;
+  }
+
+  const retentionBeatAnchorFields = buildRetentionBeatAnchorFields({
+    dualRetention,
+    activeRetentionProfile,
+    vlogRetention,
+    shortsRetention,
+    editorialContext,
+    abstraction,
+    timelineIndex,
+    mainDurationSec,
+    shortDurationSec,
+    retentionDurationSec,
+    recipe,
+    outputs,
+  });
+  Object.assign(brief, retentionBeatAnchorFields);
+
+  const chapterCardHints = buildChapterCardHints(abstraction, {
+    outputs: requiredFormats.includes("16:9")
+      ? [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: mainDurationSec,
+      }]
+      : [],
+    batchContext,
+  });
+  if (chapterCardHints.length > 0) {
+    brief.chapterCardHints = chapterCardHints;
+  }
+
+  const narrativeOpenLoops = buildNarrativeOpenLoops(abstraction);
+  if (narrativeOpenLoops.length > 0) {
+    brief.narrativeOpenLoops = narrativeOpenLoops;
+  }
+
+  const coldOpenSegmentHint = buildColdOpenSegmentHint(abstraction, {
+    outputs: requiredFormats.includes("16:9")
+      ? [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: mainDurationSec,
+      }]
+      : [],
+    batchContext,
+  });
+  if (coldOpenSegmentHint) {
+    brief.coldOpenSegmentHint = coldOpenSegmentHint;
   }
 
   if (sceneCount <= 5) {
@@ -582,6 +959,9 @@ export async function runDirector(client, {
   if (!raw.shortsRetentionProfile && brief.shortsRetentionProfile) {
     raw.shortsRetentionProfile = brief.shortsRetentionProfile;
   }
+  if (!raw.vlogRetentionProfile && brief.vlogRetentionProfile) {
+    raw.vlogRetentionProfile = brief.vlogRetentionProfile;
+  }
   if (!raw.creativeMoments) {
     raw.creativeMoments = [];
   }
@@ -619,10 +999,23 @@ export async function directorDrillDown(client, {
   const {
     parsedCreativity,
     creativityBudget,
+    creativityBudgetByOutput,
     techniqueCatalog,
     shortsRetention,
+    vlogRetention,
+    dualRetention,
+    activeRetentionProfile,
     retentionGrammarSummary,
     retentionBeatTargets,
+    retentionBeatTargetsMain,
+    retentionBeatTargetsShort,
+    retentionTechniqueRotation,
+    retentionTechniqueRotationMain,
+    retentionTechniqueRotationShort,
+    retentionMomentSuggestions,
+    retentionDurationSec,
+    mainDurationSec,
+    shortDurationSec,
   } = buildCreativityContext({
     creativityProfile: recipe.creativityProfile,
     userContext,
@@ -632,6 +1025,8 @@ export async function directorDrillDown(client, {
     outputs: recipe.outputs,
     requiredFormats,
     shortsRetentionProfile: recipe.shortsRetentionProfile,
+    vlogRetentionProfile: recipe.vlogRetentionProfile,
+    recipe,
   });
 
   const editorialContext = buildEditorialContext({
@@ -662,17 +1057,36 @@ export async function directorDrillDown(client, {
     requiredFormats,
     creativityProfile: parsedCreativity,
     techniqueCatalog,
-    shortsRetentionProfile: shortsRetention.enabled ? shortsRetention : undefined,
-    retentionGrammarSummary,
-    retentionBeatTargets: shortsRetention.enabled ? retentionBeatTargets : undefined,
-    creativityBudget: {
-      level: creativityBudget.level,
-      allowMidSentenceCuts: creativityBudget.allowMidSentenceCuts,
-      maxZoomMoments: creativityBudget.maxZoomMoments,
-      minZoomGapSec: creativityBudget.minZoomGapSec,
-      maxTotalZoomDutySec: creativityBudget.maxTotalZoomDutySec,
-      maxTotalTechniqueMoments: creativityBudget.maxTotalTechniqueMoments,
-    },
+    ...buildRetentionBriefFields({
+      shortsRetention,
+      vlogRetention,
+      dualRetention,
+      activeRetentionProfile,
+      retentionGrammarSummary,
+      retentionBeatTargets,
+      retentionBeatTargetsMain,
+      retentionBeatTargetsShort,
+      retentionTechniqueRotation,
+      retentionTechniqueRotationMain,
+      retentionTechniqueRotationShort,
+      retentionMomentSuggestions,
+    }),
+    ...buildRetentionBeatAnchorFields({
+      dualRetention,
+      activeRetentionProfile,
+      vlogRetention,
+      shortsRetention,
+      editorialContext,
+      abstraction,
+      timelineIndex,
+      mainDurationSec,
+      shortDurationSec,
+      retentionDurationSec,
+      recipe,
+      outputs: recipe.outputs,
+    }),
+    creativityBudget: summarizeCreativityBudgetForBrief(creativityBudget),
+    creativityBudgetByOutput,
     outputSchema: EDIT_RECIPE_V2_OUTPUT_SCHEMA,
   });
 
@@ -693,6 +1107,9 @@ export async function directorDrillDown(client, {
   }
   if (!raw.shortsRetentionProfile) {
     raw.shortsRetentionProfile = recipe.shortsRetentionProfile;
+  }
+  if (!raw.vlogRetentionProfile) {
+    raw.vlogRetentionProfile = recipe.vlogRetentionProfile;
   }
   if (!raw.clipRegistry || raw.clipRegistry.length === 0) {
     raw.clipRegistry = clipRegistry;

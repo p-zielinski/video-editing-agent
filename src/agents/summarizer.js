@@ -1,5 +1,9 @@
 import { AbstractionBundleSchema, AbstractL1Schema } from "../schemas/edit-recipe.js";
-import { chunkTimelineForL2, sceneSummaryInput } from "../lib/abstraction-chunking.js";
+import {
+  chunkTimelineForL2,
+  enrichSceneInputWithClipMeta,
+  sceneSummaryInput,
+} from "../lib/abstraction-chunking.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 
 const SILENT_BATCH_MAX_SCENES = 8;
@@ -13,7 +17,22 @@ const L1_OUTPUT_SCHEMA = {
   topics: ["tagi wizualne/tematyczne"],
   visualQuality: "low|medium|high",
   stability: "stable|shaky|unknown",
+  isNarrationSource: "boolean — true gdy scena pochodzi z klipu narration_track lub audio_only z mową",
 };
+
+function buildClipHints(clipRegistry = []) {
+  return clipRegistry.map((clip) => ({
+    clipId: clip.clipId,
+    clipRole: clip.clipRole,
+    mediaType: clip.mediaType,
+    hasSpeech: clip.hasSpeech,
+  }));
+}
+
+function enrichSceneInput(scene, words, visionCaptions, clipRegistry) {
+  const input = sceneSummaryInput(scene, words, visionCaptions);
+  return enrichSceneInputWithClipMeta(input, clipRegistry);
+}
 
 function loadSummarizerPrompt() {
   const v2 = loadPrompt("summarizer", { version: "v2" });
@@ -26,6 +45,7 @@ export function isSilentSceneInput(input) {
 
 export function groupScenesForL1Summarization(scenes, words, visionCaptions, {
   maxBatchSize = SILENT_BATCH_MAX_SCENES,
+  clipRegistry = [],
 } = {}) {
   const groups = [];
   let silentBatch = null;
@@ -38,7 +58,7 @@ export function groupScenesForL1Summarization(scenes, words, visionCaptions, {
   };
 
   for (const scene of scenes) {
-    const input = sceneSummaryInput(scene, words, visionCaptions);
+    const input = enrichSceneInput(scene, words, visionCaptions, clipRegistry);
 
     if (isSilentSceneInput(input)) {
       if (!silentBatch) {
@@ -104,30 +124,37 @@ export async function summarizeSegment(client, segment, l1Summaries) {
   return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
 }
 
-export async function summarizeSession(client, { l2Summaries, userContext, stats }) {
+export async function summarizeSession(client, { l2Summaries, userContext, stats, clipRegistry = [] }) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L3_session_summary",
     userContext,
     stats,
+    clipHints: buildClipHints(clipRegistry),
     segmentSummaries: l2Summaries,
     outputSchema: {
       sessionSummary: "string",
       narrativeArc: "string",
       recommendedFormats: ["16:9", "9:16"],
+      formatFit: { "16:9": "0-1", "9:16": "0-1" },
       estimatedKeepRatio: "0-1",
+      hasSeparateNarration: "boolean — true gdy narracja nagrana osobno (narration_track / audio_only z mową, oddzielnie od B-roll)",
     },
   });
 
   return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
 }
 
-export async function buildAbstractionBundle(client, timelineIndex, { userContext = "" } = {}) {
+export async function buildAbstractionBundle(client, timelineIndex, {
+  userContext = "",
+  clipRegistry = [],
+} = {}) {
   const l1 = [];
   const groups = groupScenesForL1Summarization(
     timelineIndex.scenes,
     timelineIndex.words,
     timelineIndex.visionCaptions,
+    { clipRegistry },
   );
 
   for (const group of groups) {
@@ -154,6 +181,7 @@ export async function buildAbstractionBundle(client, timelineIndex, { userContex
     l2Summaries: l2,
     userContext: userContext || timelineIndex.userContext || "",
     stats: timelineIndex.stats,
+    clipRegistry,
   });
 
   return AbstractionBundleSchema.parse({

@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "sounds": [
+    {
+      "sfxId": "whoosh",
+      "fileName": "whoosh.wav",
+      "title": "Whoosh transition",
+      "tags": ["whoosh", "transition", "swipe"],
+      "category": "transition",
+      "durationSec": 0.4,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "swoosh_fast_01",
+      "fileName": "swoosh_fast_01.wav",
+      "title": "Fast swoosh",
+      "tags": ["whoosh", "swoosh", "transition", "fast"],
+      "category": "transition",
+      "durationSec": 0.18,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "swoosh_soft_01",
+      "fileName": "swoosh_soft_01.wav",
+      "title": "Soft swoosh",
+      "tags": ["whoosh", "swoosh", "transition", "soft"],
+      "category": "transition",
+      "durationSec": 0.35,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "riser_short_01",
+      "fileName": "riser_short_01.wav",
+      "title": "Short riser",
+      "tags": ["riser", "transition", "build"],
+      "category": "transition",
+      "durationSec": 0.6,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "click_short_01",
+      "fileName": "click_short_01.wav",
+      "title": "UI click",
+      "tags": ["click", "ui", "transition"],
+      "category": "foley",
+      "durationSec": 0.05,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "impact_heavy_01",
+      "fileName": "impact_heavy_01.wav",
+      "title": "Heavy impact",
+      "tags": ["impact", "foley", "hit"],
+      "category": "foley",
+      "durationSec": 0.8,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "applause_short_01",
+      "fileName": "applause_short_01.wav",
+      "title": "Short applause",
+      "tags": ["applause", "crowd", "reaction"],
+      "category": "reaction",
+      "durationSec": 1.2,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "laughter_short_01",
+      "fileName": "laughter_short_01.wav",
+      "title": "Short laughter",
+      "tags": ["laughter", "reaction", "crowd"],
+      "category": "reaction",
+      "durationSec": 0.3,
+      "license": "repo-generated-test-stub"
+    },
+    {
+      "sfxId": "thunder_rumble_01",
+      "fileName": "thunder_rumble_01.wav",
+      "title": "Thunder rumble",
+      "tags": ["thunder", "weather", "rumble"],
+      "category": "ambience",
+      "durationSec": 2.5,
+      "license": "repo-generated-test-stub"
+    }
+  ]
+}

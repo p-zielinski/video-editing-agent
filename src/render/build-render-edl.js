@@ -1,70 +1,53 @@
 import { buildOutputTimeline } from "../lib/build-output-timeline.js";
-
-function resolveVideoSourcePath(segment, context) {
-  const clipId = segment.videoRef?.clipId;
-  return clipId ? context.clips[clipId]?.sourcePath ?? null : null;
-}
-
-function resolveAudioSourcePath(segment, context) {
-  switch (segment.audioPolicy) {
-    case "external":
-      return context.musicBed?.trackFilePath ?? null;
-    case "from_audio_ref": {
-      const clipId = segment.audioRef?.clipId;
-      return clipId ? context.clips[clipId]?.sourcePath ?? null : null;
-    }
-    case "from_prev":
-    case "from_next":
-    case "from_video_ref":
-    default: {
-      const clipId = segment.videoRef?.clipId ?? segment.audioRef?.clipId;
-      return clipId ? context.clips[clipId]?.sourcePath ?? null : null;
-    }
-  }
-}
+import { enrichRenderEdl } from "./enrich-render-edl.js";
+import { resolveWordIndexForSegment } from "./ffmpeg-segment.js";
 
 function mapSegmentToEdl(segment, context) {
   return {
     segmentId: segment.segmentId,
-    videoSourcePath: resolveVideoSourcePath(segment, context),
-    audioSourcePath: resolveAudioSourcePath(segment, context),
+    segmentRole: segment.segmentRole,
+    videoRef: segment.videoRef,
+    audioRef: segment.audioRef,
     videoInSec: segment.videoInSec,
     videoOutSec: segment.videoOutSec,
     audioInSec: segment.audioInSec ?? segment.videoInSec,
     audioOutSec: segment.audioOutSec ?? segment.videoOutSec,
     audioPolicy: segment.audioPolicy,
+    syncMode: segment.syncMode ?? "align_start",
+    overlapSec: segment.overlapSec ?? 0,
     outputStartSec: segment.outputStartSec,
     outputEndSec: segment.outputEndSec,
     cuts: segment.cuts ?? [],
+    wordIndex: resolveWordIndexForSegment(segment, context),
+    subtitles: segment.subtitles,
+    textOverlays: segment.textOverlays ?? [],
+    videoTransform: segment.videoTransform,
+    intent: segment.intent,
   };
 }
 
 /**
  * Build a render EDL for one output from recipe timeline + resolved batch context.
- *
- * @param {object} output - recipe.outputs[] entry
- * @param {object} recipe - full EditRecipe (reserved for future cross-output refs)
- * @param {object} context - result of resolveRenderContext()
- * @returns {{
- *   outputId: string,
- *   format: string,
- *   durationSec: number,
- *   segments: Array<object>,
- * }}
  */
-export function buildRenderEdl(output, recipe, context) {
-  void recipe;
-
-  const timeline = buildOutputTimeline(output);
+export function buildRenderEdl(output, recipe, context, enrichOptions = {}) {
+  const timeline = buildOutputTimeline(output, { wordIndexes: context.wordIndexes });
   const segments = timeline.map((segment) => mapSegmentToEdl(segment, context));
   const durationSec = segments.length > 0
     ? Math.max(...segments.map((seg) => seg.outputEndSec ?? 0))
     : 0;
 
-  return {
+  const edl = {
     outputId: output.outputId,
     format: output.format,
+    outputKind: output.outputKind ?? "main",
     durationSec,
     segments,
   };
+
+  return enrichRenderEdl(edl, {
+    recipe,
+    context,
+    output,
+    spatialIndex: enrichOptions.spatialIndex ?? null,
+  });
 }

@@ -6,6 +6,7 @@ import {
   isSilentSceneInput,
 } from "./summarizer.js";
 import { sceneSummaryInput } from "../lib/abstraction-chunking.js";
+import { AbstractL1Schema } from "../schemas/edit-recipe.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 
 function makeSilentScene(index) {
@@ -154,5 +155,74 @@ describe("summarizer agent", () => {
       [{ sceneId: scene.sceneId, caption: "ulica", timestampSec: 1 }],
     );
     assert.equal(isSilentSceneInput(withVisual), false);
+  });
+
+  it("passes clipRegistry to L3 session summary in buildAbstractionBundle", async () => {
+    const timelineIndex = loadFixture("timeline-index.json");
+    const l1 = loadFixture("summarizer-l1.json");
+    const l2 = loadFixture("summarizer-l2.json");
+    const l3 = loadFixture("summarizer-l3.json");
+    const clipRegistry = [
+      {
+        clipId: "clip03",
+        clipRole: "narration_track",
+        mediaType: "audio_only",
+        hasSpeech: true,
+      },
+    ];
+
+    const client = createMockOpenAIClient([l1, l1, l2, l3], { captureRequests: true });
+    await buildAbstractionBundle(client, timelineIndex, { clipRegistry });
+
+    const requests = client.getCapturedRequests();
+    const l3Request = requests
+      .map((r) => JSON.parse(r.messages[1].content))
+      .find((payload) => payload.task === "L3_session_summary");
+
+    assert.ok(l3Request, "expected L3_session_summary request");
+    assert.deepEqual(l3Request.clipHints, [
+      {
+        clipId: "clip03",
+        clipRole: "narration_track",
+        mediaType: "audio_only",
+        hasSpeech: true,
+      },
+    ]);
+  });
+
+  it("AbstractL1Schema accepts isNarrationSource: true from mocked L1 response", async () => {
+    const timelineIndex = loadFixture("timeline-index.json");
+    const l1Base = loadFixture("summarizer-l1.json");
+    const l1WithNarration = { ...l1Base, isNarrationSource: true };
+    const l2 = loadFixture("summarizer-l2.json");
+    const l3 = loadFixture("summarizer-l3.json");
+
+    const client = createMockOpenAIClient([l1WithNarration, l1WithNarration, l2, l3]);
+    const bundle = await buildAbstractionBundle(client, timelineIndex);
+
+    assert.equal(bundle.L1[0].isNarrationSource, true);
+    assert.deepEqual(AbstractL1Schema.parse(l1WithNarration).isNarrationSource, true);
+  });
+
+  it("AbstractionBundle accepts hasSeparateNarration: true in L3", async () => {
+    const timelineIndex = loadFixture("timeline-index.json");
+    const l1 = loadFixture("summarizer-l1.json");
+    const l2 = loadFixture("summarizer-l2.json");
+    const l3WithVO = {
+      ...loadFixture("summarizer-l3.json"),
+      hasSeparateNarration: true,
+    };
+
+    const client = createMockOpenAIClient([l1, l1, l2, l3WithVO]);
+    const bundle = await buildAbstractionBundle(client, timelineIndex, {
+      clipRegistry: [{
+        clipId: "clip03",
+        clipRole: "narration_track",
+        mediaType: "audio_only",
+        hasSpeech: true,
+      }],
+    });
+
+    assert.equal(bundle.L3.hasSeparateNarration, true);
   });
 });

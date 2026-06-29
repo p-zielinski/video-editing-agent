@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { validateRecipeV2, validateBrollTopicIndex, validateAudioMixPlan, validatePacingGuard, validateSfxPlan, validateRenderStylePresets } from "./recipe-v2.js";
+import { validateRecipeV2, validateBrollTopicIndex, validateAudioMixPlan, validatePacingGuard, validateSfxPlan, validateSfxDensityOnMain, validateRenderStylePresets, validateVoiceoverSegments, hasNarrationSegments } from "./recipe-v2.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import { resetMusicCatalogCache } from "../editorial/music-library.js";
 
@@ -79,6 +79,8 @@ const baseRecipe = {
   ],
   excluded: [],
   sceneUsageRegistry: [],
+  vlogRetentionProfile: { enabled: false },
+  shortsRetentionProfile: { enabled: false },
 };
 
 describe("recipe v2 validator", () => {
@@ -558,7 +560,7 @@ describe("recipe v2 validator", () => {
     recipe.audioMixPlan = {
       voiceTargetLufs: -16,
       preWhisperNormalizeLufs: -18,
-      musicBed: { trackId: "upbeat_vlog_01", volumeDb: -18, duckingDb: -12 },
+      musicBed: { trackId: "calm_reflective_01", volumeDb: -18, duckingDb: -12 },
       segments: [],
     };
 
@@ -648,5 +650,240 @@ describe("recipe v2 validator", () => {
     assert.equal(result.valid, false);
     assert.ok(result.issues.some((i) => i.code === "V24-02"));
     assert.ok(!result.issues.some((i) => i.code === "V24-04"));
+  });
+
+  it("warns V24-06 when sfxPlan exceeds 1 entry per 90s on main", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.outputs[0].timeline[0].videoOutSec = 180;
+    recipe.outputs[0].timeline[0].audioOutSec = 180;
+    recipe.sfxPlan = [
+      { sfxId: "sfx_a", source: "library", outputStartSec: 10, outputEndSec: 10.5, label: "whoosh" },
+      { sfxId: "sfx_b", source: "library", outputStartSec: 50, outputEndSec: 50.5, label: "click" },
+      { sfxId: "sfx_c", source: "library", outputStartSec: 100, outputEndSec: 100.5, label: "swoosh" },
+    ];
+
+    const issues = validateSfxDensityOnMain(recipe);
+    assert.ok(issues.some((i) => i.code === "V24-06" && i.severity === "warning"));
+    assert.match(issues[0].message, /max 2/);
+
+    const result = validateRecipeV2(recipe);
+    assert.equal(result.valid, true);
+    assert.ok(result.issues.some((i) => i.code === "V24-06"));
+  });
+
+  it("passes V24-06 when sfxPlan within 1 per 90s on main", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.outputs[0].timeline[0].videoOutSec = 180;
+    recipe.outputs[0].timeline[0].audioOutSec = 180;
+    recipe.sfxPlan = [
+      { sfxId: "sfx_a", source: "library", outputStartSec: 10, outputEndSec: 10.5, label: "whoosh" },
+      { sfxId: "sfx_b", source: "library", outputStartSec: 100, outputEndSec: 100.5, label: "click" },
+    ];
+
+    const issues = validateSfxDensityOnMain(recipe);
+    assert.equal(issues.length, 0);
+  });
+
+  it("errors V25-VO-01 when from_audio_ref points to clip without speech", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.clipRegistry.push({
+      clipId: "clip03",
+      fileName: "03_narration.wav",
+      durationSec: 20,
+      sortIndex: 2,
+      clipRole: "narration_track",
+      hasSpeech: false,
+      speechWordCount: 0,
+      mediaType: "audio_only",
+    });
+    recipe.outputs[0].timeline.push({
+      segmentId: "vo_bad",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip03", sceneId: "clip03_scene001" },
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_audio_ref",
+    });
+
+    const result = validateRecipeV2(recipe, {
+      topicIndex: {
+        topics: [{
+          topicId: "t1",
+          label: "test",
+          matchingScenes: [{ sceneId: "clip02_scene001", score: 0.8 }],
+        }],
+      },
+    });
+    const issue = result.issues.find((i) => i.code === "V25-VO-01");
+    assert.ok(issue);
+    assert.equal(issue.severity, "error");
+    assert.equal(result.valid, false);
+  });
+
+  it("passes V25-VO-01 when from_audio_ref points to clip with speech", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.clipRegistry.push({
+      clipId: "clip03",
+      fileName: "03_narration.wav",
+      durationSec: 20,
+      sortIndex: 2,
+      clipRole: "narration_track",
+      hasSpeech: true,
+      speechWordCount: 50,
+      mediaType: "audio_only",
+    });
+    recipe.outputs[0].timeline.push({
+      segmentId: "vo_ok",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip03", sceneId: "clip03_scene001" },
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_audio_ref",
+      subtitles: { policy: "word_by_word", sourceClipId: "clip03" },
+    });
+
+    const result = validateRecipeV2(recipe, {
+      topicIndex: {
+        topics: [{
+          topicId: "t1",
+          label: "test",
+          matchingScenes: [{ sceneId: "clip02_scene001", score: 0.8 }],
+        }],
+      },
+    });
+    assert.ok(!result.issues.some((i) => i.code === "V25-VO-01"));
+    assert.ok(!result.issues.some((i) => i.code === "V25-VO-02"));
+  });
+
+  it("errors V25-VO-02 when subtitles sourceClipId lacks speech transcript", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.clipRegistry.push({
+      clipId: "clip03",
+      fileName: "03_narration.wav",
+      durationSec: 20,
+      sortIndex: 2,
+      clipRole: "narration_track",
+      hasSpeech: true,
+      speechWordCount: 50,
+      mediaType: "audio_only",
+    });
+    recipe.outputs[0].timeline.push({
+      segmentId: "vo_sub_bad",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip03", sceneId: "clip03_scene001" },
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_audio_ref",
+      subtitles: { policy: "word_by_word", sourceClipId: "clip02" },
+    });
+
+    const result = validateRecipeV2(recipe, {
+      topicIndex: {
+        topics: [{
+          topicId: "t1",
+          label: "test",
+          matchingScenes: [{ sceneId: "clip02_scene001", score: 0.8 }],
+        }],
+      },
+    });
+    const issue = result.issues.find((i) => i.code === "V25-VO-02");
+    assert.ok(issue);
+    assert.equal(issue.severity, "error");
+    assert.equal(result.valid, false);
+  });
+
+  it("skips V25-VO validators when recipe has no narration segments", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline[0].subtitles = {
+      policy: "word_by_word",
+      sourceClipId: "clip02",
+    };
+
+    assert.equal(hasNarrationSegments(recipe), false);
+    const issues = validateVoiceoverSegments(
+      recipe.outputs[0].timeline[0],
+      new Map(recipe.clipRegistry.map((c) => [c.clipId, c])),
+      "main_16x9",
+    );
+    assert.ok(issues.some((i) => i.code === "V25-VO-02"));
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(!result.issues.some((i) => i.code === "V25-VO-01"));
+    assert.ok(!result.issues.some((i) => i.code === "V25-VO-02"));
+  });
+
+  it("skips V25-VO-02 when subtitles policy is off", () => {
+    const segment = {
+      segmentId: "vo_sub_off",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip03", sceneId: "clip03_scene001" },
+      audioPolicy: "from_audio_ref",
+      subtitles: { policy: "off", sourceClipId: "clip02" },
+    };
+    const clipRegistryMap = new Map([
+      ["clip02", { clipId: "clip02", hasSpeech: false, speechWordCount: 0 }],
+      ["clip03", { clipId: "clip03", hasSpeech: true, speechWordCount: 10 }],
+    ]);
+
+    const issues = validateVoiceoverSegments(segment, clipRegistryMap, "main_16x9");
+    assert.ok(!issues.some((i) => i.code === "V25-VO-02"));
+  });
+});
+
+describe("recipe v2 montage quality validators", () => {
+  it("validateRecipeV2 emits V25-BROLL-01 for desynced broll", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline.push({
+      segmentId: "broll1",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+      videoInSec: 0,
+      videoOutSec: 3,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_audio_ref",
+    });
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(result.issues.some((i) => i.code === "V25-BROLL-01"));
+  });
+
+  it("validateRecipeV2 emits V25-AR-02 with sceneAspectById", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline[0].videoRef = { clipId: "clip01", sceneId: "clip01_scene001" };
+    recipe.outputs[0].timeline[0].audioRef = { clipId: "clip01", sceneId: "clip01_scene001" };
+
+    const sceneAspectById = new Map([["clip01_scene001", "9:16"]]);
+    const result = validateRecipeV2(recipe, { sceneAspectById });
+    assert.ok(result.issues.some((i) => i.code === "V25-AR-02"));
+  });
+
+  it("validateRecipeV2 warns V24-07 for unresolvable library sfx", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.sfxPlan = [{
+      sfxId: "sfx_unknown_xyz",
+      source: "library",
+      label: "nonexistent_tag",
+      outputStartSec: 1,
+      outputEndSec: 1.5,
+      volumeDb: -6,
+    }];
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(result.issues.some((i) => i.code === "V24-07" && i.severity === "warning"));
   });
 });

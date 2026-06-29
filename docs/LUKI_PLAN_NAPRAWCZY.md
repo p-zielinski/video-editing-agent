@@ -1,7 +1,7 @@
 # Plan naprawczy luk przed montażem
 
-> Data: 2026-06-26  
-> Status: **zamknięty (pre-render W1–W3)** — W4 (FFmpeg) w roadmapie  
+> Data: 2026-06-27  
+> Status: **zamknięty (W1–W4.6)** — renderer FFmpeg wdrożony (W4.5/W4.6); `jump_cut` ma creative pulse (W4.11); deferred: `match_cut` / `whip_pan`, J/L-cut frame-accurate  
 > Powiązane: [`FORMATY_AI_I_GOTOWOSC_MONTAZU.md`](./FORMATY_AI_I_GOTOWOSC_MONTAZU.md)
 
 ## Cel
@@ -48,9 +48,14 @@ Zamknąć luki z §6.3 dokumentu formatów tam, gdzie da się to zrobić **anali
 - V24-01…04: `sfxPlan`, `colorGrade`, `renderStylePresets`
 - Testy w `recipe-v2-validator.test.js`
 
-### W4 — Renderer FFmpeg (poza tym sprintem)
+### W4 — Renderer FFmpeg
 
-- MVP: A-roll only → B-roll → cuts → napisy → creativeMoments → mix
+- [x] `execute-render.js` + CLI `render`
+- [x] Segmenty A-roll + B-roll cross-clip
+- [x] 9:16 reframe, ASS, overlaye, creativeMoments, audioMixPlan
+- [x] W4.5/W4.6 — concat crossfade (2-seg), `CROSSFADE_NOT_APPLIED` manifest, J/L carry-forward (`audio-jlcut.js`), audio mix + `duckingDb`, manifest `audioMixApplied`
+- [x] `jump_cut` — creative pulse brightness/contrast (W4.11)
+- [ ] J/L-cut frame-accurate, match_cut, whip_pan (best-effort / deferred)
 
 ## Kryteria done (pre-render)
 

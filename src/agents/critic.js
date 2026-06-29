@@ -1,18 +1,22 @@
 import { ReviewResultSchema } from "../schemas/edit-recipe.js";
 import { validateRecipeV2 } from "../validators/recipe-v2.js";
+import { buildSceneAspectMap } from "../validators/aspect-ratio.js";
 import { validateTimelineSegments } from "../validators/scene-registry.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import { formatCatalogForPrompt } from "../editorial/format-catalog-for-prompt.js";
 import {
-  computeCreativityBudget,
+  computeCreativityBudgetForRecipe,
   mergeCreativityProfile,
 } from "../editorial/technique-budget.js";
 import {
   computeRetentionBeatTargets,
   mergeShortsRetentionProfile,
+  mergeVlogRetentionProfile,
   parseRetentionFromContext,
+  resolveMainOutputDurationSec,
   resolveShortOutputDurationSec,
   shouldRunShortsRetentionValidation,
+  shouldRunVlogRetentionValidation,
 } from "../editorial/shorts-retention.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 import {
@@ -20,6 +24,17 @@ import {
   extractSceneIdsFromRecipe,
   spreadEditorialToPayload,
 } from "../editorial/editorial-context.js";
+
+function resolveSourceDurationSec(recipe) {
+  let sourceDurationSec = (recipe.clipRegistry ?? []).reduce(
+    (sum, clip) => sum + (clip.durationSec ?? 0),
+    0,
+  );
+  if (sourceDurationSec <= 0) {
+    sourceDurationSec = 600;
+  }
+  return sourceDurationSec;
+}
 
 function buildShortsRetentionCriticContext(recipe) {
   const userContext = recipe.batchContext?.notes ?? "";
@@ -53,13 +68,7 @@ function buildShortsRetentionCriticContext(recipe) {
     creativityProfile,
   });
 
-  let sourceDurationSec = (recipe.clipRegistry ?? []).reduce(
-    (sum, clip) => sum + (clip.durationSec ?? 0),
-    0,
-  );
-  if (sourceDurationSec <= 0) {
-    sourceDurationSec = 600;
-  }
+  let sourceDurationSec = resolveSourceDurationSec(recipe);
 
   const shortDurationSec = resolveShortOutputDurationSec({
     outputs: recipe.outputs ?? [],
@@ -74,6 +83,48 @@ function buildShortsRetentionCriticContext(recipe) {
   return {
     shortsRetentionProfile: shortsRetention,
     retentionBeatTargets: retentionBeatTargets.length ? retentionBeatTargets : undefined,
+  };
+}
+
+function buildVlogRetentionCriticContext(recipe) {
+  const requiredFormats = recipe.batchContext?.requiredFormats ?? [];
+
+  if (!shouldRunVlogRetentionValidation({
+    recipeVersion: recipe.version,
+    outputs: recipe.outputs ?? [],
+    requiredFormats,
+    vlogRetentionProfile: recipe.vlogRetentionProfile ?? {},
+  })) {
+    return {};
+  }
+
+  const vlogRetention = mergeVlogRetentionProfile(recipe.vlogRetentionProfile ?? {}, {
+    outputs: recipe.outputs ?? [],
+    requiredFormats,
+  });
+
+  if (!vlogRetention.enabled) {
+    return {};
+  }
+
+  const sourceDurationSec = resolveSourceDurationSec(recipe);
+  const mainDurationSec = resolveMainOutputDurationSec({
+    outputs: recipe.outputs ?? [],
+    batchContext: recipe.batchContext ?? {},
+    targetDurationSec: sourceDurationSec,
+  });
+
+  const retentionBeatTargetsMain = computeRetentionBeatTargets(
+    mainDurationSec,
+    vlogRetention,
+    { mode: "vlog" },
+  );
+
+  return {
+    vlogRetentionProfile: vlogRetention,
+    retentionBeatTargetsMain: retentionBeatTargetsMain.length
+      ? retentionBeatTargetsMain
+      : undefined,
   };
 }
 
@@ -111,6 +162,10 @@ function resolveCriticTechniquePack(recipe) {
   return creativityProfile.techniquePack;
 }
 
+function isRecipeV2(version) {
+  return version === "2.0" || version === "2.1" || version === "2.2" || version === "2.3" || version === "2.4";
+}
+
 function buildCreativityValidationContext(recipe) {
   const pack = resolveCriticTechniquePack(recipe);
   const catalog = loadTechniqueCatalog({
@@ -122,22 +177,10 @@ function buildCreativityValidationContext(recipe) {
   const profile = mergeCreativityProfile(recipe.creativityProfile ?? {}, {
     defaultCreativityLevel: catalog.pack?.defaultCreativityLevel,
   });
-  let durationSec = 0;
-  for (const output of recipe.outputs ?? []) {
-    for (const seg of output.timeline) {
-      const end = seg.outputEndSec
-        ?? (seg.outputStartSec ?? 0) + (seg.videoOutSec - seg.videoInSec);
-      durationSec = Math.max(durationSec, end);
-    }
-  }
-  if (durationSec <= 0) {
-    durationSec = (recipe.clipRegistry ?? []).reduce(
-      (sum, c) => sum + (c.durationSec ?? 0),
-      0,
-    ) || 600;
-  }
-  const budget = computeCreativityBudget(durationSec, profile);
-  const techniqueCatalog = formatCatalogForPrompt(catalog, budget);
+  const budget = computeCreativityBudgetForRecipe(recipe, profile);
+  const techniqueCatalog = formatCatalogForPrompt(catalog, budget.byOutputId
+    ? Object.values(budget.byOutputId)[0] ?? budget
+    : budget);
   return { catalog, budget, techniqueCatalog };
 }
 
@@ -145,17 +188,23 @@ export function heuristicReview(recipe, {
   requiredFormats = ["16:9", "9:16"],
   topicIndex,
   spatialIndex,
+  timelineIndex,
   wordIndexes = [],
   estimatedKeepRatio,
+  audioIndex = null,
 } = {}) {
-  if (recipe.version === "2.0" || recipe.version === "2.1" || recipe.version === "2.2" || recipe.version === "2.3") {
-    const { catalog, budget } = buildCreativityValidationContext(recipe);
+  if (isRecipeV2(recipe.version)) {
+    const { budget } = buildCreativityValidationContext(recipe);
+    const sceneAspectById = timelineIndex?.scenes?.length
+      ? buildSceneAspectMap(timelineIndex.scenes)
+      : undefined;
     return validateRecipeV2(recipe, {
       requiredFormats,
       topicIndex,
       spatialIndex,
+      sceneAspectById,
       wordIndexes,
-      techniqueCatalog: catalog,
+      audioIndex,
       creativityBudget: budget,
       estimatedKeepRatio,
     }).issues;
@@ -181,15 +230,17 @@ export async function runCritic(client, {
     requiredFormats,
     topicIndex,
     spatialIndex,
+    timelineIndex,
     wordIndexes,
+    audioIndex,
     estimatedKeepRatio: abstraction?.L3?.estimatedKeepRatio,
   });
-  const isV2Recipe = recipe.version === "2.0" || recipe.version === "2.1" || recipe.version === "2.2" || recipe.version === "2.3";
+  const isV2Recipe = isRecipeV2(recipe.version);
   const system = loadPrompt("critic", { version: isV2Recipe ? "v2" : "v1" })
     || loadPrompt("critic");
 
   let techniqueCatalog;
-  if (isV2Recipe && (recipe.creativeMoments?.length || recipe.version === "2.1" || recipe.version === "2.2" || recipe.version === "2.3")) {
+  if (isV2Recipe && (recipe.creativeMoments?.length || recipe.version !== "2.0")) {
     ({ techniqueCatalog } = buildCreativityValidationContext(recipe));
   }
 
@@ -197,7 +248,7 @@ export async function runCritic(client, {
 
   const includeSpatial = isV2Recipe
     && spatialIndex
-    && (recipe.creativeMoments?.length || recipe.version === "2.1" || recipe.version === "2.2" || recipe.version === "2.3");
+    && (recipe.creativeMoments?.length || recipe.version !== "2.0");
 
   const editorialContext = buildEditorialContext({
     timelineIndex,
@@ -210,7 +261,10 @@ export async function runCritic(client, {
     wordIndexes,
   });
 
-  const retentionContext = buildShortsRetentionCriticContext(recipe);
+  const retentionContext = {
+    ...buildShortsRetentionCriticContext(recipe),
+    ...buildVlogRetentionCriticContext(recipe),
+  };
 
   const userPayload = {
     recipe,
@@ -232,6 +286,8 @@ export async function runCritic(client, {
         .filter((scene) => usedSceneIds.has(scene.sceneId))
         .map((scene) => ({
           sceneId: scene.sceneId,
+          clipId: scene.clipId,
+          aspectRatio: scene.aspectRatio,
           hasSpeech: scene.hasSpeech,
           wordRange: scene.wordRange,
         })),

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import "dotenv/config";
+import path from "node:path";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { checkPythonPreflight } from "./lib/python-bridge.js";
 import { writeBatchQualityReport } from "./lib/batch-quality-report.js";
+import { executeRender } from "./render/execute-render.js";
 import { PIPELINE_STEPS, validatePipelineStep, resolveWorkDir } from "./pipeline/work-paths.js";
 
 const COMMAND_DEFAULTS = {
@@ -38,6 +40,7 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === "--min-outputs" && next) {
       args.requiredFormats = next.split(",").map((s) => s.trim());
+      args.requiredFormatsExplicit = true;
       i += 1;
     } else if (arg === "--date-from" && next) {
       args.dateFrom = next;
@@ -76,6 +79,20 @@ function parseArgs(argv) {
       args.thumbnailStub = true;
     } else if (arg === "--no-thumbnail-render") {
       args.renderThumbnails = false;
+    } else if (arg === "--dry-run") {
+      args.dryRun = true;
+    } else if (arg === "--output-id" && next) {
+      args.outputId = next;
+      i += 1;
+    } else if (arg === "--output-dir" && next) {
+      args.outputDir = next;
+      i += 1;
+    } else if (arg === "--encode-profile" && next) {
+      args.encodeProfile = next;
+      i += 1;
+    } else if (arg === "--format" && next) {
+      args.format = next;
+      i += 1;
     }
   }
 
@@ -158,13 +175,15 @@ async function runPythonStartupCheck(args) {
 
 function printHelp() {
   console.log(`
-Video Editing Agent — analiza i reżyseria (bez montażu)
+Video Editing Agent — analiza, reżyseria i montaż (FFmpeg)
 
 Użycie:
   node src/cli.js run --input ./inbox/day-11 --context "vlog dzień 66/100"
   node src/cli.js analyze --input ./inbox/day-11
   node src/cli.js direct --batch-id abc12345 --context "vlog dzień 66/100"
   node src/cli.js report --batch-id abc12345
+  node src/cli.js render --batch-id abc12345
+  node src/cli.js render --batch-id abc12345 --output-id horizontal_main --encode-profile draft
   node src/cli.js run --batch-id abc12345 --from-step abstract
 
 Komendy:
@@ -172,6 +191,7 @@ Komendy:
   direct    abstract → review (reżyseria + pętla krytyka)
   full|run  pełny pipeline
   report    raport jakości batcha (pre-render)
+  render    montaż FFmpeg z 09-edit-recipe-final.json → MP4
 
 Opcje:
   --input <folder>         Folder z plikami wideo
@@ -196,8 +216,13 @@ Opcje:
   --no-keyframes           Nie ekstrahuj klatek (szybszy dry-run)
   --thumbnail-stub         Miniatury: plan deterministyczny bez GPT/renderu
   --no-thumbnail-render    Miniatury: plan + krytyk, bez PNG
+  --dry-run                Render: tylko EDL JSON (bez FFmpeg)
+  --output-id <id>         Render: jeden output z recipe
+  --encode-profile <name>  Render: draft|production (domyślnie production)
+  --format <16:9|9:16>     Render: filtruj outputy po formacie
 
-Wymaga OPENAI_API_KEY w .env
+Wymaga OPENAI_API_KEY w .env (komendy analyze/direct/full/run)
+Render wymaga FFmpeg (+ libass dla napisów ASS)
 `);
 }
 
@@ -205,13 +230,14 @@ async function main() {
   const args = parseArgs(process.argv);
   const runnable = new Set(["run", "full", "analyze", "direct"]);
   const reportOnly = args.command === "report";
+  const renderOnly = args.command === "render";
 
-  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly)) {
+  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !renderOnly)) {
     printHelp();
     process.exit(args.command === "help" ? 0 : 1);
   }
 
-  if (!args.batchId && (reportOnly || !args.input)) {
+  if (!args.batchId && (reportOnly || renderOnly || !args.input)) {
     console.error("Podaj --batch-id");
     process.exit(1);
   }
@@ -221,6 +247,40 @@ async function main() {
     const { summary, outPath } = writeBatchQualityReport(workDir);
     console.log(summary);
     console.log(`\nRaport: ${outPath}`);
+    return;
+  }
+
+  if (renderOnly) {
+    const workDir = args.outputDir
+      ? path.resolve(args.outputDir)
+      : resolveWorkDir(args.batchId);
+
+    const { results, manifest } = await executeRender(workDir, {
+      dryRun: args.dryRun === true,
+      force: args.force === true,
+      outputId: args.outputId,
+      format: args.format,
+      encodeProfile: args.encodeProfile ?? "production",
+    });
+
+    if (args.dryRun) {
+      console.log(JSON.stringify(manifest, null, 2));
+      return;
+    }
+
+    for (const entry of manifest.outputs) {
+      if (entry.skipped) {
+        console.log(`Pominięto (istnieje): ${entry.outputPath}`);
+      } else {
+        console.log(`Wyrenderowano: ${entry.outputPath} (${entry.durationSec?.toFixed(1) ?? "?"}s)`);
+      }
+    }
+    if (manifest.warnings?.length) {
+      console.log(`\nOstrzeżenia (${manifest.warnings.length}):`);
+      for (const w of manifest.warnings.slice(0, 10)) {
+        console.log(`  - ${w.code ?? "warn"}: ${w.message ?? JSON.stringify(w)}`);
+      }
+    }
     return;
   }
 
@@ -283,6 +343,7 @@ async function main() {
     apiKey,
     userContext: args.context ?? "",
     requiredFormats: args.requiredFormats ?? ["16:9", "9:16"],
+    requiredFormatsExplicit: args.requiredFormatsExplicit === true,
     faceStub: args.faceStub === true || (args.fast === true && args.faceLive !== true),
     visionStub: args.visionStub === true || (args.fast === true && args.visionLive !== true),
     audioStub: args.audioStub === true || args.fast === true,

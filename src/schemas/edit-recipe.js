@@ -125,6 +125,7 @@ export const AbstractL1Schema = z.object({
   topics: z.array(z.string()).default([]),
   visualQuality: VisualQualitySchema.default("medium"),
   stability: StabilitySchema.default("unknown"),
+  isNarrationSource: z.boolean().default(false),
 });
 
 export const AbstractL2Schema = z.object({
@@ -135,11 +136,18 @@ export const AbstractL2Schema = z.object({
   summary: z.string(),
 });
 
+export const FormatFitSchema = z.object({
+  "16:9": z.number().min(0).max(1).optional(),
+  "9:16": z.number().min(0).max(1).optional(),
+}).optional();
+
 export const AbstractL3Schema = z.object({
   sessionSummary: z.string(),
   narrativeArc: z.string().optional(),
   recommendedFormats: z.array(z.enum(["16:9", "9:16"])).default(["16:9", "9:16"]),
+  formatFit: FormatFitSchema,
   estimatedKeepRatio: z.number().min(0).max(1).optional(),
+  hasSeparateNarration: z.boolean().default(false),
 });
 
 export const AbstractionBundleSchema = z.object({

@@ -1,7 +1,7 @@
 {
   "name": "video-editing-agent",
   "version": "0.1.0",
-  "description": "Analiza wideo i reżyseria AI (bez montażu) — Whisper, Qwen2.5-VL, GPT director",
+  "description": "Analiza wideo, reżyseria AI i montaż FFmpeg — Whisper, Qwen2.5-VL, GPT director",
   "type": "module",
   "main": "src/cli.js",
   "bin": {
@@ -13,6 +13,8 @@
     "analyze": "node src/cli.js analyze",
     "direct": "node src/cli.js direct",
     "full": "node src/cli.js full",
+    "render": "node src/cli.js render",
+    "generate:sfx-stubs": "node scripts/generate-sfx-stubs.js",
     "test": "node --test $(find src tests -name '*.test.js' 2>/dev/null | sort)",
     "test:e2e": "node --test tests/e2e/*.test.js",
     "export-schemas": "node src/schemas/export-json-schema.js"

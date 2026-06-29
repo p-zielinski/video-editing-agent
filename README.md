@@ -1,8 +1,8 @@
 # Video Editing Agent
 
-Analiza wideo i reżyseria AI — od surowych klipów do **EditRecipe** (receptury montażowej w JSON). Pipeline pre-render: transkrypcja, wizja lokalna, indeksy tematyczne/przestrzenne/audio, abstrakcja wielopoziomowa, director → critic/fixer.
+Analiza wideo, reżyseria AI i **montaż FFmpeg** — od surowych klipów do gotowych MP4. Pipeline: transkrypcja, wizja, indeksy, director → critic/fixer → **render**.
 
-**Ten projekt nie renderuje wideo.** Nie wykonuje cięć FFmpeg, nie eksportuje MP4 ani nie miksuje ścieżek audio. Artefakt końcowy to `09-edit-recipe-final.json` — plan montażu gotowy pod przyszły moduł renderu.
+Artefakt pre-render: `09-edit-recipe-final.json`. Po `node src/cli.js render --batch-id <id>` otrzymujesz MP4 w `output/.work/<batchId>/renders/`.
 
 Kanoniczna referencja kroków, grafu zależności, schematów v2.0–v2.3 i DSL kontekstu: [`docs/PRE_RENDER_PIPELINE.md`](docs/PRE_RENDER_PIPELINE.md).  
 Formaty odpowiedzi AI, EditRecipe i gotowość do montażu: [`docs/FORMATY_AI_I_GOTOWOSC_MONTAZU.md`](docs/FORMATY_AI_I_GOTOWOSC_MONTAZU.md).
@@ -17,6 +17,8 @@ inbox/*.MOV  →  [13 kroków analizy]  →  output/.work/<batchId>/
                                     critic/fixer loop
                                               ↓
                                     09-edit-recipe-final.json
+                                              ↓
+                                    render (FFmpeg) → MP4
 ```
 
 | Warstwa | Technologia | Rola |
@@ -29,6 +31,7 @@ inbox/*.MOV  →  [13 kroków analizy]  →  output/.work/<batchId>/
 | Face detect | Python (OpenCV) | bbox twarzy dla spatial index |
 | Abstrakcja | GPT (summarizer) | L1/L2/L3 — od scen do narracji batcha |
 | Reżyseria | GPT (director) | EditRecipe v2 z technikami montażowymi |
+| **Render** | FFmpeg (`src/render/`) | MP4 16:9 + 9:16 z receptury |
 | Walidacja | Zod + reguły V21/V22/V23 | critic/fixer, golden recipes |
 
 Szczegóły kroków, mtime-cache i `batchContext`: [`docs/PRE_RENDER_PIPELINE.md`](docs/PRE_RENDER_PIPELINE.md).
@@ -65,6 +68,10 @@ npm run analyze -- --input ./inbox/moj-folder
 # Reżyseria na gotowym batchu (abstract → review)
 npm run direct -- --batch-id abc12345 --context "vlog dzień 66/100"
 
+# Montaż z gotowej receptury → MP4
+npm run render -- --batch-id abc12345
+npm run render -- --batch-id abc12345 --output-id horizontal_main --encode-profile draft
+
 # Wznowienie od wybranego kroku
 node src/cli.js run --batch-id abc12345 --from-step topic_index --force
 ```
@@ -85,6 +92,7 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 | `schemas/json/` | Eksportowane schematy JSON (EditRecipe, indeksy, …) |
 | `python/` | Skrypty scene_detect, vision, objects, face_detect, audio_analyze |
 | `src/` | Orchestrator, kroki pipeline, agenci, walidatory |
+| `assets/sfx/` | Katalog SFX dla `sfxPlan` (`catalog.json`); pliki w repo to **testowe stuby** (`license: repo-generated-test-stub`) — źródła i licencje w [`assets/sfx/LICENSES.md`](assets/sfx/LICENSES.md) |
 
 ## Etapy pipeline (13 kroków)
 
@@ -111,6 +119,8 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 | `07-edit-recipe-draft.json` | direct | EditRecipe v2.1/v2.2/v2.3 (draft) |
 | `08-review.json` | review | wynik critic/fixer |
 | `09-edit-recipe-final.json` | review | finalna receptura po walidacji |
+| `13-render-manifest.json` | render | manifest montażu (ścieżki MP4, ostrzeżenia) |
+| `renders/*.mp4` | render | wyeksportowane wideo per output |
 
 ### Warstwy danych → brief directora
 
@@ -219,7 +229,7 @@ Pack: `shorts_retention_2026`. Walidacja: V22-01 … V22-07 (`src/validators/sho
 
 ### v2.3 — plan miksowania audio (pre-render)
 
-Opcjonalne `audioMixPlan` — plan LUFS, muzyki bed i duckingu **bez wykonania miksu** w tym pipeline:
+Opcjonalne `audioMixPlan` — plan LUFS, muzyki bed i duckingu; **autorowany w pre-render**, **wykonywany w rendererze** (`npm run render`):
 
 - `voiceTargetLufs` / `preWhisperNormalizeLufs` — domyślnie -16 / -18 LUFS
 - `musicBed` — zewnętrzna ścieżka (`trackId`, `volumeDb`, `duckingDb`) lub `null`
@@ -292,8 +302,9 @@ Implementacja: `src/pipeline/steps/topic-index.js`, `embedTexts()` w `src/agents
 ## Testy i fixture'y
 
 ```bash
-npm test              # unit + contract (~492 testów, src/ + tests/)
-npm run test:e2e      # 12 testów E2E (w tym 1× full-pipeline mocked mini-day)
+npm test              # unit + contract + E2E (854+ testów, 852 pass, 2 skip)
+npm run test:e2e      # 47 testów E2E (46 pass, 1 skip)
+npm run test:e2e      # 43 testów E2E (41 pass, 1 skip — orchestrator mocked bez OPENAI_API_KEY)
 ```
 
 Bez librosa analiza audio wraca do **`ffmpeg_astats`** (`analysisMode` w `01b`) — cisza/RMS OK, beaty często puste.
@@ -311,5 +322,5 @@ Kontrakt renderu i plan zamknięcia luk: [`docs/RENDER_MODULE_SPEC.md`](docs/REN
 
 | Status | Zakres |
 |--------|--------|
-| **Gotowe** | Pre-render: 13 kroków analizy, indeksy, abstrakcja, director/critic/fixer, EditRecipe v2.0–v2.3, walidacja V21/V22/V23 |
-| **Przyszłość** | Moduł renderu FFmpeg — cięcia, przejścia, overlay, miks audio według `audioMixPlan` |
+| **Gotowe** | Pre-render + render FFmpeg: analiza, EditRecipe v2.0–v2.4, montaż 16:9/9:16, ASS, overlaye, creativeMoments, audioMixPlan |
+| **W toku** | J/L-cut frame-accurate, match_cut, whip_pan, [katalog SFX + VO](docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md) |

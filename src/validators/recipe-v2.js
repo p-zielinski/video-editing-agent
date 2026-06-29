@@ -2,16 +2,20 @@ import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import { resolveTrackById } from "../editorial/music-library.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import {
-  computeCreativityBudget,
+  computeCreativityBudgetForRecipe,
   mergeCreativityProfile,
 } from "../editorial/technique-budget.js";
-import { mergeShortsRetentionProfile } from "../editorial/shorts-retention.js";
+import { mergeShortsRetentionProfile, mergeVlogRetentionProfile, shouldRunShortsRetentionValidation } from "../editorial/shorts-retention.js";
 import { validateCreativeMoments } from "./creative-moments.js";
 import { validateShortsRetention } from "./shorts-retention.js";
+import { validateVlogRetention, shouldRunVlogRetentionValidation } from "./vlog-retention.js";
 import {
   validateSceneRegistryV2,
   buildSceneUsageRegistryV2,
 } from "./scene-registry.js";
+import { validateAspectRatio, buildSceneAspectMap } from "./aspect-ratio.js";
+import { validateBrollAvSync } from "./broll-av-sync.js";
+import { resolveSfxById, resolveSfxByTag } from "../editorial/sfx-library.js";
 
 function refsEqual(a, b) {
   return a.clipId === b.clipId && a.sceneId === b.sceneId;
@@ -25,6 +29,93 @@ function getRequiredFormats(recipe) {
   return recipe.batchContext?.requiredFormats
     ?? recipe.batchContext?.minOutputs
     ?? ["16:9", "9:16"];
+}
+
+function mergeTechniqueCatalogs(catalogs) {
+  const techniques = [];
+  const byId = new Map();
+  for (const catalog of catalogs) {
+    for (const technique of catalog.techniques) {
+      if (!byId.has(technique.id)) {
+        byId.set(technique.id, technique);
+        techniques.push(technique);
+      }
+    }
+  }
+  const primary = catalogs[0];
+  return {
+    version: primary.version,
+    packId: catalogs.map((catalog) => catalog.packId).join("+"),
+    pack: primary.pack,
+    techniques,
+    byId,
+  };
+}
+
+function resolveValidationCatalog(parsed) {
+  const platforms = parsed.batchContext?.targetPlatforms?.length
+    ? parsed.batchContext.targetPlatforms
+    : ["youtube", "shorts"];
+  const requiredFormats = getRequiredFormats(parsed);
+  const catalogs = [];
+
+  if (shouldRunVlogRetentionValidation(parsed)) {
+    const vlogProfile = mergeVlogRetentionProfile(parsed.vlogRetentionProfile ?? {}, {
+      outputs: parsed.outputs,
+      requiredFormats,
+    });
+    catalogs.push(loadTechniqueCatalog({
+      pack: vlogProfile.techniquePack ?? "youtube_vlog_2026",
+      platforms,
+    }));
+  }
+
+  if (shouldRunShortsRetentionValidation({
+    recipeVersion: parsed.version,
+    outputs: parsed.outputs,
+    requiredFormats,
+    creativityProfile: parsed.creativityProfile ?? {},
+    userContext: "",
+    shortsRetentionProfile: parsed.shortsRetentionProfile ?? {},
+  })) {
+    const shortsProfile = mergeShortsRetentionProfile(parsed.shortsRetentionProfile ?? {}, {
+      outputs: parsed.outputs,
+      requiredFormats,
+      creativityProfile: parsed.creativityProfile ?? {},
+    });
+    catalogs.push(loadTechniqueCatalog({
+      pack: shortsProfile.techniquePack ?? "shorts_retention_2026",
+      platforms,
+    }));
+  }
+
+  if (catalogs.length === 0) {
+    const preliminaryRetention = mergeShortsRetentionProfile(parsed.shortsRetentionProfile ?? {}, {
+      creativityProfile: parsed.creativityProfile ?? {},
+      outputs: parsed.outputs,
+      requiredFormats,
+    });
+    const shortsValidationEnabled = shouldRunShortsRetentionValidation({
+      recipeVersion: parsed.version,
+      outputs: parsed.outputs,
+      requiredFormats,
+      creativityProfile: parsed.creativityProfile ?? {},
+      shortsRetentionProfile: parsed.shortsRetentionProfile ?? {},
+    });
+    const packId = shortsValidationEnabled
+      ? (preliminaryRetention.techniquePack ?? parsed.creativityProfile?.techniquePack)
+      : (parsed.creativityProfile?.techniquePack
+        ?? ((parsed.creativeMoments?.length ?? 0) > 0 ? "youtube_vlog_2026" : undefined));
+    return loadTechniqueCatalog({ pack: packId, platforms });
+  }
+
+  const creativityPackId = parsed.creativityProfile?.techniquePack
+    ?? ((parsed.creativeMoments?.length ?? 0) > 0 ? "youtube_vlog_2026" : null);
+  if (creativityPackId && !catalogs.some((catalog) => catalog.packId === creativityPackId)) {
+    catalogs.push(loadTechniqueCatalog({ pack: creativityPackId, platforms }));
+  }
+
+  return catalogs.length === 1 ? catalogs[0] : mergeTechniqueCatalogs(catalogs);
 }
 
 export function validateMediaRef(segment) {
@@ -427,6 +518,61 @@ function buildClipDurationMap(clipRegistry = []) {
   return new Map(clipRegistry.map((clip) => [clip.clipId, clip.durationSec ?? 0]));
 }
 
+function buildClipRegistryMap(clipRegistry = []) {
+  return new Map(clipRegistry.map((clip) => [clip.clipId, clip]));
+}
+
+function clipHasSpeech(clip) {
+  if (!clip) {
+    return false;
+  }
+  return clip.hasSpeech === true || (clip.speechWordCount ?? 0) > 0;
+}
+
+export function hasNarrationSegments(recipe) {
+  for (const output of recipe.outputs ?? []) {
+    for (const segment of output.timeline ?? []) {
+      if (segment.audioPolicy === "from_audio_ref") {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function validateVoiceoverSegments(segment, clipRegistryMap, outputId) {
+  const issues = [];
+
+  if (segment.audioPolicy === "from_audio_ref" && segment.audioRef?.clipId) {
+    const audioClip = clipRegistryMap.get(segment.audioRef.clipId);
+    if (audioClip && !clipHasSpeech(audioClip)) {
+      issues.push({
+        severity: "error",
+        code: "V25-VO-01",
+        message: `Segment ${segment.segmentId}: from_audio_ref wymaga audioRef z mową (hasSpeech)`,
+        outputId,
+        sceneId: segment.audioRef.sceneId,
+      });
+    }
+  }
+
+  if (segment.subtitles?.policy && segment.subtitles.policy !== "off"
+    && segment.subtitles.sourceClipId) {
+    const sourceClip = clipRegistryMap.get(segment.subtitles.sourceClipId);
+    if (sourceClip && !clipHasSpeech(sourceClip)) {
+      issues.push({
+        severity: "error",
+        code: "V25-VO-02",
+        message: `Segment ${segment.segmentId}: subtitles.sourceClipId musi wskazywać klip z transkryptem (hasSpeech)`,
+        outputId,
+        sceneId: segment.videoRef?.sceneId,
+      });
+    }
+  }
+
+  return issues;
+}
+
 export function validateAudioMixPlan(recipe, { catalogPath } = {}) {
   const issues = [];
   const plan = recipe.audioMixPlan;
@@ -543,6 +689,64 @@ export function validateSfxPlan(recipe, { clipDurations } = {}) {
   return issues;
 }
 
+export function validateSfxPlanCatalog(recipe) {
+  const issues = [];
+  for (const entry of recipe.sfxPlan ?? []) {
+    if (entry.source !== "library") {
+      continue;
+    }
+    if (resolveSfxById(entry.sfxId).sound) {
+      continue;
+    }
+    if (entry.label && resolveSfxByTag(entry.label).sound) {
+      continue;
+    }
+    issues.push({
+      severity: "warning",
+      code: "V24-07",
+      message: `sfxPlan ${entry.sfxId}: brak w katalogu SFX (sfxId ani tag "${entry.label ?? ""}")`,
+    });
+  }
+  return issues;
+}
+
+export const SFX_DENSITY_SEC_PER_ENTRY = 90;
+
+export function resolveSfxDensityMaxEntries(recipe) {
+  const mainDurationSec = estimateMainOutputDurationSec(recipe.outputs ?? []);
+  if (mainDurationSec <= 0) {
+    return Infinity;
+  }
+  return Math.ceil(mainDurationSec / SFX_DENSITY_SEC_PER_ENTRY);
+}
+
+export function validateSfxDensityOnMain(recipe) {
+  const sfxPlan = recipe.sfxPlan;
+  if (!sfxPlan?.length) {
+    return [];
+  }
+
+  const mainDurationSec = estimateMainOutputDurationSec(recipe.outputs ?? []);
+  if (mainDurationSec <= 0) {
+    return [];
+  }
+
+  const maxEntries = resolveSfxDensityMaxEntries(recipe);
+  if (sfxPlan.length <= maxEntries) {
+    return [];
+  }
+
+  const mainOutputId = recipe.outputs?.find((output) => output.outputKind === "main")?.outputId
+    ?? recipe.outputs?.[0]?.outputId;
+
+  return [{
+    severity: "warning",
+    code: "V24-06",
+    message: `sfxPlan ma ${sfxPlan.length} wpisów — max ${maxEntries} na main (${mainDurationSec.toFixed(0)}s, 1/90s)`,
+    outputId: mainOutputId,
+  }];
+}
+
 export function validateRenderStylePresets(recipe) {
   const issues = [];
   const hasVerticalOutput = (recipe.outputs ?? []).some((output) => output.format === "9:16");
@@ -643,6 +847,7 @@ export function validateRecipeV2(recipe, {
   requiredFormats,
   topicIndex,
   spatialIndex,
+  sceneAspectById,
   wordIndexes = [],
   audioIndex = null,
   techniqueCatalog,
@@ -667,26 +872,11 @@ export function validateRecipeV2(recipe, {
     // fallback: skip cut validation when no word index provided
   }
 
-  const preliminaryRetention = mergeShortsRetentionProfile(parsed.shortsRetentionProfile ?? {}, {
-    creativityProfile: parsed.creativityProfile ?? {},
-    outputs: parsed.outputs,
-    requiredFormats: getRequiredFormats(parsed),
-  });
-  const packId = preliminaryRetention.enabled
-    ? (preliminaryRetention.techniquePack ?? parsed.creativityProfile?.techniquePack)
-    : parsed.creativityProfile?.techniquePack;
-
-  const catalog = techniqueCatalog ?? loadTechniqueCatalog({
-    pack: packId,
-    platforms: parsed.batchContext?.targetPlatforms?.length
-      ? parsed.batchContext.targetPlatforms
-      : ["youtube", "shorts"],
-  });
+  const catalog = techniqueCatalog ?? resolveValidationCatalog(parsed);
   const profile = mergeCreativityProfile(parsed.creativityProfile ?? {}, {
     defaultCreativityLevel: catalog.pack?.defaultCreativityLevel,
   });
-  const durationSec = estimateRecipeDurationSec(parsed);
-  const budget = creativityBudget ?? computeCreativityBudget(durationSec, profile);
+  const budget = creativityBudget ?? computeCreativityBudgetForRecipe(parsed, profile);
 
   const audioIndexByClip = new Map();
   if (audioIndex?.clips) {
@@ -694,6 +884,9 @@ export function validateRecipeV2(recipe, {
       audioIndexByClip.set(clip.clipId, clip);
     }
   }
+
+  const clipRegistryMap = buildClipRegistryMap(parsed.clipRegistry);
+  const narrationPresent = hasNarrationSegments(parsed);
 
   const issues = [
     ...validateRequiredFormats(parsed),
@@ -704,7 +897,13 @@ export function validateRecipeV2(recipe, {
     ...validateWholeClipInSingleMode(parsed),
     ...validateAudioMixPlan(parsed, { catalogPath: musicCatalogPath }),
     ...validatePacingGuard(parsed, { estimatedKeepRatio }),
-    ...(hasV24SfxFields(parsed) ? validateSfxPlan(parsed) : []),
+    ...(hasV24SfxFields(parsed) ? [
+      ...validateSfxPlan(parsed),
+      ...validateSfxDensityOnMain(parsed),
+      ...validateSfxPlanCatalog(parsed),
+    ] : []),
+    ...validateAspectRatio(parsed, { sceneAspectById }),
+    ...validateBrollAvSync(parsed),
     ...(hasV24PresetFields(parsed) ? validateRenderStylePresets(parsed) : []),
     ...validateCreativeMoments(parsed, catalog, budget, {
       wordIds: allWordIds.size > 0 ? allWordIds : null,
@@ -712,6 +911,10 @@ export function validateRecipeV2(recipe, {
       audioIndexByClip: audioIndexByClip.size > 0 ? audioIndexByClip : null,
     }),
     ...validateShortsRetention(parsed, catalog, { creativityLevel: profile.level }),
+    ...validateVlogRetention(parsed, catalog, {
+      creativityLevel: profile.level,
+      retentionBeatTargets: parsed.retentionBeatTargets,
+    }),
   ];
 
   for (const output of parsed.outputs) {
@@ -729,6 +932,9 @@ export function validateRecipeV2(recipe, {
       );
       if (wordIndexByClip.size > 0) {
         issues.push(...validateCuts(segment, wordIndexByClip, output.outputId));
+      }
+      if (narrationPresent) {
+        issues.push(...validateVoiceoverSegments(segment, clipRegistryMap, output.outputId));
       }
     }
   }

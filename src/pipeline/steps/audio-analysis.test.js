@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { runAudioAnalysisStep } from "./audio-analysis.js";
 import { ClipAudioAnalysisSchema, AudioIndexSchema } from "../../schemas/audio-analysis.js";
+import { summarizeMusicLibraryForIndex } from "../../editorial/music-library.js";
 import { ARTIFACTS, writeJson, readJson } from "../work-paths.js";
 import { runPythonScript } from "../../lib/python-bridge.js";
 
@@ -118,6 +119,6 @@ describe("audio-analysis step", () => {
     assert.ok(index.clips[0].editorialTags.length >= 1);
     assert.ok(index.batchSummary.clipCount === 1);
     assert.ok(index.musicLibrary);
-    assert.equal(index.musicLibrary.trackCount, 0);
+    assert.equal(index.musicLibrary.trackCount, summarizeMusicLibraryForIndex().trackCount);
   });
 });

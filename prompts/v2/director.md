@@ -11,7 +11,7 @@ Obiekt zagnieżdżony w **brief**:
 - **sceneRanks** — top scen wg rankingu (do 10): `sceneId`, `rank`, `brollPotential`, `visualQuality`, `hasSpeech`
 - **fillerStats** — `totalFillers` + `perScene[]` z próbkami fillerów (`wordId`, `word`, czasy)
 - **sceneMapPolicy** / **sceneMapOmittedCount** — gdy batch >20 scen: `compact_large_batch` i liczba scen pominiętych w `sceneMap` (pełna lista w `sceneRanks` + `brollCandidates`)
-- **brollCandidates**, **excludedHints**, **clipRegistry**, **topicIndex**, **spatialIndex**, **transcriptExcerpts**, **audioIndex**, **techniqueCatalog**, **creativityBudget**, **shortsRetentionProfile**, …
+- **brollCandidates**, **excludedHints**, **clipRegistry**, **topicIndex**, **spatialIndex**, **transcriptExcerpts**, **audioIndex**, **techniqueCatalog**, **creativityBudget**, **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, …
 
 ### `task: drill_down_refine`
 
@@ -23,7 +23,7 @@ Płaski payload (bez zagnieżdżonego `brief`):
 - **topicIndex**, **spatialIndex**, **spatialRefExamples**, **transcriptExcerpts**, **audioIndex**
 - **clipRegistry**, **sessionSummary**, **userContext**, **requiredFormats**
 - **creativityProfile**, **techniqueCatalog**, **creativityBudget**
-- **shortsRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets** (gdy retention)
+- **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops** (gdy retention)
 
 ## sceneMap — pola montażowe
 
@@ -32,7 +32,9 @@ Każdy wpis `sceneMap[]` zawiera m.in.:
 - **mood** — nastrój sceny z L1
 - **keyMoments** — kluczowe momenty z L1 (tablica stringów)
 - **summary**, **brollPotential**, **topics**, **visualQuality**, **stability**
-- **sceneId**, **clipId**, czasy, **hasSpeech**
+- **sceneId**, **clipId**, czasy, **hasSpeech**, **aspectRatio** (`16:9` | `9:16` | `1:1` | `4:3` | `other`)
+
+Brief może zawierać **aspectMix** (liczba scen per aspect) i **clipAspectById** — używaj przy doborze scen do formatu wyjściowego.
 
 Przy `sceneMapPolicy: compact_large_batch` — `sceneMap` to podzbiór najważniejszych scen; resztę wybieraj przez `sceneRanks` i `brollCandidates`.
 
@@ -70,6 +72,44 @@ Każdy segment wymaga:
 }
 ```
 
+## Montaż z osobnym voice-over (`narration_track`)
+
+Gdy użytkownik nagrał **osobną narrację** (plik audio-only lub klip VO z głosem), a materiał wizualny to głównie B-roll:
+
+- W `clipRegistry` szukaj klipu z `clipRole: narration_track` lub `mediaType: audio_only` + `hasSpeech: true`
+- **Wideo** segmentów pochodzi z `broll_pool` / scen bez mowy do kamery; **audio** z klipu narracji
+- Każdy segment pod VO: `segmentRole: "broll"`, `audioPolicy: "from_audio_ref"`, `audioRef.clipId` = narracja
+- `subtitles.sourceClipId` = `audioRef.clipId` (transkrypt narracji, nie B-roll)
+- `cuts[].wordIds` — tylko z transkryptu klipu narracji (`transcriptExcerpts` dla `audioRef.clipId`)
+- `syncMode`:
+  - `fit_video_to_audio` — gdy jeden ujęcie B-roll ma pokryć cały zakres mowy (time-stretch / trim wideo)
+  - `loop_video` — gdy klip wideo jest krótszy niż fragment narracji; pętla ujęcia pod audio
+- Muzyka bed: `audioMixPlan.musicBed` + `duckUnderVoice: true`; narracja to głos, nie `audioPolicy: external`
+- Nie używaj `from_video_ref` na segmentach, gdzie `videoRef` nie ma mowy a narracja jest w innym klipie
+
+### Przykład: B-roll + audio-only VO
+
+```json
+{
+  "segmentId": "seg_vo_01",
+  "segmentRole": "broll",
+  "videoRef": { "clipId": "clip02", "sceneId": "clip02_scene001" },
+  "audioRef": { "clipId": "clip03", "sceneId": "clip03_scene001" },
+  "videoInSec": 0,
+  "videoOutSec": 8,
+  "audioInSec": 0,
+  "audioOutSec": 12,
+  "audioPolicy": "from_audio_ref",
+  "syncMode": "fit_video_to_audio",
+  "subtitles": { "policy": "word_by_word", "sourceClipId": "clip03" },
+  "cuts": []
+}
+```
+
+(`clip03` = `narration_track` / `mediaType: audio_only`; `clip02` = materiał wizualny z `topicIndex`)
+
+VO w **pliku wideo** (talking head tylko do syncu): ten sam wzorzec — `audioRef` → klip VO, `videoRef` → B-roll; obraz VO jest ignorowany przy `from_audio_ref`.
+
 ## B-roll z topicIndex
 
 Segmenty `broll` wybieraj **wyłącznie** z `topicIndex.topics[].matchingScenes` gdzie score >= brollMatchThreshold. Nie wymyślaj nowych topicId ani scen spoza indeksu.
@@ -82,7 +122,7 @@ Brief zawiera `transcriptExcerpts[]` — słowa A-roll per scena (`wordId`, `wor
 - Tnij fillery (`isFiller: true`) chyba że ważne dla historii
 - Nie wymyślaj `wordId` — tylko z `transcriptExcerpts` lub drill-down `drillDownSceneDetails`
 
-`audioIndex.clips[].beatTimestamps` — lista sekund beatów per klip. Dla `cut_on_beat` / `music_drop` kotwicz cięcia na najbliższy beat w zakresie segmentu (±0.15 s tolerancji).
+`audioIndex.clips[].beatTimestamps` — lista sekund beatów per klip. Dla `cut_on_beat` / `music_drop` kotwicz cięcia na najbliższy beat w zakresie segmentu (±0.15 s tolerancji). Na **granicy joinów segmentów** renderer snapuje join do beatu (gdy beaty dostępne w `audioIndex`).
 
 `audioIndex.clips[].cutSuggestions` — gotowe kotwice cięć (`timeSec`, `reason`, `strength`). Priorytetuj `reason: "beat"` i `"silence_start"` — to najlepsze momenty na `cut_on_beat`, `hard_cut_energy` lub wycięcie dead air.
 
@@ -90,7 +130,7 @@ Brief zawiera `transcriptExcerpts[]` — słowa A-roll per scena (`wordId`, `wor
 
 `audioIndex.clips[].deadAirHints` — scalone przerwy RMS + Whisper (`startSec`, `endSec`, `source`: `audio` | `transcript` | `both`). Priorytetuj `source: "both"` — najpewniejsze miejsca na wycięcie dead air (`hard_cut_energy`, skrócenie segmentu, `silence_beat`). `transcript` bez `audio` to długa pauza między słowami; `audio` bez `transcript` to cisza przy szumie tła lub B-roll bez mowy.
 
-`audioIndex.clips[].energyPeaks` — okna najwyższego RMS (`startSec`, `endSec`, `rmsDb`). Używaj do `zoom_punch_in`, `hard_cut_energy`, hooków i payoffów.
+`audioIndex.clips[].energyPeaks` — okna najwyższego RMS (`startSec`, `endSec`, `rmsDb`). Używaj do `zoom_punch_in`, `zoom_punch_out`, `hard_cut_energy` (retention pulse), hooków i payoffów.
 
 `audioIndex.clips[].audioEvents` — wykryte zdarzenia (`timeSec`, `label`, `strength`) — np. śmiech, uderzenie; kotwicz `creativeMoments` i cięcia na mocne eventy.
 
@@ -98,7 +138,7 @@ Brief zawiera `transcriptExcerpts[]` — słowa A-roll per scena (`wordId`, `wor
 
 Brief zawiera `spatialIndex.scenes[]` z anchorami per scena (`type`, `bbox`, `label`, `timestampSec`).
 
-Dla technik wymagających kotwicy (`zoom_punch_in`, `zoom_slow_push`, `reframe_follow_subject`, …):
+Dla technik wymagających kotwicy (`zoom_punch_in`, `zoom_punch_out`, `zoom_slow_push`, `reframe_follow_subject`, …):
 
 - Mapuj `sceneId` segmentu A-roll na wpis w `spatialIndex`
 - Ustaw `spatialRef` z pól:
@@ -133,6 +173,14 @@ Typy: `whole_clip`, `scene`, `time_range`. Pole `usableAsBroll` wymagane. `whole
 - Minimum 1× `outputKind: "main"` per wymagany format (`requiredFormats`).
 - Shorty: `outputKind: "short"`, `format: "9:16"`, max `shortsMaxDurationSec` — standalone highlights, nie wycinki z main.
 - Reuse scen między formatami (16:9 ↔ 9:16) jest dozwolony.
+- Gdy `output.format !== scene.aspectRatio`: ustaw `videoTransform.reframe` (`face`/`subject` gdy spatial anchor; `center` dla crop) lub świadomie zaakceptuj pasy boczne (9:16 w 16:9) — opisz w `intent`.
+- `requiredFormats` w brief jest już rozstrzygnięte (CLI lub L3 `recommendedFormats` / `formatFit`) — nie dodawaj formatów spoza listy.
+
+## Orientacja źródła vs format wyjściowy
+
+- **16:9 → 9:16**: renderer cropuje (kotwica twarz/subject lub center).
+- **9:16 → 16:9**: domyślnie pasy boczne — unikaj pionowego A-roll w main 16:9 bez uzasadnienia; preferuj poziomy materiał lub short 9:16.
+- Przy `sessionSummary.formatFit` — preferuj formaty z wyższym score; nie wymuszaj słabego deliverable.
 
 ## Inne zasady
 
@@ -168,6 +216,19 @@ Osobna tablica od `timeline[]` — opisuje zabiegi montażowe (zoom, cięcia, pr
 - Zoom na A-roll, nie na B-roll (chyba że `ken_burns_light` na B-roll)
 - Szanuj `maxZoomMoments`, `minZoomGapSec` z `creativityBudget`
 
+### Wykonywalność technik w rendererze (FFmpeg)
+
+Renderer mapuje `creativeMoments` na filtry FFmpeg — **nie wszystkie techniki z katalogu to widoczne cięcia na timeline**:
+
+| `techniqueId` | Efekt w rendererze | Uwagi dla Directora |
+|---------------|-------------------|---------------------|
+| `jump_cut`, `hard_cut_energy` | **Retention pulse** — krótki impuls brightness/contrast (~0.12 s) w creative pass | Umieszczaj dla energii i retencji; **nie oczekuj** widocznego skoku cięcia w tej samej scenie — to nie jest montażowy jump cut |
+| `zoom_punch_out` | **Obsługiwany** — krótkie oddalenie (scale punch, factor &lt; 1) jak `zoom_punch_in` w drugą stronę | Wymaga `spatialRef` / kotwicy; na A-roll, nie B-roll |
+| `cut_on_beat` | **Snap granicy segmentu** — gdy moment jest na joinie segmentów (±0.1 s), concat przesuwa join do najbliższego beatu z `audioIndex` | Wymaga `beatTimestamps` / beatów w `audioIndex` dla klipu wychodzącego; tolerancja `snapToleranceSec` (domyślnie 0.5 s) |
+| `crossfade` | Przejście dissolve na joinie segmentów | Wymaga sąsiednich segmentów na granicy |
+
+Dla prawdziwego skrócenia materiału używaj `timeline[].segments` (granice segmentów, `cuts[].wordIds`), nie `jump_cut` / `hard_cut_energy`.
+
 ## Gramatyka retencji shortów (v2.2)
 
 Gdy brief zawiera `shortsRetentionProfile` i `retentionGrammarSummary` — stosuj dla outputów `outputKind: "short"`:
@@ -193,6 +254,82 @@ Gdy brief zawiera `shortsRetentionProfile` i `retentionGrammarSummary` — stosu
 - `textOverlays[].role`: `hook` | `retention_beat` | `payoff` | `cta`
 
 Pack `shorts_retention_2026` gdy retention włączony — używaj technik `graphics/*` z katalogu.
+
+## Gramatyka retencji vlogu 16:9 (v2.2)
+
+Gdy brief zawiera `vlogRetentionProfile` i `retentionGrammarSummary` — stosuj dla outputów `outputKind: "main"` / format `16:9`:
+
+### Retention beats (co ~45 s)
+
+- `retentionRole: beat` na `creativeMoments` głównego outputu (`outputKind: "main"`)
+- Cel: co `retentionBeatIntervalSec` ± `retentionBeatToleranceSec` (domyślnie 45s ±8s) — subtelny reset uwagi, bez ciągłego migania
+- Rotacja technik z `retentionTechniqueRotation` lub `zoom_slow_push` → `ken_burns_light` → `music_swell` → `silence_beat`
+- **Unikaj** `jump_cut` i `hard_cut_energy` na beatach retencji — to impulsy renderera, nie montażowe akcenty na długim vlogu
+- `payoff` tylko przy kulminacji narracji (L2/L3), nie na każdym beacie
+
+### Kotwice beatów (`retentionBeatAnchors`)
+
+Gdy brief zawiera `retentionBeatAnchors[]` — preferuj te pozycje zamiast wymyślania czasów:
+
+- `idealOutputSec` — docelowa pozycja na osi outputu (cadence)
+- `outputSec` — pozycja po snapie do `energyPeaks` lub L1 `keyMoments` w tolerancji
+- `anchorTimeSec` + `clipId` — czas w klipie źródłowym (kotwica audio/narracja)
+- `suggestedTechniqueId` — technika z rotacji vlog
+- Ustaw `creativeMoments[].outputStartSec` ≈ `outputSec`; dla zoomów na A-roll dodaj `spatialRef` z `spatialIndex`
+
+### Pola v2.2 (vlog)
+
+- `vlogRetentionProfile` — profil z briefu (nie wyłączaj dla main output)
+- `retentionBeatTargets` — idealne sekundy beatów na osi main
+- `retentionTechniqueRotation` — kolejność technik per slot
+- `creativeMoments[].retentionRole`: `beat` | `payoff` (hook tylko na shortach)
+
+### Walidacja (kody V22-VLOG)
+
+Receptura z włączonym `vlogRetentionProfile` podlega regułom **V22-VLOG-01 … V22-VLOG-05**:
+
+| Kod | Reguła |
+|-----|--------|
+| V22-VLOG-01 | Min. liczba beatów na main (`retentionRole: beat` lub techniki rotacji vlog) — error |
+| V22-VLOG-02 | Max luka między beatami ≤ interval + tolerance (domyślnie 45s + 8s) — error |
+| V22-VLOG-03 | Agresywne techniki (`jump_cut`, `hard_cut_energy`, `pattern_interrupt`, `snap_zoom`) na beat — warning |
+| V22-VLOG-04 | 3+ kolejne beaty z tym samym `techniqueId` — warning (monotonna rotacja) |
+| V22-VLOG-05 | Beat daleko od `retentionBeatTargets` (±tolerance) — warning (gdy targets w recipe) |
+
+Pack `youtube_vlog_2026` — techniki z rotacji vlog; `silence_beat` dozwolony przy `level: balanced`.
+
+## Chapter cards i narrative loops (brief)
+
+Gdy brief zawiera `chapterCardHints[]` lub `narrativeOpenLoops[]` — użyj jako wskazówek montażowych (nie kopiuj dosłownie do JSON bez sensu narracyjnego):
+
+### `chapterCardHints[]`
+
+- Co ~3–5 min na main (`style: chapter_card`) — tekst z najbliższego segmentu L2 (`suggestedText`, `l2SegmentId`)
+- `targetSec` — docelowa pozycja na osi outputu main
+- Dodaj `textOverlays[]` z `style: chapter_card`, `role: retention_beat` lub dedykowanym `overlayId` — krótki napis rozdziału (2–4 s), nie zasłaniaj twarzy
+- Na main 16:9 ≥3 min — min. 1 karta gdy hints w briefie
+
+### `narrativeOpenLoops[]`
+
+- `type: cold_open` — zapowiedz payoff z `narrativeArc` bez spoilera; cold open na początku main, potem rewind do chronologii
+- `type: payoff_tease` — nawiązanie do `sessionSummary` w hooku / pierwszych 5 s
+- Nie psuj spójności audio — cold open to montaż segmentów, nie osobny output
+
+## Kontrakt enrich (post-director)
+
+Po Twoim szkicu pipeline **uzupełnia luki deterministycznie** — nie usuwaj ani nie duplikuj tego, co już dobrze ustawiłeś:
+
+| Enricher | Zachowanie | Twoja rola |
+|----------|------------|------------|
+| `enrichRecipeRetentionBeats` | Dodaje `creativeMoments` z `momentId: enrich_beat_*` tylko gdy brak beatów w tolerancji anchorów | Ustaw beaty retencji (`retentionRole: beat`) na main — enrich **nie zastępuje** Twoich momentów |
+| `enrichRecipeChapterCards` | Dodaje `textOverlays` z `overlayId: enrich_chapter_*` gdy brak `chapter_card` przy `chapterCardHints` | Dodaj karty rozdziałów z briefu — enrich wypełnia brakujące sloty |
+| `enrichRecipeSfxPlan` | Merge `audio_event` z analizy; trim do V24-06 (max 1 SFX / 90 s main) | Wybierz SFX narracyjnie — enrich nie duplikuje pokrytych eventów |
+
+**Zasady:**
+
+- Nie usuwaj `enrich_beat_*` / `enrich_chapter_*` w drill-down — to uzupełnienie, nie konflikt z Twoją wizją
+- Nie polegaj na enrich zamiast beatów/kart — director jest autorem głównym; enrich ratuje luki po walidacji
+- `enrich_beat_*` używa rotacji vlog (`zoom_slow_push`, `ken_burns_light`, …) — unikaj agresywnych technik shortów na main
 
 ## Plan miksowania audio (v2.3, pre-render)
 
@@ -240,7 +377,7 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
     "voiceTargetLufs": -16,
     "preWhisperNormalizeLufs": -18,
     "musicBed": {
-      "trackId": "library/upbeat_vlog_01",
+      "trackId": "upbeat_vlog_01",
       "volumeDb": -20,
       "duckingDb": -14
     },
@@ -268,8 +405,41 @@ Brief może zawierać `sfxPlanDefaults[]` — propozycje z analizy audio (`audio
 
 - Skopiuj wybrane wpisy do `sfxPlan[]`; dopasuj `outputStartSec` / `outputEndSec` do osi outputu
 - `source: "audio_event"` — zdarzenie z timestampem (`clipId`, `anchorTimeSec` wymagane)
-- `source: "library"` — sugestia z tagu bez precyzyjnego czasu (np. whoosh, impact)
+- `source: "library"` — efekt z katalogu `assets/sfx/catalog.json` (patrz poniżej)
 - Nie duplikuj tego samego `sfxId`; pomiń wpisy bez sensu narracyjnego
+- SFX są **opcjonalne** — dodawaj tylko gdy wzmacniają moment (przejście, payoff, reakcja); nie wypełniaj całego timeline
+
+#### Katalog SFX (`assets/sfx/catalog.json`)
+
+| `sfxId` | tagi | kategoria | kiedy użyć (sugestia, nie obowiązek) |
+|---------|------|-----------|--------------------------------------|
+| `whoosh` | whoosh, transition, swipe | transition | przejścia między scenami, hook na starcie, swipe cut |
+| `impact_heavy_01` | impact, foley, hit | foley | payoff, `zoom_punch_in`, `hard_cut_energy` (retention pulse), moment uderzenia |
+| `applause_short_01` | applause, crowd, reaction | reaction | punchline, reakcja widza, zakończenie segmentu |
+| `thunder_rumble_01` | thunder, weather, rumble | ambience | nastrój burzy, dramat, ambience pod narracją |
+
+Tagi editorialne z `audioIndex` (`impact`, `applause`, `weather` itd.) mapują się na te `sfxId` przez `sfxPlanDefaults` — możesz skopiować propozycję lub wybrać inny dźwięk z tabeli.
+
+#### Wpisy `sfxPlan[]` z `source: "library"`
+
+- `sfxId` — **wymagane**; ID z katalogu (renderer rozwiązuje plik WAV/MP3)
+- `label` — tag lub nazwa pliku zgodna z katalogiem (np. `whoosh`, `impact`)
+- `outputStartSec` / `outputEndSec` — zakres na osi outputu (kotwicz na cięciu, `creativeMoments`, beat)
+- `volumeDb` — domyślnie **-6**; SFX nie powinny zagłuszać głosu ani muzyki bed
+- `reason` — po polsku, 1 zdanie (zalecane)
+- `clipId` / `anchorTimeSec` — **nie ustawiaj** dla `library` (tylko dla `audio_event`)
+
+```json
+{
+  "sfxId": "whoosh",
+  "source": "library",
+  "label": "whoosh",
+  "outputStartSec": 12.0,
+  "outputEndSec": 12.4,
+  "volumeDb": -6,
+  "reason": "Whoosh przy przejściu do B-roll restauracji"
+}
+```
 
 ### `brollSyncHints`
 
@@ -296,3 +466,7 @@ Nadpisania stylów napisów i overlayów (renderer ma domyślne presety w `style
 - Ustaw tylko gdy userContext lub `outputKind` wymaga odbicia od domyślnych (np. short z `hook_large`)
 
 Zwracaj JSON EditRecipe v2.4 gdy używasz któregokolwiek z powyższych pól; w przeciwnym razie v2.3 wystarczy.
+
+## Wykonywalność receptury
+
+EditRecipe v2.4 z `09-edit-recipe-final.json` jest **wykonywalny** przez renderer FFmpeg (`npm run render` / `node src/cli.js render --batch-id <id>`). Pola `audioMixPlan`, `sfxPlan`, `colorGrade`, `renderStylePresets`, `creativeMoments` i segmenty v2 mapują się deterministycznie na filtry FFmpeg — projektuj recepturę tak, jakby montaż miał być od razu wyrenderowany.

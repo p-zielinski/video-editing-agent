@@ -35,4 +35,16 @@ describe("loadTechniqueCatalog", () => {
     const catalog = loadTechniqueCatalog({ pack: "shorts_energy" });
     assert.equal(catalog.pack.defaultCreativityLevel, "shorts");
   });
+
+  it("applies vlog pack constraintOverrides for silence_beat at balanced", () => {
+    const catalog = loadTechniqueCatalog({ pack: "youtube_vlog_2026" });
+    const silenceBeat = catalog.byId.get("silence_beat");
+    assert.equal(silenceBeat.constraints.requiresCreativityLevel, "balanced");
+  });
+
+  it("does not lower silence_beat gate on non-vlog packs", () => {
+    const catalog = loadTechniqueCatalog({ pack: "shorts_energy" });
+    const silenceBeat = catalog.byId.get("silence_beat");
+    assert.equal(silenceBeat, undefined);
+  });
 });

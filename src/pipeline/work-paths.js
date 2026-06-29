@@ -45,7 +45,21 @@ export const ARTIFACTS = {
   batchQualityReport: "10-batch-quality-report.json",
   thumbnailPlan: "11-thumbnail-plan.json",
   thumbnailReview: "12-thumbnail-review.json",
+  renderManifest: "13-render-manifest.json",
 };
+
+export function formatToRenderSuffix(format) {
+  return format.replace(":", "x");
+}
+
+export function renderOutputPath(workDir, outputId, format) {
+  const suffix = formatToRenderSuffix(format);
+  return path.join(workDir, "renders", `${outputId}_${suffix}.mp4`);
+}
+
+export function renderTmpDir(workDir, outputId) {
+  return path.join(workDir, "renders", ".tmp", outputId);
+}
 
 export function thumbnailImagePath(workDir, outputId, variantId) {
   return path.join(workDir, "thumbnails", outputId, `${variantId}.png`);

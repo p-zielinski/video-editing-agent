@@ -85,4 +85,14 @@ describe("cli", () => {
     ]);
     assert.equal(args.visionStub, false);
   });
+
+  it("parseArgs --min-outputs sets explicit requiredFormats", () => {
+    const args = parseArgs([
+      "node", "cli.js", "run",
+      "--input", "./inbox",
+      "--min-outputs", "9:16",
+    ]);
+    assert.deepEqual(args.requiredFormats, ["9:16"]);
+    assert.equal(args.requiredFormatsExplicit, true);
+  });
 });

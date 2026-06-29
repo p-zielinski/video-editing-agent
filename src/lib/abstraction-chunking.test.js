@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chunkTimelineForL2, sceneSummaryInput, drillDownSceneDetails } from "../lib/abstraction-chunking.js";
+import { chunkTimelineForL2, sceneSummaryInput, drillDownSceneDetails, enrichSceneInputWithClipMeta } from "../lib/abstraction-chunking.js";
 
 describe("abstraction chunking", () => {
   it("groups scenes into L2 segments", () => {
@@ -37,6 +37,30 @@ describe("abstraction chunking", () => {
     assert.match(input.transcript, /hej/);
     assert.deepEqual(input.fillers, ["yyy"]);
     assert.match(input.visual, /pokoju/);
+  });
+
+  it("enrichSceneInputWithClipMeta sets clipRole for narration_track", () => {
+    const sceneInput = {
+      sceneId: "clip03_scene001",
+      clipId: "clip03",
+      durationSec: 12,
+      transcript: "to jest narracja",
+      fillers: [],
+      visual: "",
+    };
+    const clipRegistry = [
+      {
+        clipId: "clip03",
+        clipRole: "narration_track",
+        mediaType: "audio_only",
+        hasSpeech: true,
+      },
+    ];
+
+    const enriched = enrichSceneInputWithClipMeta(sceneInput, clipRegistry);
+    assert.equal(enriched.clipRole, "narration_track");
+    assert.equal(enriched.mediaType, "audio_only");
+    assert.equal(enriched.hasSpeech, true);
   });
 
   it("drillDownSceneDetails returns L0 data only for selected sceneIds", () => {

@@ -108,6 +108,43 @@ export function buildEditorialContext({
   return context;
 }
 
+const DEAD_AIR_MONTAGE_TECHNIQUES = ["silence_beat", "hard_cut_energy"];
+const MAX_DEAD_AIR_MONTAGE_HINTS = 10;
+
+/**
+ * Suggest montage actions for high-confidence dead air (RMS + transcript fusion).
+ * Brief-only hints for the director — does not mutate the recipe.
+ */
+export function buildDeadAirMontageHints(audioIndexSummary) {
+  if (!audioIndexSummary?.clips?.length) {
+    return [];
+  }
+
+  const hints = [];
+  for (const clip of audioIndexSummary.clips) {
+    for (const deadAir of clip.deadAirHints ?? []) {
+      if (deadAir.source !== "both") {
+        continue;
+      }
+      hints.push({
+        clipId: clip.clipId,
+        startSec: deadAir.startSec,
+        endSec: deadAir.endSec,
+        source: deadAir.source,
+        durationSec: Math.round((deadAir.endSec - deadAir.startSec) * 10) / 10,
+        suggestedTechniques: DEAD_AIR_MONTAGE_TECHNIQUES,
+        suggestion:
+          `High-confidence dead air ${deadAir.startSec.toFixed(1)}–${deadAir.endSec.toFixed(1)}s: `
+          + "trim segment at endSec or anchor silence_beat / hard_cut_energy near the cut",
+      });
+    }
+  }
+
+  return hints
+    .sort((a, b) => b.durationSec - a.durationSec)
+    .slice(0, MAX_DEAD_AIR_MONTAGE_HINTS);
+}
+
 const CROSS_CHECK_EDITORIAL_KEYS = ["transcriptExcerpts", "audioIndex"];
 const TOP_LEVEL_INDEX_KEYS = ["topicIndex", "spatialIndex"];
 

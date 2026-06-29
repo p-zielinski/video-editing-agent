@@ -25,9 +25,12 @@ export const ClipRoleSchema = z.enum([
   "aroll_primary",
   "aroll_secondary",
   "broll_pool",
+  "narration_track",
   "outtakes",
   "undecided",
 ]);
+
+export const MediaTypeSchema = z.enum(["audio_only", "video"]);
 
 export const RoleSourceSchema = z.enum([
   "clip_profile",
@@ -73,6 +76,7 @@ export const TextOverlayRoleSchema = z.enum([
   "retention_beat",
   "payoff",
   "cta",
+  "chapter",
 ]);
 
 export const TextOverlayV2Schema = z.object({
@@ -169,6 +173,7 @@ export const ClipRegistryEntrySchema = z.object({
   visualQuality: VisualQualitySchema.optional(),
   excludeFromMainStory: z.boolean().optional(),
   excludeReason: z.string().nullable().optional(),
+  mediaType: MediaTypeSchema.optional(),
 });
 
 export const InputModeSchema = z.enum([
@@ -197,7 +202,7 @@ export const BatchContextV2Schema = z.object({
   brollMatchThreshold: z.number().min(0).max(1).default(0.55),
   allowBrollReuse: z.boolean().default(false),
   maxBrollSegmentsPerOutput: z.number().int().positive().default(30),
-  requiredFormats: z.array(z.string()).min(2),
+  requiredFormats: z.array(z.enum(["16:9", "9:16"])).min(1).max(2),
   minOutputs: z.array(z.string()).optional(),
   shortsStrategy: z.enum(["standalone_highlights"]).default("standalone_highlights"),
   shortsMaxDurationSec: z.number().positive().default(60),
@@ -260,6 +265,18 @@ export const ShortsRetentionProfileSchema = z.object({
   requireHookOverlay: z.boolean().default(true),
   maxHookOverlayDurationSec: z.number().positive().default(4),
   techniquePack: z.string().default("shorts_retention_2026"),
+});
+
+export const VlogRetentionProfileSchema = z.object({
+  enabled: z.boolean().default(false),
+  hookWindowSec: z.number().positive().default(3),
+  retentionBeatIntervalSec: z.number().positive().default(45),
+  retentionBeatToleranceSec: z.number().nonnegative().default(8),
+  minRetentionBeats: z.number().int().nonnegative().default(2),
+  requireHookMoment: z.boolean().default(false),
+  requireHookOverlay: z.boolean().default(false),
+  techniquePack: z.string().default("youtube_vlog_2026"),
+  mode: z.literal("vlog").default("vlog"),
 });
 
 export const AudioMixMusicBedSchema = z.object({
@@ -351,6 +368,7 @@ export const EditRecipeV2Schema = z.object({
   creativityProfile: CreativityProfileSchema.optional(),
   creativeMoments: z.array(CreativeMomentSchema).default([]),
   shortsRetentionProfile: ShortsRetentionProfileSchema.optional(),
+  vlogRetentionProfile: VlogRetentionProfileSchema.optional(),
   audioMixPlan: AudioMixPlanSchema.optional(),
   sfxPlan: z.array(SfxPlanEntrySchema).default([]),
   colorGrade: ColorGradeSchema.optional(),

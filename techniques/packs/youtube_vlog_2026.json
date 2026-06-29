@@ -26,5 +26,8 @@
   "defaultCreativityLevel": "balanced",
   "paramOverrides": {
     "zoom_punch_in": { "factor": { "default": 1.08 } }
+  },
+  "constraintOverrides": {
+    "silence_beat": { "requiresCreativityLevel": "balanced" }
   }
 }

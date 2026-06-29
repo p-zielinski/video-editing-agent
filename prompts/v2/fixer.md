@@ -11,7 +11,9 @@ Nie naruszaj scene registry SR1–SR6.
 - **sessionSummary** — obiekt L3 (kontekst narracji i `estimatedKeepRatio`)
 - **techniqueCatalog** — dozwolone techniki i budżet
 - **shortsRetentionProfile** — profil retencji shortów (gdy v2.2+ / retention włączone)
-- **retentionBeatTargets** — docelowe pozycje beatów (gdy retention)
+- **vlogRetentionProfile** — profil retencji vlog 16:9 (gdy v2.2+ / vlog retention włączone)
+- **retentionBeatTargets** — docelowe pozycje beatów shortów (gdy retention short)
+- **retentionBeatTargetsMain** — docelowe pozycje beatów vlog main (gdy retention vlog)
 - **topicIndex**, **spatialIndex**, **transcriptExcerpts**, **audioIndex** (w tym **deadAirHints**), **wordIdHint** — kontekst napraw (gdy dostępny)
 
 ## creativeMoments (v2.1)
@@ -51,8 +53,23 @@ Gdy recipe zawiera `shortsRetentionProfile` lub issues V22-*:
 | V22-06 | Przenieś techniki `graphics` na output `outputKind: short` lub usuń z main |
 | V22-07 | Skróć hook overlay do `maxHookOverlayDurationSec`; max 1 duży napis na 15s |
 
-Payload zawiera `retentionBeatTargets` — użyj jako docelowych pozycji beatów.
+Payload zawiera `retentionBeatTargets` — użyj jako docelowych pozycji beatów shortów.
+Payload zawiera `retentionBeatTargetsMain` — użyj jako docelowych pozycji beatów vlog main.
 Payload zawiera `topicIndex` z `matchingScenes[].sceneId` i `score` — użyj przy naprawie `BROLL_SCENE_NOT_IN_TOPIC_INDEX` (zamień scenę B-roll na dopasowaną z topicIndex).
+
+### Gramatyka retencji vlog 16:9 (v2.2)
+
+Gdy recipe zawiera `vlogRetentionProfile` lub issues V22-VLOG-*:
+
+| Kod | Naprawa |
+|-----|---------|
+| V22-VLOG-01 | Dodaj `creativeMoments` z `retentionRole: beat` na output `outputKind: main` w pozycjach z `retentionBeatTargetsMain` |
+| V22-VLOG-02 | Rozłóż beaty równomiernie na main — max luka między beatami ≤ interval + tolerance |
+| V22-VLOG-03 | Zamień agresywną technikę na beatach (`jump_cut`, `hard_cut_energy`, `pattern_interrupt`, `snap_zoom`) na łagodną z rotacji (`zoom_slow_push`, `ken_burns_light`, `music_swell`, `silence_beat`) |
+| V22-VLOG-04 | Zrotuj `techniqueId` beatów — unikaj 3+ kolejnych z tym samym ID; użyj `retentionTechniqueRotationMain` z briefu |
+| V22-VLOG-05 | Dodaj lub przesuń beat w pozycjach z `retentionBeatTargetsMain` (±tolerance) |
+
+Preferuj rotację z `retentionTechniqueRotationMain` w briefu — unikaj agresywnych technik shortów na main.
 
 ### Transkrypcja i beaty (naprawy)
 

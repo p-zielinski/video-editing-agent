@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "batchId": "voiceoverday",
+  "clipRegistry": [
+    {
+      "clipId": "clip01",
+      "fileName": "01_broll_city.MOV",
+      "durationSec": 30,
+      "sortIndex": 0,
+      "clipRole": "broll_pool",
+      "roleConfidence": 0.8,
+      "roleSource": "clip_profile",
+      "hasSpeech": false,
+      "speechWordCount": 0,
+      "mediaType": "video",
+      "visualSummary": "ulice miasta, spacer, architektura",
+      "topics": ["miasto", "spacer", "ulica"],
+      "visualQuality": "high",
+      "excludeFromMainStory": false,
+      "excludeReason": null
+    },
+    {
+      "clipId": "clip02",
+      "fileName": "02_broll_food.MOV",
+      "durationSec": 25,
+      "sortIndex": 1,
+      "clipRole": "broll_pool",
+      "roleConfidence": 0.8,
+      "roleSource": "clip_profile",
+      "hasSpeech": false,
+      "speechWordCount": 0,
+      "mediaType": "video",
+      "visualSummary": "kawiarnia, jedzenie na talerzu",
+      "topics": ["jedzenie", "kawiarnia", "kawa"],
+      "visualQuality": "high",
+      "excludeFromMainStory": false,
+      "excludeReason": null
+    },
+    {
+      "clipId": "clip03",
+      "fileName": "03_narration.wav",
+      "durationSec": 20,
+      "sortIndex": 2,
+      "clipRole": "narration_track",
+      "roleConfidence": 0.9,
+      "roleSource": "clip_profile",
+      "hasSpeech": true,
+      "speechWordCount": 10,
+      "mediaType": "audio_only",
+      "visualSummary": "osobna ścieżka narracji nagrana w studiu",
+      "topics": ["narracja", "miasto", "kawiarnia"],
+      "visualQuality": "medium",
+      "excludeFromMainStory": false,
+      "excludeReason": null
+    }
+  ]
+}

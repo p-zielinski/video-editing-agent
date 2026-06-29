@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { runFixer } from "./fixer.js";
+import { runFixer, shouldInvokeFixer } from "./fixer.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 
 const audioIndex = {
@@ -251,5 +251,21 @@ describe("fixer agent", () => {
     );
     assert.ok(Array.isArray(payloadWithoutTimeline.transcriptExcerpts));
     assert.equal(payloadWithoutTimeline.transcriptExcerpts.length, 0);
+  });
+
+  it("shouldInvokeFixer returns true for V22-VLOG-03/04 warnings without errors", () => {
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V22-VLOG-03", message: "aggressive beat" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V22-VLOG-04", message: "monotony" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V22-VLOG-05", message: "target drift" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "error", code: "V22-VLOG-01", message: "min beats" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([]), false);
   });
 });
