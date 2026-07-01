@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runPipeline } from "../../src/pipeline/orchestrator.js";
+import { createTokenVectorEmbedFn } from "../../src/pipeline/steps/topic-index.js";
 import { resolveFfmpegBins } from "../../src/lib/ffmpeg-bin.js";
 import { createMiniDayMockClient } from "../../src/test-helpers/mock-openai-client.js";
 import {
@@ -133,6 +134,7 @@ describe("orchestrator runPipeline E2E — mini-day (mocked OpenAI)", () => {
       force: true,
       userContext: "vlog dzień 66/100 — restauracja i spacer",
       requiredFormats: ["16:9", "9:16"],
+      topicIndexEmbedFn: createTokenVectorEmbedFn(),
     });
 
     assert.equal(result.batchId, batchId);
@@ -140,7 +142,7 @@ describe("orchestrator runPipeline E2E — mini-day (mocked OpenAI)", () => {
     assert.equal(fs.existsSync(path.join(workDir, ARTIFACTS.recipeFinal)), true);
 
     const topicIndex = readJson(path.join(workDir, ARTIFACTS.topicIndex));
-    assert.equal(topicIndex.version, "1.0", "topic index should run without embeddings");
+    assert.equal(topicIndex.version, "2.0", "topic index requires embeddings");
     assert.ok(topicIndex.topics.length >= 1);
 
     const abstraction = readJson(path.join(workDir, ARTIFACTS.abstraction));
@@ -179,7 +181,7 @@ describe("orchestrator runPipeline E2E — mini-day (mocked OpenAI)", () => {
 });
 
 describe("orchestrator runPipeline E2E — ingest → index (optional, live APIs)", () => {
-  it("runPipeline ingest → index with --fast stubs when ffmpeg and OPENAI_API_KEY are set", async (t) => {
+  it("runPipeline ingest → index with explicit analysis stubs when ffmpeg and OPENAI_API_KEY are set", async (t) => {
     if (!isFfmpegAvailable()) {
       return t.skip("ffmpeg not available");
     }

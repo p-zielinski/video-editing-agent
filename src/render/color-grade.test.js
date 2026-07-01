@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildColorGradeFilters } from "./color-grade.js";
+import { buildColorGradeFilters, shouldApplyColorGrade } from "./color-grade.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const NEUTRAL_LUT_CUBE = path.join(ROOT, "assets", "luts", "neutral_vlog.cube");
@@ -63,5 +63,26 @@ describe("color-grade", () => {
     assert.equal(filters.length, 2);
     assert.ok(filters[0].startsWith("eq="));
     assert.ok(filters[1].startsWith("lut3d="));
+  });
+
+  it("shouldApplyColorGrade returns false when enabled is false", () => {
+    assert.equal(shouldApplyColorGrade({ enabled: false, lutId: "neutral_vlog" }), false);
+    assert.deepEqual(buildColorGradeFilters({ enabled: false, lutId: "neutral_vlog" }), []);
+  });
+
+  it("shouldApplyColorGrade returns false for mode none", () => {
+    assert.equal(shouldApplyColorGrade({ mode: "none" }), false);
+    assert.deepEqual(buildColorGradeFilters({ mode: "none", lutId: "neutral_vlog" }), []);
+  });
+
+  it("mode eq_only applies EQ but not LUT", () => {
+    assert.equal(fs.existsSync(NEUTRAL_LUT_CUBE), true);
+    const filters = buildColorGradeFilters({
+      mode: "eq_only",
+      lutId: "neutral_vlog",
+      contrast: 0.05,
+    });
+    assert.equal(filters.length, 1);
+    assert.ok(filters[0].startsWith("eq="));
   });
 });

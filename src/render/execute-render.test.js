@@ -133,6 +133,43 @@ describe("executeRender", () => {
     }
   });
 
+  it("skipCreative records pass in passesSkipped without creative ffmpeg step", async () => {
+    const workDir = copyFixtureToWorkDir("mini-day", { prefix: "vea-render-skip" });
+    try {
+      seedClipSourceFiles(workDir);
+      const recipe = loadFixtureArtifact("mini-day", "golden-recipe-v2.json");
+      writeJson(path.join(workDir, ARTIFACTS.recipeFinal), recipe);
+
+      const mockRenderSegment = async (segment, context, outputPath, segOptions) => {
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        fs.writeFileSync(outputPath, "stub-seg");
+        const { warnings } = buildSegmentFfmpegArgs(segment, context, outputPath, segOptions);
+        return { outputPath, warnings };
+      };
+
+      const { results, manifest } = await executeRender(workDir, {
+        outputId: "horizontal_main",
+        skipFfmpegCheck: true,
+        force: true,
+        skipCreative: true,
+        renderSegmentToFile: mockRenderSegment,
+        runFfmpeg: async (args) => {
+          const out = outputPathFromFfmpegArgs(args);
+          if (out) {
+            fs.mkdirSync(path.dirname(out), { recursive: true });
+            fs.writeFileSync(out, "stub-mp4");
+          }
+        },
+        probeDuration: async () => 61.8,
+      });
+
+      assert.ok(results[0].passesSkipped?.includes("creative"));
+      assert.ok(manifest.outputs[0].passesSkipped?.includes("creative"));
+    } finally {
+      cleanupWorkDir(workDir);
+    }
+  });
+
   it("records segmentErrors and aborts output when a segment render throws", async () => {
     const workDir = copyFixtureToWorkDir("mini-day", { prefix: "vea-render-seg-err" });
     try {

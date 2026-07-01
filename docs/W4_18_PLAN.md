@@ -1,34 +1,31 @@
 # W4.18 — Recipe enrich polish + montage E2E
 
 > Last updated: 2026-06-29
-> Status: in progress
+> Status: **done**
+> Flow score: 86% → **91%**
 
-## Tasks
+## Completed
 
-| ID | Task | Agent | Status |
-|----|------|-------|--------|
-| W4.18-1 | `enrichRecipeChapterCards` | A | ✅ |
-| W4.18-2 | spatialRef on enrich zoom beats | B | |
-| W4.18-3 | Golden `enrich_beat_*` fixture | A | |
-| W4.18-4 | Prompts enrich contract | C | |
-| W4.18-5 | V24-06 trim in sfx enrich | C | |
-| W4.18-6 | V22-VLOG-05 fixer-required | C | |
-| W4.18-7 | V24-06 in critic.md | C | |
-| W4.18-8 | E2E direct→enrich→render | D | ✅ |
-| W4.18-9 | FORMATY sync | D | ✅ |
-| W4.18-10 | Cold-open segment hint | D | ✅ |
+| ID | Task |
+|----|------|
+| W4.18-1 | `enrichRecipeChapterCards` |
+| W4.18-2 | spatialRef on enrich zoom beats |
+| W4.18-3 | Contract test `enrich_beat_*` |
+| W4.18-4 | Prompts enrich contract |
+| W4.18-5 | V24-06 trim in `enrichRecipeSfxPlan` |
+| W4.18-6 | V22-VLOG-05 fixer-required |
+| W4.18-7 | V24-06 in critic.md |
+| W4.18-8 | E2E `render-vlog-retention-pipeline.test.js` |
+| W4.18-9 | FORMATY §6.3 sync |
+| W4.18-10 | `coldOpenSegmentHint` + `enrichRecipeColdOpenSegment` |
 
-Target: flow 86% → 92%+
+Central hook: `applyDeterministicRecipeEnrichers` in `agents.js` (post-direct + post-fixer).
 
-## W4.18-D deliverables
+## Verification (2026-06-29)
 
-- `tests/e2e/render-vlog-retention-pipeline.test.js` — mini-day → enrich retention + chapter cards → `executeRender`
-- `buildColdOpenSegmentHint()` → `brief.coldOpenSegmentHint` w `director.js`
-- `docs/FORMATY_AI_I_GOTOWOSC_MONTAZU.md` §6.3 — enrich post-direct, V24-06
+| Command | pass | fail | skip |
+|---------|-----:|-----:|-----:|
+| `npm test` | 864 | 0 | 2 |
+| `npm run test:e2e` | 47 | 0 | 1 |
 
-## Verification
-
-```bash
-node --test tests/editorial/retention-enrich.test.js src/agents/director.test.js
-node --test tests/e2e/render-vlog-retention-pipeline.test.js
-```
+## Next: `docs/W4_19_PLAN.md`

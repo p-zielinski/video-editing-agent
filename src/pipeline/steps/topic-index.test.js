@@ -11,12 +11,34 @@ import {
   keywordOverlap,
   normalizeVector,
   runTopicIndexStep,
+  TopicIndexEmbeddingError,
 } from "./topic-index.js";
 import { ARTIFACTS, writeJson } from "../work-paths.js";
 
+const mockEmbedFn = createTokenVectorEmbedFn(64);
+
 const clipRegistry = [
-  { clipId: "clip01", hasSpeech: true, clipRole: "aroll_primary", speechWordCount: 10 },
-  { clipId: "clip02", hasSpeech: false, clipRole: "broll_pool", speechWordCount: 0, topics: ["jedzenie"] },
+  {
+    clipId: "clip01",
+    fileName: "01_talk.MOV",
+    durationSec: 60,
+    sortIndex: 0,
+    hasSpeech: true,
+    clipRole: "aroll_primary",
+    speechWordCount: 10,
+    roleSource: "clip_profile",
+  },
+  {
+    clipId: "clip02",
+    fileName: "02_broll.MOV",
+    durationSec: 30,
+    sortIndex: 1,
+    hasSpeech: false,
+    clipRole: "broll_pool",
+    speechWordCount: 0,
+    topics: ["jedzenie"],
+    roleSource: "clip_profile",
+  },
 ];
 
 const abstraction = {
@@ -64,6 +86,7 @@ describe("topic_index", () => {
       timelineIndex,
       clipRegistry,
       threshold: 0.55,
+      embedFn: mockEmbedFn,
     });
 
     assert.ok(index.topics.length >= 1);
@@ -73,7 +96,19 @@ describe("topic_index", () => {
     assert.ok(restauracja.matchingScenes.length > 0);
     assert.ok(restauracja.matchingScenes[0].score >= 0.55);
     assert.equal(restauracja.matchingScenes[0].sceneId, "clip02_scene001");
-    assert.equal(index.version, "1.0");
+    assert.equal(index.version, "2.0");
+  });
+
+  it("throws TopicIndexEmbeddingError without embedFn", async () => {
+    await assert.rejects(
+      () => buildTopicIndex({
+        abstraction,
+        timelineIndex,
+        clipRegistry,
+        threshold: 0.55,
+      }),
+      TopicIndexEmbeddingError,
+    );
   });
 
   it("filters scenes below threshold", async () => {
@@ -82,6 +117,7 @@ describe("topic_index", () => {
       timelineIndex,
       clipRegistry,
       threshold: 0.99,
+      embedFn: mockEmbedFn,
     });
 
     for (const topic of index.topics) {
@@ -107,6 +143,7 @@ describe("topic_index", () => {
       },
       clipRegistry,
       threshold: 0.55,
+      embedFn: mockEmbedFn,
     });
 
     const muzeum = index.topics.find((t) => t.label === "muzeum");
@@ -140,6 +177,7 @@ describe("topic_index", () => {
       },
       clipRegistry,
       threshold: 0.55,
+      embedFn: mockEmbedFn,
     });
 
     for (const topic of index.topics) {
@@ -176,13 +214,6 @@ describe("topic_index", () => {
       objectDetections: [],
     };
 
-    const keywordOnly = await buildTopicIndex({
-      abstraction: synonymAbstraction,
-      timelineIndex: synonymTimeline,
-      clipRegistry,
-      threshold: 0.55,
-      embedFn: null,
-    });
     const withEmbedding = await buildTopicIndex({
       abstraction: synonymAbstraction,
       timelineIndex: synonymTimeline,
@@ -191,31 +222,14 @@ describe("topic_index", () => {
       embedFn: createSemanticMockEmbedFn(),
     });
 
-    const topicKeyword = keywordOnly.topics.find((t) => t.label === "restauracji");
     const topicEmbed = withEmbedding.topics.find((t) => t.label === "restauracji");
-    assert.ok(topicKeyword, "expected topic label restauracji");
     assert.ok(topicEmbed, "expected topic label restauracji");
 
-    const keywordMatchScore = topicKeyword.matchingScenes.find((m) => m.sceneId === "clip02_scene001")?.score ?? 0;
     const embedMatch = topicEmbed.matchingScenes.find((m) => m.sceneId === "clip02_scene001");
-    assert.equal(keywordMatchScore, 0, "keyword-only path should miss synonym scene below threshold");
     assert.ok(embedMatch, "embedding path should match synonym scene");
     assert.ok(embedMatch.score >= 0.55);
     assert.match(embedMatch.reason, /embedding: restauracji/i);
     assert.equal(withEmbedding.version, "2.0");
-  });
-
-  it("stub mode works without API (keyword-only path)", async () => {
-    const index = await buildTopicIndex({
-      abstraction,
-      timelineIndex,
-      clipRegistry,
-      threshold: 0.55,
-      embedFn: null,
-    });
-
-    assert.equal(index.version, "1.0");
-    assert.ok(index.topics.some((topic) => topic.matchingScenes.length > 0));
   });
 
   it("token vector embed fn gives higher cosine for shared tokens", async () => {
@@ -262,19 +276,28 @@ describe("topic_index", () => {
 
       writeJson(path.join(workDir, ARTIFACTS.timelineIndex), isolatedTimeline);
       writeJson(path.join(workDir, ARTIFACTS.abstraction), isolatedAbstraction);
-      writeJson(path.join(workDir, ARTIFACTS.clipRegistry), { clipRegistry });
+      writeJson(path.join(workDir, ARTIFACTS.clipRegistry), {
+        version: "1.0",
+        batchId: "test01",
+        clipRegistry,
+      });
       writeJson(path.join(workDir, ARTIFACTS.objects("clip02")), {
         detections: [
           { sceneId: "clip02_scene001", label: "jedzenie", timestampSec: 5 },
         ],
       });
 
-      const index = await runTopicIndexStep({ workDir, force: true, stub: true });
+      const index = await runTopicIndexStep({
+        workDir,
+        force: true,
+        embedFn: mockEmbedFn,
+      });
       const jedzenie = index.topics.find((t) => t.label === "jedzenie");
       assert.ok(jedzenie, "expected topic jedzenie");
       const match = jedzenie.matchingScenes.find((m) => m.sceneId === "clip02_scene001");
       assert.ok(match, "fresh object detection should boost broll scene match");
       assert.match(match.reason, /visual: jedzenie/i);
+      assert.equal(index.version, "2.0");
     } finally {
       fs.rmSync(workDir, { recursive: true, force: true });
     }

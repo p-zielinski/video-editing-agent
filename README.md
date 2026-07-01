@@ -68,17 +68,32 @@ npm run analyze -- --input ./inbox/moj-folder
 # Reżyseria na gotowym batchu (abstract → review)
 npm run direct -- --batch-id abc12345 --context "vlog dzień 66/100"
 
+# Produkcja: więcej iteracji critic/fixer (domyślnie 3)
+npm run full -- --input ./inbox/moj-folder --context "vlog" --max-review-iterations 5
+
 # Montaż z gotowej receptury → MP4
 npm run render -- --batch-id abc12345
 npm run render -- --batch-id abc12345 --output-id horizontal_main --encode-profile draft
 
-# Wznowienie od wybranego kroku
+# Iteracja renderu (pomiń passy / wznów po błędzie / preset)
+npm run render -- --batch-id abc12345 --render-profile preview --force
+npm run render -- --batch-id abc12345 --from-pass creative --keep-tmp
+
+# Re-enrich bez GPT (po zmianie indeksów lub ręcznej edycji draftu)
+node src/cli.js enrich --batch-id abc12345 --source draft --target final --force
+
+# One-shot: pipeline + render
+node src/cli.js run --input ./inbox/day --context "vlog" --render --render-profile preview
+```
+
+```bash
+# Wznowienie od wybranego kroku pipeline (nie renderu)
 node src/cli.js run --batch-id abc12345 --from-step topic_index --force
 ```
 
 Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.json` (tylko po przejściu walidacji).
 
-**Szybki dev bez GPU/Pythona:** dodaj `--fast` (stuby vision/face/audio) lub jawne flagi `--vision-stub`, `--face-stub`, `--audio-stub`.
+**Domyślnie vision, face i audio są zawsze LIVE** — pełna analiza Python. Stuby (`--vision-stub`, `--face-stub`, `--audio-stub`) tylko w testach CI lub gdy świadomie chcesz pominąć GPU/Python.
 
 ## Struktura katalogów
 
@@ -139,28 +154,27 @@ Director (`buildDirectorBrief` w `src/agents/director.js`) dostaje skondensowany
 
 ## Domyślne tryby: live vs stub
 
-**Bez flag CLI vision, face i audio są LIVE** (pełna analiza Python). Stuby włączają się tylko z `--fast` lub jawnymi flagami `--*-stub`.
+**Bez flag CLI vision, face i audio są LIVE** (pełna analiza Python). Stuby włączają się tylko jawnymi flagami `--*-stub` (głównie testy CI).
 
-| Krok | Domyślnie (bez flag) | `--fast` | Jawny stub | Wymuszenie live |
-|------|----------------------|----------|------------|-----------------|
-| Vision (Qwen2.5-VL) | **live** | stub | `--vision-stub` | `--vision-live` |
-| Face detect | **live** | stub¹ | `--face-stub` | `--face-live` |
-| Audio analysis | **live** | stub | `--audio-stub` | *(domyślnie live)* |
-| Objects (Florence-2) | **live** | **live**² | `--objects-stub` | *(domyślnie live)* |
-| Scene detection | **live** | **live** | — | — |
-| Keyframes | **włączone** | **włączone** | `--no-keyframes` | — |
+| Krok | Domyślnie (bez flag) | Jawny stub | Wymuszenie live |
+|------|----------------------|------------|-----------------|
+| Vision (Qwen2.5-VL) | **live** | `--vision-stub` | `--vision-live` |
+| Face detect | **live** | `--face-stub` | `--face-live` |
+| Audio analysis | **live** | `--audio-stub` | *(domyślnie live)* |
+| Objects (Florence-2) | **live** | `--objects-stub` | *(domyślnie live)* |
+| Scene detection | **live** | — | — |
+| Keyframes | **włączone** | `--no-keyframes` | — |
 
-¹ Przy `--fast` face jest stubem, chyba że dodasz `--face-live`.  
-² `--fast` nie wyłącza Florence-2 — tylko `--objects-stub` lub `--no-objects`.
-
-Logika w `src/cli.js` (linie 278–281):
+Logika w `src/cli.js`:
 
 ```javascript
-faceStub: args.faceStub === true || (args.fast === true && args.faceLive !== true),
-visionStub: args.visionStub === true || (args.fast === true && args.visionLive !== true),
-audioStub: args.audioStub === true || args.fast === true,
+faceStub: args.faceStub === true,
+visionStub: args.visionStub === true,
+audioStub: args.audioStub === true,
 objectsStub: args.objectsStub === true,
 ```
+
+> **Uwaga:** flaga `--fast` została usunięta (produkcyjny pipeline zawsze live). Użyj jawnych stubów tylko w testach.
 
 ## Konfiguracja (.env, Python, FFmpeg)
 
@@ -291,19 +305,22 @@ Live batch (vision + objects): `npm run analyze -- --input ./inbox/moj-folder` �
 
 Szczegółowa checklista live batch (wymagania, komendy, bramki jakości): [`docs/LIVE_BATCH_CHECKLIST.md`](docs/LIVE_BATCH_CHECKLIST.md).
 
-## Topic index v2 (embeddingi)
+## Topic index v2 (embeddingi — wymagane)
 
-Krok `topic_index` używa **OpenAI `text-embedding-3-small`** gdy `OPENAI_API_KEY` jest ustawiony:
+Krok `topic_index` **zawsze** używa embeddingów (`text-embedding-3-small` przez `OPENAI_API_KEY`):
 - wersja artefaktu **2.0** — blend 50% keyword + 50% cosine similarity embeddingów
-- bez klucza lub z `stub: true` w testach — **1.0** (sam keyword overlap)
+- bez `OPENAI_API_KEY` krok kończy się błędem `TopicIndexEmbeddingError` (brak cichego fallbacku na keyword-only v1.0)
+- w testach: jawny `embedFn` (np. `createTokenVectorEmbedFn()`)
 
-Implementacja: `src/pipeline/steps/topic-index.js`, `embedTexts()` w `src/agents/openai-client.js`.
+Po L1 summarizer uruchamia się **post-L1 clip role refinement** (`roleSource: l1_refined`) przed budową topic index.
+
+Implementacja: `src/pipeline/steps/topic-index.js`, `src/pipeline/steps/clip-profile.js`, `embedTexts()` w `src/agents/openai-client.js`.
 
 ## Testy i fixture'y
 
 ```bash
-npm test              # unit + contract + E2E (854+ testów, 852 pass, 2 skip)
-npm run test:e2e      # 47 testów E2E (46 pass, 1 skip)
+npm test              # unit + contract + E2E (866 testów, 864 pass, 2 skip)
+npm run test:e2e      # 48 testów E2E (47 pass, 1 skip)
 npm run test:e2e      # 43 testów E2E (41 pass, 1 skip — orchestrator mocked bez OPENAI_API_KEY)
 ```
 

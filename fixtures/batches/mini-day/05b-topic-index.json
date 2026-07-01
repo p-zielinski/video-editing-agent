@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "batchId": "miniday1",
   "topics": [
     {
@@ -16,7 +16,7 @@
       "matchingScenes": [
         {
           "sceneId": "clip02_scene001",
-          "score": 0.585,
+          "score": 0.6668111808185818,
           "reason": "brollPotential"
         }
       ]
@@ -35,7 +35,7 @@
       "matchingScenes": [
         {
           "sceneId": "clip02_scene001",
-          "score": 0.585,
+          "score": 0.6416385097974797,
           "reason": "brollPotential"
         }
       ]
@@ -54,7 +54,7 @@
       "matchingScenes": [
         {
           "sceneId": "clip02_scene001",
-          "score": 0.785,
+          "score": 0.7731043485738573,
           "reason": "keyword: restauracja, brollPotential"
         }
       ]

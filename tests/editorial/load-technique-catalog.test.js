@@ -47,4 +47,17 @@ describe("loadTechniqueCatalog", () => {
     const silenceBeat = catalog.byId.get("silence_beat");
     assert.equal(silenceBeat, undefined);
   });
+
+  it("loads voice_pitch_shift from catalog and shorts_retention pack override", () => {
+    const catalog = loadTechniqueCatalog();
+    const pitch = catalog.byId.get("voice_pitch_shift");
+    assert.ok(pitch);
+    assert.equal(pitch.params.semitones.min, -8);
+    assert.equal(pitch.params.semitones.max, 8);
+
+    const shorts = loadTechniqueCatalog({ pack: "shorts_retention_2026" });
+    const shortsPitch = shorts.byId.get("voice_pitch_shift");
+    assert.ok(shortsPitch);
+    assert.equal(shortsPitch.constraints.requiresCreativityLevel, "shorts");
+  });
 });

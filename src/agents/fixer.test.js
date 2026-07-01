@@ -268,4 +268,65 @@ describe("fixer agent", () => {
     ]), true);
     assert.equal(shouldInvokeFixer([]), false);
   });
+
+  it("shouldInvokeFixer returns true for V25-BROLL-06 warning", () => {
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V25-BROLL-06", message: "broll sync drift" },
+    ]), true);
+  });
+
+  it("shouldInvokeFixer returns true for V24-05 and V25 chronology/broll warnings", () => {
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V24-05", message: "main too long" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V25-CHR-03", message: "cold open rewind" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V25-BROLL-04", message: "broll pool" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V25-BROLL-05", message: "chronological broll" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V22-OTHER", message: "unfixable" },
+    ]), false);
+  });
+
+  it("runFixer includes brollSyncHints in payload when provided", async () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.1",
+      creativeMoments: [],
+    };
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    const fixerResponse = loadFixture("fixer-response.json");
+    const review = {
+      version: "1.0",
+      batchId: "testbatch",
+      iteration: 1,
+      approved: false,
+      issues: [{ severity: "warning", code: "V25-BROLL-06", message: "drift" }],
+      summary: "fix broll sync",
+    };
+
+    const client = createMockOpenAIClient([fixerResponse], { captureRequests: true });
+    await runFixer(client, {
+      recipe,
+      review,
+      abstraction,
+      timelineIndex,
+      audioIndex,
+      brollSyncHints: [{
+        sceneId: "clip02_scene001",
+        suggestedVideoInSec: 5,
+        confidence: 0.9,
+      }],
+    });
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.equal(payload.brollSyncHints.length, 1);
+    assert.equal(payload.brollSyncHints[0].sceneId, "clip02_scene001");
+  });
 });

@@ -21,6 +21,7 @@
     "audio/music_swell.json",
     "audio/music_drop.json",
     "audio/silence_beat.json",
+    "audio/voice_pitch_shift.json",
     "graphics/hook_title_overlay.json",
     "graphics/hook_visual_punch.json",
     "graphics/emphasis_text.json",

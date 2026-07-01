@@ -149,9 +149,11 @@ export async function runPipeline(options) {
     openaiClient,
     dateFrom,
     dateTo,
-    sortBy = "mtime",
+    sortBy = undefined,
     thumbnailStub = false,
     renderThumbnails = true,
+    maxReviewIterations = 3,
+    topicIndexEmbedFn,
   } = options;
 
   const workDir = resolveWorkDir(batchId);
@@ -178,6 +180,7 @@ export async function runPipeline(options) {
     force,
     faceStub,
     audioStub,
+    topicIndexEmbedFn,
   };
   let reviewResult = null;
 
@@ -332,6 +335,8 @@ export async function runPipeline(options) {
         workDir,
         threshold: context.batchContext?.brollMatchThreshold ?? 0.55,
         force,
+        apiKey: context.apiKey,
+        embedFn: context.topicIndexEmbedFn,
       });
       log.stepDone(`${topicIndex.topics?.length ?? 0} tematów`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.topicIndex]);
@@ -369,7 +374,12 @@ export async function runPipeline(options) {
 
     if (shouldRunStep("review", fromStep, toStep)) {
       log.step("review", stepIndex("review") + 1, TOTAL_STEPS);
-      reviewResult = await runReviewStep({ ...context, requiredFormats: context.requiredFormats, faceStub });
+      reviewResult = await runReviewStep({
+        ...context,
+        requiredFormats: context.requiredFormats,
+        faceStub,
+        maxIterations: maxReviewIterations,
+      });
       log.stepDone(reviewResult.review?.approved ? "zatwierdzono" : "wymaga przeglądu");
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.review, ARTIFACTS.recipeFinal]);
     }

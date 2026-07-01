@@ -1,12 +1,12 @@
 # Editor audit — video-editing-agent
 
-> Date: 2026-06-28 (post-W4.17)
+> Date: 2026-06-29 (post-W4.18)
 
 ## Executive summary
 
-Pipeline montażysty: **~84%**. Renderer **~87%**. Retention flow **86%**.
+Pipeline montażysty: **~86%**. Retention flow **91%**. Renderer **~87%**.
 
-W4.17 adds deterministic beat enrichment, timeline-mapped anchors, fixer expansion, SFX density validation, E2E vlog retention render.
+W4.18: deterministic enrich pipeline (`applyDeterministicRecipeEnrichers`), chapter cards, spatialRef, SFX trim, pipeline E2E.
 
 ---
 
@@ -14,37 +14,31 @@ W4.17 adds deterministic beat enrichment, timeline-mapped anchors, fixer expansi
 
 | Area | Score |
 |------|------:|
-| Pre-render pipeline | 85% |
-| Agent loop | 82% |
-| Editorial layer | 88% |
+| Pre-render pipeline | 86% |
+| Agent loop | 84% |
+| Editorial layer | 90% |
 | Renderer | 87% |
-| Retention / flow | 86% |
-| Tests | 80% |
-| Docs | 83% |
+| Retention / flow | 91% |
+| Tests | 83% |
 
 ---
 
-## W4.17 resolved
+## W4.18 resolved
 
-- `enrichRecipeRetentionBeats` + `mapSourceTimeToOutputSec`
-- Dual-mode anchors; fixer V22-VLOG-03/04
-- V24-06; chapter/narrative brief hints
-- E2E `render-vlog-retention.test.js`
+- `enrichRecipeChapterCards`, spatialRef enrich, V24-06 trim
+- `applyDeterministicRecipeEnrichers`
+- E2E `render-vlog-retention-pipeline`
+- FORMATY sync, prompts enrich contract
 
 ---
 
-## P0 open (W4.18)
+## P0 open (W4.19)
 
-| ID | Task |
-|----|------|
-| W4.18-1 | Chapter card enrich → recipe |
-| W4.18-2 | spatialRef on enriched zoom beats |
-| W4.18-3 | Full pipeline vlog E2E |
+Cold-open rewind, full mock-LLM E2E, drill-down brief parity, dead-air enrich
 
 ---
 
 ## Docs
 
-- `docs/W4_17_PLAN.md` — done
-- `docs/W4_18_PLAN.md` — next
-- `docs/RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md`
+- `docs/W4_18_PLAN.md` — done
+- `docs/W4_19_PLAN.md` — next

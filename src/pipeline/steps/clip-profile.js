@@ -143,7 +143,7 @@ function loadClipAudioTags(workDir, clipId) {
   return topEditorialTagNames(analysis.editorialTags ?? []);
 }
 
-function mergeTopics(visualTopics, audioTags) {
+function mergeTopics(visualTopics, audioTags, l1Topics = []) {
   const merged = new Set();
   for (const topic of visualTopics ?? []) {
     merged.add(topic.toLowerCase());
@@ -151,7 +151,140 @@ function mergeTopics(visualTopics, audioTags) {
   for (const tag of audioTags ?? []) {
     merged.add(tag.toLowerCase());
   }
+  for (const topic of l1Topics ?? []) {
+    merged.add(topic.toLowerCase());
+  }
   return [...merged].slice(0, 10);
+}
+
+function aggregateL1ForClip(clipId, abstraction, timelineIndex) {
+  const scenes = (timelineIndex.scenes ?? []).filter((scene) => scene.clipId === clipId);
+  const l1Entries = scenes
+    .map((scene) => (abstraction.L1 ?? []).find((entry) => entry.sceneId === scene.sceneId))
+    .filter(Boolean);
+
+  if (l1Entries.length === 0) {
+    return null;
+  }
+
+  const brollValues = l1Entries.map((entry) => entry.brollPotential ?? 0);
+  const avgBrollPotential = brollValues.reduce((sum, value) => sum + value, 0) / brollValues.length;
+
+  return {
+    sceneCount: l1Entries.length,
+    speechSceneCount: scenes.filter((scene) => scene.hasSpeech).length,
+    avgBrollPotential,
+    maxBrollPotential: Math.max(...brollValues),
+    topics: [...new Set(l1Entries.flatMap((entry) => entry.topics ?? []))],
+    isNarrationSource: l1Entries.some((entry) => entry.isNarrationSource === true),
+    dominantMood: l1Entries.find((entry) => entry.mood)?.mood,
+  };
+}
+
+function refineClipEntryFromL1(entry, l1Agg, timelineIndex) {
+  if (!l1Agg || entry.roleSource === "context_override") {
+    return entry;
+  }
+
+  const clipScenes = (timelineIndex.scenes ?? []).filter((scene) => scene.clipId === entry.clipId);
+  let clipRole = entry.clipRole;
+  let roleConfidence = entry.roleConfidence ?? 0.5;
+  let roleSource = entry.roleSource ?? "clip_profile";
+  let excludeFromMainStory = entry.excludeFromMainStory ?? false;
+  let excludeReason = entry.excludeReason ?? null;
+  let changed = false;
+
+  if (l1Agg.isNarrationSource && entry.hasSpeech) {
+    clipRole = "narration_track";
+    roleConfidence = Math.max(roleConfidence, 0.9);
+    changed = true;
+  } else if (
+    l1Agg.speechSceneCount === 0
+    && l1Agg.avgBrollPotential >= 0.65
+    && clipRole !== "narration_track"
+  ) {
+    clipRole = "broll_pool";
+    roleConfidence = Math.max(roleConfidence, 0.8);
+    changed = true;
+  } else if (
+    entry.speechWordCount < 5
+    && !entry.hasSpeech
+    && l1Agg.avgBrollPotential >= 0.55
+    && clipRole !== "narration_track"
+  ) {
+    clipRole = "broll_pool";
+    roleConfidence = Math.max(roleConfidence, 0.75);
+    changed = true;
+  } else if (
+    entry.hasSpeech
+    && entry.speechWordCount >= 20
+    && l1Agg.avgBrollPotential < 0.35
+    && l1Agg.speechSceneCount > 0
+    && clipRole !== "narration_track"
+  ) {
+    clipRole = "aroll_primary";
+    roleConfidence = Math.max(roleConfidence, 0.82);
+    changed = true;
+  } else if (clipRole === "undecided") {
+    clipRole = entry.hasSpeech ? "aroll_secondary" : "broll_pool";
+    roleConfidence = 0.65;
+    changed = true;
+  }
+
+  if (clipRole === "outtakes") {
+    excludeFromMainStory = true;
+    excludeReason = excludeReason ?? "Wysoki filler ratio i niska stabilność";
+  }
+
+  const mergedTopics = mergeTopics(entry.topics, entry.audioTags, l1Agg.topics);
+
+  if (!changed && mergedTopics.join(",") === (entry.topics ?? []).join(",")) {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    clipRole,
+    roleConfidence,
+    roleSource: changed ? "l1_refined" : roleSource,
+    topics: mergedTopics.length > 0 ? mergedTopics : entry.topics,
+    excludeFromMainStory,
+    excludeReason,
+    ...(l1Agg.dominantMood ? { l1DominantMood: l1Agg.dominantMood } : {}),
+    ...(l1Agg.avgBrollPotential != null
+      ? { l1AvgBrollPotential: Math.round(l1Agg.avgBrollPotential * 100) / 100 }
+      : {}),
+  };
+}
+
+/**
+ * Post-L1 pass: adjust clip roles/topics using summarizer scene understanding.
+ */
+export function refineClipRegistryFromL1(clipRegistry, abstraction, timelineIndex) {
+  return (clipRegistry ?? []).map((entry) => {
+    const l1Agg = aggregateL1ForClip(entry.clipId, abstraction, timelineIndex);
+    return refineClipEntryFromL1(entry, l1Agg, timelineIndex);
+  });
+}
+
+export async function runClipRegistryRefineStep({ workDir }) {
+  const outPath = path.join(workDir, ARTIFACTS.clipRegistry);
+  const artifact = readJson(outPath);
+  const abstraction = readJson(path.join(workDir, ARTIFACTS.abstraction));
+  const timelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
+  const clipRegistry = refineClipRegistryFromL1(
+    artifact.clipRegistry ?? artifact,
+    abstraction,
+    timelineIndex,
+  );
+
+  const updated = ClipRegistryArtifactSchema.parse({
+    version: "1.0",
+    batchId: artifact.batchId ?? timelineIndex.batchId,
+    clipRegistry,
+  });
+  writeJson(outPath, updated);
+  return updated;
 }
 
 export function buildClipRegistry(timelineIndex, catalog, { userContext = "", workDir = null } = {}) {
@@ -179,6 +312,7 @@ export function buildClipRegistry(timelineIndex, catalog, { userContext = "", wo
       fileName: clip.fileName ?? path.basename(clip.sourcePath ?? `${clip.clipId}.mp4`),
       durationSec: clip.durationSec,
       sortIndex,
+      ...(clip.creationTime ? { creationTime: clip.creationTime } : {}),
       clipRole,
       roleConfidence,
       roleSource: "clip_profile",

@@ -5,6 +5,7 @@ import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { loadCatalogForFaceDetect } from "./face-detect.js";
 import { collectObjectDetections } from "./spatial-index.js";
+import { runClipRegistryRefineStep } from "./clip-profile.js";
 
 const STOP_WORDS = new Set([
   "i", "a", "w", "z", "na", "do", "to", "że", "się", "nie", "jak", "co", "ten", "ta",
@@ -304,18 +305,26 @@ function scoreSceneForTopic(topic, scene, l1, clipRegistry, objectDetections, ex
   };
 }
 
-export function resolveTopicIndexEmbedFn({ embedFn, stub = false } = {}) {
+export class TopicIndexEmbeddingError extends Error {
+  constructor(message = "Topic index wymaga embeddings — ustaw OPENAI_API_KEY") {
+    super(message);
+    this.name = "TopicIndexEmbeddingError";
+    this.code = "TOPIC_INDEX_EMBEDDING_REQUIRED";
+  }
+}
+
+export function resolveTopicIndexEmbedFn({ embedFn, apiKey, allowKeywordOnly = false } = {}) {
   if (embedFn) {
     return embedFn;
   }
-  if (stub) {
+  if (allowKeywordOnly) {
     return null;
   }
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return null;
+  const resolvedKey = apiKey ?? process.env.OPENAI_API_KEY;
+  if (!resolvedKey) {
+    throw new TopicIndexEmbeddingError();
   }
-  return createOpenAIEmbedFn(apiKey);
+  return createOpenAIEmbedFn(resolvedKey);
 }
 
 export async function buildTopicIndex({
@@ -326,6 +335,10 @@ export async function buildTopicIndex({
   excluded = [],
   embedFn = null,
 }) {
+  if (!embedFn) {
+    throw new TopicIndexEmbeddingError();
+  }
+
   const topics = extractTopicsFromAbstraction(abstraction, timelineIndex, clipRegistry);
   const brollScenes = timelineIndex.scenes.filter((scene) => {
     const clipEntry = clipRegistry.find((c) => c.clipId === scene.clipId);
@@ -367,7 +380,7 @@ export async function buildTopicIndex({
   }
 
   return {
-    version: embedFn ? "2.0" : "1.0",
+    version: "2.0",
     batchId: timelineIndex.batchId,
     topics,
   };
@@ -378,12 +391,15 @@ export async function runTopicIndexStep({
   threshold = 0.55,
   force = false,
   embedFn,
-  stub = false,
+  apiKey,
+  allowKeywordOnly = false,
 }) {
   const outPath = path.join(workDir, ARTIFACTS.topicIndex);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.topicIndex, force)) {
     return readJson(outPath);
   }
+
+  await runClipRegistryRefineStep({ workDir });
 
   const timelinePath = path.join(workDir, ARTIFACTS.timelineIndex);
   const timelineIndex = readJson(timelinePath);
@@ -394,7 +410,7 @@ export async function runTopicIndexStep({
   const objectDetections = collectObjectDetections(workDir, catalog);
   const timelineWithObjects = mergeTimelineObjectDetections(timelineIndex, objectDetections);
 
-  const resolvedEmbedFn = resolveTopicIndexEmbedFn({ embedFn, stub });
+  const resolvedEmbedFn = resolveTopicIndexEmbedFn({ embedFn, apiKey, allowKeywordOnly });
 
   const index = await buildTopicIndex({
     abstraction,

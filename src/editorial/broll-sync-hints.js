@@ -168,3 +168,102 @@ export function buildBrollSyncHints({
 
   return hints.sort((a, b) => b.confidence - a.confidence);
 }
+
+/**
+ * Build sync hints for validation/enrich using pipeline artifacts.
+ */
+export function buildBrollSyncHintsForRecipe({
+  abstraction,
+  timelineIndex,
+  topicIndex,
+  keyframeArtifacts = null,
+  batchContext = {},
+  recipe = {},
+}) {
+  const strategy = recipe?.batchContext?.brollStrategy
+    ?? batchContext?.brollStrategy
+    ?? "match_speech_topics";
+  if (strategy === "minimal" || !(topicIndex?.topics?.length)) {
+    return [];
+  }
+
+  const keyframesByClip = buildKeyframesByClip(timelineIndex, keyframeArtifacts);
+  return buildBrollSyncHints({
+    topicIndex,
+    timelineIndex,
+    keyframesByClip,
+    abstractL1: abstraction?.L1 ?? [],
+  });
+}
+
+const DEFAULT_BROLL_SYNC_TOLERANCE_SEC = 0.5;
+const DEFAULT_BROLL_SYNC_MIN_CONFIDENCE = 0.6;
+
+export {
+  DEFAULT_BROLL_SYNC_TOLERANCE_SEC,
+  DEFAULT_BROLL_SYNC_MIN_CONFIDENCE,
+};
+
+export function bestHintBySceneId(hints = []) {
+  const byScene = new Map();
+  for (const hint of hints) {
+    const existing = byScene.get(hint.sceneId);
+    if (!existing || hint.confidence > existing.confidence) {
+      byScene.set(hint.sceneId, hint);
+    }
+  }
+  return byScene;
+}
+
+/**
+ * Applies high-confidence B-roll sync hints to recipe segments (deterministic post-director enrich).
+ */
+export function enrichBrollSyncFromHints(recipe, hints, {
+  minConfidence = DEFAULT_BROLL_SYNC_MIN_CONFIDENCE,
+  toleranceSec = DEFAULT_BROLL_SYNC_TOLERANCE_SEC,
+} = {}) {
+  if (!recipe?.outputs?.length || !hints?.length) {
+    return recipe;
+  }
+
+  const hintsByScene = bestHintBySceneId(hints);
+
+  for (const output of recipe.outputs) {
+    for (const segment of output.timeline ?? []) {
+      if (segment.segmentRole !== "broll") {
+        continue;
+      }
+
+      const sceneId = segment.videoRef?.sceneId;
+      if (!sceneId) {
+        continue;
+      }
+
+      const hint = hintsByScene.get(sceneId);
+      if (!hint || hint.confidence < minConfidence) {
+        continue;
+      }
+
+      const currentIn = segment.videoInSec ?? 0;
+      if (Math.abs(currentIn - hint.suggestedVideoInSec) <= toleranceSec) {
+        continue;
+      }
+
+      const audioIn = segment.audioInSec ?? currentIn;
+      const audioOut = segment.audioOutSec ?? audioIn + DEFAULT_SEGMENT_SEC;
+      const audioSpan = Math.max(MIN_SEGMENT_SEC, audioOut - audioIn);
+      const videoSpan = Math.max(
+        MIN_SEGMENT_SEC,
+        (segment.videoOutSec ?? currentIn + DEFAULT_SEGMENT_SEC) - currentIn,
+      );
+      const targetSpan = Number.isFinite(audioOut) && Number.isFinite(audioIn)
+        ? audioSpan
+        : videoSpan;
+
+      segment.videoInSec = hint.suggestedVideoInSec;
+      segment.videoOutSec = roundSec(hint.suggestedVideoInSec + targetSpan);
+    }
+  }
+
+  return recipe;
+}

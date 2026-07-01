@@ -3,14 +3,18 @@ import { buildTopicIndexSummary } from "./topic-index-summary.js";
 
 const MAX_WORDS_PER_SCENE = 80;
 
-export function formatSpatialSummary(spatialIndex) {
+export function formatSpatialSummary(spatialIndex, { anchorLimit = 1 } = {}) {
   return (spatialIndex.scenes ?? [])
     .filter((entry) => entry.anchors?.length > 0)
-    .map((entry) => ({
-      sceneId: entry.sceneId,
-      primaryAnchor: entry.anchors[0],
-      anchorTypes: [...new Set(entry.anchors.map((a) => a.type))],
-    }));
+    .map((entry) => {
+      const anchors = entry.anchors.slice(0, anchorLimit);
+      return {
+        sceneId: entry.sceneId,
+        primaryAnchor: anchors[0],
+        ...(anchors.length > 1 ? { anchors } : {}),
+        anchorTypes: [...new Set(entry.anchors.map((a) => a.type))],
+      };
+    });
 }
 
 export function extractSceneIdsFromRecipe(recipe) {
@@ -66,6 +70,9 @@ export function buildEditorialContext({
   spatialIndex,
   sceneIds,
   includeFullTopicIndex = false,
+  spatialAnchorLimit = 1,
+  maxWordsPerScene = MAX_WORDS_PER_SCENE,
+  audioCaps,
   perClipAnalysis,
   wordIndexes,
 }) {
@@ -74,6 +81,7 @@ export function buildEditorialContext({
   const transcriptExcerpts = timelineIndex
     ? buildTranscriptExcerpts(timelineIndex, {
         sceneIds: resolvedSceneIds ?? undefined,
+        maxWordsPerScene,
       })
     : [];
 
@@ -85,6 +93,7 @@ export function buildEditorialContext({
     perClipAnalysis,
     wordIndexes,
     timelineIndex,
+    caps: audioCaps,
   });
   if (audioSummary) {
     context.audioIndex = audioSummary;
@@ -101,7 +110,7 @@ export function buildEditorialContext({
 
   if (spatialIndex) {
     context.spatialIndex = {
-      scenes: formatSpatialSummary(spatialIndex),
+      scenes: formatSpatialSummary(spatialIndex, { anchorLimit: spatialAnchorLimit }),
     };
   }
 

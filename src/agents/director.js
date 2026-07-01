@@ -1,5 +1,8 @@
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
-import { drillDownSceneDetails } from "../lib/abstraction-chunking.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { drillDownSceneDetails, buildDaySegments } from "../lib/abstraction-chunking.js";
 import { detectInputMode } from "../lib/input-mode.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import {
@@ -23,7 +26,7 @@ import {
   suggestRetentionMoments,
 } from "../editorial/shorts-retention.js";
 import { buildSpatialRefExamples } from "../editorial/spatial-ref.js";
-import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
+import { buildAudioIndexSummary, DIRECTOR_AUDIO_CAPS } from "../editorial/audio-index-summary.js";
 import {
   buildBrollSyncHints,
   buildKeyframesByClip,
@@ -44,7 +47,11 @@ import {
 import { buildTopSceneRanks } from "../editorial/scene-rank.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 
-const L1_SUMMARY_MAX_CHARS = 120;
+const L1_SUMMARY_MAX_CHARS = 500;
+const VISION_CAPTION_MAX_CHARS = 200;
+const L1_SCENE_SUMMARIES_THRESHOLD = 30;
+const BROLL_SYNC_HINTS_LIMIT = 25;
+const MIN_SCENES_PER_CLIP_COMPACT = 2;
 
 function truncateSummary(text, maxLen = L1_SUMMARY_MAX_CHARS) {
   const s = text ?? "";
@@ -524,8 +531,160 @@ function buildL1SceneSummaries(abstraction, scenes) {
 
 export { buildL1SceneSummaries };
 
-function buildSceneMapEntry(scene, abstraction) {
+function buildVisionCaptionBySceneId(visionCaptions = []) {
+  const latestByScene = new Map();
+  for (const entry of visionCaptions) {
+    if (!entry.sceneId) {
+      continue;
+    }
+    const existing = latestByScene.get(entry.sceneId);
+    if (!existing || (entry.timestampSec ?? 0) >= (existing.timestampSec ?? 0)) {
+      latestByScene.set(entry.sceneId, entry);
+    }
+  }
+  const bySceneId = {};
+  for (const [sceneId, entry] of latestByScene) {
+    bySceneId[sceneId] = truncateSummary(entry.caption, VISION_CAPTION_MAX_CHARS);
+  }
+  return bySceneId;
+}
+
+const OBJECT_LABELS_PER_SCENE = 6;
+
+function buildObjectLabelsBySceneId(objectDetections = []) {
+  const labelsByScene = new Map();
+  for (const detection of objectDetections) {
+    if (!detection.sceneId || !detection.label) {
+      continue;
+    }
+    const bucket = labelsByScene.get(detection.sceneId) ?? new Map();
+    const label = String(detection.label).toLowerCase();
+    bucket.set(label, (bucket.get(label) ?? 0) + 1);
+    labelsByScene.set(detection.sceneId, bucket);
+  }
+
+  const bySceneId = {};
+  for (const [sceneId, labelCounts] of labelsByScene) {
+    bySceneId[sceneId] = [...labelCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, OBJECT_LABELS_PER_SCENE)
+      .map(([label]) => label);
+  }
+  return bySceneId;
+}
+
+function buildSceneMapOmittedSummary(sceneEntries, selectedIds) {
+  return sceneEntries
+    .filter((entry) => !selectedIds.has(entry.sceneId))
+    .map((entry) => ({
+      sceneId: entry.sceneId,
+      clipId: entry.clipId,
+      hasSpeech: entry.hasSpeech,
+      brollPotential: entry.brollPotential,
+      visualQuality: entry.visualQuality,
+      ...(entry.topics?.length ? { topics: entry.topics.slice(0, 4) } : {}),
+    }));
+}
+
+function findSceneAtClipTime(timelineIndex, clipId, timeSec) {
+  return (timelineIndex.scenes ?? []).find(
+    (scene) => scene.clipId === clipId
+      && timeSec >= scene.startSec
+      && timeSec < scene.endSec,
+  );
+}
+
+function lookupPerClipAnalysisEntry(clipId, perClipAnalysis) {
+  if (!perClipAnalysis) {
+    return null;
+  }
+  if (perClipAnalysis instanceof Map) {
+    return perClipAnalysis.get(clipId) ?? null;
+  }
+  if (Array.isArray(perClipAnalysis)) {
+    return perClipAnalysis.find((entry) => entry.clipId === clipId) ?? null;
+  }
+  if (typeof perClipAnalysis === "object") {
+    return perClipAnalysis[clipId] ?? null;
+  }
+  return null;
+}
+
+/**
+ * Top audio events anchored to scenes for director creative/SFX hints.
+ */
+export function buildAudioEventAnchors(timelineIndex, perClipAnalysis, { limit = 20 } = {}) {
+  if (!timelineIndex?.clips?.length) {
+    return [];
+  }
+
+  const anchors = [];
+  for (const clip of timelineIndex.clips) {
+    const analysis = lookupPerClipAnalysisEntry(clip.clipId, perClipAnalysis);
+    const events = [...(analysis?.audioEvents ?? [])]
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+    for (const event of events) {
+      const timeSec = event.startSec ?? event.timeSec;
+      if (timeSec == null) {
+        continue;
+      }
+      const scene = findSceneAtClipTime(timelineIndex, clip.clipId, timeSec);
+      anchors.push({
+        clipId: clip.clipId,
+        sceneId: scene?.sceneId ?? null,
+        timeSec,
+        label: event.label ?? event.tag,
+        strength: event.score ?? event.strength ?? 0,
+      });
+    }
+  }
+
+  return anchors
+    .sort((a, b) => (b.strength ?? 0) - (a.strength ?? 0))
+    .slice(0, limit);
+}
+
+/**
+ * Merge L1 scene signals into clipRegistry entries for director brief.
+ */
+export function enrichClipRegistryForBrief(clipRegistry, abstraction, timelineIndex) {
+  const l1ByScene = new Map(
+    (abstraction.L1 ?? []).map((entry) => [entry.sceneId, entry]),
+  );
+
+  return clipRegistry.map((clip) => {
+    const scenes = (timelineIndex.scenes ?? []).filter((s) => s.clipId === clip.clipId);
+    const l1Entries = scenes
+      .map((scene) => l1ByScene.get(scene.sceneId))
+      .filter(Boolean);
+
+    if (l1Entries.length === 0) {
+      return clip;
+    }
+
+    const avgBrollPotential = l1Entries.reduce(
+      (sum, entry) => sum + (entry.brollPotential ?? 0),
+      0,
+    ) / l1Entries.length;
+    const l1Topics = [...new Set(l1Entries.flatMap((entry) => entry.topics ?? []))].slice(0, 8);
+    const l1NarrationSource = l1Entries.some((entry) => entry.isNarrationSource === true);
+    const dominantMood = l1Entries.find((entry) => entry.mood)?.mood;
+
+    return {
+      ...clip,
+      l1SceneCount: l1Entries.length,
+      l1AvgBrollPotential: Math.round(avgBrollPotential * 100) / 100,
+      ...(l1Topics.length > 0 ? { l1Topics } : {}),
+      ...(l1NarrationSource ? { l1NarrationSource: true } : {}),
+      ...(dominantMood ? { l1DominantMood: dominantMood } : {}),
+    };
+  });
+}
+
+function buildSceneMapEntry(scene, abstraction, visionCaptionBySceneId = {}, objectLabelsBySceneId = {}) {
   const l1 = (abstraction.L1 ?? []).find((e) => e.sceneId === scene.sceneId) ?? {};
+  const visionCaption = visionCaptionBySceneId[scene.sceneId];
   return {
     sceneId: scene.sceneId,
     clipId: scene.clipId,
@@ -542,6 +701,10 @@ function buildSceneMapEntry(scene, abstraction) {
     visualQuality: l1.visualQuality,
     stability: l1.stability,
     isNarrationSource: l1.isNarrationSource ?? false,
+    ...(visionCaption ? { visionCaption } : {}),
+    ...(objectLabelsBySceneId[scene.sceneId]?.length
+      ? { objectLabels: objectLabelsBySceneId[scene.sceneId] }
+      : {}),
   };
 }
 
@@ -561,6 +724,13 @@ function buildClipAspectById(timelineIndex) {
       map[clip.clipId] = clip.aspectRatio;
     }
   }
+  if (Object.keys(map).length === 0) {
+    for (const scene of timelineIndex?.scenes ?? []) {
+      if (scene.clipId && scene.aspectRatio && !map[scene.clipId]) {
+        map[scene.clipId] = scene.aspectRatio;
+      }
+    }
+  }
   return map;
 }
 
@@ -570,6 +740,23 @@ function buildSfxCatalogSummary() {
     tags: sound.tags ?? [],
     durationSec: sound.durationSec,
     label: sound.label ?? sound.sfxId,
+  }));
+}
+
+const LUT_CATALOG_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../assets/luts/catalog.json",
+);
+
+function buildLutCatalogSummary() {
+  if (!fs.existsSync(LUT_CATALOG_PATH)) {
+    return [];
+  }
+  const catalog = JSON.parse(fs.readFileSync(LUT_CATALOG_PATH, "utf8"));
+  return (catalog.luts ?? []).map((lut) => ({
+    lutId: lut.lutId,
+    label: lut.label ?? lut.lutId,
+    description: lut.description ?? "",
   }));
 }
 
@@ -591,8 +778,91 @@ function isArollClip(clipRegistry, clipId) {
   return entry != null && String(entry.clipRole ?? "").startsWith("aroll");
 }
 
-const SCENE_MAP_COMPACT_THRESHOLD = 20;
-const SCENE_MAP_RANK_SELECTION_LIMIT = 15;
+const SCENE_MAP_COMPACT_DEFAULTS = {
+  single_clip: 30,
+  multi_clip_day: 50,
+  perClipBonus: 10,
+};
+
+export function resolveSceneMapCompactThreshold(timelineIndex, inputMode) {
+  const clipCount = timelineIndex.clips?.length ?? 1;
+  const base = inputMode === "multi_clip_day"
+    ? SCENE_MAP_COMPACT_DEFAULTS.multi_clip_day
+    : SCENE_MAP_COMPACT_DEFAULTS.single_clip;
+  return base + clipCount * SCENE_MAP_COMPACT_DEFAULTS.perClipBonus;
+}
+
+const SCENE_MAP_RANK_SELECTION_LIMIT = 20;
+const COMPACT_AUTO_EXPANSION_MAX = 25;
+
+function getL1ForSceneId(abstraction, sceneId) {
+  return (abstraction.L1 ?? []).find((entry) => entry.sceneId === sceneId) ?? {};
+}
+
+/**
+ * Expands compact sceneMap selection with topic anchors, ranks, and high-value omissions.
+ */
+export function expandCompactSceneMapSelection({
+  selectedScenes,
+  timelineIndex,
+  abstraction,
+  topicIndex,
+  sceneRanks,
+  compactThreshold,
+  maxAdditional = COMPACT_AUTO_EXPANSION_MAX,
+}) {
+  const allScenes = timelineIndex.scenes ?? [];
+  const selectedIds = new Set(selectedScenes.map((scene) => scene.sceneId));
+  const additions = [];
+
+  const addScene = (scene) => {
+    if (!scene || selectedIds.has(scene.sceneId)) {
+      return false;
+    }
+    if (additions.length >= maxAdditional) {
+      return false;
+    }
+    additions.push(scene);
+    selectedIds.add(scene.sceneId);
+    return true;
+  };
+
+  for (const topic of topicIndex?.topics ?? []) {
+    for (const match of topic.matchingScenes ?? []) {
+      const scene = allScenes.find((entry) => entry.sceneId === match.sceneId);
+      if (addScene(scene)) {
+        break;
+      }
+    }
+  }
+
+  for (const rank of sceneRanks ?? []) {
+    const scene = allScenes.find((entry) => entry.sceneId === rank.sceneId);
+    addScene(scene);
+    if (additions.length >= maxAdditional) {
+      break;
+    }
+  }
+
+  const targetSize = Math.min(allScenes.length, compactThreshold);
+  const rankedRemaining = allScenes
+    .filter((scene) => !selectedIds.has(scene.sceneId))
+    .sort((a, b) => {
+      const l1a = getL1ForSceneId(abstraction, a.sceneId);
+      const l1b = getL1ForSceneId(abstraction, b.sceneId);
+      return (l1b.brollPotential ?? 0) - (l1a.brollPotential ?? 0)
+        || Number(b.hasSpeech) - Number(a.hasSpeech);
+    });
+
+  for (const scene of rankedRemaining) {
+    if (selectedScenes.length + additions.length >= targetSize) {
+      break;
+    }
+    addScene(scene);
+  }
+
+  return [...selectedScenes, ...additions];
+}
 
 /**
  * Selects timeline scenes for a compact director sceneMap on large batches.
@@ -622,7 +892,7 @@ export function selectScenesForDirectorMap(
     }
   }
 
-  return (timelineIndex.scenes ?? []).filter((scene) => {
+  const selected = (timelineIndex.scenes ?? []).filter((scene) => {
     const l1 = (abstraction.L1 ?? []).find((e) => e.sceneId === scene.sceneId) ?? {};
     const brollPotential = l1.brollPotential ?? 0;
 
@@ -632,6 +902,41 @@ export function selectScenesForDirectorMap(
       || matchingSceneIds.has(scene.sceneId)
       || isArollClip(clipRegistry, scene.clipId);
   });
+
+  const includedClipIds = new Set(selected.map((scene) => scene.clipId));
+  const allScenes = timelineIndex.scenes ?? [];
+  const clipIds = [...new Set(allScenes.map((scene) => scene.clipId))];
+
+  for (const clipId of clipIds) {
+    if (includedClipIds.has(clipId)) {
+      const clipScenes = allScenes.filter((scene) => scene.clipId === clipId);
+      if (clipScenes.length > MIN_SCENES_PER_CLIP_COMPACT) {
+        const selectedFromClip = selected.filter((scene) => scene.clipId === clipId);
+        if (selectedFromClip.length < MIN_SCENES_PER_CLIP_COMPACT) {
+          const extras = clipScenes
+            .filter((scene) => !selected.some((s) => s.sceneId === scene.sceneId))
+            .sort((a, b) => {
+              const l1a = (abstraction.L1 ?? []).find((e) => e.sceneId === a.sceneId) ?? {};
+              const l1b = (abstraction.L1 ?? []).find((e) => e.sceneId === b.sceneId) ?? {};
+              return (l1b.brollPotential ?? 0) - (l1a.brollPotential ?? 0)
+                || (l1b.visualQuality ?? 0) - (l1a.visualQuality ?? 0);
+            })
+            .slice(0, MIN_SCENES_PER_CLIP_COMPACT - selectedFromClip.length);
+          for (const scene of extras) {
+            selected.push(scene);
+          }
+        }
+      }
+      continue;
+    }
+    const fallback = allScenes.find((scene) => scene.clipId === clipId);
+    if (fallback) {
+      selected.push(fallback);
+      includedClipIds.add(clipId);
+    }
+  }
+
+  return selected;
 }
 
 export {
@@ -639,6 +944,47 @@ export {
   extractSceneIdsFromRecipe,
   formatSpatialSummary,
 } from "../editorial/editorial-context.js";
+
+export function buildDirectorMultiClipEnrichmentFields({
+  inputMode,
+  sortedClipRegistry,
+  topicIndex,
+  timelineIndex,
+  abstraction,
+  brollStrategy,
+  outputs = [],
+  batchContext = {},
+  keyframesByClip = null,
+}) {
+  const fields = {};
+
+  if (inputMode === "multi_clip_day") {
+    const daySegments = buildDaySegments(sortedClipRegistry);
+    if (daySegments.length > 0) {
+      fields.daySegments = daySegments;
+    }
+  }
+
+  if ((topicIndex?.topics ?? []).length > 0 && brollStrategy !== "minimal") {
+    fields.brollSyncHints = buildBrollSyncHints({
+      topicIndex,
+      timelineIndex,
+      keyframesByClip: keyframesByClip ?? buildKeyframesByClip(timelineIndex),
+      abstractL1: abstraction.L1,
+    }).slice(0, BROLL_SYNC_HINTS_LIMIT);
+  }
+
+  const coldOpenSegmentHint = buildColdOpenSegmentHint(
+    abstraction,
+    { outputs, batchContext },
+    { clipRegistry: sortedClipRegistry, timelineIndex },
+  );
+  if (coldOpenSegmentHint) {
+    fields.coldOpenSegmentHint = coldOpenSegmentHint;
+  }
+
+  return fields;
+}
 
 export function buildDirectorBrief({
   abstraction,
@@ -661,6 +1007,10 @@ export function buildDirectorBrief({
   outputs = null,
 }) {
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
+  const sortedClipRegistry = [...clipRegistry].sort(
+    (a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0),
+  );
+  const brollStrategy = batchContext.brollStrategy ?? "match_speech_topics";
   const {
     parsedCreativity,
     creativityBudget,
@@ -690,32 +1040,54 @@ export function buildDirectorBrief({
     requiredFormats,
   });
 
-  const allSceneEntries = (timelineIndex.scenes ?? []).map((s) => buildSceneMapEntry(s, abstraction));
+  const visionCaptionBySceneId = buildVisionCaptionBySceneId(timelineIndex.visionCaptions);
+  const objectLabelsBySceneId = buildObjectLabelsBySceneId(timelineIndex.objectDetections);
+  const allSceneEntries = (timelineIndex.scenes ?? []).map((s) =>
+    buildSceneMapEntry(s, abstraction, visionCaptionBySceneId, objectLabelsBySceneId),
+  );
   const sceneRanksForSelection = buildTopSceneRanks(abstraction, timelineIndex, audioIndex, {
     clipRegistry,
     limit: SCENE_MAP_RANK_SELECTION_LIMIT,
   });
   const sceneRanks = sceneRanksForSelection.slice(0, 10);
   const sceneCount = timelineIndex.scenes?.length ?? allSceneEntries.length;
-  const useCompactSceneMap = sceneCount > SCENE_MAP_COMPACT_THRESHOLD;
+  const compactThreshold = resolveSceneMapCompactThreshold(timelineIndex, inputMode);
+  const useCompactSceneMap = sceneCount > compactThreshold;
 
   let sceneMap = allSceneEntries;
   let sceneMapOmittedCount;
   let sceneMapPolicy;
+  let sceneMapAutoExpandedCount;
 
   if (useCompactSceneMap) {
-    const selectedScenes = selectScenesForDirectorMap(
+    const baseSelectedScenes = selectScenesForDirectorMap(
       timelineIndex,
       abstraction,
       topicIndex,
       clipRegistry,
       sceneRanksForSelection,
     );
+    const preExpansionCount = baseSelectedScenes.length;
+    const selectedScenes = expandCompactSceneMapSelection({
+      selectedScenes: baseSelectedScenes,
+      timelineIndex,
+      abstraction,
+      topicIndex,
+      sceneRanks: sceneRanksForSelection,
+      compactThreshold,
+    });
     const selectedIds = new Set(selectedScenes.map((s) => s.sceneId));
     sceneMap = allSceneEntries.filter((entry) => selectedIds.has(entry.sceneId));
     sceneMapOmittedCount = sceneCount - sceneMap.length;
     sceneMapPolicy = "compact_large_batch";
+    if (selectedScenes.length > preExpansionCount) {
+      sceneMapAutoExpandedCount = selectedScenes.length - preExpansionCount;
+    }
   }
+
+  const sceneMapOmittedScenes = useCompactSceneMap
+    ? buildSceneMapOmittedSummary(allSceneEntries, new Set(sceneMap.map((e) => e.sceneId)))
+    : undefined;
 
   const brollCandidates = buildBrollCandidates(allSceneEntries);
 
@@ -753,9 +1125,14 @@ export function buildDirectorBrief({
     spatialIndex,
     audioIndex,
     includeFullTopicIndex: true,
+    spatialAnchorLimit: 3,
+    maxWordsPerScene: 120,
+    audioCaps: DIRECTOR_AUDIO_CAPS,
     perClipAnalysis,
     wordIndexes,
   });
+
+  const audioEventAnchors = buildAudioEventAnchors(timelineIndex, perClipAnalysis);
 
   const brief = {
     version: "2.2",
@@ -769,7 +1146,7 @@ export function buildDirectorBrief({
     userContext: userContext || timelineIndex.userContext || "",
     sessionSummary: abstraction.L3,
     segmentSummaries: abstraction.L2,
-    clipRegistry,
+    clipRegistry: enrichClipRegistryForBrief(sortedClipRegistry, abstraction, timelineIndex),
     sceneRanks,
     topicIndex: editorialContext.topicIndex,
     spatialIndex: editorialContext.spatialIndex,
@@ -778,6 +1155,7 @@ export function buildDirectorBrief({
     aspectMix: buildAspectMix(timelineIndex.scenes ?? []),
     clipAspectById: buildClipAspectById(timelineIndex),
     sfxCatalogSummary: buildSfxCatalogSummary(),
+    lutCatalogSummary: buildLutCatalogSummary(),
     brollCandidates,
     excludedHints,
     fillerStats: {
@@ -803,10 +1181,12 @@ export function buildDirectorBrief({
     }),
     audioIndex: editorialContext.audioIndex,
     audioMixDefaults,
+    ...(audioEventAnchors.length > 0 ? { audioEventAnchors } : {}),
     creativityBudget: summarizeCreativityBudgetForBrief(creativityBudget),
     creativityBudgetByOutput,
     constraints: {
       requiredFormats,
+      brollStrategy,
       brollMatchThreshold: batchContext.brollMatchThreshold ?? 0.55,
       maxBrollSegmentsPerOutput: batchContext.maxBrollSegmentsPerOutput ?? 30,
       shortsMaxDurationSec: batchContext.shortsMaxDurationSec ?? 60,
@@ -816,17 +1196,28 @@ export function buildDirectorBrief({
     },
     qualityOverQuantity: batchContext.qualityOverQuantity ?? true,
     ...(sceneMapPolicy ? { sceneMapPolicy, sceneMapOmittedCount } : {}),
+    ...(sceneMapAutoExpandedCount > 0 ? { sceneMapAutoExpandedCount } : {}),
+    ...(sceneMapOmittedScenes?.length ? { sceneMapOmittedScenes } : {}),
   };
 
-  if ((topicIndex?.topics ?? []).length > 0) {
-    const resolvedKeyframesByClip = keyframesByClip ?? buildKeyframesByClip(timelineIndex);
-    brief.brollSyncHints = buildBrollSyncHints({
-      topicIndex,
-      timelineIndex,
-      keyframesByClip: resolvedKeyframesByClip,
-      abstractL1: abstraction.L1,
-    }).slice(0, 15);
-  }
+  Object.assign(brief, buildDirectorMultiClipEnrichmentFields({
+    inputMode,
+    sortedClipRegistry,
+    topicIndex,
+    timelineIndex,
+    abstraction,
+    brollStrategy,
+    outputs: requiredFormats.includes("16:9")
+      ? [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: mainDurationSec,
+      }]
+      : [],
+    batchContext: brief.batchContext,
+    keyframesByClip,
+  }));
 
   if (audioIndex?.clips?.length) {
     brief.sfxPlanDefaults = buildSfxPlanFromAudio(audioIndex, {
@@ -876,22 +1267,7 @@ export function buildDirectorBrief({
     brief.narrativeOpenLoops = narrativeOpenLoops;
   }
 
-  const coldOpenSegmentHint = buildColdOpenSegmentHint(abstraction, {
-    outputs: requiredFormats.includes("16:9")
-      ? [{
-        outputId: "main_16x9",
-        outputKind: "main",
-        format: "16:9",
-        targetDurationSec: mainDurationSec,
-      }]
-      : [],
-    batchContext,
-  });
-  if (coldOpenSegmentHint) {
-    brief.coldOpenSegmentHint = coldOpenSegmentHint;
-  }
-
-  if (sceneCount <= 5) {
+  if (sceneCount <= L1_SCENE_SUMMARIES_THRESHOLD) {
     brief.l1SceneSummaries = buildL1SceneSummaries(abstraction, timelineIndex.scenes);
   }
 
@@ -992,6 +1368,7 @@ export async function directorDrillDown(client, {
   recipe,
   sceneIds,
   targetDurationSec,
+  keyframesByClip = null,
 }) {
   const system = loadPrompt("director", { version: "v2" });
   const drillDown = drillDownSceneDetails(timelineIndex, sceneIds);
@@ -1041,6 +1418,28 @@ export async function directorDrillDown(client, {
     wordIndexes,
   });
 
+  const inputMode = detectInputMode(
+    timelineIndex.clips?.length ?? 1,
+    { ...batchContext, ...recipe.batchContext },
+  );
+  const sortedClipRegistry = [...clipRegistry].sort(
+    (a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0),
+  );
+  const brollStrategy = recipe.batchContext?.brollStrategy
+    ?? batchContext.brollStrategy
+    ?? "match_speech_topics";
+  const multiClipFields = buildDirectorMultiClipEnrichmentFields({
+    inputMode,
+    sortedClipRegistry,
+    topicIndex: editorialContext.topicIndex,
+    timelineIndex,
+    abstraction,
+    brollStrategy,
+    outputs: recipe.outputs,
+    batchContext: { ...batchContext, ...recipe.batchContext },
+    keyframesByClip: keyframesByClip ?? buildKeyframesByClip(timelineIndex),
+  });
+
   const user = JSON.stringify({
     task: "drill_down_refine",
     draftRecipe: recipe,
@@ -1051,10 +1450,12 @@ export async function directorDrillDown(client, {
     spatialRefExamples: buildSpatialRefExamples(spatialIndex),
     transcriptExcerpts: editorialContext.transcriptExcerpts,
     audioIndex: editorialContext.audioIndex,
-    clipRegistry,
+    clipRegistry: sortedClipRegistry,
     sessionSummary: abstraction.L3,
     userContext: userContext || timelineIndex.userContext || "",
     requiredFormats,
+    inputMode,
+    ...multiClipFields,
     creativityProfile: parsedCreativity,
     techniqueCatalog,
     ...buildRetentionBriefFields({

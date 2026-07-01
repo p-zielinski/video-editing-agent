@@ -13,10 +13,79 @@ import { runSpatialIndexStep } from "./spatial-index.js";
 import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/audio-mix-plan.js";
 import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
-import { enrichRecipeChapterCards } from "../../editorial/chapter-hints.js";
+import { enrichRecipeChapterCards, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
 import { enrichRecipeRetentionBeats } from "../../editorial/shorts-retention.js";
+import {
+  buildBrollSyncHintsForRecipe,
+  enrichBrollSyncFromHints,
+  buildKeyframesByClip,
+} from "../../editorial/broll-sync-hints.js";
+
+import { enrichRecipeSilenceBeatFromDeadAir } from "../../editorial/dead-air-enrich.js";
+import { refineClipRegistryFromL1 } from "./clip-profile.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
+
+export function applyDeterministicRecipeEnrichers(recipe, {
+  abstraction,
+  timelineIndex,
+  topicIndex,
+  spatialIndex,
+  audioIndex,
+  clipRegistry,
+  perClipAnalysis,
+  batchContext = {},
+  keyframeArtifacts = null,
+}) {
+  const effectiveBatchContext = {
+    ...batchContext,
+    ...(recipe.batchContext ?? {}),
+  };
+
+  const coldOpenHint = buildColdOpenSegmentHint(
+    abstraction,
+    {
+      outputs: recipe.outputs,
+      batchContext: effectiveBatchContext,
+    },
+    { clipRegistry, timelineIndex },
+  );
+  enrichRecipeColdOpenSegment(recipe, coldOpenHint, timelineIndex);
+
+  recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
+    audioIndex,
+    clipRegistry,
+    perClipAnalysis,
+  });
+
+  recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
+    audioIndex,
+    abstraction,
+    timelineIndex,
+    spatialIndex,
+  });
+
+  recipe.creativeMoments = enrichRecipeSilenceBeatFromDeadAir(recipe, {
+    audioIndex,
+    timelineIndex,
+  });
+
+  enrichRecipeChapterCards(recipe, { abstraction });
+
+  if (effectiveBatchContext.brollStrategy !== "minimal") {
+    const brollSyncHints = buildBrollSyncHintsForRecipe({
+      abstraction,
+      timelineIndex,
+      topicIndex,
+      keyframeArtifacts,
+      batchContext: effectiveBatchContext,
+      recipe,
+    });
+    enrichBrollSyncFromHints(recipe, brollSyncHints);
+  }
+
+  return recipe;
+}
 
 function resolveOpenAIClient({ apiKey, openaiClient }) {
   if (openaiClient) {
@@ -52,13 +121,17 @@ export async function runAbstractStep({
   return bundle;
 }
 
-function loadClipRegistry(workDir) {
+function loadClipRegistry(workDir, { abstraction = null, timelineIndex = null } = {}) {
   const registryPath = path.join(workDir, ARTIFACTS.clipRegistry);
   if (!fs.existsSync(registryPath)) {
     return [];
   }
   const data = readJson(registryPath);
-  return data.clipRegistry ?? data;
+  const clipRegistry = data.clipRegistry ?? data;
+  if (abstraction && timelineIndex) {
+    return refineClipRegistryFromL1(clipRegistry, abstraction, timelineIndex);
+  }
+  return clipRegistry;
 }
 
 function loadSpatialIndex(workDir) {
@@ -99,6 +172,64 @@ function loadWordIndexes(workDir, catalog) {
   });
 }
 
+function loadKeyframesByClip(workDir, catalog) {
+  return (catalog?.clips ?? []).map((clip) => {
+    const keyframePath = path.join(workDir, ARTIFACTS.keyframes(clip.clipId));
+    if (!fs.existsSync(keyframePath)) {
+      return { clipId: clip.clipId, keyframes: [] };
+    }
+    try {
+      return readJson(keyframePath);
+    } catch {
+      return { clipId: clip.clipId, keyframes: [] };
+    }
+  });
+}
+
+function resolveClipRegistryForEnrichers(workDir, recipe) {
+  const loaded = loadClipRegistry(workDir);
+  if (!loaded.length) {
+    return recipe?.clipRegistry ?? [];
+  }
+  if (!recipe?.clipRegistry?.length) {
+    return loaded;
+  }
+  const byId = new Map(loaded.map((entry) => [entry.clipId, entry]));
+  for (const entry of recipe.clipRegistry) {
+    byId.set(entry.clipId, { ...byId.get(entry.clipId), ...entry });
+  }
+  return [...byId.values()];
+}
+
+function buildRecipeValidationOptions({
+  recipe,
+  requiredFormats,
+  topicIndex,
+  spatialIndex,
+  wordIndexes,
+  audioIndex,
+  abstraction,
+  timelineIndex,
+  keyframeArtifacts,
+  batchContext,
+}) {
+  return {
+    requiredFormats,
+    topicIndex,
+    spatialIndex,
+    wordIndexes,
+    audioIndex,
+    brollSyncHints: buildBrollSyncHintsForRecipe({
+      abstraction,
+      timelineIndex,
+      topicIndex,
+      keyframeArtifacts,
+      batchContext,
+      recipe,
+    }),
+  };
+}
+
 export async function runDirectStep({
   workDir,
   apiKey,
@@ -117,12 +248,14 @@ export async function runDirectStep({
   const timelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
   const abstraction = readJson(path.join(workDir, ARTIFACTS.abstraction));
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
-  const clipRegistry = loadClipRegistry(workDir);
+  const clipRegistry = loadClipRegistry(workDir, { abstraction, timelineIndex });
   const topicIndex = loadTopicIndex(workDir);
   const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub });
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
+  const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
+  const keyframesByClip = buildKeyframesByClip(timelineIndex, keyframeArtifacts);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
 
   const audioMixDefaults = deriveAudioMixPlanDefaults({
@@ -144,6 +277,7 @@ export async function runDirectStep({
     audioMixDefaults,
     perClipAnalysis,
     wordIndexes,
+    keyframesByClip,
     userContext,
     requiredFormats,
     batchContext: {
@@ -172,19 +306,17 @@ export async function runDirectStep({
     },
   }));
 
-  recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
+  applyDeterministicRecipeEnrichers(recipe, {
+    abstraction,
+    timelineIndex,
+    topicIndex,
+    spatialIndex,
     audioIndex,
     clipRegistry,
     perClipAnalysis,
+    batchContext,
+    keyframeArtifacts,
   });
-
-  recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
-    audioIndex,
-    abstraction,
-    timelineIndex,
-    spatialIndex,
-  });
-  enrichRecipeChapterCards(recipe, { abstraction });
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
   writeJson(draftPath, recipe);
@@ -208,10 +340,22 @@ export async function runReviewStep({
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
+  const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
 
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.recipeFinal, force)) {
     const recipe = EditRecipeV2Schema.parse(readJson(finalPath));
-    const validation = validateRecipeV2(recipe, { requiredFormats, topicIndex, spatialIndex, wordIndexes, audioIndex });
+    const validation = validateRecipeV2(recipe, buildRecipeValidationOptions({
+      recipe,
+      requiredFormats,
+      topicIndex,
+      spatialIndex,
+      wordIndexes,
+      audioIndex,
+      abstraction: readJson(path.join(workDir, ARTIFACTS.abstraction)),
+      timelineIndex: readJson(path.join(workDir, ARTIFACTS.timelineIndex)),
+      keyframeArtifacts,
+      batchContext,
+    }));
     if (validation.valid) {
       const reviewPath = path.join(workDir, ARTIFACTS.review);
       const review = fs.existsSync(reviewPath) ? readJson(reviewPath) : null;
@@ -229,9 +373,28 @@ export async function runReviewStep({
 
   let iteration = 0;
   let lastReview = null;
+  const validationBase = {
+    requiredFormats,
+    topicIndex,
+    spatialIndex,
+    wordIndexes,
+    audioIndex,
+    abstraction,
+    timelineIndex,
+    keyframeArtifacts,
+    batchContext,
+  };
 
   while (iteration < maxIterations) {
     iteration += 1;
+    const brollSyncHints = buildBrollSyncHintsForRecipe({
+      abstraction,
+      timelineIndex,
+      topicIndex,
+      keyframeArtifacts,
+      batchContext,
+      recipe,
+    });
     lastReview = await runCritic(client, {
       recipe,
       abstraction,
@@ -243,6 +406,7 @@ export async function runReviewStep({
       wordIndexes,
       audioIndex,
       perClipAnalysis,
+      brollSyncHints,
     });
 
     writeJson(path.join(workDir, ARTIFACTS.review), lastReview);
@@ -266,25 +430,28 @@ export async function runReviewStep({
         timelineIndex,
         audioIndex,
         perClipAnalysis,
+        brollSyncHints,
       }),
     );
-    recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
-      audioIndex,
-      clipRegistry: recipe.clipRegistry,
-      perClipAnalysis,
-    });
-    recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
-      audioIndex,
+    applyDeterministicRecipeEnrichers(recipe, {
       abstraction,
       timelineIndex,
+      topicIndex,
       spatialIndex,
+      audioIndex,
+      clipRegistry: resolveClipRegistryForEnrichers(workDir, recipe),
+      perClipAnalysis,
+      batchContext,
+      keyframeArtifacts: loadKeyframesByClip(workDir, catalog),
     });
-    enrichRecipeChapterCards(recipe, { abstraction });
     recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
     writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
   }
 
-  const validation = validateRecipeV2(recipe, { requiredFormats, topicIndex, spatialIndex, wordIndexes, audioIndex });
+  const validation = validateRecipeV2(recipe, buildRecipeValidationOptions({
+    recipe,
+    ...validationBase,
+  }));
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
   recipe.needsHumanReview = !lastReview?.approved || !validation.valid;
   if (recipe.needsHumanReview && lastReview?.summary) {

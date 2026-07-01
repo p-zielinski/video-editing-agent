@@ -1,6 +1,14 @@
 import { buildOutputTimeline } from "../lib/build-output-timeline.js";
 import { resolveMainOutputDurationSec } from "./shorts-retention.js";
 
+export const COLD_OPEN_SEGMENT_ID = "enrich_cold_open_01";
+export const REWIND_INTRO_SEGMENT_ID = "enrich_rewind_intro_01";
+export const REWIND_MOMENT_ID = "enrich_rewind_01";
+export const REWIND_OVERLAY_ID = "enrich_rewind_overlay_01";
+
+const DEFAULT_COLD_OPEN_MAX_SEC = 8;
+const REWIND_INTRO_MAX_SEC = 6;
+
 const CHAPTER_CARD_INTERVAL_SEC = 240;
 const CHAPTER_CARD_MIN_DURATION_SEC = 180;
 const CHAPTER_CARD_NEAR_TOLERANCE_SEC = 15;
@@ -166,12 +174,18 @@ export function enrichRecipeChapterCards(recipe, { abstraction } = {}) {
       continue;
     }
 
+    const overlayId = `enrich_chapter_${target.l2SegmentId ?? Math.round(target.targetSec)}`;
+    if (existingChapterOverlays.some((entry) => entry.overlayId === overlayId)) {
+      continue;
+    }
+
     const outputStartSec = target.targetSec;
     const outputEndSec = Math.min(
       durationSec,
       Math.round((target.targetSec + CHAPTER_CARD_WINDOW_SEC) * 10) / 10,
     );
     const overlay = {
+      overlayId,
       text: target.text,
       outputStartSec,
       outputEndSec,
@@ -239,12 +253,45 @@ function resolveClipIdFromSceneId(sceneId) {
 }
 
 /**
- * Brief-only hint: cold open could start on payoff tease scene before rewind.
- *
- * @param {object} abstraction
- * @param {object} [recipe]
+ * Lowest sortIndex A-roll intro scene for chronological rewind target.
  */
-export function buildColdOpenSegmentHint(abstraction, recipe = {}) {
+export function resolveChronologicalIntroRef(clipRegistry = [], timelineIndex = {}) {
+  const sorted = [...clipRegistry].sort(
+    (a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0),
+  );
+  const introClip = sorted.find(
+    (clip) => clip.clipRole === "aroll_primary" || clip.hasSpeech,
+  ) ?? sorted[0];
+  if (!introClip) {
+    return null;
+  }
+
+  const scene = (timelineIndex.scenes ?? [])
+    .filter((entry) => entry.clipId === introClip.clipId)
+    .sort((a, b) => (a.startSec ?? 0) - (b.startSec ?? 0))[0];
+  if (!scene) {
+    return null;
+  }
+
+  return { clipId: introClip.clipId, sceneId: scene.sceneId };
+}
+
+export function buildRewindOverlayText(batchContext = {}) {
+  const label = batchContext.dayLabel ?? batchContext.theme ?? batchContext.notes;
+  if (label && typeof label === "string" && label.length <= 40) {
+    return `Wcześniej — ${label}`;
+  }
+  return "Wcześniej…";
+}
+
+/**
+ * Brief-only hint: cold open could start on payoff tease scene before rewind.
+ */
+export function buildColdOpenSegmentHint(
+  abstraction,
+  recipe = {},
+  { clipRegistry = [], timelineIndex = {} } = {},
+) {
   const loops = buildNarrativeOpenLoops(abstraction);
   const coldOpenLoop = loops.find((entry) => entry.type === "cold_open");
   if (!coldOpenLoop) {
@@ -265,11 +312,252 @@ export function buildColdOpenSegmentHint(abstraction, recipe = {}) {
   }
 
   const clipId = resolveClipIdFromSceneId(teaseSceneId);
+  const batchContext = recipe.batchContext ?? {};
+  const rewindTargetVideoRef = resolveChronologicalIntroRef(clipRegistry, timelineIndex);
+
   return {
     type: "cold_open",
     suggestion: coldOpenLoop.hint,
     suggestedSceneId: teaseSceneId,
     suggestedVideoRef: { clipId, sceneId: teaseSceneId },
+    rewindTargetVideoRef,
+    rewindOverlayText: buildRewindOverlayText(batchContext),
     note: "Pierwszy segment mógłby zacząć od payoff tease (cold open), potem rewind do intro.",
   };
+}
+
+function sceneUsedInTimeline(timeline, sceneId) {
+  return (timeline ?? []).some((segment) => segment.videoRef?.sceneId === sceneId);
+}
+
+function prependColdOpenTease(mainOutput, hint, timelineIndex, { allowBrollReuse = false } = {}) {
+  const firstSegment = mainOutput.timeline[0];
+  if (firstSegment?.segmentId === COLD_OPEN_SEGMENT_ID
+    || firstSegment?.videoRef?.sceneId === hint.suggestedSceneId) {
+    return;
+  }
+
+  if (!allowBrollReuse && sceneUsedInTimeline(mainOutput.timeline, hint.suggestedSceneId)) {
+    return;
+  }
+
+  const scene = (timelineIndex?.scenes ?? []).find(
+    (entry) => entry.sceneId === hint.suggestedSceneId,
+  );
+  if (!scene) {
+    return;
+  }
+
+  const sceneEnd = scene.endSec ?? scene.durationSec ?? DEFAULT_COLD_OPEN_MAX_SEC;
+  const sceneStart = scene.startSec ?? 0;
+  const duration = Math.min(DEFAULT_COLD_OPEN_MAX_SEC, sceneEnd - sceneStart);
+  const videoInSec = Math.max(sceneStart, sceneEnd - duration);
+  const videoOutSec = sceneEnd;
+
+  mainOutput.timeline.unshift({
+    segmentId: COLD_OPEN_SEGMENT_ID,
+    segmentRole: "aroll",
+    videoRef: { ...hint.suggestedVideoRef },
+    audioRef: { ...hint.suggestedVideoRef },
+    videoInSec,
+    videoOutSec,
+    audioInSec: videoInSec,
+    audioOutSec: videoOutSec,
+    audioPolicy: "from_video_ref",
+    overlapSec: 0,
+    cuts: [],
+    textOverlays: [],
+  });
+}
+
+function ensureRewindIntroSegment(mainOutput, hint, timelineIndex, { allowBrollReuse = false } = {}) {
+  const target = hint.rewindTargetVideoRef;
+  if (!target?.sceneId) {
+    return;
+  }
+
+  if (!allowBrollReuse && sceneUsedInTimeline(mainOutput.timeline, target.sceneId)) {
+    const onlyColdOpenUsesTarget = mainOutput.timeline.length === 1
+      && mainOutput.timeline[0]?.segmentId === COLD_OPEN_SEGMENT_ID;
+    if (!onlyColdOpenUsesTarget) {
+      return;
+    }
+  }
+
+  const segAt1 = mainOutput.timeline[1];
+  if (segAt1?.videoRef?.sceneId === target.sceneId) {
+    return;
+  }
+
+  if (mainOutput.timeline.some((segment) => segment.segmentId === REWIND_INTRO_SEGMENT_ID)) {
+    return;
+  }
+
+  const scene = (timelineIndex?.scenes ?? []).find(
+    (entry) => entry.sceneId === target.sceneId,
+  );
+  if (!scene) {
+    return;
+  }
+
+  const sceneStart = scene.startSec ?? 0;
+  const sceneEnd = scene.endSec ?? scene.durationSec ?? REWIND_INTRO_MAX_SEC;
+  const duration = Math.min(REWIND_INTRO_MAX_SEC, sceneEnd - sceneStart);
+
+  mainOutput.timeline.splice(1, 0, {
+    segmentId: REWIND_INTRO_SEGMENT_ID,
+    segmentRole: "aroll",
+    videoRef: { ...target },
+    audioRef: { ...target },
+    videoInSec: sceneStart,
+    videoOutSec: sceneStart + duration,
+    audioInSec: sceneStart,
+    audioOutSec: sceneStart + duration,
+    audioPolicy: "from_video_ref",
+    overlapSec: 0,
+    cuts: [],
+    textOverlays: [],
+  });
+}
+
+function addColdOpenRewindMarkers(recipe, mainOutput, hint, { addSfx = true } = {}) {
+  const enriched = buildOutputTimeline(mainOutput);
+  const coldSeg = enriched.find((segment) => segment.segmentId === COLD_OPEN_SEGMENT_ID);
+  if (!coldSeg) {
+    return;
+  }
+
+  const rewindSec = coldSeg.outputEndSec ?? 0;
+  recipe.creativeMoments = recipe.creativeMoments ?? [];
+
+  if (!recipe.creativeMoments.some((moment) => moment.momentId === REWIND_MOMENT_ID)) {
+    recipe.creativeMoments.push({
+      momentId: REWIND_MOMENT_ID,
+      techniqueId: "hard_cut_energy",
+      outputId: mainOutput.outputId,
+      outputStartSec: Math.max(0, rewindSec - 0.05),
+      outputEndSec: roundSec(rewindSec + 0.35),
+      params: {},
+      reason: "Cold-open rewind — przejście do chronologii",
+      confidence: 0.75,
+    });
+  }
+
+  const introSegIdx = mainOutput.timeline.findIndex(
+    (segment, index) => index > 0
+      && segment.videoRef?.sceneId === hint.rewindTargetVideoRef?.sceneId,
+  );
+  if (introSegIdx >= 0 && hint.rewindOverlayText) {
+    const segment = mainOutput.timeline[introSegIdx];
+    const hasOverlay = (segment.textOverlays ?? []).some(
+      (overlay) => overlay.overlayId === REWIND_OVERLAY_ID,
+    );
+    if (!hasOverlay) {
+      const introEnriched = enriched.find((entry) => entry.segmentId === segment.segmentId);
+      const start = introEnriched?.outputStartSec ?? rewindSec;
+      mainOutput.timeline[introSegIdx] = {
+        ...segment,
+        textOverlays: [
+          ...(segment.textOverlays ?? []),
+          {
+            overlayId: REWIND_OVERLAY_ID,
+            text: hint.rewindOverlayText,
+            outputStartSec: start,
+            outputEndSec: roundSec(start + 2.5),
+            style: "emphasis",
+            role: "retention_beat",
+          },
+        ],
+      };
+    }
+  }
+
+  if (addSfx) {
+    recipe.sfxPlan = recipe.sfxPlan ?? [];
+    if (!recipe.sfxPlan.some((entry) => entry.sfxId === "whoosh")) {
+      recipe.sfxPlan.push({
+        sfxId: "whoosh",
+        source: "library",
+        label: "whoosh",
+        outputStartSec: rewindSec,
+        outputEndSec: roundSec(rewindSec + 0.4),
+        reason: "Cold-open rewind transition",
+      });
+    }
+  }
+}
+
+function roundSec(value) {
+  return Math.round(value * 10) / 10;
+}
+
+/**
+ * Prepends cold-open tease, rewind intro, and transition markers on main output.
+ */
+export function enrichRecipeColdOpenSegment(recipe, hint, timelineIndex, options = {}) {
+  if (!hint?.suggestedSceneId || !hint?.suggestedVideoRef || !recipe?.outputs?.length) {
+    return recipe;
+  }
+
+  const mainOutput = recipe.outputs.find((output) => output.outputKind === "main");
+  if (!mainOutput?.timeline?.length) {
+    return recipe;
+  }
+
+  const allowBrollReuse = recipe.batchContext?.allowBrollReuse ?? false;
+
+  prependColdOpenTease(mainOutput, hint, timelineIndex, { allowBrollReuse });
+  ensureRewindIntroSegment(mainOutput, hint, timelineIndex, { allowBrollReuse });
+  addColdOpenRewindMarkers(recipe, mainOutput, hint, options);
+
+  return recipe;
+}
+
+/**
+ * Scene ID exempt from V25-CHR-01 when used as cold-open tease before chronological intro.
+ */
+export function deriveTeaseSceneIdFromRecipe(recipe) {
+  const main = recipe?.outputs?.find((output) => output.outputKind === "main");
+  const first = main?.timeline?.[0];
+  if (!first?.videoRef?.sceneId) {
+    return null;
+  }
+
+  if (first.segmentId === COLD_OPEN_SEGMENT_ID) {
+    return first.videoRef.sceneId;
+  }
+
+  const clipRegistry = recipe.clipRegistry ?? [];
+  const firstSort = clipRegistry.find((clip) => clip.clipId === first.videoRef?.clipId)?.sortIndex;
+  if (firstSort == null) {
+    return null;
+  }
+
+  const nextAroll = main.timeline.slice(1).find(
+    (segment) => segment.segmentRole === "aroll"
+      && segment.videoRef?.clipId
+      && segment.segmentId !== REWIND_INTRO_SEGMENT_ID,
+  );
+  if (!nextAroll?.videoRef?.clipId) {
+    return null;
+  }
+
+  const nextSort = clipRegistry.find((clip) => clip.clipId === nextAroll.videoRef.clipId)?.sortIndex;
+  if (nextSort == null) {
+    return null;
+  }
+
+  if (firstSort > nextSort) {
+    const hasRewindIntro = main.timeline.slice(1, 4).some(
+      (segment) => segment.segmentId === REWIND_INTRO_SEGMENT_ID,
+    );
+    const hasRewindMoment = (recipe.creativeMoments ?? []).some(
+      (moment) => moment.momentId === REWIND_MOMENT_ID,
+    );
+    if (hasRewindIntro || hasRewindMoment) {
+      return first.videoRef.sceneId;
+    }
+  }
+
+  return null;
 }

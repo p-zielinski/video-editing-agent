@@ -9,7 +9,7 @@ import {
   touchNewerThan,
 } from "../../src/test-helpers/fixture-work-dir.js";
 import { runClipProfileStep } from "../../src/pipeline/steps/clip-profile.js";
-import { runTopicIndexStep } from "../../src/pipeline/steps/topic-index.js";
+import { runTopicIndexStep, createTokenVectorEmbedFn } from "../../src/pipeline/steps/topic-index.js";
 import { runSpatialIndexStep } from "../../src/pipeline/steps/spatial-index.js";
 import { ClipRegistryArtifactSchema, TopicIndexSchema } from "../../src/schemas/edit-recipe-v2.js";
 import { SpatialIndexSchema } from "../../src/schemas/spatial-index.js";
@@ -121,7 +121,11 @@ describe("pre-render E2E — mini-day", () => {
     const goldenSpatial = loadFixtureArtifact("mini-day", "05c-spatial-index.json");
 
     const clipRegistry = await runClipProfileStep({ workDir, force: true });
-    const topicIndex = await runTopicIndexStep({ workDir, force: true });
+    const topicIndex = await runTopicIndexStep({
+      workDir,
+      force: true,
+      embedFn: createTokenVectorEmbedFn(),
+    });
     const spatialIndex = await runSpatialIndexStep({ workDir, force: true, faceStub: true });
 
     ClipRegistryArtifactSchema.parse(clipRegistry);
@@ -203,7 +207,11 @@ describe("pre-render E2E — shorts-hook", () => {
     const goldenClip = loadFixtureArtifact("shorts-hook", "05a-clip-registry.json");
 
     const clipRegistry = await runClipProfileStep({ workDir, force: true });
-    const topicIndex = await runTopicIndexStep({ workDir, force: true });
+    const topicIndex = await runTopicIndexStep({
+      workDir,
+      force: true,
+      embedFn: createTokenVectorEmbedFn(),
+    });
     const spatialIndex = await runSpatialIndexStep({ workDir, force: true, faceStub: true });
 
     assert.deepEqual(

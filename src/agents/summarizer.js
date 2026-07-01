@@ -29,8 +29,8 @@ function buildClipHints(clipRegistry = []) {
   }));
 }
 
-function enrichSceneInput(scene, words, visionCaptions, clipRegistry) {
-  const input = sceneSummaryInput(scene, words, visionCaptions);
+function enrichSceneInput(scene, words, visionCaptions, clipRegistry, objectDetections = []) {
+  const input = sceneSummaryInput(scene, words, visionCaptions, objectDetections);
   return enrichSceneInputWithClipMeta(input, clipRegistry);
 }
 
@@ -46,6 +46,7 @@ export function isSilentSceneInput(input) {
 export function groupScenesForL1Summarization(scenes, words, visionCaptions, {
   maxBatchSize = SILENT_BATCH_MAX_SCENES,
   clipRegistry = [],
+  objectDetections = [],
 } = {}) {
   const groups = [];
   let silentBatch = null;
@@ -58,7 +59,13 @@ export function groupScenesForL1Summarization(scenes, words, visionCaptions, {
   };
 
   for (const scene of scenes) {
-    const input = enrichSceneInput(scene, words, visionCaptions, clipRegistry);
+    const input = enrichSceneInput(
+      scene,
+      words,
+      visionCaptions,
+      clipRegistry,
+      objectDetections,
+    );
 
     if (isSilentSceneInput(input)) {
       if (!silentBatch) {
@@ -154,7 +161,10 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     timelineIndex.scenes,
     timelineIndex.words,
     timelineIndex.visionCaptions,
-    { clipRegistry },
+    {
+      clipRegistry,
+      objectDetections: timelineIndex.objectDetections ?? [],
+    },
   );
 
   for (const group of groups) {
@@ -169,7 +179,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     }
   }
 
-  const segmentDefs = chunkTimelineForL2(timelineIndex.scenes);
+  const segmentDefs = chunkTimelineForL2(timelineIndex.scenes, { clipRegistry });
   const l2 = [];
 
   for (const segment of segmentDefs) {

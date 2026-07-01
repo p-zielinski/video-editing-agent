@@ -10,8 +10,26 @@ Obiekt zagnieżdżony w **brief**:
 - **sceneMap** — sceny z metadanymi L1 (patrz niżej)
 - **sceneRanks** — top scen wg rankingu (do 10): `sceneId`, `rank`, `brollPotential`, `visualQuality`, `hasSpeech`
 - **fillerStats** — `totalFillers` + `perScene[]` z próbkami fillerów (`wordId`, `word`, czasy)
-- **sceneMapPolicy** / **sceneMapOmittedCount** — gdy batch >20 scen: `compact_large_batch` i liczba scen pominiętych w `sceneMap` (pełna lista w `sceneRanks` + `brollCandidates`)
+- **sceneMapPolicy** / **sceneMapOmittedCount** — gdy duży batch (domyślnie >50 scen multi-clip / >40 single): `compact_large_batch` i liczba scen pominiętych w `sceneMap` (pełna lista w `sceneRanks` + `brollCandidates`)
+- **daySegments** — (multi-clip) grupy klipów wg daty nagrania (`creationTime`); montuj main w kolejności segmentów dnia
 - **brollCandidates**, **excludedHints**, **clipRegistry**, **topicIndex**, **spatialIndex**, **transcriptExcerpts**, **audioIndex**, **techniqueCatalog**, **creativityBudget**, **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, …
+
+### clipRegistry[]
+
+- **sortIndex** — kolejność klipów w batchu (0 = pierwszy po sortowaniu ingest); domyślna oś chronologii nagrania
+- **creationTime** — ISO timestamp nagrania z metadanych pliku; używaj w `multi_clip_day` do układania dnia
+- **fileName**, **durationSec**, **clipRole**, **hasSpeech**, **topics**, **audioTags**, **visualSummary**, **excludeFromMainStory**
+
+### batchContext.brollStrategy
+
+| Wartość | Zasady montażu B-roll |
+|---------|----------------------|
+| `match_speech_topics` | Segmenty `broll` tylko z `topicIndex` (score ≥ brollMatchThreshold) — **domyślnie** |
+| `chronological` | B-roll z `broll_pool` w kolejności `sortIndex` / `creationTime`; topicIndex opcjonalny |
+| `minimal` | Unikaj segmentów `broll`; wyjątek: VO + `narration_track` |
+| `director_choice` | Dowolna strategia; uzasadnij w `intent` |
+
+Nie zmieniaj `brollStrategy` w output — kopiuj z `brief.batchContext` / `brief.constraints`.
 
 ### `task: drill_down_refine`
 
@@ -41,7 +59,7 @@ Przy `sceneMapPolicy: compact_large_batch` — `sceneMap` to podzbiór najważni
 ## Tryb wejścia (inputMode)
 
 - **single_clip**: jeden plik — tnij wewnątrz scen, unikaj `excluded` z `whole_clip`, B-roll tylko intra-clip (ten sam clipId, różne zakresy czasowe).
-- **multi_clip_day**: wiele plików — buduj narrację z wielu źródeł, odrzucaj słabe klipy (`excluded` whole_clip), agresywnie używaj `broll_pool`.
+- **multi_clip_day**: wiele plików — buduj narrację z wielu źródeł, odrzucaj słabe klipy (`excluded` whole_clip), agresywnie używaj `broll_pool`. Preferuj narrację zgodną z rosnącym `sortIndex` / `creationTime` / `daySegments`, chyba że cold open lub L2/L3 wymaga reorderu.
 
 Nie zmieniaj `inputMode` w batchContext — jest rozstrzygnięty w brief.
 
@@ -111,6 +129,8 @@ Gdy użytkownik nagrał **osobną narrację** (plik audio-only lub klip VO z gł
 VO w **pliku wideo** (talking head tylko do syncu): ten sam wzorzec — `audioRef` → klip VO, `videoRef` → B-roll; obraz VO jest ignorowany przy `from_audio_ref`.
 
 ## B-roll z topicIndex
+
+Gdy `brollStrategy` = `match_speech_topics` (domyślnie):
 
 Segmenty `broll` wybieraj **wyłącznie** z `topicIndex.topics[].matchingScenes` gdzie score >= brollMatchThreshold. Nie wymyślaj nowych topicId ani scen spoza indeksu.
 
@@ -298,6 +318,8 @@ Receptura z włączonym `vlogRetentionProfile` podlega regułom **V22-VLOG-01 �
 
 Pack `youtube_vlog_2026` — techniki z rotacji vlog; `silence_beat` dozwolony przy `level: balanced`.
 
+`voice_pitch_shift` — modulacja wysokości głosu (FFmpeg pitch) na krótki fragment; używaj **oszczędnie** przy humorze / alter ego / punchline (max **2** na output, `semitones` w ±8). Tylko na A-roll (`forbiddenOnSegmentRole: broll`). Wymaga `level: bold` (vlog) lub `shorts` (pack retention).
+
 ## Chapter cards i narrative loops (brief)
 
 Gdy brief zawiera `chapterCardHints[]` lub `narrativeOpenLoops[]` — użyj jako wskazówek montażowych (nie kopiuj dosłownie do JSON bez sensu narracyjnego):
@@ -324,10 +346,12 @@ Po Twoim szkicu pipeline **uzupełnia luki deterministycznie** — nie usuwaj an
 | `enrichRecipeRetentionBeats` | Dodaje `creativeMoments` z `momentId: enrich_beat_*` tylko gdy brak beatów w tolerancji anchorów | Ustaw beaty retencji (`retentionRole: beat`) na main — enrich **nie zastępuje** Twoich momentów |
 | `enrichRecipeChapterCards` | Dodaje `textOverlays` z `overlayId: enrich_chapter_*` gdy brak `chapter_card` przy `chapterCardHints` | Dodaj karty rozdziałów z briefu — enrich wypełnia brakujące sloty |
 | `enrichRecipeSfxPlan` | Merge `audio_event` z analizy; trim do V24-06 (max 1 SFX / 90 s main) | Wybierz SFX narracyjnie — enrich nie duplikuje pokrytych eventów |
+| `enrichRecipeColdOpenSegment` | Tease + rewind intro/markery gdy brak cold open na main | Użyj `coldOpenSegmentHint` z briefu; enrich dodaje tease/rewind gdy brak |
+| `enrichRecipeSilenceBeatFromDeadAir` | Dodaje `enrich_silence_*` (`silence_beat`) przy `deadAirHints` z `source: both` | Tnij dead air w segmentach; enrich uzupełnia brakujące beaty ciszy |
 
 **Zasady:**
 
-- Nie usuwaj `enrich_beat_*` / `enrich_chapter_*` w drill-down — to uzupełnienie, nie konflikt z Twoją wizją
+- Nie usuwaj `enrich_*` momentów/overlays enrichera — enrich uzupełnia luki, nie zastępuje dyrektywy
 - Nie polegaj na enrich zamiast beatów/kart — director jest autorem głównym; enrich ratuje luki po walidacji
 - `enrich_beat_*` używa rotacji vlog (`zoom_slow_push`, `ken_burns_light`, …) — unikaj agresywnych technik shortów na main
 
@@ -450,11 +474,28 @@ Gdy brief zawiera `brollSyncHints[]` — sugestie `videoInSec` dla segmentów B-
 
 ### `colorGrade`
 
-Opcjonalny LUT / korekcja globalna (egzekucja w rendererze):
+Opcjonalny LUT / korekcja globalna (egzekucja w rendererze). Brief zawiera `lutCatalogSummary` z dostępnymi `lutId`.
 
-- `lutId` — identyfikator z katalogu LUT (np. `vlog_warm`)
-- `exposure`, `contrast`, `saturation` — korekcja liczbowa gdy brak LUT lub jako dodatek
-- Używaj oszczędnie — jeden profil na cały output; shorty mogą mieć wyższy `contrast` / `saturation`
+**Kiedy NIE stosować LUT (materiał już „gotowy” do odtwarzania):**
+- Nagrania z telefonu w standardowym profilu (SDR, bez Apple Log / S-Log / V-Log)
+- Materiał już skorygowany kolorystycznie w aparacie
+- W takich przypadkach **pomiń** `colorGrade` całkowicie **albo** ustaw:
+  ```json
+  { "colorGrade": { "enabled": false, "mode": "none", "reason": "display_ready_phone_footage" } }
+  ```
+
+**Kiedy LUT ma sens:**
+- Log / flat profile (Apple Log, S-Log3, V-Log) — `mode: "lut"` + `lutId` z katalogu
+- Delikatna korekcja EQ bez LUT — `mode: "eq_only"` + `exposure` / `contrast` / `saturation` (offsety, np. `contrast: 0.05` → +5%)
+
+Pola:
+- `enabled` — `false` pomija pass renderu (jak brak pola)
+- `mode` — `none` | `eq_only` | `lut` (domyślnie `lut` gdy `enabled !== false`)
+- `lutId` — z `lutCatalogSummary` (np. `neutral_vlog`, `warm_golden_hour`); nie używaj na phone SDR
+- `exposure`, `contrast`, `saturation` — offsety EQ (nie wartości absolutne)
+- `reason` — krótka notatka (np. `display_ready_phone_footage`)
+
+Używaj oszczędnie — jeden profil na cały output.
 
 ### `renderStylePresets`
 

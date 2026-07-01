@@ -13,7 +13,7 @@ import {
   createMockOpenAIClient,
 } from "../../src/test-helpers/mock-openai-client.js";
 import { runClipProfileStep } from "../../src/pipeline/steps/clip-profile.js";
-import { runTopicIndexStep } from "../../src/pipeline/steps/topic-index.js";
+import { runTopicIndexStep, createTokenVectorEmbedFn } from "../../src/pipeline/steps/topic-index.js";
 import { runSpatialIndexStep } from "../../src/pipeline/steps/spatial-index.js";
 import {
   runAbstractStep,
@@ -57,7 +57,11 @@ async function prepareMiniDayWorkDir(mockClient) {
 
   await runClipProfileStep({ workDir, force: true });
   await runAbstractStep({ workDir, openaiClient: mockClient, force: true });
-  await runTopicIndexStep({ workDir, force: true });
+  await runTopicIndexStep({
+    workDir,
+    force: true,
+    embedFn: createTokenVectorEmbedFn(),
+  });
   await runSpatialIndexStep({ workDir, force: true, faceStub: true });
 
   return workDir;

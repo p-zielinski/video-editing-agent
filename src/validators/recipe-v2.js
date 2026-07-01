@@ -6,7 +6,7 @@ import {
   mergeCreativityProfile,
 } from "../editorial/technique-budget.js";
 import { mergeShortsRetentionProfile, mergeVlogRetentionProfile, shouldRunShortsRetentionValidation } from "../editorial/shorts-retention.js";
-import { validateCreativeMoments } from "./creative-moments.js";
+import { validateCreativeMoments, validateVoicePitchMoments } from "./creative-moments.js";
 import { validateShortsRetention } from "./shorts-retention.js";
 import { validateVlogRetention, shouldRunVlogRetentionValidation } from "./vlog-retention.js";
 import {
@@ -15,6 +15,10 @@ import {
 } from "./scene-registry.js";
 import { validateAspectRatio, buildSceneAspectMap } from "./aspect-ratio.js";
 import { validateBrollAvSync } from "./broll-av-sync.js";
+import { validateBrollSyncHintAdherence } from "./broll-sync-hint-adherence.js";
+import { deriveTeaseSceneIdFromRecipe } from "../editorial/chapter-hints.js";
+import { validateMultiClipChronology } from "./chronology.js";
+import { validateBrollStrategy } from "./broll-strategy.js";
 import { resolveSfxById, resolveSfxByTag } from "../editorial/sfx-library.js";
 
 function refsEqual(a, b) {
@@ -854,6 +858,7 @@ export function validateRecipeV2(recipe, {
   creativityBudget,
   estimatedKeepRatio,
   musicCatalogPath,
+  brollSyncHints,
 } = {}) {
   const parsed = EditRecipeV2Schema.parse(recipe);
   const formats = requiredFormats ?? getRequiredFormats(parsed);
@@ -887,6 +892,7 @@ export function validateRecipeV2(recipe, {
 
   const clipRegistryMap = buildClipRegistryMap(parsed.clipRegistry);
   const narrationPresent = hasNarrationSegments(parsed);
+  const brollStrategy = parsed.batchContext?.brollStrategy ?? "match_speech_topics";
 
   const issues = [
     ...validateRequiredFormats(parsed),
@@ -904,12 +910,18 @@ export function validateRecipeV2(recipe, {
     ] : []),
     ...validateAspectRatio(parsed, { sceneAspectById }),
     ...validateBrollAvSync(parsed),
+    ...validateBrollSyncHintAdherence(parsed, { brollSyncHints }),
+    ...validateMultiClipChronology(parsed, {
+      teaseSceneId: deriveTeaseSceneIdFromRecipe(parsed),
+    }),
+    ...validateBrollStrategy(parsed, { topicIndex }),
     ...(hasV24PresetFields(parsed) ? validateRenderStylePresets(parsed) : []),
     ...validateCreativeMoments(parsed, catalog, budget, {
       wordIds: allWordIds.size > 0 ? allWordIds : null,
       spatialIndex,
       audioIndexByClip: audioIndexByClip.size > 0 ? audioIndexByClip : null,
     }),
+    ...validateVoicePitchMoments(parsed),
     ...validateShortsRetention(parsed, catalog, { creativityLevel: profile.level }),
     ...validateVlogRetention(parsed, catalog, {
       creativityLevel: profile.level,
@@ -928,7 +940,9 @@ export function validateRecipeV2(recipe, {
         ...validateSubtitles(segment, output.outputId),
         ...validateSyncMode(segment, output.outputId),
         ...validateDeprecatedFields(segment, output.outputId),
-        ...validateBrollTopicIndex(segment, topicIndex, parsed.clipRegistry, output.outputId),
+        ...(brollStrategy !== "match_speech_topics"
+          ? validateBrollTopicIndex(segment, topicIndex, parsed.clipRegistry, output.outputId)
+          : []),
       );
       if (wordIndexByClip.size > 0) {
         issues.push(...validateCuts(segment, wordIndexByClip, output.outputId));

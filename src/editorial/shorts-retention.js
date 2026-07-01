@@ -2,7 +2,7 @@ import { buildOutputTimeline } from "../lib/build-output-timeline.js";
 import {
   buildSpatialRefFromAnchor,
   deriveClipIdFromSceneId,
-  findBestAnchor,
+  findAnchorNearTimestamp,
 } from "./spatial-ref.js";
 
 export const DEFAULT_SHORTS_RETENTION_PROFILE = {
@@ -767,7 +767,7 @@ function findSceneAtSourceTime(timelineIndex, clipId, sourceTimeSec) {
 
 /**
  * Resolve spatialRef for enriched retention beats that benefit from a face/subject anchor.
- * Falls back to undefined (no spatialRef) when scene or anchors are unavailable.
+ * Falls back to timestamp-only spatialRef when scene anchors are unavailable.
  *
  * @param {{ spatialIndex?: object, timelineIndex?: object, outputStartSec: number, mainOutput: object, techniqueId: string }} params
  * @returns {object|undefined}
@@ -782,7 +782,7 @@ export function resolveSpatialRefForBeat({
   if (!SPATIAL_REF_TECHNIQUE_IDS.has(techniqueId)) {
     return undefined;
   }
-  if (!spatialIndex?.scenes?.length || !mainOutput?.timeline?.length) {
+  if (!mainOutput?.timeline?.length) {
     return undefined;
   }
 
@@ -809,10 +809,16 @@ export function resolveSpatialRefForBeat({
     return undefined;
   }
 
-  const anchor = findBestAnchor(spatialIndex, sceneId, "face")
-    ?? findBestAnchor(spatialIndex, sceneId, "subject");
+  const anchor = findAnchorNearTimestamp(spatialIndex, sceneId, resolved.sourceTimeSec, "face")
+    ?? findAnchorNearTimestamp(spatialIndex, sceneId, resolved.sourceTimeSec, "subject")
+    ?? findAnchorNearTimestamp(spatialIndex, sceneId, resolved.sourceTimeSec);
+
   if (!anchor) {
-    return undefined;
+    return {
+      clipId: clipId ?? deriveClipIdFromSceneId(sceneId),
+      sceneId,
+      timestampSec: resolved.sourceTimeSec,
+    };
   }
 
   return buildSpatialRefFromAnchor(

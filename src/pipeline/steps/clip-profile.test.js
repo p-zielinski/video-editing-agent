@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildClipRegistry } from "./clip-profile.js";
+import { buildClipRegistry, refineClipRegistryFromL1, runClipRegistryRefineStep } from "./clip-profile.js";
 import { writeJson, ARTIFACTS } from "../work-paths.js";
 
 const baseCatalog = {
@@ -58,6 +58,20 @@ function makeTimelineIndex(overrides = {}) {
 }
 
 describe("clip_profile", () => {
+  it("propagates creationTime from catalog into clip registry", () => {
+    const catalog = {
+      ...baseCatalog,
+      clips: baseCatalog.clips.map((clip, index) => ({
+        ...clip,
+        creationTime: `2026-06-29T${String(8 + index).padStart(2, "0")}:00:00.000Z`,
+      })),
+    };
+
+    const registry = buildClipRegistry(makeTimelineIndex(), catalog);
+    assert.equal(registry[0].creationTime, "2026-06-29T08:00:00.000Z");
+    assert.equal(registry[1].sortIndex, 1);
+  });
+
   it("assigns aroll_primary to speech-heavy clip", () => {
     const registry = buildClipRegistry(makeTimelineIndex(), baseCatalog);
     const talk = registry.find((c) => c.clipId === "clip01");
@@ -140,6 +154,100 @@ describe("clip_profile", () => {
     const broll = registry.find((c) => c.clipId === "clip02");
     assert.ok(broll.audioTags?.includes("laughter"));
     assert.ok(broll.topics?.includes("laughter"));
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("refineClipRegistryFromL1 promotes silent high-broll clip to broll_pool", () => {
+    const timeline = makeTimelineIndex();
+    const registry = buildClipRegistry(timeline, baseCatalog);
+    const undecidedEntry = {
+      ...registry.find((c) => c.clipId === "clip02"),
+      clipRole: "undecided",
+      roleSource: "clip_profile",
+    };
+    const abstraction = {
+      L1: [{
+        sceneId: "clip02_scene001",
+        brollPotential: 0.85,
+        topics: ["jedzenie", "restauracja"],
+        mood: "warm",
+      }],
+    };
+
+    const [refined] = refineClipRegistryFromL1([undecidedEntry], abstraction, timeline);
+    assert.equal(refined.clipRole, "broll_pool");
+    assert.equal(refined.roleSource, "l1_refined");
+    assert.ok(refined.topics.includes("jedzenie"));
+    assert.equal(refined.l1AvgBrollPotential, 0.85);
+  });
+
+  it("refineClipRegistryFromL1 assigns narration_track when L1 marks narration source", () => {
+    const timeline = makeTimelineIndex({
+      scenes: [{
+        sceneId: "clip04_scene001",
+        clipId: "clip04",
+        startSec: 0,
+        endSec: 95,
+        durationSec: 95,
+        hasSpeech: true,
+      }],
+      words: Array.from({ length: 30 }, (_, i) => ({
+        wordId: `clip04_w${String(i + 1).padStart(3, "0")}`,
+        word: "narracja",
+        start: i,
+        end: i + 0.4,
+        isFiller: false,
+      })),
+    });
+    const catalog = {
+      batchId: "test01",
+      clips: [{
+        clipId: "clip04",
+        fileName: "04_narration.wav",
+        sourcePath: "/in/04_narration.wav",
+        durationSec: 95,
+        mediaType: "audio_only",
+      }],
+    };
+    const registry = buildClipRegistry(timeline, catalog);
+    const abstraction = {
+      L1: [{
+        sceneId: "clip04_scene001",
+        brollPotential: 0.1,
+        isNarrationSource: true,
+        topics: ["voiceover"],
+      }],
+    };
+
+    const [refined] = refineClipRegistryFromL1(registry, abstraction, timeline);
+    assert.equal(refined.clipRole, "narration_track");
+    assert.equal(refined.roleSource, "l1_refined");
+    assert.ok(refined.topics.includes("voiceover"));
+  });
+
+  it("runClipRegistryRefineStep persists refined registry artifact", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-clip-refine-"));
+    const timeline = makeTimelineIndex();
+    const registry = buildClipRegistry(timeline, baseCatalog);
+    writeJson(path.join(dir, ARTIFACTS.timelineIndex), timeline);
+    writeJson(path.join(dir, ARTIFACTS.clipRegistry), {
+      version: "1.0",
+      batchId: "test01",
+      clipRegistry: registry,
+    });
+    writeJson(path.join(dir, ARTIFACTS.abstraction), {
+      L1: [{
+        sceneId: "clip02_scene001",
+        brollPotential: 0.9,
+        topics: ["makaron"],
+      }],
+    });
+
+    const artifact = await runClipRegistryRefineStep({ workDir: dir });
+    const broll = artifact.clipRegistry.find((c) => c.clipId === "clip02");
+    assert.ok(broll.topics.includes("makaron"));
+    assert.equal(broll.roleSource, "l1_refined");
 
     fs.rmSync(dir, { recursive: true, force: true });
   });

@@ -21,13 +21,15 @@
     "l_cut",
     "music_swell",
     "music_drop",
-    "silence_beat"
+    "silence_beat",
+    "voice_pitch_shift"
   ],
   "defaultCreativityLevel": "balanced",
   "paramOverrides": {
     "zoom_punch_in": { "factor": { "default": 1.08 } }
   },
   "constraintOverrides": {
-    "silence_beat": { "requiresCreativityLevel": "balanced" }
+    "silence_beat": { "requiresCreativityLevel": "balanced" },
+    "voice_pitch_shift": { "requiresCreativityLevel": "bold" }
   }
 }

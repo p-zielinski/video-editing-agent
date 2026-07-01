@@ -24,6 +24,37 @@ export function buildSpatialRefFromAnchor(sceneId, clipId, anchor) {
 }
 
 /**
+ * Pick the anchor nearest to sourceTimeSec, optionally preferring a type.
+ */
+export function findAnchorNearTimestamp(spatialIndex, sceneId, sourceTimeSec, preferredType) {
+  const entry = (spatialIndex?.scenes ?? []).find((scene) => scene.sceneId === sceneId);
+  if (!entry?.anchors?.length || !Number.isFinite(sourceTimeSec)) {
+    return null;
+  }
+
+  let candidates = entry.anchors;
+  if (preferredType) {
+    const typed = candidates.filter((anchor) => anchor.type === preferredType);
+    if (typed.length > 0) {
+      candidates = typed;
+    }
+  }
+
+  let best = null;
+  let bestDistance = Infinity;
+  for (const anchor of candidates) {
+    const timestampSec = anchor.timestampSec ?? 0;
+    const distance = Math.abs(timestampSec - sourceTimeSec);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = anchor;
+    }
+  }
+
+  return best;
+}
+
+/**
  * Pick the best anchor for a scene, optionally preferring a type (face > subject > object).
  */
 export function findBestAnchor(spatialIndex, sceneId, preferredType) {

@@ -5,6 +5,11 @@ import {
   buildColdOpenSegmentHint,
   buildNarrativeOpenLoops,
   enrichRecipeChapterCards,
+  enrichRecipeColdOpenSegment,
+  deriveTeaseSceneIdFromRecipe,
+  REWIND_INTRO_SEGMENT_ID,
+  REWIND_MOMENT_ID,
+  resolveChronologicalIntroRef,
 } from "../../src/editorial/chapter-hints.js";
 import {
   DEFAULT_VLOG_RETENTION_PROFILE,
@@ -270,14 +275,18 @@ describe("enrichRecipeRetentionBeats", () => {
     assert.deepEqual(zoomBeat.spatialRef.bbox, [0.4, 0.2, 0.5, 0.4]);
   });
 
-  it("omits spatialRef for non-spatial techniques and when index is missing", () => {
+  it("uses center fallback spatialRef for spatial techniques when index is missing", () => {
     const mainOutput = {
       outputId: "main_16x9",
       timeline: [{
+        segmentRole: "aroll",
         videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
         videoInSec: 0,
         videoOutSec: 180,
-        outputEndSec: 180,
+        audioInSec: 0,
+        audioOutSec: 180,
+        audioPolicy: "from_video_ref",
       }],
     };
 
@@ -292,15 +301,15 @@ describe("enrichRecipeRetentionBeats", () => {
       undefined,
     );
 
-    assert.equal(
-      resolveSpatialRefForBeat({
-        timelineIndex,
-        outputStartSec: 40,
-        mainOutput,
-        techniqueId: "zoom_slow_push",
-      }),
-      undefined,
-    );
+    const fallback = resolveSpatialRefForBeat({
+      timelineIndex,
+      outputStartSec: 40,
+      mainOutput,
+      techniqueId: "zoom_slow_push",
+    });
+    assert.equal(fallback?.sceneId, "clip01_scene001");
+    assert.equal(fallback?.timestampSec, 40);
+    assert.equal(fallback?.bbox, undefined);
   });
 });
 
@@ -356,6 +365,130 @@ describe("chapter-hints", () => {
     assert.equal(hint?.suggestedSceneId, "clip01_scene002");
     assert.equal(hint?.suggestedVideoRef?.clipId, "clip01");
     assert.match(hint?.suggestion ?? "", /cold open/);
+  });
+
+  it("enrichRecipeColdOpenSegment prepends cold open and rewind intro on main timeline", () => {
+    const hint = buildColdOpenSegmentHint(abstraction, {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: 720,
+      }],
+    }, {
+      clipRegistry: [
+        { clipId: "clip01", sortIndex: 0, clipRole: "aroll_primary", hasSpeech: true },
+      ],
+      timelineIndex,
+    });
+
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg_body",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 30,
+          audioInSec: 0,
+          audioOutSec: 30,
+          audioPolicy: "from_video_ref",
+        }],
+      }],
+      creativeMoments: [],
+      sfxPlan: [],
+    };
+
+    enrichRecipeColdOpenSegment(recipe, hint, timelineIndex);
+    assert.equal(recipe.outputs[0].timeline[0].segmentId, "enrich_cold_open_01");
+    assert.equal(recipe.outputs[0].timeline[0].videoRef.sceneId, "clip01_scene002");
+    assert.equal(recipe.outputs[0].timeline[1].segmentId, "seg_body");
+    assert.equal(recipe.outputs[0].timeline[1].videoRef.sceneId, "clip01_scene001");
+    assert.ok(recipe.creativeMoments.some((moment) => moment.momentId === REWIND_MOMENT_ID));
+  });
+
+  it("deriveTeaseSceneIdFromRecipe returns cold open scene for chronology exempt", () => {
+    const recipe = {
+      outputs: [{
+        outputKind: "main",
+        timeline: [{
+          segmentId: "enrich_cold_open_01",
+          videoRef: { sceneId: "clip01_scene002" },
+        }],
+      }],
+    };
+    assert.equal(deriveTeaseSceneIdFromRecipe(recipe), "clip01_scene002");
+    assert.equal(deriveTeaseSceneIdFromRecipe({ outputs: [{ outputKind: "main", timeline: [] }] }), null);
+  });
+
+  it("deriveTeaseSceneIdFromRecipe detects director-only cold open tease with rewind intro", () => {
+    const recipe = {
+      clipRegistry: [
+        { clipId: "clip01", sortIndex: 0 },
+        { clipId: "clip02", sortIndex: 1 },
+      ],
+      outputs: [{
+        outputKind: "main",
+        timeline: [
+          {
+            segmentId: "dir_cold_open",
+            segmentRole: "aroll",
+            videoRef: { clipId: "clip02", sceneId: "clip02_scene002" },
+          },
+          {
+            segmentId: REWIND_INTRO_SEGMENT_ID,
+            segmentRole: "aroll",
+            videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          },
+          {
+            segmentId: "seg_intro",
+            segmentRole: "aroll",
+            videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          },
+        ],
+      }],
+    };
+    assert.equal(deriveTeaseSceneIdFromRecipe(recipe), "clip02_scene002");
+  });
+
+  it("deriveTeaseSceneIdFromRecipe returns null for inverted chronology without rewind", () => {
+    const recipe = {
+      clipRegistry: [
+        { clipId: "clip01", sortIndex: 0 },
+        { clipId: "clip02", sortIndex: 1 },
+      ],
+      outputs: [{
+        outputKind: "main",
+        timeline: [
+          {
+            segmentId: "s1",
+            segmentRole: "aroll",
+            videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          },
+          {
+            segmentId: "s2",
+            segmentRole: "aroll",
+            videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          },
+        ],
+      }],
+    };
+    assert.equal(deriveTeaseSceneIdFromRecipe(recipe), null);
+  });
+
+  it("resolveChronologicalIntroRef picks lowest sortIndex speech clip", () => {
+    const ref = resolveChronologicalIntroRef(
+      [
+        { clipId: "clip02", sortIndex: 1, clipRole: "broll_pool", hasSpeech: false },
+        { clipId: "clip01", sortIndex: 0, clipRole: "aroll_primary", hasSpeech: true },
+      ],
+      timelineIndex,
+    );
+    assert.equal(ref?.sceneId, "clip01_scene001");
   });
 
   it("enrichRecipeChapterCards adds chapter_card overlays on long main", () => {
@@ -484,5 +617,17 @@ describe("enrichRecipeChapterCards", () => {
     );
     assert.equal(near240.length, 1);
     assert.equal(near240[0].text, "Director chapter");
+  });
+
+  it("is idempotent when enrichRecipeChapterCards runs twice", () => {
+    const recipe = longMainRecipe();
+    enrichRecipeChapterCards(recipe, { abstraction });
+    const countAfterFirst = recipe.outputs[0].timeline.flatMap((seg) => seg.textOverlays ?? []).length;
+
+    enrichRecipeChapterCards(recipe, { abstraction });
+    const overlays = recipe.outputs[0].timeline.flatMap((seg) => seg.textOverlays ?? []);
+    assert.equal(overlays.length, countAfterFirst);
+    const chapterCards = overlays.filter((o) => o.style === "chapter_card");
+    assert.ok(chapterCards.every((o) => o.overlayId?.startsWith("enrich_chapter_")));
   });
 });

@@ -1,7 +1,7 @@
 import { buildTechniqueFilter } from "./technique-to-ffmpeg.js";
 import { findCutMidSentenceAtBoundary } from "./ffmpeg-concat.js";
 
-const AUDIO_ONLY_TECHNIQUES = new Set(["music_swell", "music_drop", "silence_beat"]);
+const AUDIO_ONLY_TECHNIQUES = new Set(["music_swell", "music_drop", "silence_beat", "voice_pitch_shift"]);
 const CONCAT_DEFERRED_TECHNIQUES = new Set([
   "crossfade",
 ]);

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs } from "./cli.js";
+import { parseArgs, resolveMaxReviewIterations } from "./cli.js";
+import { buildExecuteRenderOptions } from "./render/render-config.js";
 import { validatePipelineStep } from "./pipeline/work-paths.js";
 
 describe("cli", () => {
@@ -59,12 +60,11 @@ describe("cli", () => {
     assert.equal(args.faceStub, true);
   });
 
-  it("parseArgs --fast enables vision, face, and audio stubs", () => {
-    const args = parseArgs(["node", "cli.js", "run", "--input", "./inbox", "--fast"]);
-    assert.equal(args.fast, true);
-    assert.equal(args.visionStub, true);
-    assert.equal(args.faceStub, true);
-    assert.equal(args.audioStub, true);
+  it("parseArgs rejects removed --fast flag", () => {
+    assert.throws(
+      () => parseArgs(["node", "cli.js", "run", "--input", "./inbox", "--fast"]),
+      /--fast została usunięta/,
+    );
   });
 
   it("parseArgs defaults to live mode without stub flags", () => {
@@ -73,14 +73,13 @@ describe("cli", () => {
     assert.equal(args.faceStub, undefined);
     assert.equal(args.visionStub, undefined);
     assert.equal(args.audioStub, undefined);
-    assert.equal(args.fast, undefined);
   });
 
-  it("parseArgs --vision-live forces live vision", () => {
+  it("parseArgs --vision-live forces live vision after --vision-stub", () => {
     const args = parseArgs([
       "node", "cli.js", "run",
       "--input", "./inbox",
-      "--fast",
+      "--vision-stub",
       "--vision-live",
     ]);
     assert.equal(args.visionStub, false);
@@ -94,5 +93,50 @@ describe("cli", () => {
     ]);
     assert.deepEqual(args.requiredFormats, ["9:16"]);
     assert.equal(args.requiredFormatsExplicit, true);
+  });
+
+  it("parseArgs sets --render and --render-profile", () => {
+    const args = parseArgs([
+      "node", "cli.js", "run",
+      "--input", "./inbox",
+      "--render",
+      "--render-profile", "preview",
+    ]);
+    assert.equal(args.renderAfterPipeline, true);
+    assert.equal(args.renderProfile, "preview");
+    const options = buildExecuteRenderOptions(args);
+    assert.equal(options.skipCreative, true);
+    assert.equal(options.encodeProfile, "draft");
+  });
+
+  it("parseArgs sets enrich source and target", () => {
+    const args = parseArgs([
+      "node", "cli.js", "enrich",
+      "--batch-id", "abc12345",
+      "--source", "final",
+      "--target", "draft",
+    ]);
+    assert.equal(args.command, "enrich");
+    assert.equal(args.recipeSource, "final");
+    assert.equal(args.recipeTarget, "draft");
+  });
+
+  it("parseArgs sets --max-review-iterations", () => {
+    const args = parseArgs([
+      "node", "cli.js", "run",
+      "--input", "./inbox",
+      "--max-review-iterations", "5",
+    ]);
+    assert.equal(args.maxReviewIterations, "5");
+  });
+
+  it("resolveMaxReviewIterations defaults to 3 and validates range", () => {
+    assert.equal(resolveMaxReviewIterations(undefined), 3);
+    assert.equal(resolveMaxReviewIterations("5"), 5);
+    assert.equal(resolveMaxReviewIterations("1"), 1);
+    assert.equal(resolveMaxReviewIterations("10"), 10);
+    assert.throws(() => resolveMaxReviewIterations("0"), /--max-review-iterations/);
+    assert.throws(() => resolveMaxReviewIterations("11"), /--max-review-iterations/);
+    assert.throws(() => resolveMaxReviewIterations("abc"), /--max-review-iterations/);
   });
 });

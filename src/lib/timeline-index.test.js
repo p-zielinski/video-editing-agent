@@ -31,7 +31,7 @@ describe("timeline index", () => {
   it("builds full timeline index", () => {
     const catalog = {
       batchId: "b1",
-      clips: [{ clipId: "clip01", sourcePath: "/a.mp4", durationSec: 10 }],
+      clips: [{ clipId: "clip01", sourcePath: "/a.mp4", durationSec: 10, aspectRatio: "16:9" }],
       scenes: [
         {
           sceneId: "clip01_scene001",
@@ -62,6 +62,7 @@ describe("timeline index", () => {
 
     assert.equal(index.words.length, 1);
     assert.equal(index.scenes[0].hasSpeech, true);
+    assert.equal(index.clips[0].aspectRatio, "16:9");
     assert.equal(index.keyframes.length, 1);
     assert.equal(index.visionCaptions.length, 1);
     assert.equal(index.stats.fillerWordCount, 0);

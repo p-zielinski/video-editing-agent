@@ -102,6 +102,7 @@ export function buildMiniDayAgentLoopResponses({ criticApproves = true } = {}) {
       validRecipe,
       validRecipe,
       { approved: true, issues: [], summary: "Receptura spełnia wymagania formatów i rejestru scen." },
+      validRecipe,
     ];
   }
 

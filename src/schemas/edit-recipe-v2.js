@@ -34,6 +34,7 @@ export const MediaTypeSchema = z.enum(["audio_only", "video"]);
 
 export const RoleSourceSchema = z.enum([
   "clip_profile",
+  "l1_refined",
   "context_override",
   "director",
 ]);
@@ -80,6 +81,7 @@ export const TextOverlayRoleSchema = z.enum([
 ]);
 
 export const TextOverlayV2Schema = z.object({
+  overlayId: z.string().optional(),
   text: z.string(),
   outputStartSec: z.number().nonnegative(),
   outputEndSec: z.number().positive(),
@@ -162,6 +164,7 @@ export const ClipRegistryEntrySchema = z.object({
   fileName: z.string(),
   durationSec: z.number().positive(),
   sortIndex: z.number().int().nonnegative(),
+  creationTime: z.string().nullable().optional(),
   clipRole: ClipRoleSchema,
   roleConfidence: z.number().min(0).max(1).optional(),
   roleSource: RoleSourceSchema.optional(),
@@ -314,10 +317,16 @@ export const SfxPlanEntrySchema = z.object({
 });
 
 export const ColorGradeSchema = z.object({
+  /** When false, renderer skips color grade entirely (e.g. phone SDR footage). */
+  enabled: z.boolean().optional(),
+  /** none = skip; eq_only = EQ without LUT; lut = EQ + LUT (default). */
+  mode: z.enum(["none", "eq_only", "lut"]).optional(),
   lutId: z.string().optional(),
   exposure: z.number().optional(),
   contrast: z.number().optional(),
   saturation: z.number().optional(),
+  /** Optional note for director/critic (e.g. display_ready_phone_footage). */
+  reason: z.string().optional(),
 });
 
 export const SubtitleStylePresetSchema = z.object({

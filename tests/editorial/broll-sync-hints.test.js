@@ -4,6 +4,7 @@ import { loadFixtureArtifact } from "../../src/test-helpers/fixture-work-dir.js"
 import {
   buildBrollSyncHints,
   buildKeyframesByClip,
+  enrichBrollSyncFromHints,
 } from "../../src/editorial/broll-sync-hints.js";
 
 describe("broll-sync-hints", () => {
@@ -69,5 +70,63 @@ describe("broll-sync-hints", () => {
     const brollHints = hints.filter((hint) => hint.sceneId === "clip02_scene001");
     assert.ok(brollHints.length > 0);
     assert.ok(brollHints.every((hint) => hint.reason.startsWith("l1_keyMoment:")));
+  });
+
+  it("enrichBrollSyncFromHints updates broll segment videoInSec from high-confidence hints", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main",
+        timeline: [{
+          segmentId: "seg_b1",
+          segmentRole: "broll",
+          videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 5,
+          audioPolicy: "from_audio_ref",
+        }],
+      }],
+    };
+
+    enrichBrollSyncFromHints(recipe, [{
+      sceneId: "clip02_scene001",
+      suggestedVideoInSec: 12,
+      suggestedVideoOutSec: 17,
+      confidence: 0.85,
+    }]);
+
+    assert.equal(recipe.outputs[0].timeline[0].videoInSec, 12);
+    assert.equal(recipe.outputs[0].timeline[0].videoOutSec, 17);
+  });
+
+  it("enrichBrollSyncFromHints preserves audio span when adjusting videoInSec", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main",
+        timeline: [{
+          segmentId: "seg_b1",
+          segmentRole: "broll",
+          videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_audio_ref",
+        }],
+      }],
+    };
+
+    enrichBrollSyncFromHints(recipe, [{
+      sceneId: "clip02_scene001",
+      suggestedVideoInSec: 12,
+      suggestedVideoOutSec: 17,
+      confidence: 0.85,
+    }]);
+
+    assert.equal(recipe.outputs[0].timeline[0].videoInSec, 12);
+    assert.equal(recipe.outputs[0].timeline[0].videoOutSec, 22);
   });
 });

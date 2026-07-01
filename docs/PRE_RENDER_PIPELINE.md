@@ -4,7 +4,7 @@
 
 Pipeline analizy i reżyserii AI (**bez montażu wideo w krokach 1–12** — brak eksportu MP4 w pre-renderze). Artefakt końcowy pre-renderu: `09-edit-recipe-final.json`. Artefakty pośrednie zapisywane są w `output/.work/<batch-id>/`. Invalidacja cache opiera się na grafie zależności (`src/pipeline/artifact-deps.js`) — krok jest ponawiany, gdy którykolwiek plik wejściowy ma nowszy `mtime` niż artefakt wyjściowy.
 
-**Domyślne tryby analizy:** vision, face i audio są **live** (pełny Python). Stuby: `--fast` lub jawne `--vision-stub`, `--face-stub`, `--audio-stub`. Objects (Florence-2) live domyślnie; `--fast` go nie wyłącza. Szczegółowa tabela: [README — Domyślne tryby](../README.md#domyślne-tryby-live-vs-stub).
+**Domyślne tryby analizy:** vision, face i audio są **live** (pełny Python). Stuby tylko jawne: `--vision-stub`, `--face-stub`, `--audio-stub` (głównie testy CI). Objects (Florence-2) live domyślnie. Szczegółowa tabela: [README — Domyślne tryby](../README.md#domyślne-tryby-live-vs-stub).
 
 ## Graf zależności (mtime)
 
@@ -76,15 +76,15 @@ flowchart TD
 |---|----------|---------|---------|-------|
 | 1 | `ingest` | folder wideo (`--input`) | `00-manifest.json`, `00-scene-catalog.json` | opcjonalnie detekcja scen (Python) |
 | 2 | `transcribe` | scene catalog | `01-words-<clipId>.json`, `audio/whisper/<clipId>.mp3` | Whisper / OpenAI, loudnorm -18 LUFS |
-| 3 | `audio_analysis` | scene catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json`, `audio/analysis/<clipId>.wav` | librosa beats/energy/silence; `--audio-stub` / `--fast` |
+| 3 | `audio_analysis` | scene catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json`, `audio/analysis/<clipId>.wav` | librosa beats/energy/silence; `--audio-stub` |
 | 4 | `keyframes` | scene catalog, words | `02-keyframes-<clipId>.json` | hybrydowy sampling + FFmpeg |
-| 5 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (domyślnie **live**; `--vision-stub` / `--fast`) |
+| 5 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (domyślnie **live**; `--vision-stub`) |
 | 6 | `objects` | keyframes | `04-objects-<clipId>.json` | Florence-2 (opcjonalnie `--no-objects`) |
 | 7 | `index` | catalog, words, keyframes, vision, objects | `05-timeline-index.json` (+ aktualizacja scene catalog) | indeks czasowy batcha |
 | 8 | `clip_profile` | timeline index, scene catalog | `05a-clip-registry.json` | role klipów, jakość wizualna |
 | 9 | `abstract` | timeline index | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | summarizer (GPT) |
 | 10 | `topic_index` | abstraction, timeline index, clip registry | `05b-topic-index.json` | tematy pod B-roll |
-| 11 | `spatial_index` | timeline index, objects, faces (`04a-faces-*`) | `05c-spatial-index.json` | kotwice przestrzenne; face detect (domyślnie **live**; `--face-stub` / `--fast`) |
+| 11 | `spatial_index` | timeline index, objects, faces (`04a-faces-*`) | `05c-spatial-index.json` | kotwice przestrzenne; face detect (domyślnie **live**; `--face-stub`) |
 | 12 | `direct` | timeline, abstraction, clip registry, topic index, spatial index, **audio index** | `07-edit-recipe-draft.json` | director (GPT) + `audioMixPlan` defaults |
 | 13 | `review` | recipe draft + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop |
 
@@ -102,28 +102,27 @@ Domyślnie używana jest detekcja **live** (OpenCV `face_detect.py` na keyframes
 
 ```bash
 node src/cli.js run --input ./inbox/day-11 --face-stub
-# lub szybki dev ze wszystkimi stubami vision/face/audio:
-node src/cli.js run --input ./inbox/day-11 --fast
+# lub jawne stuby w testach CI:
+node src/cli.js run --input ./inbox/day-11 --vision-stub --face-stub --audio-stub
 ```
 
 | Flaga | Efekt |
 |-------|--------|
 | *(domyślnie)* | `faceStub: false` — live OpenCV `face_detect.py` |
 | `--face-stub` | `faceStub: true` — stub Haar cascade / brak OpenCV |
-| `--fast` | `faceStub: true` (chyba że dodasz `--face-live`) |
-| `--face-live` | `faceStub: false` — jawne wymuszenie live (przydatne z `--fast`) |
+| `--face-live` | `faceStub: false` — jawne wymuszenie live (nadpisuje wcześniejszy `--face-stub`) |
 
-Logika w `src/cli.js`: `faceStub: args.faceStub === true || (args.fast === true && args.faceLive !== true)`.
+Logika w `src/cli.js`: `faceStub: args.faceStub === true`.
 
 Artefakt `04a-faces-*` jest zależny od `02-keyframes-*` w grafie mtime (`artifact-deps.js`). Przy wznowieniu od `direct` orchestrator woła `ensureSpatialIndex`, które odtwarza face detect gdy `05c` jest stale.
 
 ### Vision (krok `vision`)
 
-Domyślnie **live** — lokalny Qwen2.5-VL przez `python/vision_qwen.py` (wymaga `mlx-vlm`). Stub: `--vision-stub` lub `--fast` (chyba że `--vision-live`). Logika: `visionStub: args.visionStub === true || (args.fast === true && args.visionLive !== true)`.
+Domyślnie **live** — lokalny Qwen2.5-VL przez `python/vision_qwen.py` (wymaga `mlx-vlm`). Stub: `--vision-stub` (chyba że `--vision-live`). Logika: `visionStub: args.visionStub === true`.
 
 ### Objects (krok `objects`)
 
-Domyślnie **live** — Florence-2 (`python/vision_florence.py`). `--fast` **nie** wyłącza objects. Escape hatch: `--objects-stub` (dev) lub `--no-objects` (pomiń krok).
+Domyślnie **live** — Florence-2 (`python/vision_florence.py`). Escape hatch: `--objects-stub` (dev) lub `--no-objects` (pomiń krok).
 
 ## Invalidacja cache
 
@@ -167,13 +166,12 @@ node src/cli.js run --batch-id abc12345 --from-step topic_index
 | `--from-step` / `--to-step` | Ogranicza zakres kroków |
 | `--no-keyframes` | Szybszy dry-run bez ekstrakcji klatek |
 | `--no-objects` | Pomija detekcję obiektów |
-| `--fast` | Stuby vision + face + audio (objects pozostaje live) |
 | `--vision-stub` / `--vision-live` | Stub lub jawne live Qwen (domyślnie live) |
 | `--face-stub` / `--face-live` | Stub lub jawne live face detect (domyślnie live) |
 | `--audio-stub` | Stub analizy audio (domyślnie live librosa) |
 | `--objects-stub` | Stub Florence-2 (domyślnie live) |
 
-**Domyślnie bez flag:** vision, face i audio są **live**. Stuby włączają się tylko z `--fast` lub jawnymi `--*-stub`.
+**Domyślnie bez flag:** vision, face i audio są **live**. Stuby tylko jawne `--*-stub` (głównie testy CI). Flaga `--fast` została usunięta.
 
 Bez `--force` każdy krok sprawdza `shouldUseCachedArtifact` przed pominięciem — samo istnienie pliku nie wystarczy, jeśli upstream się zmienił.
 

@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import "dotenv/config";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { checkPythonPreflight } from "./lib/python-bridge.js";
 import { writeBatchQualityReport } from "./lib/batch-quality-report.js";
 import { executeRender } from "./render/execute-render.js";
+import { buildExecuteRenderOptions } from "./render/render-config.js";
+import { runRecipeEnrichStep } from "./pipeline/steps/recipe-enrich.js";
 import { PIPELINE_STEPS, validatePipelineStep, resolveWorkDir } from "./pipeline/work-paths.js";
 
 const COMMAND_DEFAULTS = {
@@ -13,6 +16,45 @@ const COMMAND_DEFAULTS = {
   full: {},
   run: {},
 };
+
+function printRenderResults(manifest, { dryRun = false } = {}) {
+  if (dryRun) {
+    console.log(JSON.stringify(manifest, null, 2));
+    return;
+  }
+
+  for (const entry of manifest.outputs) {
+    if (entry.skipped) {
+      console.log(`Pominięto (istnieje): ${entry.outputPath}`);
+    } else {
+      console.log(`Wyrenderowano: ${entry.outputPath} (${entry.durationSec?.toFixed(1) ?? "?"}s)`);
+    }
+  }
+  if (manifest.warnings?.length) {
+    console.log(`\nOstrzeżenia (${manifest.warnings.length}):`);
+    for (const w of manifest.warnings.slice(0, 10)) {
+      console.log(`  - ${w.code ?? "warn"}: ${w.message ?? JSON.stringify(w)}`);
+    }
+  }
+}
+
+function resolveAnalysisStubFlags(args) {
+  return {
+    faceStub: args.faceStub === true,
+    visionStub: args.visionStub === true,
+    audioStub: args.audioStub === true,
+  };
+}
+
+function resolveLivePythonFlags(args) {
+  const { faceStub, visionStub, audioStub } = resolveAnalysisStubFlags(args);
+  return {
+    visionLive: !visionStub,
+    faceLive: !faceStub,
+    audioLive: !audioStub,
+    objectsLive: args.objectsEnabled !== false && args.objectsStub !== true,
+  };
+}
 
 function parseArgs(argv) {
   const args = {
@@ -52,7 +94,10 @@ function parseArgs(argv) {
       args.sortBy = next;
       i += 1;
     } else if (arg === "--fast") {
-      args.fast = true;
+      throw new Error(
+        "Flaga --fast została usunięta. Domyślnie vision/face/audio są live. "
+        + "W testach CI używaj jawnych flag: --vision-stub, --face-stub, --audio-stub.",
+      );
     } else if (arg === "--face-live") {
       args.faceLive = true;
       args.faceStub = false;
@@ -93,6 +138,35 @@ function parseArgs(argv) {
     } else if (arg === "--format" && next) {
       args.format = next;
       i += 1;
+    } else if (arg === "--skip-creative") {
+      args.skipCreative = true;
+    } else if (arg === "--skip-subtitles") {
+      args.skipSubtitles = true;
+    } else if (arg === "--skip-overlays") {
+      args.skipOverlays = true;
+    } else if (arg === "--skip-audio-mix") {
+      args.skipAudioMix = true;
+    } else if (arg === "--skip-color-grade") {
+      args.skipColorGrade = true;
+    } else if (arg === "--keep-tmp") {
+      args.keepTmp = true;
+    } else if (arg === "--from-pass" && next) {
+      args.fromPass = next;
+      i += 1;
+    } else if (arg === "--render") {
+      args.renderAfterPipeline = true;
+    } else if (arg === "--render-profile" && next) {
+      args.renderProfile = next;
+      i += 1;
+    } else if (arg === "--source" && next) {
+      args.recipeSource = next;
+      i += 1;
+    } else if (arg === "--target" && next) {
+      args.recipeTarget = next;
+      i += 1;
+    } else if (arg === "--max-review-iterations" && next) {
+      args.maxReviewIterations = next;
+      i += 1;
     }
   }
 
@@ -105,11 +179,19 @@ function parseArgs(argv) {
   return args;
 }
 
+export function resolveMaxReviewIterations(raw) {
+  if (raw === undefined) {
+    return 3;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 10) {
+    throw new Error("--max-review-iterations musi być liczbą całkowitą od 1 do 10");
+  }
+  return parsed;
+}
+
 function needsLivePython(args) {
-  const objectsLive = args.objectsEnabled !== false && args.objectsStub !== true;
-  const visionLive = args.visionStub !== true && (args.fast !== true || args.visionLive === true);
-  const faceLive = args.faceStub !== true && (args.fast !== true || args.faceLive === true);
-  const audioLive = args.audioStub !== true && args.fast !== true;
+  const { visionLive, faceLive, audioLive, objectsLive } = resolveLivePythonFlags(args);
 
   if (visionLive) {
     return true;
@@ -146,16 +228,7 @@ function needsLivePython(args) {
 }
 
 async function runPythonStartupCheck(args) {
-  const objectsLive = args.objectsEnabled !== false && args.objectsStub !== true;
-  const visionLive = args.visionStub !== true && (args.fast !== true || args.visionLive === true);
-  const faceLive = args.faceStub !== true && (args.fast !== true || args.faceLive === true);
-  const audioLive = args.audioStub !== true && args.fast !== true;
-  const preflightOptions = {
-    visionLive,
-    faceLive,
-    objectsLive,
-    audioLive,
-  };
+  const preflightOptions = resolveLivePythonFlags(args);
 
   try {
     const result = await checkPythonPreflight(preflightOptions);
@@ -183,6 +256,8 @@ Użycie:
   node src/cli.js direct --batch-id abc12345 --context "vlog dzień 66/100"
   node src/cli.js report --batch-id abc12345
   node src/cli.js render --batch-id abc12345
+  node src/cli.js enrich --batch-id abc12345 --source draft --target final --force
+  node src/cli.js run --input ./inbox/day-11 --context "vlog" --render --render-profile preview
   node src/cli.js render --batch-id abc12345 --output-id horizontal_main --encode-profile draft
   node src/cli.js run --batch-id abc12345 --from-step abstract
 
@@ -192,6 +267,7 @@ Komendy:
   full|run  pełny pipeline
   report    raport jakości batcha (pre-render)
   render    montaż FFmpeg z 09-edit-recipe-final.json → MP4
+  enrich    ponowny pass enricherów deterministycznych (bez GPT)
 
 Opcje:
   --input <folder>         Folder z plikami wideo
@@ -202,14 +278,13 @@ Opcje:
   --min-outputs <formats>  Domyślnie: 16:9,9:16
   --date-from <iso>        Filtruj klipy od daty (creation_time/mtime)
   --date-to <iso>          Filtruj klipy do daty
-  --sort-by <field>        mtime|creation_time|name (domyślnie: mtime)
+  --sort-by <field>        mtime|creation_time|name (domyślnie: creation_time przy ≥2 klipach, inaczej mtime)
   --force                  Przelicz kroki mimo istniejących artefaktów
-  --fast                   Szybki tryb: vision/face/audio stub (dev)
-  --vision-stub            Qwen2.5-VL stub zamiast live
+  --vision-stub            Qwen2.5-VL stub zamiast live (tylko testy CI / dev)
   --face-stub              OpenCV face detect stub w spatial_index
   --audio-stub             Analiza audio stub (bez librosa)
-  --vision-live            [alias] wymuś Qwen2.5-VL live
-  --face-live              [alias] wymuś face detect live
+  --vision-live            Wymuś Qwen2.5-VL live (nadpisuje wcześniejszy --vision-stub)
+  --face-live              Wymuś face detect live (nadpisuje wcześniejszy --face-stub)
   --objects-stub           Florence-2 stub zamiast live (dev / brak GPU)
   --objects-live           [deprecated] domyślne od v0.1 — Florence-2 live
   --no-objects             Escape hatch: pomiń etap detekcji obiektów (dev)
@@ -219,7 +294,20 @@ Opcje:
   --dry-run                Render: tylko EDL JSON (bez FFmpeg)
   --output-id <id>         Render: jeden output z recipe
   --encode-profile <name>  Render: draft|production (domyślnie production)
+  --render-profile <name>  Render: preview|iterate|production (preset passów)
   --format <16:9|9:16>     Render: filtruj outputy po formacie
+  --skip-creative          Render: pomiń pass creativeMoments
+  --skip-subtitles         Render: pomiń napisy ASS
+  --skip-overlays          Render: pomiń text overlays
+  --skip-audio-mix         Render: pomiń miks audio / SFX
+  --skip-color-grade       Render: pomiń color grade
+  --keep-tmp               Render: zachowaj pliki tymczasowe w renders/.tmp/
+  --from-pass <pass>       Render: wznów od passu (concat|creative|subs|overlays|audio_mix|color_grade)
+                           Wymaga --keep-tmp z pierwszego runu; przy istniejącym MP4 dodaj --force
+  --render                 Po run/full: uruchom render z gotowej receptury
+  --source <draft|final>   enrich: źródłowa receptura (domyślnie draft)
+  --target <draft|final>   enrich: docelowa receptura (domyślnie draft)
+  --max-review-iterations <n>  Pętla critic/fixer: 1–10 (domyślnie 3; produkcja: 5)
 
 Wymaga OPENAI_API_KEY w .env (komendy analyze/direct/full/run)
 Render wymaga FFmpeg (+ libass dla napisów ASS)
@@ -231,13 +319,14 @@ async function main() {
   const runnable = new Set(["run", "full", "analyze", "direct"]);
   const reportOnly = args.command === "report";
   const renderOnly = args.command === "render";
+  const enrichOnly = args.command === "enrich";
 
-  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !renderOnly)) {
+  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !renderOnly && !enrichOnly)) {
     printHelp();
     process.exit(args.command === "help" ? 0 : 1);
   }
 
-  if (!args.batchId && (reportOnly || renderOnly || !args.input)) {
+  if (!args.batchId && (reportOnly || renderOnly || enrichOnly || !args.input)) {
     console.error("Podaj --batch-id");
     process.exit(1);
   }
@@ -250,37 +339,42 @@ async function main() {
     return;
   }
 
+  if (enrichOnly) {
+    const workDir = resolveWorkDir(args.batchId);
+    const source = args.recipeSource ?? "draft";
+    const target = args.recipeTarget ?? "draft";
+    if (!["draft", "final"].includes(source) || !["draft", "final"].includes(target)) {
+      console.error("--source i --target muszą być: draft lub final");
+      process.exit(1);
+    }
+
+    const { validation, written } = await runRecipeEnrichStep({
+      workDir,
+      source,
+      target,
+      force: args.force === true,
+      faceStub: args.faceStub === true,
+    });
+
+    console.log(`Enrich zapisany: ${written}`);
+    console.log(`Walidacja: ${validation.valid ? "OK" : "BŁĄD"} (${validation.issues.length} issues)`);
+    if (!validation.valid) {
+      const errors = validation.issues.filter((issue) => issue.severity === "error");
+      for (const issue of errors.slice(0, 5)) {
+        console.log(`  - ${issue.code}: ${issue.message}`);
+      }
+      process.exit(target === "final" ? 2 : 0);
+    }
+    return;
+  }
+
   if (renderOnly) {
     const workDir = args.outputDir
       ? path.resolve(args.outputDir)
       : resolveWorkDir(args.batchId);
 
-    const { results, manifest } = await executeRender(workDir, {
-      dryRun: args.dryRun === true,
-      force: args.force === true,
-      outputId: args.outputId,
-      format: args.format,
-      encodeProfile: args.encodeProfile ?? "production",
-    });
-
-    if (args.dryRun) {
-      console.log(JSON.stringify(manifest, null, 2));
-      return;
-    }
-
-    for (const entry of manifest.outputs) {
-      if (entry.skipped) {
-        console.log(`Pominięto (istnieje): ${entry.outputPath}`);
-      } else {
-        console.log(`Wyrenderowano: ${entry.outputPath} (${entry.durationSec?.toFixed(1) ?? "?"}s)`);
-      }
-    }
-    if (manifest.warnings?.length) {
-      console.log(`\nOstrzeżenia (${manifest.warnings.length}):`);
-      for (const w of manifest.warnings.slice(0, 10)) {
-        console.log(`  - ${w.code ?? "warn"}: ${w.message ?? JSON.stringify(w)}`);
-      }
-    }
+    const { manifest } = await executeRender(workDir, buildExecuteRenderOptions(args));
+    printRenderResults(manifest, { dryRun: args.dryRun === true });
     return;
   }
 
@@ -320,12 +414,20 @@ async function main() {
     }
   }
 
+  let maxReviewIterations;
+  try {
+    maxReviewIterations = resolveMaxReviewIterations(args.maxReviewIterations);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+
   await runPythonStartupCheck(args);
 
   const apiKey = process.env.OPENAI_API_KEY;
   const needsApiKey =
     !args.fromStep
-    || ["transcribe", "abstract", "direct", "review", "thumbnails"].includes(args.fromStep)
+    || ["transcribe", "abstract", "topic_index", "direct", "review", "thumbnails"].includes(args.fromStep)
     || args.command === "analyze"
     || args.command === "direct"
     || args.command === "full"
@@ -334,6 +436,8 @@ async function main() {
     console.error("Brak OPENAI_API_KEY — ustaw w .env");
     process.exit(1);
   }
+
+  const stubs = resolveAnalysisStubFlags(args);
 
   const result = await runPipeline({
     inputDir: args.input,
@@ -344,9 +448,9 @@ async function main() {
     userContext: args.context ?? "",
     requiredFormats: args.requiredFormats ?? ["16:9", "9:16"],
     requiredFormatsExplicit: args.requiredFormatsExplicit === true,
-    faceStub: args.faceStub === true || (args.fast === true && args.faceLive !== true),
-    visionStub: args.visionStub === true || (args.fast === true && args.visionLive !== true),
-    audioStub: args.audioStub === true || args.fast === true,
+    faceStub: stubs.faceStub,
+    visionStub: stubs.visionStub,
+    audioStub: stubs.audioStub,
     objectsStub: args.objectsStub === true,
     objectsEnabled: args.objectsEnabled !== false,
     extractKeyframes: args.extractKeyframes !== false,
@@ -355,7 +459,8 @@ async function main() {
     renderThumbnails: args.renderThumbnails !== false,
     dateFrom: args.dateFrom,
     dateTo: args.dateTo,
-    sortBy: args.sortBy ?? "mtime",
+    sortBy: args.sortBy,
+    maxReviewIterations,
   });
 
   if (result.validationFailed) {
@@ -370,11 +475,26 @@ async function main() {
   } else {
     console.log(`\nBatch: output/.work/${result.batchId}/`);
   }
+
+  if (args.renderAfterPipeline) {
+    if (!result.recipeFinal) {
+      console.error("Brak finalnej receptury — render pominięty");
+      process.exit(1);
+    }
+    const { manifest } = await executeRender(result.workDir, buildExecuteRenderOptions(args));
+    printRenderResults(manifest, { dryRun: args.dryRun === true });
+  }
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+const isMainModule = process.argv[1]
+  && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
-export { parseArgs, COMMAND_DEFAULTS };
+if (isMainModule) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
+
+export { parseArgs, COMMAND_DEFAULTS, resolveAnalysisStubFlags, resolveLivePythonFlags };
+export { buildExecuteRenderOptions } from "./render/render-config.js";

@@ -798,3 +798,52 @@ export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spat
 
   return issues;
 }
+
+const VOICE_PITCH_SHIFT_ID = "voice_pitch_shift";
+const VOICE_PITCH_SEMITONE_MIN = -8;
+const VOICE_PITCH_SEMITONE_MAX = 8;
+const VOICE_PITCH_MAX_PER_OUTPUT = 2;
+
+/**
+ * V26-VOICE-01/02 — voice_pitch_shift semitone range and density per output.
+ */
+export function validateVoicePitchMoments(recipe) {
+  const moments = (recipe.creativeMoments ?? []).filter(
+    (moment) => moment.techniqueId === VOICE_PITCH_SHIFT_ID,
+  );
+  if (moments.length === 0) {
+    return [];
+  }
+
+  const issues = [];
+  const countByOutput = new Map();
+
+  for (const moment of moments) {
+    const outputId = moment.outputId ?? recipe.outputs?.[0]?.outputId ?? "unknown";
+    countByOutput.set(outputId, (countByOutput.get(outputId) ?? 0) + 1);
+
+    const semitones = moment.params?.semitones ?? 4;
+    if (semitones < VOICE_PITCH_SEMITONE_MIN || semitones > VOICE_PITCH_SEMITONE_MAX) {
+      issues.push({
+        severity: "warning",
+        code: "V26-VOICE-01",
+        message: `voice_pitch_shift semitones ${semitones} poza zakresem ${VOICE_PITCH_SEMITONE_MIN}…${VOICE_PITCH_SEMITONE_MAX}`,
+        outputId,
+        momentId: moment.momentId,
+      });
+    }
+  }
+
+  for (const [outputId, count] of countByOutput) {
+    if (count > VOICE_PITCH_MAX_PER_OUTPUT) {
+      issues.push({
+        severity: "warning",
+        code: "V26-VOICE-02",
+        message: `${count}× voice_pitch_shift na output ${outputId} (max ${VOICE_PITCH_MAX_PER_OUTPUT})`,
+        outputId,
+      });
+    }
+  }
+
+  return issues;
+}

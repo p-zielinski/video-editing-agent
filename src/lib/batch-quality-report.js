@@ -182,6 +182,37 @@ function loadWordIndexes(workDir, catalog) {
   });
 }
 
+function detectStubDataWarnings(timelineIndex, catalog, workDir) {
+  const warnings = [];
+
+  const stubCaptions = (timelineIndex?.visionCaptions ?? []).filter(
+    (entry) => /\[stub\]/i.test(entry.caption ?? ""),
+  );
+  if (stubCaptions.length > 0) {
+    warnings.push("vision_captions_stub");
+  }
+
+  const clips = catalog?.clips ?? [];
+  if (clips.length > 0) {
+    const stubAudioClips = clips.filter((clip) => {
+      const analysis = tryReadJson(workDir, ARTIFACTS.audioAnalysis(clip.clipId));
+      return analysis?.analysisMode === "stub" || analysis?.eventDetectionMode === "stub";
+    });
+    if (stubAudioClips.length > 0) {
+      warnings.push("audio_analysis_stub");
+    }
+  }
+
+  return warnings;
+}
+
+function detectTopicIndexWarnings(topicIndex) {
+  if (topicIndex?.version === "1.0") {
+    return ["topic_index_keyword_only"];
+  }
+  return [];
+}
+
 export function buildBatchQualityReport(workDir) {
   const timelineIndex = tryReadJson(workDir, ARTIFACTS.timelineIndex);
   const spatialIndex = tryReadJson(workDir, ARTIFACTS.spatialIndex);
@@ -221,6 +252,10 @@ export function buildBatchQualityReport(workDir) {
   const creativeMomentCount = recipe?.creativeMoments?.length ?? 0;
   const retentionBeatCount = countRetentionBeats(recipe);
   const l1FieldsPresentPercent = computeL1FieldsPresentPercent(abstraction, timelineIndex);
+  const dataQualityWarnings = [
+    ...detectStubDataWarnings(timelineIndex, catalog, workDir),
+    ...detectTopicIndexWarnings(topicIndex),
+  ];
 
   let validationErrorCount = 0;
   let validationWarningCount = 0;
@@ -275,6 +310,7 @@ export function buildBatchQualityReport(workDir) {
       validationErrorCount,
       validationWarningCount,
       l1FieldsPresentPercent,
+      dataQualityWarnings,
       qualityGateFailures,
       needsHumanReview,
     },
@@ -312,6 +348,10 @@ export function formatBatchQualitySummary(report) {
     lines.push(
       `  Validation: ${m.validationErrorCount} errors, ${m.validationWarningCount} warnings`,
     );
+  }
+
+  if (m.dataQualityWarnings?.length > 0) {
+    lines.push(`  Data quality warnings: ${m.dataQualityWarnings.join(", ")}`);
   }
 
   if (m.qualityGateFailures?.length > 0) {

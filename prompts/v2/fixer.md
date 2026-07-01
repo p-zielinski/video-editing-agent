@@ -71,6 +71,25 @@ Gdy recipe zawiera `vlogRetentionProfile` lub issues V22-VLOG-*:
 
 Preferuj rotację z `retentionTechniqueRotationMain` w briefu — unikaj agresywnych technik shortów na main.
 
+### Multi-clip chronology i B-roll strategy (v2.5)
+
+| Kod | Naprawa |
+|-----|---------|
+| V25-BROLL-02 | Usuń segmenty broll przy `minimal`; zostaw tylko VO (`from_audio_ref` + klip z mową) |
+| V25-BROLL-03 | Zamień B-roll na scenę z `topicIndex.matchingScenes` (score ≥ threshold) |
+| V25-BROLL-04 | Użyj klipu z `clipRole: broll_pool` przy `chronological` |
+| V25-BROLL-05 | Ułóż segmenty broll rosnąco wg `sortIndex` klipów |
+| V25-BROLL-06 | Ustaw `videoInSec` wg `brollSyncHints.suggestedVideoInSec` (±0.5s) dla danej sceny |
+| V25-CHR-01 | Przestaw segmenty A-roll na main rosnąco wg `sortIndex`; cold open tease na początku jest OK |
+| V25-CHR-02 | Grupuj klipy wg `daySegments` — wcześniejszy dzień przed późniejszym |
+| V25-CHR-03 | Po cold open dodaj rewind intro do chronologicznego startu (segment + overlay + hard_cut_energy) |
+
+### Pacing (v2.4)
+
+| Kod | Naprawa |
+|-----|---------|
+| V24-05 | Skróć main output — usuń słabe segmenty A-roll, tnij fillery/dead air; cel: ≤105% materiału źródłowego lub L3 `estimatedKeepRatio` |
+
 ### Transkrypcja i beaty (naprawy)
 
 `transcriptExcerpts[]` — słowa A-roll per scena w recipe (`wordId`, `word`, `start`, `end`, `isFiller`):

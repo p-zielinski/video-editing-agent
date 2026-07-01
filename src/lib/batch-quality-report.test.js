@@ -282,12 +282,67 @@ describe("batch_quality_report", () => {
         retentionBeatCount: 0,
         validationErrorCount: 0,
         validationWarningCount: 0,
+        dataQualityWarnings: ["vision_captions_stub", "audio_analysis_stub"],
         qualityGateFailures: [],
         needsHumanReview: false,
       },
     });
     assert.match(summary, /Anchor coverage: 80%/);
+    assert.match(summary, /Data quality warnings: vision_captions_stub, audio_analysis_stub/);
     assert.match(summary, /Needs human review: no/);
+  });
+
+  it("detects stub vision captions and audio analysis in report", () => {
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+      batchId: "batch_stub",
+      scenes: [],
+      visionCaptions: [
+        { timestampSec: 1, sceneId: "clip01_scene001", caption: "[stub] Klatka test" },
+      ],
+      stats: { totalWords: 0, fillerWordCount: 0 },
+    });
+    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+      batchId: "batch_stub",
+      clips: [{ clipId: "clip01", sourcePath: "/a.mp4", durationSec: 10 }],
+      scenes: [],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.spatialIndex), {
+      version: "1.0",
+      batchId: "batch_stub",
+      scenes: [],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.audioAnalysis("clip01")), {
+      clipId: "clip01",
+      analysisMode: "stub",
+      eventDetectionMode: "stub",
+    });
+
+    const report = buildBatchQualityReport(workDir);
+    assert.deepEqual(report.metrics.dataQualityWarnings, [
+      "vision_captions_stub",
+      "audio_analysis_stub",
+    ]);
+  });
+
+  it("warns when topic index uses keyword-only matching (v1.0)", () => {
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+      batchId: "batch_kw",
+      scenes: [],
+      stats: { totalWords: 0, fillerWordCount: 0 },
+    });
+    writeJson(path.join(workDir, ARTIFACTS.spatialIndex), {
+      version: "1.0",
+      batchId: "batch_kw",
+      scenes: [],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.topicIndex), {
+      version: "1.0",
+      batchId: "batch_kw",
+      topics: [{ topicId: "t1", label: "jedzenie", matchingScenes: [] }],
+    });
+
+    const report = buildBatchQualityReport(workDir);
+    assert.ok(report.metrics.dataQualityWarnings.includes("topic_index_keyword_only"));
   });
 
   it("writeBatchQualityReport persists JSON artifact", () => {

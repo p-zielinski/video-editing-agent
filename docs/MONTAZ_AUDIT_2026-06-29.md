@@ -1,61 +1,80 @@
-# Audyt flow montażu AI — 2026-06-29
+# Audyt flow montażu AI — 2026-06-29 (aktualizacja #5)
 
-> Kontynuacja rozmowy o pionie/poziomie + pełny przegląd pipeline pre-render i render.
+> Pełny przegląd pipeline + render. **LUT/colorGrade poza zakresem** — nie planowane na razie.
 
-## Zaimplementowano w tej sesji
+## Zaimplementowano (sesja 5)
 
 | Zmiana | Wpływ |
 |--------|--------|
-| **L3 → requiredFormats** (`resolve-required-formats.js`, orchestrator) | Summarizer może zasugerować tylko `9:16` lub `16:9` gdy user nie podał `--min-outputs` |
-| **formatFit w L3** | Score 0–1 per format — director widzi w `sessionSummary` |
-| **V25-AR aspect validator** | Ostrzeżenie gdy pion w main 16:9 bez `videoTransform` |
-| **V25-BROLL-01** | Desync B-roll video/audio wykrywany przed renderem |
-| **V24-07 SFX catalog** | Ostrzeżenie gdy library SFX nie mapuje się na katalog (sfxId lub tag) |
-| **SFX timeline remap** | `sfxPlan` zsynchronizowany z osią outputu po cięciach |
-| **Director brief** | `aspectMix`, `clipAspectById`, `sfxCatalogSummary` (dynamiczny katalog) |
-| **Schema** | `requiredFormats` min 1 (single-format deliverable) |
+| **`enrich` CLI** | Ponowny pass enricherów bez GPT (`recipe-enrich.js`) |
+| **`run --render`** | Inbox → receptura → render w jednej komendzie |
+| **`--render-profile`** | Presety `preview` / `iterate` / `production` |
+| **CHR integracja** | Testy `validateRecipeV2` + V25-CHR-01/03 |
+| **teaseSceneId fix** | Wyłączenie tylko przy rewind intro / moment (nie przy błędnej chronologii) |
+| **E2E pipeline → render** | Mock pipeline + stub FFmpeg (`full-pipeline-mocked.test.js`) |
 
-### Użycie
+### Nowe komendy
 
 ```bash
-# Domyślnie: L3 decyduje o formatach (jeśli nie --min-outputs)
-node src/cli.js run --input ./inbox
+# One-shot: analiza + reżyseria + montaż
+node src/cli.js run --input ./inbox/day --context "vlog" --render --render-profile preview
 
-# Jawny override
-node src/cli.js run --input ./inbox --min-outputs 9:16
+# Re-enrich po zmianie indeksów (bez GPT)
+node src/cli.js enrich --batch-id <id> --source draft --target final --force
+
+# Render z presetem (szybki podgląd)
+node src/cli.js render --batch-id <id> --render-profile preview --force
 ```
 
-## Nadal do zrobienia (priorytet)
+### Profile renderu (`src/render/render-config.js`)
 
-### P0 — jakość montażu
+| Profil | Zachowanie |
+|--------|------------|
+| `preview` | draft + skip creative/subs/overlays/audio/color |
+| `iterate` | draft + skip subs/overlays + keep-tmp |
+| `production` | pełny łańcuch (domyślny) |
 
-1. **Cold-open enrich** — `enrichRecipeColdOpenSegment()` z `coldOpenSegmentHint` (dziś tylko brief)
-2. **B-roll sync apply** — `enrichBrollSyncFromHints()` deterministycznie ustawia `videoInSec`
-3. **spatialRef na retention beatach** — `resolveSpatialRefForBeat()` często undefined bez face anchors
+## Stan funkcji (skrót)
 
-### P1 — opcje wykonania
+| Funkcja | Status |
+|---------|--------|
+| Enrich deterministyczny | **Done** + CLI `enrich` |
+| Render resume / skip / profile | **Done** |
+| CHR-01/02 error gate | **Done** |
+| Pipeline → render E2E | **Done** (stub FFmpeg) |
+| LUT / colorGrade | **Out of scope** (użytkownik nie korzysta) |
 
-4. **Render pass toggles** — `--skip-creative`, `--skip-subtitles`, `--skip-audio-mix`, resume z intermediate
-5. **Crossfade + J/L** — video xfade gdy audio na J/L carry-forward
-6. **Dead-air → silence_beat enrich** — deterministyczne `creativeMoments` z `deadAirMontageHints`
-7. **Per-output colorGrade** — różny LUT/kontrast dla main vs short
+## Nadal do zrobienia
 
-### P2 — render / assety
+### P0
 
-8. **9:16 → 16:9 smart crop** — dziś pillarbox; opcjonalny `fitMode: crop` w `videoTransform`
-9. **Production LUT** — `warm_golden_hour.cube` to stub 2×2
-10. **match_cut vision** — obecnie pulse blur, nie vision-matched cut
+1. **Validation gate E2E** — test `validationFailed: true` + exit code 2 z CLI
+2. **Crossfade + J/L** — validator + prompt mutual exclusion
+3. **Fixer fixable CHR-03 / BROLL-04/05** warnings
+4. **README / FORMATY** — v2.5 CHR, enrich, render-profile (bez LUT)
 
-## Metryki sukcesu
+### P1
 
-- Mniej `broll_av_desync` / `SFX_UNRESOLVED` w manifeście renderu
-- Short-only batche bez wymuszonego słabego 16:9
-- Critic łapie aspect mismatch przed fixerem (V25-AR)
-- SFX trafiają w momenty po agresywnych cięciach (remap)
+5. **E2E z prawdziwym FFmpeg** na output mock pipeline (dziś stub)
+6. **Critic-fixer E2E** dla CHR / brollStrategy
+7. **CI job** `npm run test:e2e` z ffmpeg
+
+### P2
+
+8. Smart crop 9:16→16:9
+9. Vision match_cut, karaoke subtitles
+10. Live batch checklist w CI
+
+## Weryfikacja
+
+```bash
+node --test src/cli.test.js src/render/render-config.test.js \
+  src/pipeline/steps/recipe-enrich.test.js src/validators/recipe-v2-validator.test.js \
+  tests/e2e/full-pipeline-mocked.test.js tests/editorial/retention-enrich.test.js \
+  src/validators/chronology.test.js
+```
 
 ## Powiązane
 
 - [`FORMATY_AI_I_GOTOWOSC_MONTAZU.md`](./FORMATY_AI_I_GOTOWOSC_MONTAZU.md)
-- [`RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md`](./RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md)
-- [`LUKI_PLAN_NAPRAWCZY.md`](./LUKI_PLAN_NAPRAWCZY.md)
 - Handoff: `~/.cursor/work/format-aspect-pipeline.md`

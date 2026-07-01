@@ -1,10 +1,22 @@
 import { summarizeMusicLibraryForIndex } from "./music-library.js";
 
-const TOP_CUT_SUGGESTIONS = 8;
-const TOP_SILENCE_GAPS = 5;
-const TOP_ENERGY_PEAKS = 5;
-const TOP_AUDIO_EVENTS = 6;
-const TOP_DEAD_AIR_HINTS = 6;
+export const DEFAULT_AUDIO_CAPS = {
+  cutSuggestions: 8,
+  silenceGaps: 5,
+  energyPeaks: 5,
+  audioEvents: 6,
+  deadAirHints: 6,
+};
+
+/** Higher caps for director brief — critic/fixer keep DEFAULT_AUDIO_CAPS. */
+export const DIRECTOR_AUDIO_CAPS = {
+  cutSuggestions: 12,
+  silenceGaps: 8,
+  energyPeaks: 8,
+  audioEvents: 10,
+  deadAirHints: 10,
+};
+
 const MIN_DEAD_AIR_GAP_SEC = 0.5;
 
 function lookupPerClipAnalysis(clipId, perClipAnalysis) {
@@ -98,7 +110,7 @@ function sourceFromSet(sources) {
 /**
  * Merge RMS silence gaps with Whisper no-speech gaps (>0.5 s).
  */
-export function fuseDeadAirHints(perClipAnalysis, wordIndex) {
+export function fuseDeadAirHints(perClipAnalysis, wordIndex, limit = DEFAULT_AUDIO_CAPS.deadAirHints) {
   const audioGaps = (perClipAnalysis?.silenceGaps ?? [])
     .filter((gap) => gapDurationSec(gap) > MIN_DEAD_AIR_GAP_SEC)
     .map((gap) => ({
@@ -137,7 +149,7 @@ export function fuseDeadAirHints(perClipAnalysis, wordIndex) {
   return merged
     .filter((gap) => gapDurationSec(gap) > MIN_DEAD_AIR_GAP_SEC)
     .sort((a, b) => gapDurationSec(b) - gapDurationSec(a))
-    .slice(0, TOP_DEAD_AIR_HINTS)
+    .slice(0, limit)
     .map(({ startSec, endSec, sources }) => ({
       startSec,
       endSec,
@@ -145,28 +157,28 @@ export function fuseDeadAirHints(perClipAnalysis, wordIndex) {
     }));
 }
 
-function topCutSuggestions(cuts, limit = TOP_CUT_SUGGESTIONS) {
+function topCutSuggestions(cuts, limit = DEFAULT_AUDIO_CAPS.cutSuggestions) {
   return [...(cuts ?? [])]
     .sort((a, b) => (b.strength ?? 0) - (a.strength ?? 0))
     .slice(0, limit)
     .map(({ timeSec, reason, strength }) => ({ timeSec, reason, strength }));
 }
 
-function topSilenceGaps(gaps, limit = TOP_SILENCE_GAPS) {
+function topSilenceGaps(gaps, limit = DEFAULT_AUDIO_CAPS.silenceGaps) {
   return [...(gaps ?? [])]
     .sort((a, b) => (b.durationSec ?? 0) - (a.durationSec ?? 0))
     .slice(0, limit)
     .map(({ startSec, endSec, durationSec }) => ({ startSec, endSec, durationSec }));
 }
 
-function topEnergyPeaks(curve, limit = TOP_ENERGY_PEAKS) {
+function topEnergyPeaks(curve, limit = DEFAULT_AUDIO_CAPS.energyPeaks) {
   return [...(curve ?? [])]
     .sort((a, b) => (b.rmsDb ?? -Infinity) - (a.rmsDb ?? -Infinity))
     .slice(0, limit)
     .map(({ startSec, endSec, rmsDb }) => ({ startSec, endSec, rmsDb }));
 }
 
-function topAudioEvents(events, limit = TOP_AUDIO_EVENTS) {
+function topAudioEvents(events, limit = DEFAULT_AUDIO_CAPS.audioEvents) {
   return [...(events ?? [])]
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, limit)
@@ -177,12 +189,13 @@ function topAudioEvents(events, limit = TOP_AUDIO_EVENTS) {
     }));
 }
 
-function enrichClipFromAnalysis(clip, perClipAnalysis) {
+function enrichClipFromAnalysis(clip, perClipAnalysis, caps = DEFAULT_AUDIO_CAPS) {
   const analysis = lookupPerClipAnalysis(clip.clipId, perClipAnalysis);
   const enriched = {};
 
   const cutSuggestions = topCutSuggestions(
     analysis?.cutSuggestions ?? clip.cutSuggestions,
+    caps.cutSuggestions,
   );
   if (cutSuggestions.length > 0) {
     enriched.cutSuggestions = cutSuggestions;
@@ -190,6 +203,7 @@ function enrichClipFromAnalysis(clip, perClipAnalysis) {
 
   const silenceGaps = topSilenceGaps(
     analysis?.silenceGaps ?? clip.silenceGaps,
+    caps.silenceGaps,
   );
   if (silenceGaps.length > 0) {
     enriched.silenceGaps = silenceGaps;
@@ -197,6 +211,7 @@ function enrichClipFromAnalysis(clip, perClipAnalysis) {
 
   const energyPeaks = topEnergyPeaks(
     analysis?.energyCurve ?? clip.energyCurve,
+    caps.energyPeaks,
   );
   if (energyPeaks.length > 0) {
     enriched.energyPeaks = energyPeaks;
@@ -204,6 +219,7 @@ function enrichClipFromAnalysis(clip, perClipAnalysis) {
 
   const audioEvents = topAudioEvents(
     analysis?.audioEvents ?? clip.audioEvents,
+    caps.audioEvents,
   );
   if (audioEvents.length > 0) {
     enriched.audioEvents = audioEvents;
@@ -230,11 +246,11 @@ function filterMusicLibraryTracks(musicLibrary) {
 /**
  * Compact audio index summary for director/critic LLM payloads.
  * @param {object|null} audioIndex - 05d-audio-index rollup
- * @param {{ perClipAnalysis?: Map|object|array, wordIndexes?: array, timelineIndex?: object }} [options]
+ * @param {{ perClipAnalysis?: Map|object|array, wordIndexes?: array, timelineIndex?: object, caps?: object }} [options]
  */
 export function buildAudioIndexSummary(
   audioIndex,
-  { perClipAnalysis, wordIndexes, timelineIndex } = {},
+  { perClipAnalysis, wordIndexes, timelineIndex, caps = DEFAULT_AUDIO_CAPS } = {},
 ) {
   if (!audioIndex?.clips?.length) {
     return undefined;
@@ -246,8 +262,8 @@ export function buildAudioIndexSummary(
     clips: audioIndex.clips.map((clip) => {
       const analysis = lookupPerClipAnalysis(clip.clipId, perClipAnalysis);
       const wordIndex = lookupWordIndex(clip.clipId, wordIndexes, timelineIndex);
-      const deadAirHints = fuseDeadAirHints(analysis, wordIndex);
-      const enriched = enrichClipFromAnalysis(clip, perClipAnalysis);
+      const deadAirHints = fuseDeadAirHints(analysis, wordIndex, caps.deadAirHints);
+      const enriched = enrichClipFromAnalysis(clip, perClipAnalysis, caps);
 
       return {
         clipId: clip.clipId,

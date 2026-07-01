@@ -10,6 +10,8 @@ import {
   buildAudioMixFilterGraph,
   buildMusicBedMomentVolumeFilter,
   buildVoiceMomentVolumeFilter,
+  buildVoicePitchShiftFilter,
+  computePitchShiftSampleRate,
   resolveMusicBedMoments,
   resolveVoiceAudioMoments,
   resolveSfxPath,
@@ -254,15 +256,65 @@ describe("audio-mix", () => {
     assert.deepEqual(moments.map((m) => m.techniqueId), ["music_swell", "music_drop"]);
   });
 
-  it("resolveVoiceAudioMoments keeps only silence_beat", () => {
+  it("resolveVoiceAudioMoments keeps silence_beat and voice_pitch_shift", () => {
     const moments = resolveVoiceAudioMoments([
       { techniqueId: "music_swell", outputStartSec: 0, outputEndSec: 3 },
       { techniqueId: "silence_beat", outputStartSec: 1, outputEndSec: 2 },
+      { techniqueId: "voice_pitch_shift", outputStartSec: 3, outputEndSec: 4 },
       { techniqueId: "silence_beat", outputStartSec: 5, outputEndSec: 6 },
       { techniqueId: "zoom_punch_in", outputStartSec: 0, outputEndSec: 1 },
     ]);
-    assert.equal(moments.length, 2);
-    assert.deepEqual(moments.map((m) => m.techniqueId), ["silence_beat", "silence_beat"]);
+    assert.equal(moments.length, 3);
+    assert.deepEqual(
+      moments.map((m) => m.techniqueId),
+      ["silence_beat", "voice_pitch_shift", "silence_beat"],
+    );
+  });
+
+  it("computePitchShiftSampleRate scales by semitones", () => {
+    assert.equal(computePitchShiftSampleRate(0), 44100);
+    assert.equal(computePitchShiftSampleRate(12), 88200);
+    assert.equal(computePitchShiftSampleRate(-12), 22050);
+    assert.equal(computePitchShiftSampleRate(4), Math.round(44100 * (2 ** (4 / 12))));
+  });
+
+  it("buildVoicePitchShiftFilter emits asetrate/aresample split-mix chain", () => {
+    const filters = buildVoicePitchShiftFilter("[voice_base]", "[voice]", {
+      techniqueId: "voice_pitch_shift",
+      outputStartSec: 2,
+      outputEndSec: 99,
+      params: { semitones: 4, durationSec: 1.2 },
+    }, { id: 0 });
+
+    assert.equal(filters.length, 5);
+    assert.ok(filters[0].includes("asplit=2"));
+    const rate = computePitchShiftSampleRate(4);
+    assert.ok(filters[1].includes(`asetrate=${rate},aresample=44100`));
+    assert.ok(filters[2].includes("between(t\\,2\\,3.2)"));
+    assert.ok(filters[3].includes("between(t\\,2\\,3.2)"));
+    assert.ok(filters[4].includes("amix=inputs=2"));
+    assert.ok(filters[4].endsWith("[voice]"));
+  });
+
+  it("buildAudioMixFilterGraph chains voice_pitch_shift after voice loudnorm", () => {
+    const graph = buildAudioMixFilterGraph({
+      plan: { voiceTargetLufs: -16 },
+      voiceLoudnormFilter: "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true",
+      voiceAudioMoments: [{
+        techniqueId: "voice_pitch_shift",
+        outputStartSec: 5,
+        outputEndSec: 6,
+        params: { semitones: -4, durationSec: 1 },
+      }],
+    });
+
+    assert.equal(graph.needsMix, true);
+    assert.equal(graph.voiceOnly, true);
+    const loudnormIdx = graph.filters.findIndex((f) => f.includes("loudnorm"));
+    const pitchIdx = graph.filters.findIndex((f) => f.includes("asetrate="));
+    assert.ok(loudnormIdx < pitchIdx, "pitch shift should follow loudnorm");
+    const rate = computePitchShiftSampleRate(-4);
+    assert.ok(graph.filters.some((f) => f.includes(`asetrate=${rate}`)));
   });
 
   it("buildVoiceMomentVolumeFilter emits between(t) dip with default volumeFactor", () => {

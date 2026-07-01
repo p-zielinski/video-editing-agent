@@ -16,7 +16,8 @@
     "hard_cut_energy",
     "cut_mid_sentence",
     "whip_pan",
-    "reframe_follow_subject"
+    "reframe_follow_subject",
+    "voice_pitch_shift"
   ],
   "defaultCreativityLevel": "shorts",
   "retentionDefaults": {
@@ -24,5 +25,8 @@
     "retentionBeatIntervalSec": 25,
     "minRetentionBeats": 2
   },
-  "paramOverrides": {}
+  "paramOverrides": {},
+  "constraintOverrides": {
+    "voice_pitch_shift": { "requiresCreativityLevel": "shorts" }
+  }
 }

@@ -7,7 +7,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const LUT_CATALOG = path.join(ROOT, "assets", "luts", "catalog.json");
 
 function resolveLutPath(lutId) {
-  if (!lutId || !fs.existsSync(LUT_CATALOG)) {
+  if (!lutId || lutId === "none" || !fs.existsSync(LUT_CATALOG)) {
     return null;
   }
   const catalog = JSON.parse(fs.readFileSync(LUT_CATALOG, "utf8"));
@@ -20,13 +20,30 @@ function resolveLutPath(lutId) {
 }
 
 /**
+ * Whether the render pipeline should run the color_grade pass.
+ */
+export function shouldApplyColorGrade(colorGrade) {
+  if (!colorGrade) {
+    return false;
+  }
+  if (colorGrade.enabled === false) {
+    return false;
+  }
+  if (colorGrade.mode === "none") {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Build FFmpeg video filter chain from colorGrade object.
  */
 export function buildColorGradeFilters(colorGrade) {
-  if (!colorGrade) {
+  if (!shouldApplyColorGrade(colorGrade)) {
     return [];
   }
 
+  const mode = colorGrade.mode ?? "lut";
   const filters = [];
   const eqParts = [];
   if (colorGrade.exposure != null) {
@@ -42,10 +59,12 @@ export function buildColorGradeFilters(colorGrade) {
     filters.push(`eq=${eqParts.join(":")}`);
   }
 
-  const lutPath = resolveLutPath(colorGrade.lutId);
-  if (lutPath) {
-    const escaped = lutPath.replace(/:/g, "\\:");
-    filters.push(`lut3d=file='${escaped}'`);
+  if (mode !== "eq_only") {
+    const lutPath = resolveLutPath(colorGrade.lutId);
+    if (lutPath) {
+      const escaped = lutPath.replace(/:/g, "\\:");
+      filters.push(`lut3d=file='${escaped}'`);
+    }
   }
 
   return filters;
@@ -59,7 +78,7 @@ export async function applyColorGrade(inputPath, outputPath, {
   encodeProfile,
   runFfmpegFn = runFfmpeg,
 }) {
-  if (!colorGrade) {
+  if (!shouldApplyColorGrade(colorGrade)) {
     fs.copyFileSync(inputPath, outputPath);
     return outputPath;
   }

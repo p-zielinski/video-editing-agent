@@ -8,6 +8,19 @@ export function detectInputMode(clipCount, batchContext = {}) {
   return "multi_clip_day";
 }
 
+/**
+ * Default ingest sort: multi-clip batches prefer recording time from metadata.
+ */
+export function resolveDefaultSortBy(clipCount, batchContext = {}) {
+  if (batchContext.sortBy) {
+    return batchContext.sortBy;
+  }
+  if (clipCount > 1 || batchContext.inputMode === "multi_clip_day") {
+    return "creation_time";
+  }
+  return "mtime";
+}
+
 export function parseBatchContextFromUserContext(userContext) {
   if (!userContext || typeof userContext !== "string") {
     return {};

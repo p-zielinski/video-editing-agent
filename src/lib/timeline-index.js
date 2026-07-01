@@ -37,6 +37,7 @@ export function buildTimelineIndex({ batchId, catalog, wordIndexes, keyframeSets
       clipId: c.clipId,
       sourcePath: c.sourcePath,
       durationSec: c.durationSec,
+      ...(c.aspectRatio ? { aspectRatio: c.aspectRatio } : {}),
     })),
     scenes,
     words: allWords,

@@ -32,6 +32,7 @@ export const TimelineIndexSchema = z.object({
     clipId: z.string(),
     sourcePath: z.string(),
     durationSec: z.number().positive(),
+    aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:3", "other"]).optional(),
   })),
   scenes: z.array(SceneSchema),
   words: z.array(WordEntrySchema),

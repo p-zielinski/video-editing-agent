@@ -27,12 +27,28 @@ export const FIXABLE_VLOG_WARNING_CODES = new Set([
   "V22-VLOG-05",
 ]);
 
+/** V24 warnings the fixer should attempt to repair. */
+export const FIXABLE_V24_WARNING_CODES = new Set([
+  "V24-05",
+]);
+
+/** V25 warnings the fixer should attempt to repair. */
+export const FIXABLE_V25_WARNING_CODES = new Set([
+  "V25-BROLL-04",
+  "V25-BROLL-05",
+  "V25-BROLL-06",
+  "V25-CHR-03",
+]);
+
 export function shouldInvokeFixer(issues = []) {
   if (issues.some((issue) => issue.severity === "error")) {
     return true;
   }
   return issues.some(
-    (issue) => issue.severity === "warning" && FIXABLE_VLOG_WARNING_CODES.has(issue.code),
+    (issue) => issue.severity === "warning"
+      && (FIXABLE_VLOG_WARNING_CODES.has(issue.code)
+        || FIXABLE_V24_WARNING_CODES.has(issue.code)
+        || FIXABLE_V25_WARNING_CODES.has(issue.code)),
   );
 }
 
@@ -191,6 +207,7 @@ export async function runFixer(client, {
   timelineIndex,
   audioIndex = null,
   perClipAnalysis = null,
+  brollSyncHints = null,
 }) {
   const promptVersion = resolveFixerPromptVersion(recipe);
   const system = loadPrompt("fixer", { version: promptVersion });
@@ -226,6 +243,7 @@ export async function runFixer(client, {
     ...repairContext,
     ...creativeContext,
     ...retentionContext,
+    ...(brollSyncHints?.length ? { brollSyncHints } : {}),
   };
 
   const user = JSON.stringify({

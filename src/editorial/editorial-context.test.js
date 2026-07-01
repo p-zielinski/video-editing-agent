@@ -64,6 +64,22 @@ describe("editorial-context", () => {
     assert.equal(scenes.length, 1);
     assert.equal(scenes[0].sceneId, "clip01_scene001");
     assert.equal(scenes[0].primaryAnchor.type, "subject");
+    assert.equal(scenes[0].anchors, undefined);
+  });
+
+  it("formatSpatialSummary includes multiple anchors when anchorLimit > 1", () => {
+    const multiAnchorSpatial = {
+      scenes: [{
+        sceneId: "clip01_scene001",
+        anchors: [
+          { type: "face", bbox: [0.1, 0.1, 0.2, 0.2], timestampSec: 1, label: "face", confidence: 0.9 },
+          { type: "subject", bbox: [0.2, 0.25, 0.4, 0.5], timestampSec: 5, label: "person", confidence: 0.8 },
+        ],
+      }],
+    };
+    const scenes = formatSpatialSummary(multiAnchorSpatial, { anchorLimit: 2 });
+    assert.equal(scenes[0].anchors.length, 2);
+    assert.equal(scenes[0].primaryAnchor.type, "face");
   });
 
   it("buildTranscriptExcerpts filters by sceneIds", () => {

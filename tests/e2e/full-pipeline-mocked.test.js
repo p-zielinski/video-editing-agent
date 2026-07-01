@@ -9,7 +9,7 @@ import {
 } from "../../src/test-helpers/fixture-work-dir.js";
 import { createMiniDayMockClient } from "../../src/test-helpers/mock-openai-client.js";
 import { runClipProfileStep } from "../../src/pipeline/steps/clip-profile.js";
-import { runTopicIndexStep } from "../../src/pipeline/steps/topic-index.js";
+import { runTopicIndexStep, createTokenVectorEmbedFn } from "../../src/pipeline/steps/topic-index.js";
 import { runSpatialIndexStep } from "../../src/pipeline/steps/spatial-index.js";
 import {
   runAbstractStep,
@@ -18,6 +18,9 @@ import {
 } from "../../src/pipeline/steps/agents.js";
 import { validateRecipeV2 } from "../../src/validators/recipe-v2.js";
 import { EditRecipeV2Schema } from "../../src/schemas/edit-recipe-v2.js";
+import { executeRender } from "../../src/render/execute-render.js";
+import { buildSegmentFfmpegArgs } from "../../src/render/ffmpeg-segment.js";
+import { seedClipSourceFiles } from "../../src/test-helpers/seed-clip-sources.js";
 import { ARTIFACTS, readJson } from "../../src/pipeline/work-paths.js";
 
 const FULL_PIPELINE_EXCLUDE = [
@@ -84,7 +87,11 @@ async function runMockedFullPipeline(mockClient) {
 
   await runClipProfileStep({ workDir, force: true });
   await runAbstractStep({ workDir, openaiClient: mockClient, force: true });
-  const topicIndex = await runTopicIndexStep({ workDir, force: true, stub: true });
+  const topicIndex = await runTopicIndexStep({
+    workDir,
+    force: true,
+    embedFn: createTokenVectorEmbedFn(),
+  });
   await runSpatialIndexStep({ workDir, force: true, faceStub: true });
 
   const draft = await runDirectStep({
@@ -111,7 +118,7 @@ describe("full-pipeline E2E — mini-day (mocked OpenAI, no ffmpeg)", () => {
     const { workDir, topicIndex, draft, reviewResult } = await runMockedFullPipeline(mockClient);
     const validationContext = loadValidationContext(workDir);
 
-    assert.equal(topicIndex.version, "1.0", "topic index should run without embeddings");
+    assert.equal(topicIndex.version, "2.0", "topic index requires embeddings");
     assert.ok(topicIndex.topics.length >= 1);
 
     const abstraction = readJson(path.join(workDir, ARTIFACTS.abstraction));
@@ -146,5 +153,59 @@ describe("full-pipeline E2E — mini-day (mocked OpenAI, no ffmpeg)", () => {
       ),
       "B-roll scene clip02_scene001 should appear in final recipe",
     );
+  });
+
+  it("mocked pipeline final recipe produces render EDL for all outputs", async () => {
+    const mockClient = createMiniDayMockClient({ criticApproves: true });
+    const { workDir } = await runMockedFullPipeline(mockClient);
+    seedClipSourceFiles(workDir);
+
+    const finalRecipe = readJson(path.join(workDir, ARTIFACTS.recipeFinal));
+    const { manifest, results } = await executeRender(workDir, { dryRun: true });
+
+    assert.equal(manifest.batchId, finalRecipe.batchId);
+    assert.equal(manifest.outputs.length, finalRecipe.outputs.length);
+    assert.ok(results.every((entry) => (entry.edl?.segments?.length ?? 0) > 0));
+    assert.ok(results.some((entry) => entry.edl?.outputId === "horizontal_main"));
+    assert.ok(results.some((entry) => entry.edl?.format === "9:16"));
+  });
+
+  it("mocked pipeline final recipe runs executeRender with stub FFmpeg", async () => {
+    const mockClient = createMiniDayMockClient({ criticApproves: true });
+    const { workDir } = await runMockedFullPipeline(mockClient);
+    seedClipSourceFiles(workDir);
+
+    let runFfmpegCalls = 0;
+    const mockRunFfmpeg = async (args) => {
+      runFfmpegCalls += 1;
+      const out = args[args.length - 1];
+      if (typeof out === "string" && !out.startsWith("-")) {
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        fs.writeFileSync(out, "stub-mp4");
+      }
+    };
+    const mockRenderSegment = async (segment, context, outputPath, segOptions) => {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, "stub-seg");
+      const { warnings } = buildSegmentFfmpegArgs(segment, context, outputPath, segOptions);
+      return { outputPath, warnings };
+    };
+
+    const { manifest } = await executeRender(workDir, {
+      outputId: "horizontal_main",
+      skipFfmpegCheck: true,
+      force: true,
+      skipSubtitles: true,
+      skipColorGrade: true,
+      renderSegmentToFile: mockRenderSegment,
+      runFfmpeg: mockRunFfmpeg,
+      probeDuration: async () => 30,
+    });
+
+    const output = manifest.outputs.find((entry) => entry.outputId === "horizontal_main");
+    assert.ok(output?.outputPath);
+    assert.ok(fs.existsSync(output.outputPath));
+    assert.ok(runFfmpegCalls > 0);
+    assert.equal(output.durationSec, 30);
   });
 });

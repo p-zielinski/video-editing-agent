@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { validateRecipeV2, validateBrollTopicIndex, validateAudioMixPlan, validatePacingGuard, validateSfxPlan, validateSfxDensityOnMain, validateRenderStylePresets, validateVoiceoverSegments, hasNarrationSegments } from "./recipe-v2.js";
+import { validateVoicePitchMoments } from "./creative-moments.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import { resetMusicCatalogCache } from "../editorial/music-library.js";
 
@@ -288,7 +289,7 @@ describe("recipe v2 validator", () => {
     };
     const result = validateRecipeV2(recipe, { topicIndex });
     assert.equal(result.valid, false);
-    assert.ok(result.issues.some((i) => i.code === "BROLL_SCENE_NOT_IN_TOPIC_INDEX"));
+    assert.ok(result.issues.some((i) => i.code === "V25-BROLL-03"));
   });
 
   it("parses v2.3 recipe with audioMixPlan", () => {
@@ -443,6 +444,42 @@ describe("recipe v2 validator", () => {
     assert.ok(issue);
     assert.equal(issue.severity, "warning");
     assert.equal(result.valid, true);
+  });
+
+  it("warns V26-VOICE-01/02 for voice_pitch_shift out of range or overused", () => {
+    const recipe = {
+      outputs: [{ outputId: "main_16x9" }],
+      creativeMoments: [
+        {
+          momentId: "cm_pitch_1",
+          techniqueId: "voice_pitch_shift",
+          outputId: "main_16x9",
+          outputStartSec: 1,
+          outputEndSec: 2,
+          params: { semitones: 12 },
+        },
+        {
+          momentId: "cm_pitch_2",
+          techniqueId: "voice_pitch_shift",
+          outputId: "main_16x9",
+          outputStartSec: 3,
+          outputEndSec: 4,
+          params: { semitones: 4 },
+        },
+        {
+          momentId: "cm_pitch_3",
+          techniqueId: "voice_pitch_shift",
+          outputId: "main_16x9",
+          outputStartSec: 5,
+          outputEndSec: 6,
+          params: { semitones: -4 },
+        },
+      ],
+    };
+
+    const issues = validateVoicePitchMoments(recipe);
+    assert.ok(issues.some((i) => i.code === "V26-VOICE-01"));
+    assert.ok(issues.some((i) => i.code === "V26-VOICE-02"));
   });
 
   it("parses v2.4 recipe with sfxPlan, colorGrade, and renderStylePresets", () => {
@@ -859,6 +896,98 @@ describe("recipe v2 montage quality validators", () => {
 
     const result = validateRecipeV2(recipe);
     assert.ok(result.issues.some((i) => i.code === "V25-BROLL-01"));
+  });
+
+  it("validateRecipeV2 emits V25-BROLL-06 when brollSyncHints diverge", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline.push({
+      segmentId: "broll1",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+      videoInSec: 0,
+      videoOutSec: 5,
+      audioInSec: 0,
+      audioOutSec: 5,
+      audioPolicy: "from_audio_ref",
+    });
+
+    const result = validateRecipeV2(recipe, {
+      brollSyncHints: [{
+        sceneId: "clip02_scene001",
+        suggestedVideoInSec: 12,
+        confidence: 0.9,
+      }],
+    });
+    assert.ok(result.issues.some((i) => i.code === "V25-BROLL-06"));
+  });
+
+  it("validateRecipeV2 fails with V25-CHR-01 for inverted sortIndex on main", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+        audioRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+        videoInSec: 0,
+        videoOutSec: 10,
+        audioInSec: 0,
+        audioOutSec: 10,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "s2",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 10,
+        audioInSec: 0,
+        audioOutSec: 10,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+
+    const result = validateRecipeV2(recipe);
+    const chr01 = result.issues.find((issue) => issue.code === "V25-CHR-01");
+    assert.ok(chr01);
+    assert.equal(chr01.severity, "error");
+    assert.equal(result.valid, false);
+  });
+
+  it("validateRecipeV2 warns V25-CHR-03 for cold open without rewind intro", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "enrich_cold_open_01",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip02", sceneId: "clip02_scene002" },
+        audioRef: { clipId: "clip02", sceneId: "clip02_scene002" },
+        videoInSec: 0,
+        videoOutSec: 8,
+        audioInSec: 0,
+        audioOutSec: 8,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "s2",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 20,
+        audioInSec: 0,
+        audioOutSec: 20,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+
+    const result = validateRecipeV2(recipe);
+    const chr03 = result.issues.find((issue) => issue.code === "V25-CHR-03");
+    assert.ok(chr03);
+    assert.equal(chr03.severity, "warning");
+    assert.equal(result.valid, true);
   });
 
   it("validateRecipeV2 emits V25-AR-02 with sceneAspectById", () => {

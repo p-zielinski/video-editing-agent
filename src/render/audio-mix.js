@@ -15,7 +15,8 @@ const SFX_DIR = path.join(ROOT, "assets", "sfx");
 const DEFAULT_VOICE_TARGET_LUFS = -16;
 export const DEFAULT_DUCKING_DB = -12;
 export const MUSIC_BED_AUDIO_TECHNIQUES = new Set(["music_swell", "music_drop"]);
-export const VOICE_AUDIO_TECHNIQUES = new Set(["silence_beat"]);
+export const VOICE_AUDIO_TECHNIQUES = new Set(["silence_beat", "voice_pitch_shift"]);
+const DEFAULT_VOICE_SAMPLE_RATE = 44100;
 const DEFAULT_SWELL_GAIN_DB = 3;
 const DEFAULT_DROP_GAIN_DB = -6;
 const DEFAULT_SILENCE_BEAT_VOLUME = 0.3;
@@ -61,6 +62,48 @@ export function buildVoiceMomentVolumeFilter(inputLabel, outputLabel, moment) {
     : outputEndSec;
   const factor = params.volumeFactor ?? DEFAULT_SILENCE_BEAT_VOLUME;
   return `${inputLabel}volume=enable='between(t\\,${start}\\,${end})':volume=${factor}${outputLabel}`;
+}
+
+/**
+ * Sample rate for asetrate/aresample pitch shift (positive semitones = higher pitch).
+ */
+export function computePitchShiftSampleRate(semitones, baseRate = DEFAULT_VOICE_SAMPLE_RATE) {
+  return Math.round(baseRate * (2 ** (semitones / 12)));
+}
+
+/**
+ * Time-windowed voice pitch shift via asetrate + aresample (split dry/wet mix).
+ * Returns multiple filter_complex fragments to append in order.
+ */
+export function buildVoicePitchShiftFilter(inputLabel, outputLabel, moment, { id = 0 } = {}) {
+  const { outputStartSec, outputEndSec, params = {} } = moment;
+  const start = outputStartSec;
+  const end = params.durationSec != null
+    ? outputStartSec + params.durationSec
+    : outputEndSec;
+  const semitones = params.semitones ?? 4;
+  const rate = computePitchShiftSampleRate(semitones);
+  const dryLabel = `[vp${id}d]`;
+  const wetInLabel = `[vp${id}w]`;
+  const pitchedLabel = `[vp${id}p]`;
+  const dryMixLabel = `[vp${id}dm]`;
+  const wetMixLabel = `[vp${id}wm]`;
+  const windowExpr = `between(t\\,${start}\\,${end})`;
+
+  return [
+    `${inputLabel}asplit=2${dryLabel}${wetInLabel}`,
+    `${wetInLabel}asetrate=${rate},aresample=${DEFAULT_VOICE_SAMPLE_RATE}${pitchedLabel}`,
+    `${pitchedLabel}volume='if(${windowExpr}\\,1\\,0)':eval=frame${wetMixLabel}`,
+    `${dryLabel}volume='if(${windowExpr}\\,0\\,1)':eval=frame${dryMixLabel}`,
+    `${dryMixLabel}${wetMixLabel}amix=inputs=2:duration=first:dropout_transition=0${outputLabel}`,
+  ];
+}
+
+function buildVoiceAudioMomentFilters(inputLabel, outputLabel, moment, index) {
+  if (moment.techniqueId === "voice_pitch_shift") {
+    return buildVoicePitchShiftFilter(inputLabel, outputLabel, moment, { id: index });
+  }
+  return [buildVoiceMomentVolumeFilter(inputLabel, outputLabel, moment)];
 }
 
 /**
@@ -156,7 +199,7 @@ export function buildAudioMixFilterGraph({
   let voiceLabel = voiceBaseLabel;
   for (let i = 0; i < voiceAudioMoments.length; i += 1) {
     const nextLabel = i === voiceAudioMoments.length - 1 ? "[voice]" : `[voice_m${i}]`;
-    filters.push(buildVoiceMomentVolumeFilter(voiceLabel, nextLabel, voiceAudioMoments[i]));
+    filters.push(...buildVoiceAudioMomentFilters(voiceLabel, nextLabel, voiceAudioMoments[i], i));
     voiceLabel = nextLabel;
   }
 

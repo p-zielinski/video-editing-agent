@@ -40,6 +40,25 @@ describe("technique-to-ffmpeg", () => {
     assert.ok(result.filter?.includes("0.92"));
   });
 
+  it("zoom_slow_push uses spatialRef bbox center when provided", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "zoom_slow_push",
+        outputStartSec: 1,
+        outputEndSec: 4,
+        spatialRef: {
+          clipId: "clip01",
+          sceneId: "clip01_scene001",
+          bbox: [0.2, 0.25, 0.35, 0.45],
+          anchorType: "face",
+        },
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes("zoompan="));
+    assert.ok(!result.filter?.includes("iw/2-(iw/zoom/2)"));
+  });
+
   it("builds fade out/in filter for dip_to_black", () => {
     const result = buildTechniqueFilter(
       {

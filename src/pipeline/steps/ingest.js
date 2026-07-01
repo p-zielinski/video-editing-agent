@@ -10,6 +10,7 @@ import {
   computeAspectRatio,
 } from "../../schemas/scene-catalog.js";
 import { writeJson, readJson, ARTIFACTS } from "../work-paths.js";
+import { parseBatchContextFromUserContext, resolveDefaultSortBy } from "../../lib/input-mode.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 
 const VIDEO_EXTENSIONS = new Set([
@@ -66,7 +67,7 @@ function sortClips(clips, sortBy = "mtime") {
   });
 }
 
-export async function scanInputFolder(inputDir, { dateFrom, dateTo, sortBy = "mtime" } = {}) {
+export async function scanInputFolder(inputDir, { dateFrom, dateTo, sortBy } = {}) {
   const entries = fs.readdirSync(inputDir, { withFileTypes: true });
   const clips = [];
 
@@ -92,6 +93,10 @@ export async function scanInputFolder(inputDir, { dateFrom, dateTo, sortBy = "mt
       mtime: stat.mtime.toISOString(),
       creationTime,
     });
+  }
+
+  if (!sortBy) {
+    return clips;
   }
 
   return sortClips(clips, sortBy);
@@ -166,7 +171,15 @@ export async function runIngestStep({ inputDir, workDir, batchId, options = {}, 
     };
   }
 
-  const rawClips = await scanInputFolder(inputDir, options);
+  let rawClips = await scanInputFolder(inputDir, {
+    ...options,
+    sortBy: options.sortBy ?? undefined,
+  });
+
+  if (!options.sortBy) {
+    const batchContext = parseBatchContextFromUserContext(options.userContext ?? "");
+    rawClips = sortClips(rawClips, resolveDefaultSortBy(rawClips.length, batchContext));
+  }
 
   if (rawClips.length === 0) {
     throw new Error(`Brak plików wideo lub audio w folderze: ${inputDir}`);

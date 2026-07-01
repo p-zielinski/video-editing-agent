@@ -29,7 +29,14 @@ import { applyCreativeMoments } from "./ffmpeg-creative.js";
 import { burnAssSubtitles } from "./ass-subtitles.js";
 import { applyTextOverlays } from "./ffmpeg-graphics.js";
 import { applyAudioMix } from "./audio-mix.js";
-import { applyColorGrade } from "./color-grade.js";
+import { applyColorGrade, shouldApplyColorGrade } from "./color-grade.js";
+import {
+  normalizeFromPass,
+  shouldRunPass,
+  resolveResumeStart,
+  loadSegmentPaths,
+  PASS_FILES,
+} from "./render-resume.js";
 
 const SPATIAL_INDEX_FILE = "05c-spatial-index.json";
 
@@ -126,30 +133,38 @@ export async function renderOutput({
   const tmpDir = renderTmpDir(workDir, output.outputId);
   fs.mkdirSync(tmpDir, { recursive: true });
 
+  const fromPass = normalizeFromPass(options.fromPass);
+  const resume = resolveResumeStart(tmpDir, fromPass, edl.segments.length);
+  const keepTmp = options.keepTmp === true || fromPass !== "segments";
+
   const segmentPaths = [];
   try {
-    for (let i = 0; i < edl.segments.length; i += 1) {
-      const segment = edl.segments[i];
-      const segPath = segmentTempPath(tmpDir, i);
-      try {
-        const segResult = await renderSegment(segment, context, segPath, {
-          format: output.format,
-          encodeProfile,
-          dimensions,
-          recipe,
-          spatialIndex,
-        });
-        const segWarns = segResult.warnings ?? [];
-        segmentWarnings.push(...segWarns);
-        warnings.push(...segWarns);
-        segmentPaths.push(segPath);
-      } catch (err) {
-        segmentErrors.push({
-          segmentId: segment.segmentId,
-          message: err instanceof Error ? err.message : String(err),
-        });
-        break;
+    if (resume.runSegments) {
+      for (let i = 0; i < edl.segments.length; i += 1) {
+        const segment = edl.segments[i];
+        const segPath = segmentTempPath(tmpDir, i);
+        try {
+          const segResult = await renderSegment(segment, context, segPath, {
+            format: output.format,
+            encodeProfile,
+            dimensions,
+            recipe,
+            spatialIndex,
+          });
+          const segWarns = segResult.warnings ?? [];
+          segmentWarnings.push(...segWarns);
+          warnings.push(...segWarns);
+          segmentPaths.push(segPath);
+        } catch (err) {
+          segmentErrors.push({
+            segmentId: segment.segmentId,
+            message: err instanceof Error ? err.message : String(err),
+          });
+          break;
+        }
       }
+    } else {
+      segmentPaths.push(...loadSegmentPaths(tmpDir, edl.segments.length));
     }
 
     if (segmentErrors.length > 0) {
@@ -164,28 +179,39 @@ export async function renderOutput({
       };
     }
 
-    const concatPath = path.join(tmpDir, "concat.mp4");
+    const concatPath = path.join(tmpDir, PASS_FILES.concat);
     const outputMoments = edl.creativeMoments ?? (recipe.creativeMoments ?? []).filter(
       (m) => m.outputId === output.outputId,
     );
-    const {
-      appliedCrossfade,
-      appliedBeatSnaps,
-      alreadyAlignedBeatSnaps,
-    } = await concatSegmentFiles(segmentPaths, concatPath, {
-      encodeProfile,
-      segments: edl.segments,
-      creativeMoments: outputMoments,
-      audioIndex: context.audioIndex,
-      tmpDir,
-      runFfmpegFn: options.runFfmpeg,
-    });
 
-    if (appliedBeatSnaps.length > 0) {
-      realignEdlAfterBeatSnaps(edl, appliedBeatSnaps);
+    let appliedCrossfade = false;
+    let appliedBeatSnaps = [];
+    let alreadyAlignedBeatSnaps = [];
+
+    let currentPath = resume.currentPath;
+
+    if (shouldRunPass(fromPass, "concat")) {
+      ({
+        appliedCrossfade,
+        appliedBeatSnaps,
+        alreadyAlignedBeatSnaps,
+      } = await concatSegmentFiles(segmentPaths, concatPath, {
+        encodeProfile,
+        segments: edl.segments,
+        creativeMoments: outputMoments,
+        audioIndex: context.audioIndex,
+        tmpDir,
+        runFfmpegFn: options.runFfmpeg,
+      }));
+
+      if (appliedBeatSnaps.length > 0) {
+        realignEdlAfterBeatSnaps(edl, appliedBeatSnaps);
+      }
+
+      currentPath = concatPath;
+    } else if (!currentPath && fs.existsSync(concatPath)) {
+      currentPath = concatPath;
     }
-
-    let currentPath = concatPath;
 
     const { moments, warnings: crossfadeWarnings } = resolvePostConcatCreativeMoments({
       creativeMoments: outputMoments,
@@ -196,96 +222,121 @@ export async function renderOutput({
       alreadyAlignedBeatSnaps,
     });
     warnings.push(...crossfadeWarnings);
-    if (moments.length > 0) {
-      const creativePath = path.join(tmpDir, "creative.mp4");
-      const result = await applyCreativeMoments(currentPath, creativePath, {
-        moments,
-        encodeProfile,
-        dimensions,
-        spatialIndex,
-        context,
-        segments: edl.segments,
-      });
-      warnings.push(...(result.warnings ?? []));
-      currentPath = creativePath;
+    const passesSkipped = [];
+    if (resume.resumedFromPass) {
+      passesSkipped.push(`resume_from_${resume.resumedFromPass}`);
+    }
+    if (moments.length > 0 && shouldRunPass(fromPass, "creative")) {
+      if (options.skipCreative) {
+        passesSkipped.push("creative");
+      } else {
+        const creativePath = path.join(tmpDir, PASS_FILES.creative);
+        const result = await applyCreativeMoments(currentPath, creativePath, {
+          moments,
+          encodeProfile,
+          dimensions,
+          spatialIndex,
+          context,
+          segments: edl.segments,
+        });
+        warnings.push(...(result.warnings ?? []));
+        currentPath = creativePath;
+      }
+    } else if (moments.length > 0 && !shouldRunPass(fromPass, "creative")) {
+      passesSkipped.push("creative");
     }
 
     const hasSubtitles = edl.segments.some(
       (seg) => seg.subtitles && seg.subtitles.policy !== "off",
     );
-    if (hasSubtitles && !isLibassAvailable()) {
-      throw new Error(
-        "Libass niedostępny w FFmpeg — napisy ASS wymagają buildu z libass. "
-        + "Zainstaluj ffmpeg z libass (np. brew install ffmpeg) lub ustaw FFMPEG_PATH.",
-      );
-    }
-    if (hasSubtitles) {
-      const assPath = path.join(tmpDir, "subs.ass");
-      const subsPath = path.join(tmpDir, "subs.mp4");
-      const stylePresets = resolveStylePresets(recipe);
-      await burnAssSubtitles({
-        inputPath: currentPath,
-        outputPath: subsPath,
-        assPath,
-        edl,
-        context,
-        stylePresets,
-        format: output.format,
-      });
-      currentPath = subsPath;
+    if (hasSubtitles && shouldRunPass(fromPass, "subs")) {
+      if (options.skipSubtitles) {
+        passesSkipped.push("subtitles");
+      } else if (!isLibassAvailable()) {
+        throw new Error(
+          "Libass niedostępny w FFmpeg — napisy ASS wymagają buildu z libass. "
+          + "Zainstaluj ffmpeg z libass (np. brew install ffmpeg) lub ustaw FFMPEG_PATH.",
+        );
+      } else {
+        const assPath = path.join(tmpDir, "subs.ass");
+        const subsPath = path.join(tmpDir, PASS_FILES.subs);
+        const stylePresets = resolveStylePresets(recipe);
+        await burnAssSubtitles({
+          inputPath: currentPath,
+          outputPath: subsPath,
+          assPath,
+          edl,
+          context,
+          stylePresets,
+          format: output.format,
+        });
+        currentPath = subsPath;
+      }
     }
 
     const overlays = edl.segments.flatMap((seg) => seg.textOverlays ?? []);
-    if (overlays.length > 0) {
-      const gfxPath = path.join(tmpDir, "gfx.mp4");
-      await applyTextOverlays(currentPath, gfxPath, {
-        overlays,
-        encodeProfile,
-        dimensions,
-        stylePresets: resolveStylePresets(recipe),
-        format: output.format,
-      });
-      currentPath = gfxPath;
+    if (overlays.length > 0 && shouldRunPass(fromPass, "overlays")) {
+      if (options.skipOverlays) {
+        passesSkipped.push("overlays");
+      } else {
+        const gfxPath = path.join(tmpDir, PASS_FILES.overlays);
+        await applyTextOverlays(currentPath, gfxPath, {
+          overlays,
+          encodeProfile,
+          dimensions,
+          stylePresets: resolveStylePresets(recipe),
+          format: output.format,
+        });
+        currentPath = gfxPath;
+      }
     }
 
     let audioMixApplied = false;
     let sfxApplied = false;
     let audioTechniquesApplied = false;
-    if (recipe.audioMixPlan || recipe.sfxPlan?.length) {
-      const mixPath = path.join(tmpDir, "mix.mp4");
-      const mixResult = await applyAudioMix(currentPath, mixPath, {
-        recipe,
-        output,
-        context,
-        creativeMoments: outputMoments,
-        encodeProfile,
-        runFfmpegFn: options.runFfmpeg,
-      });
-      currentPath = mixResult.outputPath;
-      audioMixApplied = mixResult.applied;
-      sfxApplied = mixResult.sfxApplied ?? false;
-      audioTechniquesApplied = mixResult.audioTechniquesApplied ?? false;
-      warnings.push(...(mixResult.warnings ?? []));
+    if ((recipe.audioMixPlan || recipe.sfxPlan?.length) && shouldRunPass(fromPass, "audio_mix")) {
+      if (options.skipAudioMix) {
+        passesSkipped.push("audio_mix");
+      } else {
+        const mixPath = path.join(tmpDir, PASS_FILES.audio_mix);
+        const mixResult = await applyAudioMix(currentPath, mixPath, {
+          recipe,
+          output,
+          context,
+          creativeMoments: outputMoments,
+          encodeProfile,
+          runFfmpegFn: options.runFfmpeg,
+        });
+        currentPath = mixResult.outputPath;
+        audioMixApplied = mixResult.applied;
+        sfxApplied = mixResult.sfxApplied ?? false;
+        audioTechniquesApplied = mixResult.audioTechniquesApplied ?? false;
+        warnings.push(...(mixResult.warnings ?? []));
 
-      if (mixResult.appliedAudioTechniques?.length) {
-        const applied = new Set(mixResult.appliedAudioTechniques);
-        for (let i = warnings.length - 1; i >= 0; i -= 1) {
-          const w = warnings[i];
-          if (w.code === "TECHNIQUE_AUDIO_ONLY" && applied.has(w.techniqueId)) {
-            warnings.splice(i, 1);
+        if (mixResult.appliedAudioTechniques?.length) {
+          const applied = new Set(mixResult.appliedAudioTechniques);
+          for (let i = warnings.length - 1; i >= 0; i -= 1) {
+            const w = warnings[i];
+            if (w.code === "TECHNIQUE_AUDIO_ONLY" && applied.has(w.techniqueId)) {
+              warnings.splice(i, 1);
+            }
           }
         }
       }
     }
 
-    if (recipe.colorGrade) {
-      const gradedPath = path.join(tmpDir, "graded.mp4");
-      await applyColorGrade(currentPath, gradedPath, {
-        colorGrade: recipe.colorGrade,
-        encodeProfile,
-        runFfmpegFn: options.runFfmpeg,
-      });
-      currentPath = gradedPath;
+    if (shouldApplyColorGrade(recipe.colorGrade) && shouldRunPass(fromPass, "color_grade")) {
+      if (options.skipColorGrade) {
+        passesSkipped.push("color_grade");
+      } else {
+        const gradedPath = path.join(tmpDir, PASS_FILES.color_grade);
+        await applyColorGrade(currentPath, gradedPath, {
+          colorGrade: recipe.colorGrade,
+          encodeProfile,
+          runFfmpegFn: options.runFfmpeg,
+        });
+        currentPath = gradedPath;
+      }
     }
 
     const finalPath = renderOutputPath(workDir, output.outputId, output.format);
@@ -305,9 +356,10 @@ export async function renderOutput({
       sfxApplied,
       audioTechniquesApplied,
       encodeProfile: options.encodeProfile ?? "production",
+      passesSkipped,
     };
   } finally {
-    if (!options.keepTmp) {
+    if (!keepTmp) {
       cleanupTempDir(tmpDir);
     }
   }
@@ -375,6 +427,7 @@ export async function executeRender(workDir, options = {}) {
       audioMixApplied: result.audioMixApplied ?? false,
       sfxApplied: result.sfxApplied ?? false,
       audioTechniquesApplied: result.audioTechniquesApplied ?? false,
+      passesSkipped: result.passesSkipped ?? [],
       skipped: false,
     });
     manifest.warnings.push(...(result.warnings ?? []));

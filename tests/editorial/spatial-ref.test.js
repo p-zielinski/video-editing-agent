@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildSpatialRefFromAnchor,
   findBestAnchor,
+  findAnchorNearTimestamp,
   buildSpatialRefExamples,
   deriveClipIdFromSceneId,
 } from "../../src/editorial/spatial-ref.js";
@@ -69,6 +70,12 @@ describe("spatial-ref", () => {
 
   it("findBestAnchor returns null when scene has no anchors", () => {
     assert.equal(findBestAnchor(spatialIndex, "clip02_scene001"), null);
+  });
+
+  it("findAnchorNearTimestamp picks anchor closest to source time", () => {
+    const anchor = findAnchorNearTimestamp(spatialIndex, "clip01_scene001", 5.4, "face");
+    assert.equal(anchor.type, "face");
+    assert.equal(anchor.timestampSec, 5.5);
   });
 
   it("buildSpatialRefExamples returns up to limit examples", () => {

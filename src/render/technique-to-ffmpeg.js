@@ -13,6 +13,14 @@ function bboxAnchorPx(spatialRef, dimensions) {
   };
 }
 
+function zoompanCenterCoords(spatialRef, dimensions) {
+  const anchor = bboxAnchorPx(spatialRef, dimensions);
+  if (anchor) {
+    return { x: `${anchor.x}-(iw/zoom/2)`, y: `${anchor.y}-(ih/zoom/2)` };
+  }
+  return { x: "iw/2-(iw/zoom/2)", y: "ih/2-(ih/zoom/2)" };
+}
+
 function buildScalePunchFilter({ outputStartSec, outputEndSec, factor, spatialRef, dimensions, inputLabel, outputLabel }) {
   const s = outputStartSec;
   const e = outputEndSec;
@@ -168,11 +176,13 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
     }
     case "zoom_slow_push": {
       const factor = params.factor ?? 1.05;
-      const z = `zoompan=z='if(${enable},min(zoom+0.001,${factor}),1)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${dimensions.width}x${dimensions.height}`;
+      const { x, y } = zoompanCenterCoords(spatialRef, dimensions);
+      const z = `zoompan=z='if(${enable},min(zoom+0.001,${factor}),1)':d=125:x='${x}':y='${y}':s=${dimensions.width}x${dimensions.height}`;
       return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
     }
     case "ken_burns_light": {
-      const z = `zoompan=z='if(${enable},min(zoom+0.0005,1.08),1)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${dimensions.width}x${dimensions.height}`;
+      const { x, y } = zoompanCenterCoords(spatialRef, dimensions);
+      const z = `zoompan=z='if(${enable},min(zoom+0.0005,1.08),1)':d=125:x='${x}':y='${y}':s=${dimensions.width}x${dimensions.height}`;
       return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
     }
     case "reframe_follow_subject": {
@@ -304,6 +314,7 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
     case "music_swell":
     case "music_drop":
     case "silence_beat":
+    case "voice_pitch_shift":
       return { filter: null, outputLabel: inputLabel };
     default:
       return { filter: null, outputLabel: inputLabel };
