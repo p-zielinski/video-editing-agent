@@ -202,6 +202,40 @@ Typy: `whole_clip`, `scene`, `time_range`. Pole `usableAsBroll` wymagane. `whole
 - **9:16 → 16:9**: domyślnie pasy boczne — unikaj pionowego A-roll w main 16:9 bez uzasadnienia; preferuj poziomy materiał lub short 9:16.
 - Przy `sessionSummary.formatFit` — preferuj formaty z wyższym score; nie wymuszaj słabego deliverable.
 
+## Prędkość wideo i głośność źródła
+
+### `videoTransform.speed`
+
+- Domyślnie `1` (normalna prędkość). Zakres **0.25–4** (renderer łańcuchuje filtry `atempo`).
+- `speed > 1` — przyspieszenie (timelapse, energiczny montaż); `speed < 1` — zwolnienie (dramat, nacisk).
+- `speedMode`:
+  - `video_audio` (domyślnie) — synchronizuje audio z wideo (`atempo` na ścieżce z `from_video_ref` / `from_audio_ref`).
+  - `video_only` — tylko wideo przyspieszone; audio bez zmiany tempa (np. B-roll pod narrację).
+- Nie stosuj `speed` na segmentach `from_prev` / `from_next` / `mute` — renderer i tak nie rusza tam audio.
+- Gdy `speed !== 1`, renderer **nie** nakłada dodatkowego `fit_video_to_audio` — prędkość ma pierwszeństwo.
+
+**Przykłady:**
+
+```json
+{ "videoTransform": { "speed": 1.5, "speedMode": "video_audio" }, "intent": "Przyspieszony timelapse montażu stołu" }
+```
+
+```json
+{ "videoTransform": { "speed": 2, "speedMode": "video_only" }, "audioPolicy": "from_audio_ref", "intent": "Szybki B-roll, głos w normalnym tempie" }
+```
+
+### `sourceVolumeDb`
+
+- Głośność źródłowego audio segmentu w dB względem 0 dBFS. Zakres **-60 … +12**, domyślnie `0`.
+- Użyj gdy B-roll ma głośny ambient, a A-roll wymaga wyciszenia tła, lub gdy VO jest za cicho.
+- To **nie** zastępuje `audioMixPlan` (muzyka, ducking, LUFS) — tylko gain na wejściu segmentu.
+
+**Przykład:**
+
+```json
+{ "sourceVolumeDb": -12, "segmentRole": "broll", "intent": "Ciche tło pod głosem A-roll" }
+```
+
 ## Inne zasady
 
 - Bądź odważny: lepsze 14 min dobrej historii niż 3h nudy.

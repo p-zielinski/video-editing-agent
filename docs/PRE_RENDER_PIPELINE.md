@@ -1,8 +1,8 @@
 # Pre-render pipeline
 
-> **Render MP4 jest osobnym krokiem.** Ten dokument opisuje analizę i reżyserię AI (kroki 1–12) — bez eksportu MP4 w tym etapie. Po wygenerowaniu `09-edit-recipe-final.json` uruchom `npm run render` / `node src/cli.js render`, aby wyprodukować pliki wideo (w tym miks audio wg `audioMixPlan`).
+> **Render MP4 jest osobnym krokiem.** Ten dokument opisuje analizę i reżyserię AI (kroki 1–14) — bez eksportu MP4 w tym etapie. Po wygenerowaniu `09-edit-recipe-final.json` uruchom `npm run render` / `node src/cli.js render`, aby wyprodukować pliki wideo (w tym miks audio wg `audioMixPlan`).
 
-Pipeline analizy i reżyserii AI (**bez montażu wideo w krokach 1–12** — brak eksportu MP4 w pre-renderze). Artefakt końcowy pre-renderu: `09-edit-recipe-final.json`. Artefakty pośrednie zapisywane są w `output/.work/<batch-id>/`. Invalidacja cache opiera się na grafie zależności (`src/pipeline/artifact-deps.js`) — krok jest ponawiany, gdy którykolwiek plik wejściowy ma nowszy `mtime` niż artefakt wyjściowy.
+Pipeline analizy i reżyserii AI (**bez montażu wideo w krokach 1–14** — brak eksportu MP4 w pre-renderze). Artefakt końcowy pre-renderu: `09-edit-recipe-final.json`. Artefakty pośrednie zapisywane są w `output/.work/<batch-id>/`. Invalidacja cache opiera się na grafie zależności (`src/pipeline/artifact-deps.js`) — krok jest ponawiany, gdy którykolwiek plik wejściowy ma nowszy `mtime` niż artefakt wyjściowy.
 
 **Domyślne tryby analizy:** vision, face i audio są **live** (pełny Python). Stuby tylko jawne: `--vision-stub`, `--face-stub`, `--audio-stub` (głównie testy CI). Objects (Florence-2) live domyślnie. Szczegółowa tabela: [README — Domyślne tryby](../README.md#domyślne-tryby-live-vs-stub).
 
@@ -15,6 +15,7 @@ flowchart TD
   words["01-words-*.json"]
   audioAnalysis["01b-audio-analysis-*.json"]
   keyframes["02-keyframes-*.json"]
+  twelvelabs["03b-twelvelabs-*.json"]
   vision["03-vision-*.json"]
   objects["04-objects-*.json"]
   faces["04a-faces-*.json"]
@@ -35,6 +36,8 @@ flowchart TD
   words --> audioAnalysis
   catalog --> keyframes
   words --> keyframes
+  keyframes --> twelvelabs
+  catalog --> twelvelabs
   keyframes --> vision
   keyframes --> objects
   keyframes --> faces
@@ -50,6 +53,7 @@ flowchart TD
   abstract --> topic
   timeline --> topic
   clipReg --> topic
+  twelvelabs --> topic
   timeline --> spatial
   objects --> spatial
   faces --> spatial
@@ -70,7 +74,7 @@ flowchart TD
   draft --> final
 ```
 
-## Kroki pipeline (13)
+## Kroki pipeline (14)
 
 | # | Krok CLI | Wejścia | Wyjścia | Uwagi |
 |---|----------|---------|---------|-------|
@@ -78,17 +82,28 @@ flowchart TD
 | 2 | `transcribe` | scene catalog | `01-words-<clipId>.json`, `audio/whisper/<clipId>.mp3` | Whisper / OpenAI, loudnorm -18 LUFS |
 | 3 | `audio_analysis` | scene catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json`, `audio/analysis/<clipId>.wav` | librosa beats/energy/silence; `--audio-stub` |
 | 4 | `keyframes` | scene catalog, words | `02-keyframes-<clipId>.json` | hybrydowy sampling + FFmpeg |
-| 5 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (domyślnie **live**; `--vision-stub`) |
-| 6 | `objects` | keyframes | `04-objects-<clipId>.json` | Florence-2 (opcjonalnie `--no-objects`) |
-| 7 | `index` | catalog, words, keyframes, vision, objects | `05-timeline-index.json` (+ aktualizacja scene catalog) | indeks czasowy batcha |
-| 8 | `clip_profile` | timeline index, scene catalog | `05a-clip-registry.json` | role klipów, jakość wizualna |
-| 9 | `abstract` | timeline index | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | summarizer (GPT) |
-| 10 | `topic_index` | abstraction, timeline index, clip registry | `05b-topic-index.json` | tematy pod B-roll |
-| 11 | `spatial_index` | timeline index, objects, faces (`04a-faces-*`) | `05c-spatial-index.json` | kotwice przestrzenne; face detect (domyślnie **live**; `--face-stub`) |
-| 12 | `direct` | timeline, abstraction, clip registry, topic index, spatial index, **audio index** | `07-edit-recipe-draft.json` | director (GPT) + `audioMixPlan` defaults |
-| 13 | `review` | recipe draft + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop |
+| 5 | `twelvelabs` | scene catalog, manifest | `03b-twelvelabs-<clipId>.json` | rozdziały/momenty klipu; domyślnie stub (`--twelvelabs-stub`); live: `--twelvelabs-live` |
+| 6 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (domyślnie **live**; `--vision-stub`) |
+| 7 | `objects` | keyframes | `04-objects-<clipId>.json` | Florence-2 (opcjonalnie `--no-objects`) |
+| 8 | `index` | catalog, words, keyframes, vision, objects | `05-timeline-index.json` (+ aktualizacja scene catalog) | indeks czasowy batcha |
+| 9 | `clip_profile` | timeline index, scene catalog | `05a-clip-registry.json` | role klipów, jakość wizualna |
+| 10 | `abstract` | timeline index | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | summarizer (GPT) |
+| 11 | `topic_index` | abstraction, timeline index, clip registry, twelvelabs | `05b-topic-index.json` | tematy pod B-roll (embeddingi + TwelveLabs moments) |
+| 12 | `spatial_index` | timeline index, objects, faces (`04a-faces-*`) | `05c-spatial-index.json` | kotwice przestrzenne; face detect (domyślnie **live**; `--face-stub`) |
+| 13 | `direct` | timeline, abstraction, clip registry, topic index, spatial index, **audio index** | `07-edit-recipe-draft.json` | director (GPT) + `audioMixPlan` defaults; Super Director gdy >600 s lub L2>1 |
+| 14 | `review` | recipe draft + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop |
 
 Po kroku `review` orchestrator może wygenerować `10-batch-quality-report.json` (poza główną ścieżką pre-render).
+
+### Super Director routing (krok `direct`)
+
+Gdy `shouldUseSuperDirector()` zwraca `true` (łączny czas batcha **> 600 s** lub **> 1 segment L2**), krok `direct` używa ścieżki Super Director zamiast pojedynczego `runDirector`:
+
+1. `runSuperDirector` — plan routingu L2 (`prompts/v2/super-director.md`, max 10 segmentów).
+2. `runSegmentDirector` — częściowe receptury per wybrany segment L2.
+3. `mergeSegmentRecipes` — sklejenie w `07-edit-recipe-draft.json`.
+
+Krótsze batchy (≤ 600 s i jeden segment L2) idą klasyczną ścieżką `runDirector` + drill-down. Implementacja: `src/pipeline/steps/agents.js`, `src/lib/segment-catalog.js`, `src/lib/recipe-merge.js`.
 
 ### Face detect (sub-krok `spatial_index`)
 
@@ -136,7 +151,7 @@ Domyślnie **live** — Florence-2 (`python/vision_florence.py`). Escape hatch: 
 Przykłady:
 
 - **abstract** odświeża się, gdy `05-timeline-index.json` jest nowszy.
-- **topic-index** odświeża się, gdy `06-abstract.json` (lub timeline / clip registry) jest nowszy.
+- **topic-index** odświeża się, gdy `06-abstract.json` (lub timeline / clip registry / **twelvelabs**) jest nowszy.
 - **recipe-draft** odświeża się, gdy `05c-spatial-index.json`, `05b-topic-index.json` lub abstraction są nowsze.
 - **per-clip** — `02-keyframes-clip01.json` jest nieaktualny, gdy `01-words-clip01.json` jest nowszy.
 
@@ -170,8 +185,11 @@ node src/cli.js run --batch-id abc12345 --from-step topic_index
 | `--face-stub` / `--face-live` | Stub lub jawne live face detect (domyślnie live) |
 | `--audio-stub` | Stub analizy audio (domyślnie live librosa) |
 | `--objects-stub` | Stub Florence-2 (domyślnie live) |
+| `--no-twelvelabs` | Pomija krok TwelveLabs |
+| `--twelvelabs-stub` | TwelveLabs stub (domyślnie) |
+| `--twelvelabs-live` | TwelveLabs live API (wymaga `TWELVELABS_API_KEY`; live jeszcze niezaimplementowane — fallback do stub) |
 
-**Domyślnie bez flag:** vision, face i audio są **live**. Stuby tylko jawne `--*-stub` (głównie testy CI). Flaga `--fast` została usunięta.
+**Domyślnie bez flag:** vision, face i audio są **live**. Stuby tylko jawne `--*-stub` (głównie testy CI).
 
 Bez `--force` każdy krok sprawdza `shouldUseCachedArtifact` przed pominięciem — samo istnienie pliku nie wystarczy, jeśli upstream się zmienił.
 
@@ -182,13 +200,15 @@ Bez `--force` każdy krok sprawdza `shouldUseCachedArtifact` przed pominięciem 
 | Graf zależności | `src/pipeline/artifact-deps.js` |
 | Orchestrator | `src/pipeline/orchestrator.js` |
 | Kroki | `src/pipeline/steps/*.js` |
+| TwelveLabs | `src/pipeline/steps/twelvelabs.js`, `src/lib/twelvelabs-merge.js` |
+| Super Director | `src/agents/super-director.js`, `src/agents/segment-director.js`, `src/lib/segment-catalog.js`, `src/lib/recipe-merge.js` |
 | Nazwy artefaktów | `src/pipeline/work-paths.js` → `ARTIFACTS` |
 | Schemat EditRecipe v2 | `src/schemas/edit-recipe-v2.js` |
 | Parsowanie `--context` | `src/lib/input-mode.js`, `src/editorial/technique-budget.js`, `src/editorial/shorts-retention.js` |
 
 ## EditRecipe v2.3 — plan miksowania audio (pre-render)
 
-Od v2.3 receptura może zawierać opcjonalne `audioMixPlan` — **plan** poziomów LUFS, muzyki bed i duckingu. Pipeline pre-render (kroki 1–12) **nie** wykonuje FFmpeg ani miksu; pole służy directorowi i walidatorowi. **Wykonanie miksu** odbywa się w rendererze (`src/render/audio-mix.js`, `npm run render`).
+Od v2.3 receptura może zawierać opcjonalne `audioMixPlan` — **plan** poziomów LUFS, muzyki bed i duckingu. Pipeline pre-render (kroki 1–14) **nie** wykonuje FFmpeg ani miksu; pole służy directorowi i walidatorowi. **Wykonanie miksu** odbywa się w rendererze (`src/render/audio-mix.js`, `npm run render`).
 
 | Pole | Typ | Domyślnie | Opis |
 |------|-----|-----------|------|

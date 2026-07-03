@@ -10,7 +10,7 @@ Formaty odpowiedzi AI, EditRecipe i gotowość do montażu: [`docs/FORMATY_AI_I_
 ## Architektura (skrót)
 
 ```
-inbox/*.MOV  →  [13 kroków analizy]  →  output/.work/<batchId>/
+inbox/*.MOV  →  [14 kroków analizy]  →  output/.work/<batchId>/
                                               ↓
                                     07-edit-recipe-draft.json
                                               ↓
@@ -103,15 +103,17 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 | `output/.work/<batchId>/` | Artefakty pipeline per batch |
 | `fixtures/batches/` | Gotowe work-diry do testów (np. `mini-day`, `shorts-hook`) |
 | `techniques/` | Katalog zabiegów montażowych (`catalog.meta.json` + JSON per technika) |
-| `prompts/v1/`, `prompts/v2/` | Prompty agentów (director, critic, fixer, summarizer) |
+| `prompts/v1/`, `prompts/v2/` | Prompty agentów (director, super-director, critic, fixer, summarizer) |
 | `schemas/json/` | Eksportowane schematy JSON (EditRecipe, indeksy, …) |
 | `python/` | Skrypty scene_detect, vision, objects, face_detect, audio_analyze |
 | `src/` | Orchestrator, kroki pipeline, agenci, walidatory |
 | `assets/sfx/` | Katalog SFX dla `sfxPlan` (`catalog.json`); pliki w repo to **testowe stuby** (`license: repo-generated-test-stub`) — źródła i licencje w [`assets/sfx/LICENSES.md`](assets/sfx/LICENSES.md) |
 
-## Etapy pipeline (13 kroków)
+## Etapy pipeline (14 kroków)
 
-`ingest` → `transcribe` → `audio_analysis` → `keyframes` → `vision` → `objects` → `index` → `clip_profile` → `abstract` → `topic_index` → `spatial_index` → `direct` → `review`
+`ingest` → `transcribe` → `audio_analysis` → `keyframes` → `twelvelabs` → `vision` → `objects` → `index` → `clip_profile` → `abstract` → `topic_index` → `spatial_index` → `direct` → `review`
+
+(opcjonalnie poza główną ścieżką: `thumbnails`)
 
 ### Artefakty
 
@@ -122,6 +124,7 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 | `01-words-<clipId>.json` | transcribe | WordIndex (Whisper) |
 | `01b-audio-analysis-<clipId>.json` | audio_analysis | energia, beaty, cisza per klip |
 | `02-keyframes-<clipId>.json` | keyframes | ścieżki klatek kluczowych |
+| `03b-twelvelabs-<clipId>.json` | twelvelabs | rozdziały, momenty, podsumowanie klipu (TwelveLabs lub stub) |
 | `03-vision-<clipId>.json` | vision | opisy Qwen per klatka |
 | `04-objects-<clipId>.json` | objects | detekcje Florence-2 |
 | `04a-faces-<clipId>.json` | spatial_index | bbox twarzy (face detect) |
@@ -152,6 +155,16 @@ Director (`buildDirectorBrief` w `src/agents/director.js`) dostaje skondensowany
 | `techniques/` | `techniqueCatalog` — dozwolone zabiegi i budżet |
 | `--context` / orchestrator | `batchContext`, `userContext`, `creativityProfile`, `shortsRetentionProfile` |
 
+### Super Director (routing dla długich batchy)
+
+Gdy łączny czas materiału **> 600 s** lub jest **więcej niż jeden segment L2**, krok `direct` używa ścieżki **Super Director** zamiast pojedynczego directora:
+
+1. **Super Director** (`prompts/v2/super-director.md`) — wybiera max 10 segmentów L2 i planuje narrację między nimi.
+2. **Segment Director** — buduje częściowe receptury per segment L2.
+3. **Merge** (`src/lib/recipe-merge.js`) — skleja częściowe receptury w jeden `07-edit-recipe-draft.json`.
+
+Krótkie batchy (≤ 600 s i jeden segment L2) omijają Super Director i idą klasyczną ścieżką `runDirector` + drill-down.
+
 ## Domyślne tryby: live vs stub
 
 **Bez flag CLI vision, face i audio są LIVE** (pełna analiza Python). Stuby włączają się tylko jawnymi flagami `--*-stub` (głównie testy CI).
@@ -164,6 +177,7 @@ Director (`buildDirectorBrief` w `src/agents/director.js`) dostaje skondensowany
 | Objects (Florence-2) | **live** | `--objects-stub` | *(domyślnie live)* |
 | Scene detection | **live** | — | — |
 | Keyframes | **włączone** | `--no-keyframes` | — |
+| TwelveLabs | **stub** (domyślnie) | `--twelvelabs-stub` | `--twelvelabs-live` (wymaga `TWELVELABS_API_KEY`; live API jeszcze niezaimplementowane — fallback do stub) |
 
 Logika w `src/cli.js`:
 
@@ -185,6 +199,7 @@ Skopiuj `.env.example` → `.env`:
 | `OPENAI_API_KEY` | Wymagany dla transcribe, abstract, direct, review |
 | `OPENAI_MODEL_NANO` / `OPENAI_MODEL_MINI` | Modele GPT (domyślnie gpt-5.5-nano / gpt-5.5-mini) |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | Opcjonalne ścieżki do binarek |
+| `TWELVELABS_API_KEY` | Opcjonalny — wymagany dla `--twelvelabs-live` (live API jeszcze niezaimplementowane) |
 | `PYTHON_VENV` | Opcjonalny venv dla skryptów Python |
 
 Zależności Python: `pip install -r python/requirements.txt` (zawiera `opencv-python-headless` do live detekcji twarzy oraz opcjonalne `panns_inference` do tagów śmiechu/uderzeń). Przy starcie pipeline uruchamia preflight (`checkPythonPreflight`) — brak wymaganych pakietów kończy się błędem w trybie live; przy stubach pojawia się ostrzeżenie. Brak OpenCV przy live face (`--face-live` / domyślnie) loguje ostrzeżenie — `face_detect.py` wróci do stub bbox. Brak PANNs przy live audio loguje ostrzeżenie — `audio_events.py` zwróci `eventDetectionMode: "none"` bez tagów editorial.
@@ -197,6 +212,8 @@ Receptura montażowa z rozdzielonymi ścieżkami audio/wideo. Migracja v1→v2: 
 
 - `clipRegistry` — role plików (`aroll_primary`, `broll_pool`, `outtakes`, …)
 - Segmenty z `videoRef` + `audioRef` (cross-clip B-roll)
+- `videoTransform.speed` / `speedMode` (`video_audio` | `video_only`) — przyspieszenie wideo i opcjonalnie audio (`setpts` / `atempo`)
+- `sourceVolumeDb` — korekta głośności źródła per segment (dB → filtr `volume`)
 - `segmentRole`: `aroll` | `broll`
 - `excluded` z typami `whole_clip` | `scene` | `time_range`
 - `outputKind`: `main` | `short` (shorty jako standalone highlights, max 60s)
@@ -319,9 +336,8 @@ Implementacja: `src/pipeline/steps/topic-index.js`, `src/pipeline/steps/clip-pro
 ## Testy i fixture'y
 
 ```bash
-npm test              # unit + contract + E2E (866 testów, 864 pass, 2 skip)
-npm run test:e2e      # 48 testów E2E (47 pass, 1 skip)
-npm run test:e2e      # 43 testów E2E (41 pass, 1 skip — orchestrator mocked bez OPENAI_API_KEY)
+npm test              # unit + contract + E2E
+npm run test:e2e      # testy E2E (orchestrator mocked bez OPENAI_API_KEY gdy brak klucza)
 ```
 
 Bez librosa analiza audio wraca do **`ffmpeg_astats`** (`analysisMode` w `01b`) — cisza/RMS OK, beaty często puste.
@@ -339,5 +355,5 @@ Kontrakt renderu i plan zamknięcia luk: [`docs/RENDER_MODULE_SPEC.md`](docs/REN
 
 | Status | Zakres |
 |--------|--------|
-| **Gotowe** | Pre-render + render FFmpeg: analiza, EditRecipe v2.0–v2.4, montaż 16:9/9:16, ASS, overlaye, creativeMoments, audioMixPlan |
-| **W toku** | J/L-cut frame-accurate, match_cut, whip_pan, [katalog SFX + VO](docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md) |
+| **Gotowe** | Pre-render + render FFmpeg: analiza, EditRecipe v2.0–v2.4, montaż 16:9/9:16, ASS, overlaye, creativeMoments, audioMixPlan, speed/volume per segment |
+| **W toku** | J/L-cut frame-accurate, [katalog SFX + VO](docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md) |

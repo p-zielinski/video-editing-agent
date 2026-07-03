@@ -182,6 +182,26 @@ describe("artifact-deps", () => {
     }
   });
 
+  it("topic-index is stale when twelvelabs artifact is newer", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-stale-topic-tl-"));
+    try {
+      writeArtifact(dir, ARTIFACTS.timelineIndex);
+      writeArtifact(dir, ARTIFACTS.clipRegistry, { clipRegistry: [] });
+      writeArtifact(dir, ARTIFACTS.abstraction, { L1: [], L2: [], L3: {} });
+      writeArtifact(dir, ARTIFACTS.topicIndex, { topics: [] });
+      writeArtifact(dir, ARTIFACTS.twelvelabs("clip01"), { chapters: [], moments: [] });
+      touch(path.join(dir, ARTIFACTS.timelineIndex), 0);
+      touch(path.join(dir, ARTIFACTS.clipRegistry), 0);
+      touch(path.join(dir, ARTIFACTS.abstraction), 0);
+      touch(path.join(dir, ARTIFACTS.topicIndex), 0);
+      touch(path.join(dir, ARTIFACTS.twelvelabs("clip01")), 5000);
+
+      assert.equal(isArtifactStale(dir, ARTIFACTS.topicIndex), true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("topic-index is stale when abstraction is newer", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-stale-topic-"));
     try {

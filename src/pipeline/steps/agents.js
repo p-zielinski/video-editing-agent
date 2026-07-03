@@ -3,6 +3,14 @@ import fs from "node:fs";
 import { createOpenAIClient } from "../../agents/openai-client.js";
 import { buildAbstractionBundle } from "../../agents/summarizer.js";
 import { runDirector, directorDrillDown, extractSceneIdsFromRecipe } from "../../agents/director.js";
+import { runSuperDirector } from "../../agents/super-director.js";
+import { runSegmentDirector } from "../../agents/segment-director.js";
+import {
+  buildSegmentCatalog,
+  resolveSegmentPicks,
+  shouldUseSuperDirector,
+} from "../../lib/segment-catalog.js";
+import { mergeSegmentRecipes } from "../../lib/recipe-merge.js";
 import { runCritic } from "../../agents/critic.js";
 import { runFixer, shouldInvokeFixer } from "../../agents/fixer.js";
 import { EditRecipeV2Schema } from "../../schemas/edit-recipe-v2.js";
@@ -25,6 +33,45 @@ import { enrichRecipeSilenceBeatFromDeadAir } from "../../editorial/dead-air-enr
 import { refineClipRegistryFromL1 } from "./clip-profile.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
+
+export { shouldUseSuperDirector };
+
+export async function runSuperDirectorDirectPath(client, context) {
+  const {
+    abstraction,
+    timelineIndex,
+    clipRegistry,
+    userContext,
+    batchContext,
+    requiredFormats,
+  } = context;
+
+  const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
+  const superPlan = await runSuperDirector(client, {
+    abstraction,
+    timelineIndex,
+    clipRegistry,
+    userContext,
+    batchContext,
+    requiredFormats,
+  });
+
+  const picks = resolveSegmentPicks(superPlan, catalog);
+  if (picks.length === 0) {
+    throw new Error("Super Director nie wybrał żadnego segmentu L2");
+  }
+
+  const partials = await Promise.all(
+    picks.map((pick) => runSegmentDirector(client, context, {
+      segmentId: pick.segmentId,
+      sceneIds: pick.catalogCard.sceneIds,
+      superPlan,
+      superNotes: superPlan.crossSegmentNotes ?? [],
+    })),
+  );
+
+  return mergeSegmentRecipes(superPlan, partials, { wordIndexes: context.wordIndexes });
+}
 
 export function applyDeterministicRecipeEnrichers(recipe, {
   abstraction,
@@ -286,15 +333,20 @@ export async function runDirectStep({
     },
   };
 
-  let recipe = await runDirector(client, context);
+  let recipe;
+  if (shouldUseSuperDirector(timelineIndex, abstraction)) {
+    recipe = await runSuperDirectorDirectPath(client, context);
+  } else {
+    recipe = await runDirector(client, context);
 
-  const sceneIds = extractSceneIdsFromRecipe(recipe);
-  if (sceneIds.length > 0) {
-    recipe = await directorDrillDown(client, {
-      ...context,
-      recipe,
-      sceneIds,
-    });
+    const sceneIds = extractSceneIdsFromRecipe(recipe);
+    if (sceneIds.length > 0) {
+      recipe = await directorDrillDown(client, {
+        ...context,
+        recipe,
+        sceneIds,
+      });
+    }
   }
 
   recipe.audioMixPlan = mergeAudioMixPlan(recipe, deriveAudioMixPlanDefaults({

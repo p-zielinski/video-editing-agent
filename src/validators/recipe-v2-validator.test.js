@@ -559,6 +559,21 @@ describe("recipe v2 validator", () => {
     assert.throws(() => EditRecipeV2Schema.parse(recipe));
   });
 
+  it("parses videoTransform.speed, speedMode, and sourceVolumeDb on timeline segment", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline[0].videoTransform = {
+      speed: 1.5,
+      speedMode: "video_audio",
+      reframe: "center",
+    };
+    recipe.outputs[0].timeline[0].sourceVolumeDb = -12;
+
+    const parsed = EditRecipeV2Schema.parse(recipe);
+    assert.equal(parsed.outputs[0].timeline[0].videoTransform.speed, 1.5);
+    assert.equal(parsed.outputs[0].timeline[0].videoTransform.speedMode, "video_audio");
+    assert.equal(parsed.outputs[0].timeline[0].sourceVolumeDb, -12);
+  });
+
   it("warns V23-02 when LUFS targets are outside recommended range", () => {
     const recipe = structuredClone(baseRecipe);
     recipe.version = "2.3";

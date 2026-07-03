@@ -168,4 +168,57 @@ describe("resolveSegmentOutputDuration", () => {
     }, { wordIndex });
     assert.equal(dur, 29.8);
   });
+
+  it("divides duration by videoTransform.speed", () => {
+    const dur = resolveSegmentOutputDuration({
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_video_ref",
+      videoTransform: { speed: 2 },
+    });
+    assert.equal(dur, 5);
+  });
+
+  it("applies speed after cuts", () => {
+    const wordIndex = {
+      words: [{ wordId: "clip01_w004", word: "do", start: 4.6, end: 4.8 }],
+    };
+    const dur = resolveSegmentOutputDuration({
+      videoInSec: 0,
+      videoOutSec: 30,
+      audioInSec: 0,
+      audioOutSec: 30,
+      audioPolicy: "from_video_ref",
+      videoTransform: { speed: 2 },
+      cuts: [{ startWordId: "clip01_w004", endWordId: "clip01_w004" }],
+    }, { wordIndex });
+    assert.equal(dur, 14.9);
+  });
+
+  it("keeps full audio duration for video_only speed mode", () => {
+    const dur = resolveSegmentOutputDuration({
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_video_ref",
+      videoTransform: { speed: 2, speedMode: "video_only" },
+    });
+    assert.equal(dur, 10);
+  });
+
+  it("uses sped video when shorter than audio for video_only", () => {
+    const dur = resolveSegmentOutputDuration({
+      videoInSec: 0,
+      videoOutSec: 6,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_video_ref",
+      videoTransform: { speed: 2, speedMode: "video_only" },
+    });
+    assert.equal(dur, 10);
+  });
 });
+

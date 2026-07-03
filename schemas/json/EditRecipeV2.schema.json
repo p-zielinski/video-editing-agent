@@ -217,7 +217,8 @@
                 "enum": [
                   "clip_profile",
                   "context_override",
-                  "director"
+                  "director",
+                  "l1_refined"
                 ]
               },
               "hasSpeech": {

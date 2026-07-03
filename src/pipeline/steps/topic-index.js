@@ -5,6 +5,7 @@ import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { loadCatalogForFaceDetect } from "./face-detect.js";
 import { collectObjectDetections } from "./spatial-index.js";
+import { loadTwelveLabsByClip, mergeTwelveLabsIntoVisualText } from "../../lib/twelvelabs-merge.js";
 import { runClipRegistryRefineStep } from "./clip-profile.js";
 
 const STOP_WORDS = new Set([
@@ -91,15 +92,27 @@ export function buildTopicEmbedText(topic, abstraction) {
   return [topic.label, l3Context].filter(Boolean).join(" — ");
 }
 
-export function buildSceneVisualText(scene, l1, timelineIndex) {
+export function buildSceneVisualText(scene, l1, timelineIndex, workDir = null) {
   const captions = (timelineIndex.visionCaptions ?? []).filter((entry) => entry.sceneId === scene.sceneId);
-  const parts = [
+  const baseParts = [
     ...(l1.topics ?? []),
     l1.summary ?? "",
-    ...captions.map((entry) => entry.caption),
-    ...captions.flatMap((entry) => entry.tags ?? []),
   ];
-  return parts.filter(Boolean).join(" ");
+
+  let tlMoments = [];
+  let clipSummary = null;
+  if (workDir) {
+    const tlArtifact = loadTwelveLabsByClip(workDir, scene.clipId);
+    tlMoments = tlArtifact?.moments ?? [];
+    clipSummary = tlArtifact?.clipSummary ?? null;
+  }
+
+  const visualText = [
+    mergeTwelveLabsIntoVisualText(captions, tlMoments, scene),
+    clipSummary,
+  ].filter(Boolean).join(" ");
+
+  return [...baseParts, visualText].filter(Boolean).join(" ");
 }
 
 export function blendSemanticScore(keywordScore, embeddingScore) {
@@ -212,6 +225,7 @@ async function computeEmbeddingScores({
   abstraction,
   timelineIndex,
   embedFn,
+  workDir = null,
 }) {
   if (!embedFn || topics.length === 0 || brollScenes.length === 0) {
     return new Map();
@@ -220,7 +234,7 @@ async function computeEmbeddingScores({
   const topicTexts = topics.map((topic) => buildTopicEmbedText(topic, abstraction));
   const sceneTexts = brollScenes.map((scene) => {
     const l1 = getL1ForScene(abstraction, scene.sceneId);
-    return buildSceneVisualText(scene, l1, timelineIndex);
+    return buildSceneVisualText(scene, l1, timelineIndex, workDir);
   });
 
   const embeddings = await embedTextsInChunks([...topicTexts, ...sceneTexts], embedFn);
@@ -334,6 +348,7 @@ export async function buildTopicIndex({
   threshold = 0.55,
   excluded = [],
   embedFn = null,
+  workDir = null,
 }) {
   if (!embedFn) {
     throw new TopicIndexEmbeddingError();
@@ -351,6 +366,7 @@ export async function buildTopicIndex({
     abstraction,
     timelineIndex,
     embedFn,
+    workDir,
   });
 
   for (const topic of topics) {
@@ -418,6 +434,7 @@ export async function runTopicIndexStep({
     clipRegistry,
     threshold,
     embedFn: resolvedEmbedFn,
+    workDir,
   });
 
   const parsed = TopicIndexSchema.parse(index);

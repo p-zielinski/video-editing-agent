@@ -3,10 +3,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runReviewStep, ensureSpatialIndex } from "./agents.js";
+import { runReviewStep, ensureSpatialIndex, shouldUseSuperDirector, runSuperDirectorDirectPath } from "./agents.js";
 import { buildSceneUsageRegistry } from "../../validators/scene-registry.js";
 import { writeJson, ARTIFACTS } from "../work-paths.js";
 import { loadFixture } from "../../agents/test-helpers.js";
+import { createMockOpenAIClient } from "../../agents/test-helpers.js";
+import {
+  buildMiniDaySuperDirectorPlan,
+  buildMiniDaySegmentPartial,
+} from "../../test-helpers/mock-openai-client.js";
 
 describe("review step", () => {
   let workDir;
@@ -173,5 +178,58 @@ describe("review step", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("super-director direct path", () => {
+  it("shouldUseSuperDirector is false for single-L2 test fixture", () => {
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    assert.equal(shouldUseSuperDirector(timelineIndex, abstraction), false);
+  });
+
+  it("runSuperDirectorDirectPath merges segment partials", async () => {
+    const abstraction = loadFixture("abstraction.json");
+    const multiL2 = {
+      ...abstraction,
+      L2: [
+        abstraction.L2[0],
+        {
+          ...abstraction.L2[0],
+          segmentId: "seg002",
+          summary: "Druga część vloga",
+          sceneIds: ["clip01_scene002"],
+          startSec: 60,
+          endSec: 120,
+        },
+      ],
+    };
+    const timelineIndex = loadFixture("timeline-index.json");
+    const clipRegistry = [{ clipId: "clip01", sortIndex: 0, durationSec: 120 }];
+
+    const client = createMockOpenAIClient([
+      buildMiniDaySuperDirectorPlan(),
+      buildMiniDaySegmentPartial("seg001"),
+      buildMiniDaySegmentPartial("seg002"),
+    ]);
+
+    const recipe = await runSuperDirectorDirectPath(client, {
+      abstraction: multiL2,
+      timelineIndex,
+      clipRegistry,
+      userContext: "",
+      requiredFormats: ["16:9", "9:16"],
+      batchContext: {},
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      audioIndex: null,
+      audioMixDefaults: null,
+      perClipAnalysis: null,
+      wordIndexes: [],
+      keyframesByClip: [],
+    });
+
+    assert.ok(recipe.outputs.length >= 1);
+    assert.ok(recipe.outputs[0].timeline.length > 0);
   });
 });

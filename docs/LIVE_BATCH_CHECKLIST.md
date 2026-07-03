@@ -24,7 +24,7 @@ Zależności Pythona używane w trybie live (domyślnie):
 - **opencv-python-headless** — face detect (spatial index)
 - **panns_inference** (opcjonalnie, zalecane) — tagi audio (`laughter`, `impact`) dla hooków i `sceneRanks`; bez niego `eventDetectionMode: none`
 
-Szybki dev bez GPU/Pythona: `--fast` lub jawne `--vision-stub`, `--face-stub`, `--audio-stub` (nie dotyczy checklisty live).
+Szybki dev bez GPU/Pythona: jawne `--vision-stub`, `--face-stub`, `--audio-stub` (nie dotyczy checklisty live).
 
 ## Komendy
 
@@ -39,7 +39,7 @@ pip install -r python/requirements.txt
 npm run analyze -- --input ./inbox/moj-folder
 ```
 
-Kroki: `ingest` → `index` (transkrypcja, audio, keyframes, vision, objects, timeline index).  
+Kroki: `ingest` → `index` (transkrypcja, audio, keyframes, twelvelabs stub, vision, objects, timeline index).  
 Artefakty: `output/.work/<batchId>/`.
 
 ### 2. Raport jakości
@@ -117,7 +117,11 @@ Pole `metrics.needsHumanReview` w raporcie jest `true`, gdy spełniony jest **kt
 
 **Co robić:** przejrzyj `08-review.json` (issues), `07-edit-recipe-draft.json` vs `09-edit-recipe-final.json`, oraz metryki w raporcie. Popraw kontekst (`--context`), uruchom ponownie `--from-step` (np. `spatial_index`, `abstract`, `direct`) lub ręcznie edytuj recepturę przed renderem.
 
-Gdy `needsHumanReview: no` i `qualityGateFailures: []` — batch jest gotowy do użycia receptury `09-edit-recipe-final.json` (moduł renderu — roadmap).
+Gdy `needsHumanReview: no` i `qualityGateFailures: []` — batch jest gotowy do użycia receptury `09-edit-recipe-final.json` (`npm run render -- --batch-id <id>`).
+
+### Super Director (długie batchy)
+
+Gdy materiał ma **> 600 s** łącznie lub **> 1 segment L2**, krok `direct` używa Super Director (routing L2 → segment directors → merge). Krótsze batchy idą pojedynczym directorem. Sprawdź `06-abstract-L2.json` i log kroku `direct`.
 
 ## Review (`08-review.json`)
 

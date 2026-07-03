@@ -22,6 +22,7 @@ function mapSegmentToEdl(segment, context) {
     subtitles: segment.subtitles,
     textOverlays: segment.textOverlays ?? [],
     videoTransform: segment.videoTransform,
+    sourceVolumeDb: segment.sourceVolumeDb,
     intent: segment.intent,
   };
 }

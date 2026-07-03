@@ -6,6 +6,7 @@ export const CLIP_ARTIFACT_PATTERNS = {
   words: "01-words-*",
   audioAnalysis: "01b-audio-analysis-*",
   keyframes: "02-keyframes-*",
+  twelvelabs: "03b-twelvelabs-*",
   vision: "03-vision-*",
   objects: "04-objects-*",
   faces: "04a-faces-*",
@@ -15,6 +16,7 @@ const CLIP_ARTIFACT_PREFIXES = {
   [CLIP_ARTIFACT_PATTERNS.words]: "01-words-",
   [CLIP_ARTIFACT_PATTERNS.audioAnalysis]: "01b-audio-analysis-",
   [CLIP_ARTIFACT_PATTERNS.keyframes]: "02-keyframes-",
+  [CLIP_ARTIFACT_PATTERNS.twelvelabs]: "03b-twelvelabs-",
   [CLIP_ARTIFACT_PATTERNS.vision]: "03-vision-",
   [CLIP_ARTIFACT_PATTERNS.objects]: "04-objects-",
   [CLIP_ARTIFACT_PATTERNS.faces]: "04a-faces-",
@@ -32,6 +34,7 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
   [CLIP_ARTIFACT_PATTERNS.words]: [ARTIFACTS.sceneCatalog],
   [CLIP_ARTIFACT_PATTERNS.audioAnalysis]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
   [CLIP_ARTIFACT_PATTERNS.keyframes]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
+  [CLIP_ARTIFACT_PATTERNS.twelvelabs]: [ARTIFACTS.sceneCatalog, ARTIFACTS.manifest],
   [ARTIFACTS.audioIndex]: [
     ARTIFACTS.sceneCatalog,
     CLIP_ARTIFACT_PATTERNS.words,
@@ -62,6 +65,7 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     ARTIFACTS.timelineIndex,
     ARTIFACTS.clipRegistry,
     CLIP_ARTIFACT_PATTERNS.objects,
+    CLIP_ARTIFACT_PATTERNS.twelvelabs,
   ],
   [ARTIFACTS.spatialIndex]: [
     ARTIFACTS.timelineIndex,

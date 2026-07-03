@@ -118,6 +118,12 @@ function parseArgs(argv) {
       args.objectsEnabled = false;
     } else if (arg === "--no-keyframes") {
       args.extractKeyframes = false;
+    } else if (arg === "--no-twelvelabs") {
+      args.twelvelabsEnabled = false;
+    } else if (arg === "--twelvelabs-stub") {
+      args.twelvelabsStub = true;
+    } else if (arg === "--twelvelabs-live") {
+      args.twelvelabsLive = true;
     } else if (arg === "--force") {
       args.force = true;
     } else if (arg === "--thumbnail-stub") {
@@ -272,7 +278,7 @@ Komendy:
 Opcje:
   --input <folder>         Folder z plikami wideo
   --batch-id <id>          Id batcha (domyślnie: nowy UUID)
-  --from-step <step>       ingest|transcribe|audio_analysis|keyframes|vision|objects|index|clip_profile|abstract|topic_index|spatial_index|direct|review|thumbnails
+  --from-step <step>       ingest|transcribe|audio_analysis|keyframes|twelvelabs|vision|objects|index|clip_profile|abstract|topic_index|spatial_index|direct|review|thumbnails
   --to-step <step>         Zatrzymaj po wskazanym kroku
   --context <text>         Kontekst narracyjny dla reżysera
   --min-outputs <formats>  Domyślnie: 16:9,9:16
@@ -289,6 +295,9 @@ Opcje:
   --objects-live           [deprecated] domyślne od v0.1 — Florence-2 live
   --no-objects             Escape hatch: pomiń etap detekcji obiektów (dev)
   --no-keyframes           Nie ekstrahuj klatek (szybszy dry-run)
+  --no-twelvelabs          Pomiń krok TwelveLabs (suplement wizji)
+  --twelvelabs-stub        TwelveLabs stub (domyślnie; live wymaga --twelvelabs-live)
+  --twelvelabs-live        TwelveLabs live API (wymaga TWELVELABS_API_KEY; jeszcze niezaimplementowane)
   --thumbnail-stub         Miniatury: plan deterministyczny bez GPT/renderu
   --no-thumbnail-render    Miniatury: plan + krytyk, bez PNG
   --dry-run                Render: tylko EDL JSON (bez FFmpeg)
@@ -453,6 +462,9 @@ async function main() {
     audioStub: stubs.audioStub,
     objectsStub: args.objectsStub === true,
     objectsEnabled: args.objectsEnabled !== false,
+    twelvelabsEnabled: args.twelvelabsEnabled !== false,
+    twelvelabsStub: args.twelvelabsStub,
+    twelvelabsLive: args.twelvelabsLive === true,
     extractKeyframes: args.extractKeyframes !== false,
     force: args.force === true,
     thumbnailStub: args.thumbnailStub === true,

@@ -11,11 +11,11 @@ Powiązane: [`README.md`](../README.md), [`PRE_RENDER_PIPELINE.md`](./PRE_RENDER
 
 | Faza | Status |
 |------|--------|
-| Analiza materiału (Whisper, wizja, audio, indeksy) | **Gotowe** — 13 kroków pipeline |
+| Analiza materiału (Whisper, wizja, audio, indeksy) | **Gotowe** — 14 kroków pipeline |
 | Reżyseria AI (plan montażu) | **Gotowe** — director → critic → fixer |
 | Walidacja planu (Zod + reguły V21/V22/V23/V24) | **Gotowe** |
 | Kontrakt renderu (EDL, kontekst, reframe, presety) | **Gotowe** — `src/render/` |
-| **Render wideo** (cięcia FFmpeg, overlay, miks, eksport MP4) | **Zaimplementowane** — `node src/cli.js render` (deferred: match_cut, whip_pan; partial crossfade gdy nie wszystkie joiny) |
+| **Render wideo** (cięcia FFmpeg, overlay, miks, eksport MP4) | **Zaimplementowane** — `node src/cli.js render` (partial crossfade gdy nie wszystkie joiny) |
 
 Artefakt końcowy pre-renderu: `output/.work/<batchId>/09-edit-recipe-final.json` — receptura montażowa, nie plik wideo.
 
@@ -68,6 +68,8 @@ Director dostaje **brief** (nie zwraca go) — skondensowany JSON z `buildDirect
 - `brollSyncHints[]` (do 15 pozycji) — sugestie `videoInSec` z keyframes + L1 `keyMoments` (`src/editorial/broll-sync-hints.js`)
 
 **Wyjście directora = pełny EditRecipe v2.x** (patrz §4).
+
+**Super Director routing:** gdy łączny czas batcha **> 600 s** lub jest **> 1 segment L2**, krok `direct` używa Super Director (`prompts/v2/super-director.md`) → segment directors → `mergeSegmentRecipes`. Krótsze batchy (≤ 600 s i jeden segment L2) omijają ten krok. Implementacja: `shouldUseSuperDirector()` w `src/lib/segment-catalog.js`, `runSuperDirectorDirectPath()` w `src/pipeline/steps/agents.js`.
 
 ### 3.3 Critic — ocena receptury
 
@@ -233,10 +235,17 @@ Każdy segment opisuje **jeden kawałek** składanki:
   "cuts": [{ "startWordId": "clip01_w0042", "endWordId": "clip01_w0048", "reason": "filler" }],
   "subtitles": { "policy": "word_by_word", "sourceClipId": "clip01" },
   "textOverlays": [{ "text": "…", "outputStartSec": 0.5, "outputEndSec": 4.0, "style": "hook_large", "role": "hook" }],
-  "videoTransform": { "reframe": "center", "speed": 1 },
+  "videoTransform": { "reframe": "center", "speed": 1, "speedMode": "video_audio" },
+  "sourceVolumeDb": -3,
   "intent": "Opis intencji dla montażysty / review"
 }
 ```
+
+**Pola prędkości i głośności:**
+
+- `videoTransform.speed` — mnożnik tempa wideo (1 = normalnie); renderer stosuje `setpts=PTS/speed`
+- `videoTransform.speedMode` — `video_audio` (domyślnie: wideo + audio przyspieszone `atempo`) lub `video_only` (tylko wideo; audio bez zmiany tempa — np. B-roll pod narrację)
+- `sourceVolumeDb` — korekta głośności źródła w dB (np. `-6` = cichsze); filtr `volume` w pass segmentu
 
 **Reguły kanoniczne (normatywne):**
 
@@ -316,7 +325,7 @@ Mapowanie `clipId` → plik źródłowy: `00-scene-catalog.json` → `clips[].so
 
 **Tak — pipeline end-to-end działa:** analiza → EditRecipe → `node src/cli.js render` → MP4. Moduł [`src/render/`](src/render/) realizuje timeline, B-roll, 9:16 reframe, ASS, overlaye, creativeMoments, audioMixPlan. Szczegóły: [`RENDER_MODULE_SPEC.md`](./RENDER_MODULE_SPEC.md).
 
-**Ograniczenia:** J/L-cut overlap (fallback concat), `match_cut`/`whip_pan` (warning), frame-accurate sync B-roll wymaga ręcznej korekty lub przyszłego optical flow.
+**Ograniczenia:** J/L-cut overlap (fallback concat), frame-accurate sync B-roll wymaga ręcznej korekty lub przyszłego optical flow.
 
 Ocena wewnętrzna projektu: pre-render **~9.5/10** jako generator planu; **render FFmpeg zaimplementowany** (W4) — pełny eksport MP4 z receptury v2.4. Szczegóły executor: [`RENDER_MODULE_SPEC.md`](./RENDER_MODULE_SPEC.md).
 
@@ -329,7 +338,7 @@ Ocena wewnętrzna projektu: pre-render **~9.5/10** jako generator planu; **rende
 | Cięcia na poziomie słów | ✅ executor | `cuts[]` + `WordIndex` w batchu (video+audio splice, `audio-cuts.js`) |
 | Napisy word-by-word | ✅ executor | ASS burn-in (`ass-subtitles.js`) |
 | Overlaye tekstowe | ✅ executor | `textOverlays` + `ffmpeg-graphics.js` |
-| Zabiegi kreatywne | ✅ executor (częściowo) | `creativeMoments` + `technique-to-ffmpeg.js`; deferred: match_cut, whip_pan |
+| Zabiegi kreatywne | ✅ executor | `creativeMoments` + `technique-to-ffmpeg.js` (m.in. match_cut, whip_pan best-effort) |
 | Muzyka bed + ducking | ✅ executor | `audioMixPlan` + `assets/music/` + `audio-mix.js` |
 | Plan SFX | ✅ executor | `sfxPlan[]` + `assets/sfx/` (`resolveSfxPath`) |
 | Color grade | ✅ executor | `colorGrade` + `assets/luts/catalog.json` + opcjonalne `.cube` |
@@ -368,12 +377,11 @@ Po remediacji opisanej w [`LUKI_PLAN_NAPRAWCZY.md`](./LUKI_PLAN_NAPRAWCZY.md):
 | Pliki LUT poza `neutral_vlog.cube` | Opcjonalne | `warm_golden_hour.cube` w `assets/luts/` (stub 2×2); renderer stosuje `lut3d` gdy plik istnieje |
 | J/L-cut frame-accurate | Best-effort | `audio-jlcut.js` — overlap uproszczony; pełna klatka = przyszła iteracja |
 | `transition` / `bridge` `segmentRole` | Deferred | Tylko `aroll` / `broll` w `SegmentRoleSchema`; przejścia przez `creativeMoments` |
-| Techniki deferred | Warning only | `match_cut`, `whip_pan`; `crossfade` gdy częściowy wzorzec joinów lub J/L overlap |
+| `crossfade` częściowy | Warning only | Gdy częściowy wzorzec joinów lub J/L overlap |
 | `jump_cut` | ✅ best-effort | Impuls brightness/contrast w creative pass (nie cięcie timeline) |
 | `silence_beat` | ✅ pass audio | Dip głosu w `audio-mix.js` gdy `audioMixPlan` |
 | `music_swell` / `music_drop` | ✅ pass audio | Gdy `audioMixPlan.musicBed` — volume automation w `audio-mix.js` |
 | Frame-accurate sync B-roll | Wymaga korekty | Hinty poprawiają propozycję `videoInSec`; korekta klatkowa = optical flow (przyszłość) |
-| Stub vision/audio w `--fast` | Ograniczenie dev | Plan słabszy — live batch przed produkcją; bramki w `report --batch-id` |
 | Brak live batch w CI | Dokumentacja | [`LIVE_BATCH_CHECKLIST.md`](./LIVE_BATCH_CHECKLIST.md) |
 | Pixel-perfect animacje overlayów | Poza schematem | `renderStylePresets` daje font/pozycję/safe zone; animacje = decyzja renderera |
 
@@ -426,7 +434,7 @@ Kroki (executor FFmpeg, zgodnie z [`RENDER_MODULE_SPEC.md`](./RENDER_MODULE_SPEC
 
 1. **Zamknij pre-render na live materiale** — `npm run full -- --input ./inbox/...` + `report --batch-id` (bramki jakości).
 2. **Renderuj MP4 z receptury** — `npm run render -- --batch-id <id>` (profile `draft` / `production`). Testy: `npm test -- src/render/`, `npm run test:e2e`.
-3. **Rozszerzaj iteracyjnie** — J/L-cut frame-accurate, match_cut, whip_pan, `crossfade` 3+ seg (`cut_on_beat` concat snap, `jump_cut` pulse, `silence_beat` audio dip — wdrożone W4.11–W4.12).
+3. **Rozszerzaj iteracyjnie** — J/L-cut frame-accurate, `crossfade` 3+ seg (`cut_on_beat` concat snap, `jump_cut` pulse, `silence_beat` audio dip — wdrożone W4.11–W4.12).
 4. **Opcjonalnie włącz auto-SFX** — wywołaj `buildSfxPlanFromAudio(audioIndex, { perClipAnalysis })` przed directorem lub w post-processie receptury; pełny katalog SFX + voiceover: [`REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md`](./REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md).
 5. **Trzymaj EditRecipe jako kontrakt** — renderer czyta `09-edit-recipe-final.json`, nie duplikuje logiki directora.
 
@@ -455,4 +463,4 @@ Kroki (executor FFmpeg, zgodnie z [`RENDER_MODULE_SPEC.md`](./RENDER_MODULE_SPEC
 | W4 shorts (9:16, ASS, overlaye) | ✅ done | `ffmpeg-reframe.js`, `ass-subtitles.js` |
 | W4 creative + J/L-cut | ✅ done (caveats) | `technique-to-ffmpeg.js`; J/L-cut best-effort |
 | W4 audio (mix, sfx, color) | ✅ done | `audio-mix.js`, `sfxPlan`, `color-grade.js` + `assets/sfx/`, `assets/luts/` |
-| W4 deferred | Otwarte | Frame-accurate J/L-cut, match_cut, whip_pan; crossfade częściowy (nie wszystkie joiny) |
+| W4 deferred | Otwarte | Frame-accurate J/L-cut; crossfade częściowy (nie wszystkie joiny) |

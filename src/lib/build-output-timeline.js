@@ -1,12 +1,21 @@
 import { computeCutsRemovedSec } from "../render/audio-cuts.js";
+import { adjustDurationForSpeed, resolveEffectiveSpeed } from "../render/speed-transform.js";
 
 function resolveWordIndexForSegment(seg, wordIndexes) {
   if (!wordIndexes) {
     return null;
   }
   const clipId = seg.audioRef?.clipId ?? seg.videoRef?.clipId;
-  return clipId ? wordIndexes[clipId] ?? null : null;
+  if (!clipId) {
+    return null;
+  }
+  if (Array.isArray(wordIndexes)) {
+    return wordIndexes.find((entry) => entry.clipId === clipId) ?? null;
+  }
+  return wordIndexes[clipId] ?? null;
 }
+
+export { resolveWordIndexForSegment };
 
 export function resolveSegmentOutputDuration(seg, options = {}) {
   let base;
@@ -31,14 +40,42 @@ export function resolveSegmentOutputDuration(seg, options = {}) {
   }
 
   const { wordIndex } = options;
-  if (!seg.cuts?.length || !wordIndex) {
-    return base;
+  let duration = base;
+  if (seg.cuts?.length && wordIndex) {
+    const rangeStart = seg.audioInSec ?? seg.videoInSec;
+    const rangeEnd = seg.audioOutSec ?? seg.videoOutSec;
+    const removed = computeCutsRemovedSec(seg.cuts, wordIndex, rangeStart, rangeEnd);
+    duration = Math.max(0.01, base - removed);
   }
 
-  const rangeStart = seg.audioInSec ?? seg.videoInSec;
-  const rangeEnd = seg.audioOutSec ?? seg.videoOutSec;
-  const removed = computeCutsRemovedSec(seg.cuts, wordIndex, rangeStart, rangeEnd);
-  return Math.max(0.01, base - removed);
+  const speed = resolveEffectiveSpeed(seg);
+  if (speed === 1) {
+    return duration;
+  }
+
+  const speedMode = seg.videoTransform?.speedMode ?? "video_audio";
+  if (speedMode !== "video_only") {
+    return adjustDurationForSpeed(duration, speed);
+  }
+
+  const videoDur = seg.videoOutSec - seg.videoInSec;
+  const audioDur = (seg.audioOutSec ?? seg.videoOutSec) - (seg.audioInSec ?? seg.videoInSec);
+  const spedVideo = adjustDurationForSpeed(videoDur, speed);
+
+  if (seg.audioPolicy === "from_prev" || seg.audioPolicy === "from_next") {
+    return spedVideo;
+  }
+
+  switch (seg.syncMode ?? "align_start") {
+    case "fit_video_to_audio":
+      return duration;
+    case "fit_audio_to_video":
+      return spedVideo;
+    case "loop_video":
+      return duration;
+    default:
+      return Math.max(spedVideo, duration);
+  }
 }
 
 export function buildOutputTimeline(output, options = {}) {

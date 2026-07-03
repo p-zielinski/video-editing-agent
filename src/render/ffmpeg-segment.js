@@ -3,6 +3,14 @@ import { runFfmpeg } from "../lib/ffmpeg.js";
 import { resolveSegmentOutputDuration } from "../lib/build-output-timeline.js";
 import { buildSegmentVideoFilter } from "./ffmpeg-reframe.js";
 import { applyAudioCutsToRange, applyVideoCutsToRange } from "./audio-cuts.js";
+import {
+  buildAtempoFilterChain,
+  buildSourceVolumeFilter,
+  buildVideoOnlyPadFilter,
+  resolveEffectiveSpeed,
+  shouldApplyAudioSpeed,
+  shouldOmitShortestForVideoOnlySpeed,
+} from "./speed-transform.js";
 
 function segmentDurationSec(segment, context) {
   const wordIndex = resolveWordIndexForSegment(segment, context);
@@ -91,8 +99,30 @@ export function buildAudioSyncFilter(segment, videoDur, audioDur, options = {}) 
   return null;
 }
 
+export function buildCombinedAudioFilter(segment, videoDur, audioDur, options = {}) {
+  const speed = resolveEffectiveSpeed(segment);
+  const applyAudioSpeed = shouldApplyAudioSpeed(segment, speed);
+  const syncMode = segment.syncMode ?? "align_start";
+  const skipAudioFitSync = speed !== 1 && applyAudioSpeed && syncMode === "fit_audio_to_video";
+
+  const audioSyncFilter = skipAudioFitSync
+    ? null
+    : buildAudioSyncFilter(segment, videoDur, audioDur, options);
+  const audioSpeedFilter = applyAudioSpeed ? buildAtempoFilterChain(speed) : null;
+  const audioVolumeFilter = buildSourceVolumeFilter(segment.sourceVolumeDb);
+
+  const parts = [audioSyncFilter, audioSpeedFilter, audioVolumeFilter].filter(Boolean);
+  return parts.length > 0 ? parts.join(",") : null;
+}
+
 function isJlCutBorrowedAudio(segment) {
   return segment.audioPolicy === "from_prev" || segment.audioPolicy === "from_next";
+}
+
+function pushShortestIfNeeded(args, segment) {
+  if (!shouldOmitShortestForVideoOnlySpeed(segment)) {
+    args.push("-shortest");
+  }
 }
 
 export function buildLavfiColorInput(durationSec, dimensions = {}) {
@@ -143,9 +173,15 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     context,
   });
 
-  const syncFilter = buildVideoSyncFilter(segment, videoDur, audioDur);
-  const audioSyncFilter = buildAudioSyncFilter(segment, videoDur, audioDur, options);
-  const videoFilterChain = [baseVideoFilter, syncFilter].filter(Boolean).join(",") || null;
+  const speed = resolveEffectiveSpeed(segment);
+  const syncMode = segment.syncMode ?? "align_start";
+  const skipVideoFitSync = speed !== 1 && syncMode === "fit_video_to_audio";
+  const syncFilter = skipVideoFitSync
+    ? null
+    : buildVideoSyncFilter(segment, videoDur, audioDur);
+  const combinedAudioFilter = buildCombinedAudioFilter(segment, videoDur, audioDur, options);
+  const videoOnlyPadFilter = buildVideoOnlyPadFilter(segment, videoDur, audioDur);
+  const videoFilterChain = [baseVideoFilter, syncFilter, videoOnlyPadFilter].filter(Boolean).join(",") || null;
 
   const isJlCutVideoOnly = isJlCutBorrowedAudio(segment);
   const isMuted = segment.audioPolicy === "mute";
@@ -203,13 +239,13 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     });
 
     let audioGraph = "";
-    if (audioSyncFilter) {
+    if (combinedAudioFilter) {
       const audioIn = useSeparateAudio ? "[1:a]" : "[0:a]";
-      audioGraph = `${audioIn}${audioSyncFilter}[async];`;
+      audioGraph = `${audioIn}${combinedAudioFilter}[async];`;
     }
 
     const audioCutsFilter = applyAudioCutsToRange({
-      audioFilter: audioSyncFilter ? "[async]" : (useSeparateAudio ? "[1:a]" : "[0:a]"),
+      audioFilter: combinedAudioFilter ? "[async]" : (useSeparateAudio ? "[1:a]" : "[0:a]"),
       cuts: segment.cuts,
       wordIndex,
       rangeStartSec: audioCutRangeStart,
@@ -218,35 +254,40 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     });
 
     args.push("-filter_complex", `${videoPre};${videoCutsFilter};${audioGraph}${audioCutsFilter}`);
-    args.push("-map", "[vout]", "-map", "[aout]", "-shortest");
-  } else if (videoFilterChain || audioSyncFilter) {
-    if (videoFilterChain && audioSyncFilter && useSeparateAudio && audioPath) {
-      const filterComplex = `[0:v]${videoFilterChain}[vout];[1:a]${audioSyncFilter}[aout]`;
+    args.push("-map", "[vout]", "-map", "[aout]");
+    pushShortestIfNeeded(args, segment);
+  } else if (videoFilterChain || combinedAudioFilter) {
+    if (videoFilterChain && combinedAudioFilter && useSeparateAudio && audioPath) {
+      const filterComplex = `[0:v]${videoFilterChain}[vout];[1:a]${combinedAudioFilter}[aout]`;
       args.push("-filter_complex", filterComplex);
-      args.push("-map", "[vout]", "-map", "[aout]", "-shortest");
+      args.push("-map", "[vout]", "-map", "[aout]");
+      pushShortestIfNeeded(args, segment);
     } else if (videoFilterChain) {
       if (isMuted || isJlCutVideoOnly) {
         args.push("-vf", videoFilterChain);
         args.push("-map", "0:v:0", "-an");
-      } else if (audioSyncFilter) {
+      } else if (combinedAudioFilter) {
         args.push("-vf", videoFilterChain);
-        args.push("-af", audioSyncFilter);
+        args.push("-af", combinedAudioFilter);
         if (useSeparateAudio && audioPath) {
-          args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
+          args.push("-map", "0:v:0", "-map", "1:a:0");
+          pushShortestIfNeeded(args, segment);
         } else {
           args.push("-map", "0:v:0", "-map", "0:a:0?");
         }
       } else if (useSeparateAudio && audioPath) {
         args.push("-vf", videoFilterChain);
-        args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
+        args.push("-map", "0:v:0", "-map", "1:a:0");
+        pushShortestIfNeeded(args, segment);
       } else {
         args.push("-vf", videoFilterChain);
         args.push("-map", "0:v:0", "-map", "0:a:0?");
       }
-    } else if (audioSyncFilter && !isMuted) {
-      args.push("-af", audioSyncFilter);
+    } else if (combinedAudioFilter && !isMuted) {
+      args.push("-af", combinedAudioFilter);
       if (useSeparateAudio && audioPath) {
-        args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
+        args.push("-map", "0:v:0", "-map", "1:a:0");
+        pushShortestIfNeeded(args, segment);
       } else {
         args.push("-map", "0:v:0", "-map", "0:a:0?");
       }
@@ -254,7 +295,8 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
   } else if (isMuted || isJlCutVideoOnly) {
     args.push("-map", "0:v:0", "-an");
   } else if (useSeparateAudio && audioPath) {
-    args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
+    args.push("-map", "0:v:0", "-map", "1:a:0");
+    pushShortestIfNeeded(args, segment);
   } else {
     args.push("-map", "0:v:0", "-map", "0:a:0?");
   }

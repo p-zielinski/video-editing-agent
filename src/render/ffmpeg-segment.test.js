@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   audioPadSamplesForDuration,
   buildAudioSyncFilter,
+  buildCombinedAudioFilter,
   buildLavfiColorInput,
   buildSegmentFfmpegArgs,
   buildVideoSyncFilter,
@@ -448,5 +449,116 @@ describe("ffmpeg-segment", () => {
     } finally {
       cleanupWorkDir(workDir);
     }
+  });
+
+  it("buildSegmentFfmpegArgs applies atempo when videoTransform.speed is set", () => {
+    const segment = {
+      ...baseSegment,
+      videoTransform: { speed: 1.5, speedMode: "video_audio" },
+    };
+    const { args, targetDur } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.match(joined, /atempo=1\.5/);
+    assert.match(joined, /setpts=PTS\/1\.5/);
+    assert.equal(targetDur, 10 / 1.5);
+  });
+
+  it("buildSegmentFfmpegArgs skips atempo for video_only speedMode", () => {
+    const segment = {
+      ...baseSegment,
+      videoTransform: { speed: 2, speedMode: "video_only" },
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.doesNotMatch(joined, /atempo=/);
+    assert.match(joined, /setpts=PTS\/2/);
+  });
+
+  it("buildSegmentFfmpegArgs pads video for video_only when sped video is shorter than audio", () => {
+    const segment = {
+      ...baseSegment,
+      videoInSec: 0,
+      videoOutSec: 6,
+      audioInSec: 0,
+      audioOutSec: 10,
+      videoTransform: { speed: 2, speedMode: "video_only" },
+    };
+    const { args, targetDur } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.match(joined, /tpad=stop_mode=clone:stop_duration=7/);
+    assert.doesNotMatch(joined, /-shortest/);
+    assert.equal(targetDur, 10);
+    const tIdx = args.indexOf("-t");
+    assert.ok(tIdx >= 0);
+    assert.equal(args[tIdx + 1], "10");
+  });
+
+  it("buildSegmentFfmpegArgs applies sourceVolumeDb filter", () => {
+    const segment = {
+      ...baseSegment,
+      sourceVolumeDb: -6,
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const afIdx = args.indexOf("-af");
+    assert.ok(afIdx >= 0);
+    assert.match(args[afIdx + 1], /volume=0\.5011872336272722/);
+  });
+
+  it("buildSegmentFfmpegArgs skips fit_video_to_audio stretch when speed is set", () => {
+    const segment = {
+      ...baseSegment,
+      syncMode: "fit_video_to_audio",
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 7,
+      videoTransform: { speed: 2 },
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.doesNotMatch(joined, /trim=duration=7/);
+    assert.match(joined, /setpts=PTS\/2/);
+    assert.match(joined, /atempo=2/);
+  });
+
+  it("buildCombinedAudioFilter chains atempo and volume, skips fit sync when speed set", () => {
+    const filter = buildCombinedAudioFilter(
+      {
+        syncMode: "fit_audio_to_video",
+        audioPolicy: "from_video_ref",
+        videoTransform: { speed: 2 },
+        sourceVolumeDb: -6,
+      },
+      10,
+      7,
+    );
+    assert.doesNotMatch(filter, /apad=/);
+    assert.match(filter, /atempo=2/);
+    assert.match(filter, /volume=0\.5011872336272722/);
   });
 });

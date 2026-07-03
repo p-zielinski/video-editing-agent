@@ -24,6 +24,7 @@ import { runTranscribeStep } from "./steps/transcribe.js";
 import { runAudioAnalysisStep } from "./steps/audio-analysis.js";
 import { runKeyframesStep } from "./steps/keyframes.js";
 import { runVisionStep, runObjectsStep } from "./steps/vision.js";
+import { runTwelveLabsStep } from "./steps/twelvelabs.js";
 import { runIndexStep } from "./steps/index.js";
 import { runClipProfileStep } from "./steps/clip-profile.js";
 import { runTopicIndexStep } from "./steps/topic-index.js";
@@ -143,6 +144,9 @@ export async function runPipeline(options) {
     audioStub = false,
     objectsEnabled = true,
     objectsStub = false,
+    twelvelabsEnabled = true,
+    twelvelabsStub,
+    twelvelabsLive = false,
     sceneDetectStub = false,
     extractKeyframes = true,
     force = false,
@@ -155,6 +159,8 @@ export async function runPipeline(options) {
     maxReviewIterations = 3,
     topicIndexEmbedFn,
   } = options;
+
+  const resolvedTwelvelabsStub = twelvelabsStub ?? !(twelvelabsLive && process.env.TWELVELABS_API_KEY);
 
   const workDir = resolveWorkDir(batchId);
   fs.mkdirSync(workDir, { recursive: true });
@@ -270,6 +276,21 @@ export async function runPipeline(options) {
       recordManifestArtifactMtimes(
         workDir,
         keyframes.map((k) => ARTIFACTS.keyframes(k.clipId)),
+      );
+    }
+
+    if (twelvelabsEnabled && shouldRunStep("twelvelabs", fromStep, toStep)) {
+      log.step("twelvelabs", stepIndex("twelvelabs") + 1, TOTAL_STEPS);
+      const twelvelabs = await runTwelveLabsStep({
+        workDir,
+        stub: resolvedTwelvelabsStub,
+        force,
+        apiKey: process.env.TWELVELABS_API_KEY,
+      });
+      log.stepDone(resolvedTwelvelabsStub ? "stub" : "live");
+      recordManifestArtifactMtimes(
+        workDir,
+        twelvelabs.map((t) => ARTIFACTS.twelvelabs(t.clipId)),
       );
     }
 

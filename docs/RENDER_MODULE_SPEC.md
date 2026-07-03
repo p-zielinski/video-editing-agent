@@ -30,6 +30,7 @@ Wymaga: FFmpeg (+ libass dla napisów ASS).
 | `resolve-render-context.js` | clipId → paths, word indexes, music bed, spatialIndex |
 | `build-render-edl.js` | EDL z `buildOutputTimeline()` |
 | `ffmpeg-segment.js` | Trim segmentu → temp MP4 |
+| `speed-transform.js` | `videoTransform.speed` / `speedMode` / `sourceVolumeDb` → `setpts`, `atempo`, `volume`, `tpad` (video_only pad) |
 | `ffmpeg-concat.js` | Concat segmentów |
 | `ffmpeg-reframe.js` | Crop/scale 9:16 z `computeReframeCrop()` |
 | `ffmpeg-creative.js` | `creativeMoments` (zoom, ken burns, …) |
@@ -74,6 +75,8 @@ output/.work/<batchId>/
 | `from_video_ref` / `from_audio_ref` | ✅ |
 | `syncMode` loop_video, fit_video_to_audio | ✅ częściowo |
 | `cuts[]` word-level | ✅ (video+audio splice via trim/concat) |
+| `videoTransform.speed` + `speedMode` | ✅ `setpts` (wideo) + `atempo` (audio gdy `video_audio`); `video_only` pakuje wideo `tpad` gdy sped video < audio |
+| `sourceVolumeDb` | ✅ filtr `volume` na ścieżce źródłowej |
 | 9:16 reframe + spatial anchor | ✅ |
 | ASS subtitles word_by_word | ✅ |
 | textOverlays | ✅ drawtext |
@@ -161,6 +164,19 @@ Manifest per-output fields:
 - `segmentErrors[]` — per-segment render failures (`segmentId`, `message`); output aborted, `outputPath` null
 
 `sfxPlan` `source: "audio_event"` uses `context.clips[clipId].sourcePath` + `anchorTimeSec` (`atrim`/`adelay`). Unresolved SFX → `warnings` with `SFX_UNRESOLVED`.
+
+### Speed / volume (`speed-transform.js`)
+
+Per-segment `videoTransform` i `sourceVolumeDb` są stosowane w pass segmentu (`ffmpeg-segment.js`):
+
+| Pole | Efekt FFmpeg |
+|------|--------------|
+| `videoTransform.speed` | `setpts=PTS/{speed}` na wideo (w `ffmpeg-reframe.js`) |
+| `speedMode: "video_audio"` | dodatkowo `atempo` chain na audio (gdy `audioPolicy` pozwala) |
+| `speedMode: "video_only"` | audio bez `atempo`; gdy sped video < audio → `tpad=stop_mode=clone` + `-t targetDur` (bez `-shortest`) |
+| `sourceVolumeDb` | `volume={linear}` na ścieżce audio |
+
+`resolveSegmentOutputDuration()` (`build-output-timeline.js`) liczy `targetDur` spójnie z powyższą semantyką (dla `video_only`: `max(spedVideo, audioDur)` w trybie `align_start`).
 
 ## Encode profiles
 

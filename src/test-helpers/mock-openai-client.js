@@ -88,7 +88,61 @@ export function buildMiniDayInvalidRecipeDraft() {
 }
 
 /**
+ * Super-director routing plan for mini-day (2 L2 segments).
+ */
+export function buildMiniDaySuperDirectorPlan() {
+  return {
+    segmentOrder: ["seg001", "seg002"],
+    segmentPicks: [
+      { segmentId: "seg001", priority: 1, targetKeepRatio: 0.4 },
+      { segmentId: "seg002", priority: 2, targetKeepRatio: 0.35 },
+    ],
+    crossSegmentNotes: ["Most narracyjny: restauracja → podsumowanie"],
+    shortsSources: ["seg001"],
+    globalTheme: "vlog",
+    excludedClips: [],
+  };
+}
+
+function sceneInSegment(sceneId, segmentId) {
+  const bySegment = {
+    seg001: new Set(["clip01_scene001", "clip02_scene001"]),
+    seg002: new Set(["clip01_scene002"]),
+  };
+  return bySegment[segmentId]?.has(sceneId) ?? false;
+}
+
+function segmentUsesScenes(timelineSegment, segmentId) {
+  return sceneInSegment(timelineSegment.videoRef?.sceneId, segmentId)
+    || sceneInSegment(timelineSegment.audioRef?.sceneId, segmentId);
+}
+
+/**
+ * Partial EditRecipe for one L2 segment (super-director path).
+ */
+export function buildMiniDaySegmentPartial(segmentId) {
+  const golden = buildMiniDayRecipeDraft();
+  return {
+    ...golden,
+    outputs: golden.outputs.map((output) => ({
+      ...output,
+      timeline: output.timeline.filter((segment) => segmentUsesScenes(segment, segmentId)),
+    })),
+    creativeMoments: (golden.creativeMoments ?? []).filter((moment) => {
+      const sceneId = moment.spatialRef?.sceneId;
+      if (!sceneId) {
+        return segmentId === "seg001";
+      }
+      return sceneInSegment(sceneId, segmentId);
+    }),
+    sfxPlan: segmentId === "seg001" ? golden.sfxPlan : [],
+  };
+}
+
+/**
  * Queued LLM responses for abstract → direct → review on mini-day.
+ * Summarizer chunkTimelineForL2 yields a single L2 segment for mini-day (~225s),
+ * so the legacy director + drill-down path is used (not super-director).
  * @param {{ criticApproves?: boolean }} [options]
  */
 export function buildMiniDayAgentLoopResponses({ criticApproves = true } = {}) {

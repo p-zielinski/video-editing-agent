@@ -98,7 +98,8 @@ export const VideoTransformSchema = z.object({
     h: z.number(),
   }).optional(),
   reframe: z.enum(["center", "face", "subject"]).optional(),
-  speed: z.number().positive().default(1),
+  speed: z.number().positive().max(4).default(1),
+  speedMode: z.enum(["video_only", "video_audio"]).default("video_audio"),
 }).optional();
 
 export const TimelineSegmentV2Schema = z.object({
@@ -120,6 +121,7 @@ export const TimelineSegmentV2Schema = z.object({
   subtitles: SubtitlesConfigSchema.optional(),
   textOverlays: z.array(TextOverlayV2Schema).default([]),
   videoTransform: VideoTransformSchema,
+  sourceVolumeDb: z.number().min(-60).max(12).default(0).optional(),
   intent: z.string().optional(),
   // deprecated / migration-only — walidator emituje SOURCE_REF_IN_V2_SEGMENT / DEPRECATED_AUDIO_OFFSET
   sourceRef: MediaRefSchema.optional(),

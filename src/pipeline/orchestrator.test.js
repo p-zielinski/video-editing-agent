@@ -125,4 +125,45 @@ describe("orchestrator", () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("twelvelabs step uses stub by default even when TWELVELABS_API_KEY is set", async () => {
+    const originalApiKey = process.env.TWELVELABS_API_KEY;
+    process.env.TWELVELABS_API_KEY = "test-key";
+
+    const tlBatchId = `orch-tl-${Date.now().toString(36)}`;
+    const tlWorkDir = resolveWorkDir(tlBatchId);
+    fs.mkdirSync(tlWorkDir, { recursive: true });
+
+    try {
+      writeJson(path.join(tlWorkDir, ARTIFACTS.manifest), {
+        batchId: tlBatchId,
+        clips: [{ clipId: "clip01", sourcePath: "/in/clip01.mp4", fileName: "clip01.mp4" }],
+      });
+      writeJson(path.join(tlWorkDir, ARTIFACTS.sceneCatalog), {
+        batchId: tlBatchId,
+        clips: [{ clipId: "clip01", sourcePath: "/in/clip01.mp4", fileName: "clip01.mp4", durationSec: 30 }],
+        scenes: [],
+      });
+
+      await runPipeline({
+        batchId: tlBatchId,
+        fromStep: "twelvelabs",
+        toStep: "twelvelabs",
+        apiKey: "unused",
+        force: true,
+      });
+
+      const payload = JSON.parse(
+        fs.readFileSync(path.join(tlWorkDir, ARTIFACTS.twelvelabs("clip01")), "utf8"),
+      );
+      assert.equal(payload.indexingStatus, "stub");
+    } finally {
+      if (originalApiKey === undefined) {
+        delete process.env.TWELVELABS_API_KEY;
+      } else {
+        process.env.TWELVELABS_API_KEY = originalApiKey;
+      }
+      fs.rmSync(tlWorkDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -141,6 +141,8 @@ const EDIT_RECIPE_V2_OUTPUT_SCHEMA = {
           syncMode: "align_start",
           overlapSec: 0,
           cuts: [],
+          videoTransform: { speed: 1, speedMode: "video_audio", reframe: "center|face|subject?" },
+          sourceVolumeDb: 0,
           intent: "string?",
         },
       ],
