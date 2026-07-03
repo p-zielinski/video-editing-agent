@@ -289,18 +289,34 @@ Osobna tablica od `timeline[]` — opisuje zabiegi montażowe (zoom, cięcia, pr
 - Zoom na A-roll, nie na B-roll (chyba że `ken_burns_light` na B-roll)
 - Szanuj `maxZoomMoments`, `minZoomGapSec` z `creativityBudget`
 
-### Wykonywalność technik w rendererze (FFmpeg)
+### Uczciwość renderera (renderer fidelity)
 
-Renderer mapuje `creativeMoments` na filtry FFmpeg — **nie wszystkie techniki z katalogu to widoczne cięcia na timeline**:
+Renderer mapuje `creativeMoments` na passy FFmpeg — **nazwa techniki ≠ to samo co w montażu offline**. Prawdziwe cięcia i skrócenie: `timeline[].segments` + `cuts[].wordIds`; creative pass = akcenty wizualne/audio.
 
 | `techniqueId` | Efekt w rendererze | Uwagi dla Directora |
 |---------------|-------------------|---------------------|
-| `jump_cut`, `hard_cut_energy` | **Retention pulse** — krótki impuls brightness/contrast (~0.12 s) w creative pass | Umieszczaj dla energii i retencji; **nie oczekuj** widocznego skoku cięcia w tej samej scenie — to nie jest montażowy jump cut |
-| `zoom_punch_out` | **Obsługiwany** — krótkie oddalenie (scale punch, factor &lt; 1) jak `zoom_punch_in` w drugą stronę | Wymaga `spatialRef` / kotwicy; na A-roll, nie B-roll |
-| `cut_on_beat` | **Snap granicy segmentu** — gdy moment jest na joinie segmentów (±0.1 s), concat przesuwa join do najbliższego beatu z `audioIndex` | Wymaga `beatTimestamps` / beatów w `audioIndex` dla klipu wychodzącego; tolerancja `snapToleranceSec` (domyślnie 0.5 s) |
-| `crossfade` | Przejście dissolve na joinie segmentów | Wymaga sąsiednich segmentów na granicy |
+| `jump_cut`, `hard_cut_energy` | **Retention pulse** — impuls brightness/contrast ~0.12 s | Energia/retencja OK; **nie** montażowy jump cut — skrócenie = granice segmentów + `cuts[]` |
+| `match_cut` | Krótki motion blur + subtelny scale (~0.15–0.25 s) | **Nie** semantic match obiektów/ruchu — akcent przejścia, nie vision pairing |
+| `whip_pan` | Kierunkowy `gblur` (~0.2 s) | **Nie** pan kamery — preferuj shorty (`level: shorts`); na vlog main oszczędnie |
+| `j_cut`, `l_cut` | **Nie w `creativeMoments`** — tylko `segment.audioPolicy`: `from_prev` / `from_next` + `overlapSec` | V21-14; overlap best-effort w concat |
+| `crossfade` | `xfade`+`acrossfade` na joinie segmentów | Tylko eligible: 2 seg.; lub 3+ gdy crossfade na **każdym** joinie albo **dokładnie jednym** — inaczej `CROSSFADE_NOT_APPLIED` (V21-15) |
+| `dip_to_black` | Fade out/in (0.3–0.8 s) w creative pass | Akty/rozdziały main 16:9 (co ~8–12 min) — przejście między częściami vlogu; nie myl z kartą rozdziału |
+| `music_swell` | Podbicie głośności music bed (+~3 dB) | Wymaga `audioMixPlan.musicBed`; beat retencji, wzmocnienie energii na cadence |
+| `music_drop` | **Ściemnia** music bed (~−6 dB) | Wymaga `audioMixPlan.musicBed`; payoff / reveal emocjonalny (`retentionRole: payoff`) — nie zwykły beat |
+| `silence_beat` | Dip głosu w audio-mix | **Nie skraca** duration outputu — dramatyczna pauza bez usuwania czasu; skrócenie = `cuts[]` lub trim segmentu |
+| `reframe_follow_subject` | Statyczny `zoompan` do `spatialRef.bbox` | **Nie** continuous tracking — kotwica z `spatialIndex`; krótki moment, nie podążanie przez segment |
+| `chapter_card` (technika) | Graphics — `requiresOutputKind: short` (V22-06) | Na main 16:9: `textOverlays[]` z `style: chapter_card`, nie `creativeMoments` z tym `techniqueId` |
+| `zoom_punch_out` | Scale punch out (factor &lt; 1) jak `zoom_punch_in` w drugą stronę | Wymaga `spatialRef` / kotwicy; A-roll, nie B-roll |
+| `cut_on_beat` | Snap joinu segmentu do beatu z `audioIndex` (±`snapToleranceSec`) | Join w concat, nie osobne cięcie w creative pass; brak beatów → bez snapu |
 
-Dla prawdziwego skrócenia materiału używaj `timeline[].segments` (granice segmentów, `cuts[].wordIds`), nie `jump_cut` / `hard_cut_energy`.
+**Packi shortów — kiedy który:**
+
+| Pack | Kiedy | Zawiera |
+|------|-------|---------|
+| `shorts_retention_2026` | `shortsRetentionProfile` włączony (domyślnie przy retention shortów) | Hooki, beaty, graphics (`hook_*`, `pattern_interrupt`, `emphasis_text`), gramatyka V22 |
+| `shorts_energy` | `shorts: energy high` — gęsty 9:16 bez pełnej gramatyki retention | `snap_zoom`, `jump_cut`, `whip_pan`, `music_swell`/`music_drop`, J/L — **bez** packa graphics retention |
+
+Dla prawdziwego skrócenia materiału używaj `timeline[].segments` (granice, `cuts[].wordIds`, dead air trim), nie `jump_cut` / `hard_cut_energy` / `silence_beat`.
 
 ## Gramatyka retencji shortów (v2.2)
 
@@ -400,7 +416,7 @@ Po Twoim szkicu pipeline **uzupełnia luki deterministycznie** — nie usuwaj an
 | `enrichRecipeChapterCards` | Dodaje `textOverlays` z `overlayId: enrich_chapter_*` gdy brak `chapter_card` przy `chapterCardHints` | Dodaj karty rozdziałów z briefu — enrich wypełnia brakujące sloty |
 | `enrichRecipeSfxPlan` | Merge `audio_event` z analizy; trim do V24-06 (max 1 SFX / 90 s main) | Wybierz SFX narracyjnie — enrich nie duplikuje pokrytych eventów |
 | `enrichRecipeColdOpenSegment` | Tease + rewind intro/markery gdy brak cold open na main | Użyj `coldOpenSegmentHint` z briefu; enrich dodaje tease/rewind gdy brak |
-| `enrichRecipeSilenceBeatFromDeadAir` | Dodaje `enrich_silence_*` (`silence_beat`) przy `deadAirHints` z `source: both` | Tnij dead air w segmentach; enrich uzupełnia brakujące beaty ciszy |
+| `enrichRecipeDeadAirHandling` | Tnie dead air w timeline (`cuts[]` `reason: dead_air` lub trim in/out) przy `deadAirHints` `source: both`; `silence_beat` tylko jako fallback | Director może też ciąć ręcznie; enrich deterministycznie usuwa bezpieczne gap |
 
 **Zasady:**
 

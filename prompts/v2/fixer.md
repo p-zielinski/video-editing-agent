@@ -107,7 +107,7 @@ Preferuj rotację z `retentionTechniqueRotationMain` w briefu — unikaj agresyw
 
 `audioIndex.clips[].silenceGaps` — przy dead air przesuń `videoInSec`/`audioInSec` na koniec gapu lub dodaj cięcie na `silence_start`.
 
-`audioIndex.clips[].deadAirHints` — scalone RMS + Whisper (`source`: `audio` | `transcript` | `both`). Przy dead air tnij na `endSec` hintu z `source: "both"`; przy V21-13 ustaw `silence_beat` na początek/koniec hintu lub najbliższy `cutSuggestion`; skróć segment zamiast zostawiać pauzę.
+`audioIndex.clips[].deadAirHints` — scalone RMS + Whisper (`source`: `audio` | `transcript` | `both`). Przy dead air tnij na `endSec` hintu z `source: "both"`; przy V21-13 ustaw `silence_beat` na początek/koniec hintu lub najbliższy `cutSuggestion`; skróć segment zamiast zostawiać pauzę. Post-director enrich (`enrichRecipeDeadAirCuts`) automatycznie dodaje `cuts[]` z `reason: "dead_air"` lub trimuje `videoInSec`/`audioInSec` przy bezpiecznych gapach; `silence_beat` zostaje fallbackiem gdy cięcie grozi ucięciem słowa lub gdy `narrativeProfile.silencePolicy: "preserve"`.
 
 `audioIndex.clips[].energyPeaks` — przy hookach i `zoom_punch_in` kotwicz na peak z wysokim `rmsDb`.
 

@@ -12,6 +12,7 @@ import {
   resolveChronologicalIntroRef,
 } from "../../src/editorial/chapter-hints.js";
 import {
+  DEFAULT_SHORTS_RETENTION_PROFILE,
   DEFAULT_VLOG_RETENTION_PROFILE,
   enrichRecipeRetentionBeats,
   resolveSpatialRefForBeat,
@@ -189,7 +190,7 @@ describe("enrichRecipeRetentionBeats", () => {
     assert.equal(enriched.length, 0);
   });
 
-  it("caps new beats at maxRetentionBeatMoments minus existing", () => {
+  it("caps new beats at max 2 when director placed zero beats", () => {
     const recipe = {
       outputs: [{
         outputId: "main_16x9",
@@ -208,9 +209,102 @@ describe("enrichRecipeRetentionBeats", () => {
     });
 
     const enriched = moments.filter(
-      (m) => m.outputId === "main_16x9" && m.retentionRole === "beat",
+      (m) => m.outputId === "main_16x9" && m.momentId.startsWith("enrich_beat_"),
     );
-    assert.ok(enriched.length <= 13);
+    assert.equal(enriched.length, 2);
+  });
+
+  it("fills remaining slots when director placed some beats", () => {
+    const directorBeat = {
+      momentId: "cm_beat_director",
+      techniqueId: "zoom_slow_push",
+      outputId: "main_16x9",
+      outputStartSec: 10,
+      outputEndSec: 10.5,
+      retentionRole: "beat",
+      reason: "Director beat",
+    };
+    const denseAudioIndex = {
+      clips: [{
+        clipId: "clip01",
+        energyPeaks: Array.from({ length: 12 }, (_, i) => ({
+          startSec: 48 + i * 45,
+          endSec: 50 + i * 45,
+          rmsDb: -12,
+        })),
+      }],
+    };
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: 600,
+        timeline: [{ outputEndSec: 600, videoInSec: 0, videoOutSec: 600 }],
+      }],
+      vlogRetentionProfile: profile,
+      creativeMoments: [directorBeat],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex: denseAudioIndex,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const enriched = moments.filter(
+      (m) => m.outputId === "main_16x9" && m.momentId.startsWith("enrich_beat_"),
+    );
+    assert.ok(enriched.length > 2, "expected more than zero-beat cap when director placed beats");
+  });
+
+  it("skips enrich anchors within cooldown after energy peak with beat", () => {
+    const clusteredPeaksAudio = {
+      clips: [{
+        clipId: "clip01",
+        energyPeaks: [
+          { startSec: 39, endSec: 41, rmsDb: -12 },
+          { startSec: 44, endSec: 46, rmsDb: -11 },
+          { startSec: 84, endSec: 86, rmsDb: -10 },
+        ],
+      }],
+    };
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: 180,
+        timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+      }],
+      vlogRetentionProfile: profile,
+      creativeMoments: [{
+        momentId: "cm_beat_peak",
+        techniqueId: "zoom_slow_push",
+        outputId: "main_16x9",
+        outputStartSec: 40,
+        outputEndSec: 40.5,
+        retentionRole: "beat",
+        reason: "Director beat on first peak",
+      }],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex: clusteredPeaksAudio,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const enriched = moments.filter(
+      (m) => m.outputId === "main_16x9" && m.momentId.startsWith("enrich_beat_"),
+    );
+    assert.ok(enriched.length >= 1);
+    assert.ok(
+      enriched.every((m) => m.outputStartSec < 40 || m.outputStartSec >= 50),
+      "enrich beats should avoid 10s cooldown window after peak at 40s",
+    );
+    assert.ok(
+      enriched.some((m) => Math.abs(m.outputStartSec - 85) <= 8),
+      "expected enrich beat on later peak outside cooldown",
+    );
   });
 
   it("returns existing when vlog retention disabled", () => {
@@ -310,6 +404,231 @@ describe("enrichRecipeRetentionBeats", () => {
     assert.equal(fallback?.sceneId, "clip01_scene001");
     assert.equal(fallback?.timestampSec, 40);
     assert.equal(fallback?.bbox, undefined);
+  });
+});
+
+const SHORTS_TECHNIQUES = new Set([
+  "pattern_interrupt",
+  "retention_beat",
+  "snap_zoom",
+  "jump_cut",
+]);
+
+describe("enrichRecipeRetentionBeats — shorts", () => {
+  const shortsProfile = { ...DEFAULT_SHORTS_RETENTION_PROFILE, enabled: true };
+  const audioIndex = {
+    clips: [{
+      clipId: "clip01",
+      energyPeaks: [
+        { startSec: 26, endSec: 28, rmsDb: -12 },
+        { startSec: 51, endSec: 53, rmsDb: -10 },
+      ],
+    }],
+  };
+
+  const shortOutput = {
+    outputId: "short_9x16",
+    outputKind: "short",
+    format: "9:16",
+    targetDurationSec: 60,
+    timeline: [{ outputEndSec: 60, videoInSec: 0, videoOutSec: 60 }],
+  };
+
+  it("adds enrich_beat_ moments when short lacks beats near anchors", () => {
+    const recipe = {
+      outputs: [shortOutput],
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const enriched = moments.filter(
+      (m) => m.outputId === "short_9x16" && m.momentId.startsWith("enrich_beat_"),
+    );
+    assert.ok(enriched.length >= 1);
+    assert.equal(enriched[0].retentionRole, "beat");
+    assert.ok(SHORTS_TECHNIQUES.has(enriched[0].techniqueId));
+    const beatDuration = enriched[0].outputEndSec - enriched[0].outputStartSec;
+    assert.ok(beatDuration >= 0.29 && beatDuration <= 0.81);
+  });
+
+  it("does not duplicate beats already near anchor tolerance on short", () => {
+    const recipe = {
+      outputs: [shortOutput],
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [
+        {
+          momentId: "cm_beat1",
+          techniqueId: "pattern_interrupt",
+          outputId: "short_9x16",
+          outputStartSec: 28,
+          outputEndSec: 28.5,
+          retentionRole: "beat",
+          reason: "Existing beat",
+        },
+        {
+          momentId: "cm_beat2",
+          techniqueId: "retention_beat",
+          outputId: "short_9x16",
+          outputStartSec: 53,
+          outputEndSec: 53.5,
+          retentionRole: "beat",
+          reason: "Existing beat 2",
+        },
+      ],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex: { clips: [] },
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const enriched = moments.filter((m) => m.momentId.startsWith("enrich_beat_"));
+    assert.equal(enriched.length, 0);
+  });
+
+  it("caps new short beats at max 2 when director placed zero beats", () => {
+    const recipe = {
+      outputs: [{
+        ...shortOutput,
+        targetDurationSec: 180,
+        timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+      }],
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const enriched = moments.filter(
+      (m) => m.outputId === "short_9x16" && m.momentId.startsWith("enrich_beat_"),
+    );
+    assert.equal(enriched.length, 2);
+  });
+
+  it("skips short enrich anchors within cooldown after energy peak with beat", () => {
+    const clusteredPeaksAudio = {
+      clips: [{
+        clipId: "clip01",
+        energyPeaks: [
+          { startSec: 26, endSec: 28, rmsDb: -12 },
+          { startSec: 31, endSec: 33, rmsDb: -11 },
+          { startSec: 51, endSec: 53, rmsDb: -10 },
+        ],
+      }],
+    };
+    const recipe = {
+      outputs: [shortOutput],
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [{
+        momentId: "cm_beat_peak",
+        techniqueId: "pattern_interrupt",
+        outputId: "short_9x16",
+        outputStartSec: 27,
+        outputEndSec: 27.5,
+        retentionRole: "beat",
+        reason: "Director beat on first peak",
+      }],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex: clusteredPeaksAudio,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const enriched = moments.filter(
+      (m) => m.outputId === "short_9x16" && m.momentId.startsWith("enrich_beat_"),
+    );
+    assert.ok(enriched.length >= 1);
+    assert.ok(
+      enriched.every((m) => m.outputStartSec < 27 || m.outputStartSec >= 37),
+      "short enrich beats should avoid cooldown window after peak at 27s",
+    );
+    assert.ok(
+      enriched.some((m) => Math.abs(m.outputStartSec - 52) <= 8),
+      "expected short enrich beat on later peak outside cooldown",
+    );
+  });
+
+  it("returns existing when shorts retention disabled", () => {
+    const existing = [{
+      momentId: "cm_hook",
+      techniqueId: "hook_visual_punch",
+      outputId: "short_9x16",
+      outputStartSec: 0,
+      outputEndSec: 2,
+      retentionRole: "hook",
+      reason: "Hook",
+    }];
+    const recipe = {
+      outputs: [shortOutput],
+      shortsRetentionProfile: { enabled: false },
+      creativeMoments: existing,
+    };
+
+    assert.deepEqual(
+      enrichRecipeRetentionBeats(recipe, { audioIndex }),
+      existing,
+    );
+  });
+
+  it("adds enrich_hook_001 when requireHookMoment and no hook in window", () => {
+    const recipe = {
+      outputs: [shortOutput],
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const hook = moments.find((m) => m.momentId === "enrich_hook_001");
+    assert.ok(hook);
+    assert.equal(hook.outputId, "short_9x16");
+    assert.equal(hook.retentionRole, "hook");
+    assert.equal(hook.techniqueId, "hook_title_overlay");
+    assert.ok(hook.outputStartSec < shortsProfile.hookWindowSec);
+  });
+
+  it("enriches both main and short outputs in dual-format recipe", () => {
+    const recipe = {
+      outputs: [
+        {
+          outputId: "main_16x9",
+          outputKind: "main",
+          format: "16:9",
+          targetDurationSec: 180,
+          timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+        },
+        shortOutput,
+      ],
+      vlogRetentionProfile: { ...DEFAULT_VLOG_RETENTION_PROFILE, enabled: true },
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction: { L1: [], L2: [] },
+    });
+
+    const mainEnriched = moments.filter(
+      (m) => m.outputId === "main_16x9" && m.momentId.startsWith("enrich_beat_"),
+    );
+    const shortEnriched = moments.filter(
+      (m) => m.outputId === "short_9x16" && m.momentId.startsWith("enrich_beat_"),
+    );
+    assert.ok(mainEnriched.length >= 1);
+    assert.ok(shortEnriched.length >= 1);
   });
 });
 

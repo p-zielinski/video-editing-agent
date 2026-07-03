@@ -21,7 +21,7 @@ import { runSpatialIndexStep } from "./spatial-index.js";
 import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/audio-mix-plan.js";
 import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
-import { enrichRecipeChapterCards, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
+import { enrichRecipeChapterCards, buildChapterCardHints, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
 import { enrichRecipeRetentionBeats } from "../../editorial/shorts-retention.js";
 import {
   buildBrollSyncHintsForRecipe,
@@ -29,7 +29,7 @@ import {
   buildKeyframesByClip,
 } from "../../editorial/broll-sync-hints.js";
 
-import { enrichRecipeSilenceBeatFromDeadAir } from "../../editorial/dead-air-enrich.js";
+import { enrichRecipeDeadAirHandling } from "../../editorial/dead-air-enrich.js";
 import { refineClipRegistryFromL1 } from "./clip-profile.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
@@ -83,6 +83,7 @@ export function applyDeterministicRecipeEnrichers(recipe, {
   perClipAnalysis,
   batchContext = {},
   keyframeArtifacts = null,
+  wordIndexes = null,
 }) {
   const effectiveBatchContext = {
     ...batchContext,
@@ -112,9 +113,10 @@ export function applyDeterministicRecipeEnrichers(recipe, {
     spatialIndex,
   });
 
-  recipe.creativeMoments = enrichRecipeSilenceBeatFromDeadAir(recipe, {
+  recipe.creativeMoments = enrichRecipeDeadAirHandling(recipe, {
     audioIndex,
     timelineIndex,
+    wordIndexes,
   });
 
   enrichRecipeChapterCards(recipe, { abstraction });
@@ -260,6 +262,7 @@ function buildRecipeValidationOptions({
   keyframeArtifacts,
   batchContext,
 }) {
+  const mergedBatchContext = { ...batchContext, ...recipe.batchContext };
   return {
     requiredFormats,
     topicIndex,
@@ -271,9 +274,15 @@ function buildRecipeValidationOptions({
       timelineIndex,
       topicIndex,
       keyframeArtifacts,
-      batchContext,
+      batchContext: mergedBatchContext,
       recipe,
     }),
+    chapterCardHints: abstraction
+      ? buildChapterCardHints(abstraction, {
+        outputs: recipe.outputs,
+        batchContext: mergedBatchContext,
+      })
+      : (recipe.chapterCardHints ?? []),
   };
 }
 
@@ -368,6 +377,7 @@ export async function runDirectStep({
     perClipAnalysis,
     batchContext,
     keyframeArtifacts,
+    wordIndexes,
   });
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
@@ -495,6 +505,7 @@ export async function runReviewStep({
       perClipAnalysis,
       batchContext,
       keyframeArtifacts: loadKeyframesByClip(workDir, catalog),
+      wordIndexes,
     });
     recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
     writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);

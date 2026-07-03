@@ -730,6 +730,10 @@ function collectRetentionAnchorCandidates(audioIndex, abstraction, timelineIndex
 
 const ENRICH_BEAT_DURATION_MIN_SEC = 0.3;
 const ENRICH_BEAT_DURATION_MAX_SEC = 0.8;
+/** Max enrich backfill when director placed zero retention beats. */
+const ENRICH_ZERO_BEAT_BACKFILL_CAP = 2;
+/** Skip enrich anchors this long after an energy peak that already has a beat. */
+const ENRICH_PEAK_COOLDOWN_SEC = 10;
 
 const SPATIAL_REF_TECHNIQUE_IDS = new Set([
   "zoom_slow_push",
@@ -861,59 +865,164 @@ function hasBeatNearSec(beatMoments, targetSec, toleranceSec) {
   });
 }
 
-function resolveMaxRetentionBeatMoments(recipe, profile) {
-  const durationSec = resolveMainOutputDurationSec({
-    outputs: recipe?.outputs ?? [],
-    batchContext: recipe?.batchContext ?? {},
-  });
-  const mergedProfile = {
-    ...DEFAULT_VLOG_RETENTION_PROFILE,
-    ...profile,
-  };
+function collectEnergyPeakOutputSecs(audioIndex, mapContext = {}) {
+  const mappingSource = mapContext.recipe ?? mapContext.outputs;
+  const outputKind = mapContext.outputKind ?? "main";
+  const peaks = [];
+
+  for (const clip of audioIndex?.clips ?? []) {
+    for (const peak of clip.energyPeaks ?? []) {
+      const mid = Math.round(((peak.startSec + peak.endSec) / 2) * 10) / 10;
+      const mapped = mappingSource
+        ? mapSourceTimeToOutputSec(mappingSource, clip.clipId, mid, { outputKind })
+        : mid;
+      peaks.push(mapped ?? mid);
+    }
+  }
+
+  return peaks.sort((a, b) => a - b);
+}
+
+function findEnergyPeakNearOutputSec(peakOutputSecs, outputSec, toleranceSec) {
+  for (const peakSec of peakOutputSecs) {
+    if (Math.abs(outputSec - peakSec) <= toleranceSec) {
+      return peakSec;
+    }
+  }
+  return null;
+}
+
+function isInPeakCooldown(outputSec, cooldownPeakSecs, cooldownSec) {
+  return cooldownPeakSecs.some(
+    (peakSec) => outputSec >= peakSec && outputSec < peakSec + cooldownSec,
+  );
+}
+
+function peaksWithNearbyBeats(peakOutputSecs, beatMoments, toleranceSec) {
+  return peakOutputSecs.filter(
+    (peakSec) => hasBeatNearSec(beatMoments, peakSec, toleranceSec),
+  );
+}
+
+function resolveMaxRetentionBeatMoments(recipe, profile, outputKind = "main") {
+  const durationSec = outputKind === "short"
+    ? resolveShortOutputDurationSec({
+      outputs: recipe?.outputs ?? [],
+      batchContext: recipe?.batchContext ?? {},
+    })
+    : resolveMainOutputDurationSec({
+      outputs: recipe?.outputs ?? [],
+      batchContext: recipe?.batchContext ?? {},
+    });
+  const defaults = outputKind === "short"
+    ? DEFAULT_SHORTS_RETENTION_PROFILE
+    : DEFAULT_VLOG_RETENTION_PROFILE;
+  const mergedProfile = { ...defaults, ...profile };
   return computeScaledMinRetentionBeats(durationSec, mergedProfile);
 }
 
+function countEnrichBeatMoments(moments) {
+  let maxIndex = 0;
+  for (const moment of moments) {
+    const match = /^enrich_beat_(\d+)$/.exec(moment.momentId ?? "");
+    if (match) {
+      maxIndex = Math.max(maxIndex, Number(match[1]));
+    }
+  }
+  return maxIndex;
+}
+
+function hasHookMomentInWindow(moments, outputId, hookWindowSec) {
+  return moments.some(
+    (moment) => moment.outputId === outputId
+      && moment.outputStartSec < hookWindowSec
+      && isHookMoment(moment),
+  );
+}
+
 /**
- * Merge retention beat creativeMoments into recipe when director omitted beats near anchors.
- * Preserves existing director moments; caps new beats at maxRetentionBeatMoments − existingBeatCount.
- *
- * @param {object} recipe - EditRecipe v2 draft
- * @param {{ audioIndex?: object, abstraction?: object, timelineIndex?: object, spatialIndex?: object }} [options]
- * @returns {object[]} merged creativeMoments
+ * Add hook creativeMoment when shorts profile requires one and director omitted it.
+ * @param {object} shortOutput
+ * @param {object} profile
+ * @param {object[]} existingMoments
+ * @returns {object[]}
  */
-export function enrichRecipeRetentionBeats(recipe, {
-  audioIndex,
-  abstraction,
-  timelineIndex,
-  spatialIndex,
-} = {}) {
-  const existing = recipe?.creativeMoments ?? [];
-  const mainOutput = (recipe?.outputs ?? []).find(
-    (output) => output.outputKind === "main" || output.format === "16:9",
-  );
-  if (!mainOutput) {
-    return existing;
+function enrichShortHookMoment(shortOutput, profile, existingMoments) {
+  if (!profile?.enabled || !profile.requireHookMoment) {
+    return [];
   }
 
-  const profile = recipe?.vlogRetentionProfile ?? {};
-  if (!profile.enabled) {
-    return existing;
+  const hookWindowSec = profile.hookWindowSec ?? DEFAULT_SHORTS_RETENTION_PROFILE.hookWindowSec;
+  if (hasHookMomentInWindow(existingMoments, shortOutput.outputId, hookWindowSec)) {
+    return [];
   }
 
-  const beatMoments = existing.filter(
-    (moment) => moment.outputId === mainOutput.outputId && isRetentionBeatMoment(moment),
+  const useTitleOverlay = profile.requireHookOverlay !== false;
+  const techniqueId = useTitleOverlay ? "hook_title_overlay" : "hook_visual_punch";
+  const durationSec = useTitleOverlay ? 2.5 : 0.8;
+  const outputEndSec = Math.min(durationSec, hookWindowSec);
+
+  return [{
+    momentId: "enrich_hook_001",
+    techniqueId,
+    outputId: shortOutput.outputId,
+    outputStartSec: 0,
+    outputEndSec: Math.round(outputEndSec * 10) / 10,
+    retentionRole: "hook",
+    params: useTitleOverlay ? { style: "hook_large" } : {},
+    reason: "Enriched hook moment in opening window",
+    confidence: 0.65,
+  }];
+}
+
+/**
+ * Merge retention beat creativeMoments for one output when director omitted beats near anchors.
+ * @param {object} recipe
+ * @param {object} targetOutput
+ * @param {object} profile
+ * @param {"vlog"|"shorts"} mode
+ * @param {object[]} existingMoments
+ * @param {{ audioIndex?: object, abstraction?: object, timelineIndex?: object, spatialIndex?: object }} options
+ * @returns {object[]}
+ */
+function enrichRetentionBeatsForOutput(
+  recipe,
+  targetOutput,
+  profile,
+  mode,
+  existingMoments,
+  {
+    audioIndex,
+    abstraction,
+    timelineIndex,
+    spatialIndex,
+  },
+) {
+  const outputKind = mode === "shorts" ? "short" : "main";
+  const defaults = resolveRetentionDefaults(mode);
+  const beatMoments = existingMoments.filter(
+    (moment) => moment.outputId === targetOutput.outputId && isRetentionBeatMoment(moment),
   );
-  const maxBeats = resolveMaxRetentionBeatMoments(recipe, profile);
-  const slots = Math.max(0, maxBeats - beatMoments.length);
+  const existingBeatCount = beatMoments.length;
+  const maxBeats = resolveMaxRetentionBeatMoments(recipe, profile, outputKind);
+  const slots = existingBeatCount === 0
+    ? Math.min(ENRICH_ZERO_BEAT_BACKFILL_CAP, maxBeats)
+    : Math.max(0, maxBeats - existingBeatCount);
 
   if (!audioIndex?.clips?.length || slots === 0) {
-    return existing;
+    return [];
   }
 
-  const durationSec = resolveMainOutputDurationSec({
-    outputs: recipe.outputs ?? [],
-    batchContext: recipe.batchContext ?? {},
-  });
+  const durationSec = outputKind === "short"
+    ? resolveShortOutputDurationSec({
+      outputs: recipe.outputs ?? [],
+      batchContext: recipe.batchContext ?? {},
+    })
+    : resolveMainOutputDurationSec({
+      outputs: recipe.outputs ?? [],
+      batchContext: recipe.batchContext ?? {},
+    });
+
   const anchors = buildRetentionBeatAnchors(
     audioIndex,
     abstraction ?? {},
@@ -921,20 +1030,30 @@ export function enrichRecipeRetentionBeats(recipe, {
     {
       timelineIndex,
       durationSec,
-      mode: "vlog",
+      mode,
       recipe,
-      outputKind: "main",
+      outputKind,
     },
   );
-  const toleranceSec = profile.retentionBeatToleranceSec
-    ?? DEFAULT_VLOG_RETENTION_PROFILE.retentionBeatToleranceSec;
+  const toleranceSec = profile.retentionBeatToleranceSec ?? defaults.retentionBeatToleranceSec;
+  const mapContext = { recipe, outputKind };
+  const energyPeakOutputSecs = collectEnergyPeakOutputSecs(audioIndex, mapContext);
+  let cooldownPeakSecs = peaksWithNearbyBeats(
+    energyPeakOutputSecs,
+    beatMoments,
+    toleranceSec,
+  );
 
   const newMoments = [];
-  let enrichIndex = 0;
+  let enrichIndex = countEnrichBeatMoments(existingMoments);
 
   for (const anchor of anchors) {
     if (newMoments.length >= slots) {
       break;
+    }
+
+    if (isInPeakCooldown(anchor.outputSec, cooldownPeakSecs, ENRICH_PEAK_COOLDOWN_SEC)) {
+      continue;
     }
 
     const covered = hasBeatNearSec(beatMoments, anchor.idealOutputSec, toleranceSec)
@@ -954,14 +1073,14 @@ export function enrichRecipeRetentionBeats(recipe, {
       spatialIndex,
       timelineIndex,
       outputStartSec,
-      mainOutput,
+      mainOutput: targetOutput,
       techniqueId,
     });
 
     newMoments.push({
       momentId: `enrich_beat_${String(enrichIndex).padStart(3, "0")}`,
       techniqueId,
-      outputId: mainOutput.outputId,
+      outputId: targetOutput.outputId,
       outputStartSec,
       outputEndSec: Math.round((outputStartSec + beatDurationSec) * 10) / 10,
       retentionRole: "beat",
@@ -972,9 +1091,81 @@ export function enrichRecipeRetentionBeats(recipe, {
         : `Enriched retention beat at ${outputStartSec}s (${anchor.anchorSource})`,
       confidence: 0.65,
     });
+
+    const placedPeakSec = findEnergyPeakNearOutputSec(
+      energyPeakOutputSecs,
+      outputStartSec,
+      toleranceSec,
+    );
+    if (placedPeakSec != null && !cooldownPeakSecs.includes(placedPeakSec)) {
+      cooldownPeakSecs.push(placedPeakSec);
+    }
   }
 
-  return [...existing, ...newMoments];
+  return newMoments;
+}
+
+/**
+ * Merge retention beat creativeMoments into recipe when director omitted beats near anchors.
+ * Preserves existing director moments; when director placed zero beats, adds at most 2 enrich beats.
+ * When director placed some beats, caps new beats at maxRetentionBeatMoments − existingBeatCount.
+ * Enriches vlog main (vlogRetentionProfile) and shorts (shortsRetentionProfile).
+ *
+ * @param {object} recipe - EditRecipe v2 draft
+ * @param {{ audioIndex?: object, abstraction?: object, timelineIndex?: object, spatialIndex?: object }} [options]
+ * @returns {object[]} merged creativeMoments
+ */
+export function enrichRecipeRetentionBeats(recipe, {
+  audioIndex,
+  abstraction,
+  timelineIndex,
+  spatialIndex,
+} = {}) {
+  let moments = recipe?.creativeMoments ?? [];
+  const outputs = recipe?.outputs ?? [];
+  const enrichOptions = { audioIndex, abstraction, timelineIndex, spatialIndex };
+
+  const mainOutput = outputs.find(
+    (output) => output.outputKind === "main" || output.format === "16:9",
+  );
+  const vlogProfile = recipe?.vlogRetentionProfile ?? {};
+  if (mainOutput && vlogProfile.enabled) {
+    moments = [
+      ...moments,
+      ...enrichRetentionBeatsForOutput(
+        recipe,
+        mainOutput,
+        vlogProfile,
+        "vlog",
+        moments,
+        enrichOptions,
+      ),
+    ];
+  }
+
+  const shortOutput = outputs.find(
+    (output) => output.outputKind === "short" || output.format === "9:16",
+  );
+  const shortsProfile = recipe?.shortsRetentionProfile ?? {};
+  if (shortOutput && shortsProfile.enabled) {
+    moments = [
+      ...moments,
+      ...enrichShortHookMoment(shortOutput, shortsProfile, moments),
+    ];
+    moments = [
+      ...moments,
+      ...enrichRetentionBeatsForOutput(
+        recipe,
+        shortOutput,
+        shortsProfile,
+        "shorts",
+        moments,
+        enrichOptions,
+      ),
+    ];
+  }
+
+  return moments;
 }
 
 /**

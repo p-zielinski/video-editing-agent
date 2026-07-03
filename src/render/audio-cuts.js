@@ -33,8 +33,18 @@ export function buildKeepRanges(cuts, wordIndex, rangeStartSec, rangeEndSec) {
     if (!startWord || !endWord) {
       continue;
     }
-    const cutStart = Math.max(rangeStartSec, startWord.start);
-    const cutEnd = Math.min(rangeEndSec, endWord.end);
+    const isDeadAirGap = cut.reason === "dead_air";
+    const cutStart = Math.max(
+      rangeStartSec,
+      isDeadAirGap ? startWord.end : startWord.start,
+    );
+    const cutEnd = Math.min(
+      rangeEndSec,
+      isDeadAirGap ? endWord.start : endWord.end,
+    );
+    if (cutEnd <= cutStart + 0.01) {
+      continue;
+    }
     if (cutStart > cursor + 0.01) {
       keepRanges.push({ start: cursor - rangeStartSec, end: cutStart - rangeStartSec });
     }

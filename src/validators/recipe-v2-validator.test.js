@@ -1068,4 +1068,71 @@ describe("recipe v2 montage quality validators", () => {
     const result = validateRecipeV2(recipe);
     assert.ok(result.issues.some((i) => i.code === "V24-07" && i.severity === "warning"));
   });
+
+  it("validateRecipeV2 warns V26-CHAPTER-01 when chapterCardHints lack overlay coverage", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 300,
+        audioInSec: 0,
+        audioOutSec: 300,
+        audioPolicy: "from_video_ref",
+        textOverlays: [],
+      }],
+    }];
+
+    const result = validateRecipeV2(recipe, {
+      chapterCardHints: [{ outputId: "main_16x9", targetSec: 120, style: "chapter_card" }],
+    });
+
+    const issue = result.issues.find((entry) => entry.code === "V26-CHAPTER-01");
+    assert.ok(issue);
+    assert.equal(issue.severity, "warning");
+    assert.equal(result.valid, true);
+  });
+
+  it("validateRecipeV2 passes V26-CHAPTER-01 when chapter_card overlay covers hint", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 300,
+        audioInSec: 0,
+        audioOutSec: 300,
+        audioPolicy: "from_video_ref",
+        textOverlays: [{
+          overlayId: "dir_chapter_1",
+          text: "Part 2",
+          outputStartSec: 118,
+          outputEndSec: 122,
+          style: "chapter_card",
+        }],
+      }],
+    }];
+
+    const result = validateRecipeV2(recipe, {
+      chapterCardHints: [{ outputId: "main_16x9", targetSec: 120, style: "chapter_card" }],
+    });
+
+    assert.equal(result.issues.filter((entry) => entry.code === "V26-CHAPTER-01").length, 0);
+  });
 });

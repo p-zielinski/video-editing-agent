@@ -100,6 +100,41 @@ describe("audio-cuts", () => {
     assert.match(filter, /\[0:v\]setpts=PTS-STARTPTS\[vout\]/);
   });
 
+  it("buildKeepRanges removes silence gap for dead_air cuts", () => {
+    const gapWordIndex = {
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    };
+    const ranges = buildKeepRanges(
+      [{ startWordId: "clip01_w001", endWordId: "clip01_w002", reason: "dead_air" }],
+      gapWordIndex,
+      0,
+      8,
+    );
+    assert.deepEqual(ranges, [
+      { start: 0, end: 2 },
+      { start: 6, end: 8 },
+    ]);
+  });
+
+  it("computeCutsRemovedSec sums dead_air gap duration", () => {
+    const gapWordIndex = {
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    };
+    const removed = computeCutsRemovedSec(
+      [{ startWordId: "clip01_w001", endWordId: "clip01_w002", reason: "dead_air" }],
+      gapWordIndex,
+      0,
+      8,
+    );
+    assert.equal(removed, 4);
+  });
+
   it("computeCutsRemovedSec returns 0 when keepIfStoryCritical", () => {
     const removed = computeCutsRemovedSec(
       [{

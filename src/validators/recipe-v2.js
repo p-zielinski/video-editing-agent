@@ -16,6 +16,7 @@ import {
 import { validateAspectRatio, buildSceneAspectMap } from "./aspect-ratio.js";
 import { validateBrollAvSync } from "./broll-av-sync.js";
 import { validateBrollSyncHintAdherence } from "./broll-sync-hint-adherence.js";
+import { validateChapterCardHintCoverage } from "./chapter-card-hints.js";
 import { deriveTeaseSceneIdFromRecipe } from "../editorial/chapter-hints.js";
 import { validateMultiClipChronology } from "./chronology.js";
 import { validateBrollStrategy } from "./broll-strategy.js";
@@ -859,6 +860,7 @@ export function validateRecipeV2(recipe, {
   estimatedKeepRatio,
   musicCatalogPath,
   brollSyncHints,
+  chapterCardHints,
 } = {}) {
   const parsed = EditRecipeV2Schema.parse(recipe);
   const formats = requiredFormats ?? getRequiredFormats(parsed);
@@ -911,6 +913,7 @@ export function validateRecipeV2(recipe, {
     ...validateAspectRatio(parsed, { sceneAspectById }),
     ...validateBrollAvSync(parsed),
     ...validateBrollSyncHintAdherence(parsed, { brollSyncHints }),
+    ...validateChapterCardHintCoverage(recipe, { chapterCardHints, wordIndexes }),
     ...validateMultiClipChronology(parsed, {
       teaseSceneId: deriveTeaseSceneIdFromRecipe(parsed),
     }),

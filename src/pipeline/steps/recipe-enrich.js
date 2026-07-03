@@ -5,6 +5,7 @@ import { validateRecipeV2, buildSceneUsageRegistryV2 } from "../../validators/re
 import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { buildBrollSyncHintsForRecipe } from "../../editorial/broll-sync-hints.js";
+import { buildChapterCardHints } from "../../editorial/chapter-hints.js";
 import {
   applyDeterministicRecipeEnrichers,
   ensureSpatialIndex,
@@ -123,6 +124,7 @@ export async function runRecipeEnrichStep({
     perClipAnalysis,
     batchContext: { ...batchContext, ...recipe.batchContext },
     keyframeArtifacts,
+    wordIndexes,
   });
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
@@ -144,6 +146,10 @@ export async function runRecipeEnrichStep({
       keyframeArtifacts,
       batchContext: { ...batchContext, ...recipe.batchContext },
       recipe,
+    }),
+    chapterCardHints: buildChapterCardHints(abstraction, {
+      outputs: recipe.outputs,
+      batchContext: { ...batchContext, ...recipe.batchContext },
     }),
   });
 
