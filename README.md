@@ -268,6 +268,14 @@ Opcjonalne `audioMixPlan` — plan LUFS, muzyki bed i duckingu; **autorowany w p
 
 Gdy `musicBed` jest ustawione, segmenty powinny mieć `audioPolicy: "external"` (warning **V23-01**). Szczegóły: [`docs/PRE_RENDER_PIPELINE.md#editrecipe-v23--plan-miksowania-audio-pre-render`](docs/PRE_RENDER_PIPELINE.md#editrecipe-v23--plan-miksowania-audio-pre-render).
 
+### Pionowe wstawki w main 16:9 (FaceTime, nagranie ekranu)
+
+Krótkie klipy `9:16` można wstawiać do poziomego filmu YouTube jako segmenty `broll` (2–15 s). Renderer domyślnie robi **pillarbox** (pionowy kadr na środku, czarne pasy boczne). W recepturze opcjonalnie `videoTransform.fitMode: "pillarbox"` lub `"fill"` (crop wypełniający kadr). Nie używaj `reframe: face`/`subject` na takich wstawkach w 16:9 — to wymusza crop zamiast pillarbox.
+
+### Częściowy voice-over (MP3 / WAV / M4A)
+
+Do `inbox/` można dodać plik narracji (`.mp3`, `.wav`, `.m4a`) obok materiału wideo. Ingest ustawia `mediaType: audio_only` i `clipRole: narration_track`. **Cały film nie musi być VO** — w jednym outputcie mogą być segmenty `from_video_ref` (A-roll do kamery) oraz `from_audio_ref` (B-roll wizualny + audio z pliku narracji). Szczegóły: [`docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md`](docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md), fixture `fixtures/batches/voiceover-day/`.
+
 ## Context DSL (`--context`)
 
 Tekst wolny trafia do `batchContext.notes`. Tokeny parsowane regexem:

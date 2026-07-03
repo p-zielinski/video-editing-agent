@@ -32,6 +32,55 @@ describe("aspect-ratio validator", () => {
     assert.ok(issues.some((issue) => issue.code === "V25-AR-02"));
   });
 
+  it("does not warn for vertical broll in main 16:9 without transform", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        format: "16:9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg_broll",
+          segmentRole: "broll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 5,
+          audioPolicy: "from_audio_ref",
+        }],
+      }],
+    };
+
+    const issues = validateAspectRatio(recipe, { sceneAspectById });
+    assert.equal(issues.length, 0);
+  });
+
+  it("does not warn when fitMode is set", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        format: "16:9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "broll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 5,
+          audioPolicy: "from_audio_ref",
+          videoTransform: { fitMode: "pillarbox" },
+        }],
+      }],
+    };
+
+    const issues = validateAspectRatio(recipe, { sceneAspectById });
+    assert.equal(issues.length, 0);
+  });
+
   it("does not warn when videoTransform.reframe is set", () => {
     const recipe = {
       outputs: [{

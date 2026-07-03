@@ -8,6 +8,10 @@ function findSpatialAnchor(spatialIndex, sceneId) {
   return scene.primaryAnchor ?? scene.anchors[0];
 }
 
+function targetAspectForFormat(format) {
+  return format === "9:16" ? 9 / 16 : 16 / 9;
+}
+
 /**
  * Build -vf filter chain for a segment (crop, scale, speed).
  */
@@ -24,13 +28,27 @@ export function buildSegmentVideoFilter({
   const sceneId = segment.videoRef?.sceneId;
   const clipMeta = clipId ? context?.clips?.[clipId] : null;
   const sourceRes = clipMeta?.resolution ?? { w: 1920, h: 1080 };
+  const sourceW = sourceRes.w ?? 1920;
+  const sourceH = sourceRes.h ?? 1080;
+  const sourceAspect = sourceW / sourceH;
 
-  const reframeMode = segment.videoTransform?.reframe;
-  const needsReframe = format === "9:16" || reframeMode === "face" || reframeMode === "subject";
+  const videoTransform = segment.videoTransform ?? {};
+  const reframeMode = videoTransform.reframe;
+  const fitMode = videoTransform.fitMode;
+  const targetAspect = targetAspectForFormat(format);
+  const aspectDiffers = Math.abs(sourceAspect - targetAspect) > 0.01;
 
-  if (needsReframe && dimensions) {
+  const useFillInLandscape = format !== "9:16" && aspectDiffers && fitMode === "fill";
+
+  const useCropReframe = format === "9:16"
+    || reframeMode === "face"
+    || reframeMode === "subject"
+    || useFillInLandscape;
+
+  if (useCropReframe && dimensions) {
+    const useSpatialAnchor = reframeMode === "face" || reframeMode === "subject";
     let spatialAnchor = null;
-    if (sceneId && spatialIndex) {
+    if (useSpatialAnchor && sceneId && spatialIndex) {
       const anchor = findSpatialAnchor(spatialIndex, sceneId);
       if (anchor) {
         spatialAnchor = {
@@ -40,19 +58,17 @@ export function buildSegmentVideoFilter({
       }
     }
 
-    const crop = segment.videoTransform?.crop
+    const crop = videoTransform.crop
       ?? computeReframeCrop({
         format,
-        spatialAnchor,
-        sourceResolution: { w: sourceRes.w ?? 1920, h: sourceRes.h ?? 1080 },
+        spatialAnchor: useSpatialAnchor ? spatialAnchor : null,
+        sourceResolution: { w: sourceW, h: sourceH },
       });
 
-    const w = sourceRes.w ?? 1920;
-    const h = sourceRes.h ?? 1080;
-    const cropX = Math.round(crop.x * w);
-    const cropY = Math.round(crop.y * h);
-    const cropW = Math.round(crop.w * w);
-    const cropH = Math.round(crop.h * h);
+    const cropX = Math.round(crop.x * sourceW);
+    const cropY = Math.round(crop.y * sourceH);
+    const cropW = Math.round(crop.w * sourceW);
+    const cropH = Math.round(crop.h * sourceH);
 
     filters.push(`crop=${cropW}:${cropH}:${cropX}:${cropY}`);
     filters.push(`scale=${dimensions.width}:${dimensions.height}`);
@@ -61,7 +77,7 @@ export function buildSegmentVideoFilter({
     filters.push(`pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2`);
   }
 
-  const speed = segment.videoTransform?.speed ?? 1;
+  const speed = videoTransform.speed ?? 1;
   if (speed !== 1) {
     filters.push(`setpts=PTS/${speed}`);
   }

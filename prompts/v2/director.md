@@ -128,6 +128,25 @@ Gdy użytkownik nagrał **osobną narrację** (plik audio-only lub klip VO z gł
 
 VO w **pliku wideo** (talking head tylko do syncu): ten sam wzorzec — `audioRef` → klip VO, `videoRef` → B-roll; obraz VO jest ignorowany przy `from_audio_ref`.
 
+## Częściowy voice-over (VO-03)
+
+Gdy narracja jest **częściowa** — intro z mową na kamerze (A-roll), potem B-roll z osobną ścieżką narracji:
+
+- Pierwsze segmenty: `segmentRole: "aroll"`, `audioPolicy: "from_video_ref"` (mowa z materiału wideo)
+- Segmenty VO: `segmentRole: "broll"`, `audioPolicy: "from_audio_ref"`, `audioRef.clipId` = klip `narration_track` / `audio_only`
+- `subtitles.sourceClipId` per segment — transkrypt z klipu, z którego pochodzi mowa (A-roll lub narracja), nie z B-roll wizualnego
+- Ingest obsługuje pliki narracji: `.mp3`, `.wav`, `.m4a` → `mediaType: audio_only`
+- Brief z `hasSeparateNarration: true` sygnalizuje mieszany montaż A-roll + osobna narracja
+
+## Pionowe wstawki w main 16:9
+
+FaceTime, nagranie ekranu telefonu, pionowy screen recording w main 16:9:
+
+- Krótkie segmenty `broll` z materiału `9:16` — domyślnie `videoTransform.fitMode: "pillarbox"` (pasy boczne, bez kadrowania twarzy)
+- **Nie** ustawiaj `reframe: "face"` / `"subject"` na wstawkach pionowych w main 16:9 — to psuje kompozycję
+- `fitMode: "fill"` tylko gdy świadomie chcesz wypełnić kadr (crop+scale) — np. `reframe: "center"` + `fitMode: "fill"`
+- Dla A-roll pionowego w main 16:9 walidator emituje V25-AR-02 — preferuj B-roll insert lub pillarbox
+
 ## B-roll z topicIndex
 
 Gdy `brollStrategy` = `match_speech_topics` (domyślnie):

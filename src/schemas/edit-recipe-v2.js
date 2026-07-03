@@ -98,6 +98,7 @@ export const VideoTransformSchema = z.object({
     h: z.number(),
   }).optional(),
   reframe: z.enum(["center", "face", "subject"]).optional(),
+  fitMode: z.enum(["pillarbox", "fill"]).optional(),
   speed: z.number().positive().max(4).default(1),
   speedMode: z.enum(["video_only", "video_audio"]).default("video_audio"),
 }).optional();

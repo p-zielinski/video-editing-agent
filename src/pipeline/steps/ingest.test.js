@@ -27,4 +27,11 @@ describe("ingest", () => {
 
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  it("getMediaType returns audio_only for .mp3 and .m4a", () => {
+    assert.equal(getMediaType("narration.mp3"), "audio_only");
+    assert.equal(getMediaType("narration.m4a"), "audio_only");
+    assert.equal(isAudioFile("narration.mp3"), true);
+    assert.equal(isAudioFile("narration.m4a"), true);
+  });
 });

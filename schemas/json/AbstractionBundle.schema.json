@@ -137,8 +137,16 @@
             "formatFit": {
               "type": "object",
               "properties": {
-                "16:9": { "type": "number", "minimum": 0, "maximum": 1 },
-                "9:16": { "type": "number", "minimum": 0, "maximum": 1 }
+                "16:9": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "9:16": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
               },
               "additionalProperties": false
             },

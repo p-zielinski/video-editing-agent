@@ -1,12 +1,17 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   planHybridKeyframes,
   speechTimestampsFromWords,
   resolveMaxFramesPerMin,
+  runKeyframesStep,
   BROLL_MAX_FRAMES_PER_MIN,
   DEFAULT_MAX_FRAMES_PER_MIN,
 } from "./keyframes.js";
+import { writeJson, ARTIFACTS } from "../work-paths.js";
 
 describe("hybrid keyframes", () => {
   it("plans keyframes from scenes and speech", () => {
@@ -124,5 +129,48 @@ describe("hybrid keyframes", () => {
     });
 
     assert.ok(dense.length > sparse.length);
+  });
+
+  it("skips frame extraction for audio_only clips", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-keyframes-"));
+    const clipId = "clip_audio";
+    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+      version: "1.0",
+      batchId: "test",
+      clips: [{
+        clipId,
+        sourcePath: "/in/narration.wav",
+        fileName: "narration.wav",
+        durationSec: 30,
+        sortIndex: 0,
+        mediaType: "audio_only",
+      }],
+      scenes: [{
+        sceneId: `${clipId}_scene001`,
+        clipId,
+        sourcePath: "/in/narration.wav",
+        startSec: 0,
+        endSec: 30,
+        durationSec: 30,
+        aspectRatio: "other",
+        resolution: { w: 0, h: 0 },
+        mediaType: "audio_only",
+        hasSpeech: true,
+      }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.words(clipId)), {
+      version: "1.0",
+      clipId,
+      words: [{ wordId: "w1", word: "test", start: 0, end: 1, isFiller: false }],
+    });
+
+    const results = await runKeyframesStep({ workDir, extractImages: true });
+    assert.equal(results.length, 1);
+    assert.deepEqual(results[0].keyframes, []);
+
+    const written = JSON.parse(fs.readFileSync(path.join(workDir, ARTIFACTS.keyframes(clipId)), "utf8"));
+    assert.equal(written.keyframes.length, 0);
+
+    fs.rmSync(workDir, { recursive: true, force: true });
   });
 });

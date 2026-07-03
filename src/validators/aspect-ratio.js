@@ -12,6 +12,10 @@ function aspectsMismatch(sourceAspect, outputFormat) {
 }
 
 function hasIntentionalReframe(segment) {
+  const fitMode = segment.videoTransform?.fitMode;
+  if (fitMode === "pillarbox" || fitMode === "fill") {
+    return true;
+  }
   const reframe = segment.videoTransform?.reframe;
   if (reframe && (reframe === "center" || REFRAME_MODES.has(reframe))) {
     return true;
@@ -44,6 +48,15 @@ export function validateAspectRatio(recipe, { sceneAspectById } = {}) {
       }
 
       if (hasIntentionalReframe(segment)) {
+        continue;
+      }
+
+      const isVerticalBrollInLandscapeMain = sourceAspect === "9:16"
+        && output.format === "16:9"
+        && output.outputKind === "main"
+        && segment.segmentRole === "broll";
+
+      if (isVerticalBrollInLandscapeMain) {
         continue;
       }
 

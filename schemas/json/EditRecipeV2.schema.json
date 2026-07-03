@@ -84,7 +84,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["16:9", "9:16"]
+                "enum": [
+                  "16:9",
+                  "9:16"
+                ]
               },
               "minItems": 1,
               "maxItems": 2
@@ -196,6 +199,12 @@
                 "type": "integer",
                 "minimum": 0
               },
+              "creationTime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "clipRole": {
                 "type": "string",
                 "enum": [
@@ -216,9 +225,9 @@
                 "type": "string",
                 "enum": [
                   "clip_profile",
+                  "l1_refined",
                   "context_override",
-                  "director",
-                  "l1_refined"
+                  "director"
                 ]
               },
               "hasSpeech": {
@@ -481,6 +490,9 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "overlayId": {
+                            "type": "string"
+                          },
                           "text": {
                             "type": "string"
                           },
@@ -561,13 +573,35 @@
                             "subject"
                           ]
                         },
+                        "fitMode": {
+                          "type": "string",
+                          "enum": [
+                            "pillarbox",
+                            "fill"
+                          ]
+                        },
                         "speed": {
                           "type": "number",
                           "exclusiveMinimum": 0,
+                          "maximum": 4,
                           "default": 1
+                        },
+                        "speedMode": {
+                          "type": "string",
+                          "enum": [
+                            "video_only",
+                            "video_audio"
+                          ],
+                          "default": "video_audio"
                         }
                       },
                       "additionalProperties": false
+                    },
+                    "sourceVolumeDb": {
+                      "type": "number",
+                      "minimum": -60,
+                      "maximum": 12,
+                      "default": 0
                     },
                     "intent": {
                       "type": "string"
@@ -910,6 +944,53 @@
           },
           "additionalProperties": false
         },
+        "vlogRetentionProfile": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "hookWindowSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 3
+            },
+            "retentionBeatIntervalSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 45
+            },
+            "retentionBeatToleranceSec": {
+              "type": "number",
+              "minimum": 0,
+              "default": 8
+            },
+            "minRetentionBeats": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 2
+            },
+            "requireHookMoment": {
+              "type": "boolean",
+              "default": false
+            },
+            "requireHookOverlay": {
+              "type": "boolean",
+              "default": false
+            },
+            "techniquePack": {
+              "type": "string",
+              "default": "youtube_vlog_2026"
+            },
+            "mode": {
+              "type": "string",
+              "const": "vlog",
+              "default": "vlog"
+            }
+          },
+          "additionalProperties": false
+        },
         "audioMixPlan": {
           "type": "object",
           "properties": {
@@ -1040,7 +1121,11 @@
             },
             "mode": {
               "type": "string",
-              "enum": ["none", "eq_only", "lut"]
+              "enum": [
+                "none",
+                "eq_only",
+                "lut"
+              ]
             },
             "lutId": {
               "type": "string"

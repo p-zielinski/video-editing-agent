@@ -30,6 +30,12 @@
                 "type": "integer",
                 "minimum": 0
               },
+              "creationTime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "clipRole": {
                 "type": "string",
                 "enum": [
@@ -50,9 +56,9 @@
                 "type": "string",
                 "enum": [
                   "clip_profile",
+                  "l1_refined",
                   "context_override",
-                  "director",
-                  "l1_refined"
+                  "director"
                 ]
               },
               "hasSpeech": {

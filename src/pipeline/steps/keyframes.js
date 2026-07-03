@@ -168,6 +168,17 @@ export async function runKeyframesStep({ workDir, extractImages = true, force = 
       continue;
     }
 
+    if (clip.mediaType === "audio_only") {
+      const payload = {
+        version: "1.0",
+        clipId: clip.clipId,
+        keyframes: [],
+      };
+      writeJson(outPath, payload);
+      allKeyframes.push(payload);
+      continue;
+    }
+
     const wordIndex = readJson(path.join(workDir, ARTIFACTS.words(clip.clipId)));
     const scenes = catalog.scenes.filter((s) => s.clipId === clip.clipId);
     const clipEntry = clipRegistry.find((entry) => entry.clipId === clip.clipId);

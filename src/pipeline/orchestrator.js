@@ -227,6 +227,8 @@ export async function runPipeline(options) {
             creationTime: c.creationTime,
             aspectRatio: c.aspectRatio,
             resolution: c.resolution,
+            ...(c.mediaType ? { mediaType: c.mediaType } : {}),
+            ...(c.sortIndex != null ? { sortIndex: c.sortIndex } : {}),
           }));
           const updatedCatalog = buildSceneCatalogFromDetection(
             batchId,

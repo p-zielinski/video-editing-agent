@@ -815,6 +815,44 @@ describe("recipe v2 validator", () => {
     assert.ok(!result.issues.some((i) => i.code === "V25-VO-02"));
   });
 
+  it("passes V25-VO with mixed aroll and from_audio_ref segments", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.clipRegistry.push({
+      clipId: "clip03",
+      fileName: "03_narration.wav",
+      durationSec: 20,
+      sortIndex: 2,
+      clipRole: "narration_track",
+      hasSpeech: true,
+      speechWordCount: 50,
+      mediaType: "audio_only",
+    });
+    recipe.outputs[0].timeline.push({
+      segmentId: "vo_mixed",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+      audioRef: { clipId: "clip03", sceneId: "clip03_scene001" },
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_audio_ref",
+      subtitles: { policy: "word_by_word", sourceClipId: "clip03" },
+    });
+
+    const result = validateRecipeV2(recipe, {
+      topicIndex: {
+        topics: [{
+          topicId: "t1",
+          label: "test",
+          matchingScenes: [{ sceneId: "clip02_scene001", score: 0.8 }],
+        }],
+      },
+    });
+    assert.ok(!result.issues.some((i) => i.code === "V25-VO-01"));
+    assert.ok(!result.issues.some((i) => i.code === "V25-VO-02"));
+  });
+
   it("errors V25-VO-02 when subtitles sourceClipId lacks speech transcript", () => {
     const recipe = structuredClone(baseRecipe);
     recipe.clipRegistry.push({
