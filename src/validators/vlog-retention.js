@@ -4,6 +4,15 @@ import {
   mergeVlogRetentionProfile,
   shouldEnableVlogRetention,
 } from "../editorial/shorts-retention.js";
+import {
+  computeExemptDurationSec,
+  effectiveGapSec,
+  resolveRecipeNarrativeProfile,
+  resolveSlowBreathOutputRanges,
+} from "../lib/narrative-profile.js";
+
+const PATTERN_INTERRUPT_WINDOW_SEC = 600;
+const DEFAULT_MAX_PATTERN_INTERRUPTS_PER_10_MIN = 1;
 
 const AGGRESSIVE_VLOG_TECHNIQUES = new Set([
   "jump_cut",
@@ -81,9 +90,11 @@ export function shouldRunVlogRetentionValidation(recipe = {}) {
   });
 }
 
-function validateMinRetentionBeats(output, profile, moments, durationSec) {
+function validateMinRetentionBeats(output, profile, moments, durationSec, exemptRanges) {
   const beatMoments = moments.filter((moment) => isVlogRetentionBeatMoment(moment));
-  const required = computeScaledMinRetentionBeats(durationSec, profile);
+  const exemptDurationSec = computeExemptDurationSec(exemptRanges);
+  const effectiveDurationSec = Math.max(0, durationSec - exemptDurationSec);
+  const required = computeScaledMinRetentionBeats(effectiveDurationSec, profile);
 
   if (beatMoments.length >= required) {
     return [];
@@ -92,12 +103,12 @@ function validateMinRetentionBeats(output, profile, moments, durationSec) {
   return [{
     severity: "error",
     code: "V22-VLOG-01",
-    message: `Output ${output.outputId}: ${beatMoments.length} beatów vlog < min ${required} dla ${durationSec.toFixed(0)}s`,
+    message: `Output ${output.outputId}: ${beatMoments.length} beatów vlog < min ${required} dla ${effectiveDurationSec.toFixed(0)}s`,
     outputId: output.outputId,
   }];
 }
 
-function validateCadence(output, profile, moments, durationSec) {
+function validateCadence(output, profile, moments, durationSec, exemptRanges) {
   const maxGap = profile.retentionBeatIntervalSec + profile.retentionBeatToleranceSec;
   const beatMoments = moments.filter((moment) => isVlogRetentionBeatMoment(moment));
   const anchors = beatMoments
@@ -105,19 +116,23 @@ function validateCadence(output, profile, moments, durationSec) {
     .sort((a, b) => a - b);
 
   if (anchors.length === 0 && durationSec > profile.hookWindowSec) {
-    return [{
-      severity: "error",
-      code: "V22-VLOG-02",
-      message: `Output ${output.outputId}: brak retention beatów — cadence > ${maxGap}s`,
-      outputId: output.outputId,
-    }];
+    const hookGap = effectiveGapSec(profile.hookWindowSec, durationSec, exemptRanges);
+    if (hookGap > maxGap) {
+      return [{
+        severity: "error",
+        code: "V22-VLOG-02",
+        message: `Output ${output.outputId}: brak retention beatów — cadence > ${maxGap}s`,
+        outputId: output.outputId,
+      }];
+    }
+    return [];
   }
 
   const issues = [];
   const hookWindow = profile.hookWindowSec;
   const points = [hookWindow, ...anchors, durationSec];
   for (let i = 1; i < points.length; i++) {
-    const gap = points[i] - points[i - 1];
+    const gap = effectiveGapSec(points[i - 1], points[i], exemptRanges);
     if (gap > maxGap) {
       issues.push({
         severity: "error",
@@ -178,6 +193,72 @@ function validateTechniqueRotation(output, moments) {
   return issues;
 }
 
+export function resolveMaxPatternInterruptsPer10Min(recipe) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  if (narrativeProfile?.maxPatternInterruptsPer10Min != null) {
+    return narrativeProfile.maxPatternInterruptsPer10Min;
+  }
+  return DEFAULT_MAX_PATTERN_INTERRUPTS_PER_10_MIN;
+}
+
+function countPatternInterruptsInWindow(times, windowStartSec, windowSec) {
+  const windowEndSec = windowStartSec + windowSec;
+  return times.filter(
+    (timeSec) => timeSec >= windowStartSec && timeSec < windowEndSec,
+  ).length;
+}
+
+function validatePatternInterruptDensity(
+  output,
+  moments,
+  durationSec,
+  maxPer10Min,
+  { warnAtLimit = true } = {},
+) {
+  const patternInterruptTimes = moments
+    .filter((moment) => moment.techniqueId === "pattern_interrupt")
+    .map((moment) => moment.outputStartSec ?? moment.anchorSec ?? 0)
+    .sort((a, b) => a - b);
+
+  if (patternInterruptTimes.length === 0) {
+    return [];
+  }
+
+  const windowStarts = new Set([0, ...patternInterruptTimes]);
+  const issues = [];
+  let warnedAtLimit = false;
+
+  for (const windowStartSec of [...windowStarts].sort((a, b) => a - b)) {
+    if (windowStartSec > durationSec) {
+      break;
+    }
+    const count = countPatternInterruptsInWindow(
+      patternInterruptTimes,
+      windowStartSec,
+      PATTERN_INTERRUPT_WINDOW_SEC,
+    );
+    if (count > maxPer10Min) {
+      return [{
+        severity: "error",
+        code: "V22-VLOG-06",
+        message: `Output ${output.outputId}: ${count} pattern_interrupt w oknie 10 min (max ${maxPer10Min})`,
+        outputId: output.outputId,
+      }];
+    }
+    if (count === maxPer10Min && maxPer10Min > 0 && warnAtLimit && !warnedAtLimit) {
+      issues.push({
+        severity: "warning",
+        code: "V22-VLOG-06",
+        message: `Output ${output.outputId}: ${count} pattern_interrupt w oknie 10 min — limit ${maxPer10Min}`,
+        outputId: output.outputId,
+      });
+      warnedAtLimit = true;
+    }
+  }
+
+  return issues;
+}
+
 function validateBeatTargetAlignment(output, profile, moments, durationSec, beatTargets) {
   if (!beatTargets?.length) {
     return [];
@@ -206,7 +287,7 @@ function validateBeatTargetAlignment(output, profile, moments, durationSec, beat
 }
 
 /**
- * Walidacja gramatyki retencji vlog 16:9 (V22-VLOG-01 … V22-VLOG-05).
+ * Walidacja gramatyki retencji vlog 16:9 (V22-VLOG-01 … V22-VLOG-06).
  */
 export function validateVlogRetention(recipe, catalog, options = {}) {
   void catalog;
@@ -223,27 +304,54 @@ export function validateVlogRetention(recipe, catalog, options = {}) {
     },
   );
 
-  if (!shouldRunVlogRetentionValidation(recipe)) {
+  const mainOutputs = getMainOutputs(recipe);
+  if (!mainOutputs.length) {
     return [];
   }
 
+  const runFullVlogValidation = shouldRunVlogRetentionValidation(recipe);
   const explicitBeatTargets = options.retentionBeatTargets ?? recipe.retentionBeatTargets;
+  const maxPatternInterruptsPer10Min = resolveMaxPatternInterruptsPer10Min(recipe);
+  const hasExplicitPatternInterruptCap = resolveRecipeNarrativeProfile(recipe)
+    ?.maxPatternInterruptsPer10Min != null;
+  const {
+    abstraction = null,
+    timelineIndex = null,
+    wordIndexes = null,
+  } = options;
 
   const issues = [];
-  const mainOutputs = getMainOutputs(recipe);
-
   for (const output of mainOutputs) {
     const durationSec = estimateOutputDurationSec(output);
     const moments = getMomentsForOutput(recipe, output.outputId);
+    const exemptRanges = resolveSlowBreathOutputRanges(
+      recipe,
+      output,
+      abstraction,
+      timelineIndex,
+      wordIndexes,
+    );
+
+    if (runFullVlogValidation) {
+      issues.push(
+        ...validateMinRetentionBeats(output, profile, moments, durationSec, exemptRanges),
+        ...validateCadence(output, profile, moments, durationSec, exemptRanges),
+        ...validateAggressiveBeatTechniques(output, moments),
+        ...validateTechniqueRotation(output, moments),
+        ...(explicitBeatTargets?.length
+          ? validateBeatTargetAlignment(output, profile, moments, durationSec, explicitBeatTargets)
+          : []),
+      );
+    }
 
     issues.push(
-      ...validateMinRetentionBeats(output, profile, moments, durationSec),
-      ...validateCadence(output, profile, moments, durationSec),
-      ...validateAggressiveBeatTechniques(output, moments),
-      ...validateTechniqueRotation(output, moments),
-      ...(explicitBeatTargets?.length
-        ? validateBeatTargetAlignment(output, profile, moments, durationSec, explicitBeatTargets)
-        : []),
+      ...validatePatternInterruptDensity(
+        output,
+        moments,
+        durationSec,
+        maxPatternInterruptsPer10Min,
+        { warnAtLimit: !hasExplicitPatternInterruptCap },
+      ),
     );
   }
 

@@ -99,6 +99,19 @@
               },
               "summary": {
                 "type": "string"
+              },
+              "narrativeRole": {
+                "type": "string",
+                "enum": [
+                  "setup",
+                  "development",
+                  "tension",
+                  "breath",
+                  "climax",
+                  "payoff",
+                  "resolution",
+                  "callback"
+                ]
               }
             },
             "required": [
@@ -158,6 +171,40 @@
             "hasSeparateNarration": {
               "type": "boolean",
               "default": false
+            },
+            "openLoops": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "loopId": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "cold_open",
+                      "payoff_tease",
+                      "callback"
+                    ]
+                  },
+                  "setupSceneId": {
+                    "type": "string"
+                  },
+                  "payoffSceneId": {
+                    "type": "string"
+                  },
+                  "teaseText": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "loopId",
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
             }
           },
           "required": [

@@ -1,8 +1,20 @@
 # Plan: Retencja, narracja i sztuka montażu internetowego
 
-> Last updated: 2026-07-03  
-> Status: plan (analiza zakończona, implementacja nie rozpoczęta)  
-> Powiązane audyty: [`RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md`](./RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md), [`W4_19_PLAN.md`](./W4_19_PLAN.md), [`REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md`](./REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md), [`RENDER_MODULE_SPEC.md`](./RENDER_MODULE_SPEC.md), [`FORMATY_AI_I_GOTOWOSC_MONTAZU.md`](./FORMATY_AI_I_GOTOWOSC_MONTAZU.md)
+> Last updated: 2026-07-04  
+> Status: **Faza 1–2 zaimplementowana** (P0, P1, część P2); GAP-NAR-03 emotional beat hints — done  
+> Powiązane audyty: [`RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md`](./RETENTION_ENGAGEMENT_AUDIT_2026-06-28.md), [`W4_19_PLAN.md`](./W4_19_PLAN.md)
+
+## Status implementacji (skrót)
+
+| Tier | ID | Status |
+|------|-----|--------|
+| P0 | P0-1 Shorts enrich, P0-2 Dead air cuts, P0-3 Prompt honesty | ✅ |
+| P1 | P1-1 narrativeProfile, P1-2 Silence taxonomy, P1-3 openLoops+NAR, P1-5 Cap beats, P1-6 Chapter validator, P1-7 pattern_interrupt cap | ✅ |
+| P2 | P2-1 Blur pillarbox, P2-2 Per-segment ducking, P2-5 Payoff validator | ✅ |
+| GAP | GAP-NAR-02 speed enrich, GAP-NAR-03 emotionalBeatHints | ✅ |
+| Otwarte | P1-4 Shorts hook enrich, P2-3/4/6–9, P3-* | ⏳ |
+
+**Narracja długiego formu:** ~85% (było ~60%) — `narrativeProfile`, taksonomia ciszy, payoff/callback enrich, NAR-* walidatory.
 
 ## Cel dokumentu
 

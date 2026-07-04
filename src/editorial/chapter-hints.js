@@ -1,5 +1,11 @@
 import { buildOutputTimeline } from "../lib/build-output-timeline.js";
 import { resolveMainOutputDurationSec } from "./shorts-retention.js";
+import {
+  resolveL2OutputRangeSec,
+  resolveL2SegmentProfile,
+  resolveRecipeNarrativeProfile,
+  resolveSegmentCaps,
+} from "../lib/narrative-profile.js";
 
 export const COLD_OPEN_SEGMENT_ID = "enrich_cold_open_01";
 export const REWIND_INTRO_SEGMENT_ID = "enrich_rewind_intro_01";
@@ -48,12 +54,19 @@ function findNearestL2Segment(l2Segments, targetSec) {
   return best;
 }
 
-function buildChapterCardTargets(abstraction, durationSec) {
-  const l2Segments = abstraction?.L2 ?? [];
-  if (!l2Segments.length || durationSec < CHAPTER_CARD_MIN_DURATION_SEC) {
-    return [];
-  }
+function l2HasNarrativeRoles(l2Segments) {
+  return l2Segments.some((segment) => segment.narrativeRole);
+}
 
+function shouldSkipChapterCardL2Segment(l2Segment, narrativeProfile) {
+  if (l2Segment.narrativeRole === "breath") {
+    return true;
+  }
+  const segmentProfile = resolveL2SegmentProfile(narrativeProfile, l2Segment.segmentId);
+  return segmentProfile?.rhythm === "slow";
+}
+
+function buildIntervalChapterCardTargets(l2Segments, durationSec) {
   const targets = [];
   let cursor = CHAPTER_CARD_INTERVAL_SEC;
 
@@ -72,6 +85,64 @@ function buildChapterCardTargets(abstraction, durationSec) {
   }
 
   return targets;
+}
+
+function buildNarrativeBoundChapterCardTargets(
+  abstraction,
+  durationSec,
+  { recipe, narrativeProfile, mainOutput, wordIndexes } = {},
+) {
+  const l2Segments = abstraction?.L2 ?? [];
+  const targets = [];
+
+  for (const segment of l2Segments) {
+    if (shouldSkipChapterCardL2Segment(segment, narrativeProfile)) {
+      continue;
+    }
+
+    const summary = truncateText(segment?.summary, CHAPTER_SUMMARY_MAX_CHARS);
+    if (!summary) {
+      continue;
+    }
+
+    const range = mainOutput?.timeline?.length
+      ? resolveL2OutputRangeSec(segment.segmentId, abstraction, recipe, mainOutput, wordIndexes)
+      : null;
+    let targetSec = range?.startSec;
+    if (targetSec == null && segment.startSec != null) {
+      targetSec = segment.startSec;
+    }
+    if (targetSec == null || targetSec >= durationSec - 30) {
+      continue;
+    }
+
+    targets.push({
+      targetSec: Math.round(targetSec * 10) / 10,
+      text: summary,
+      l2SegmentId: segment.segmentId,
+    });
+  }
+
+  return targets;
+}
+
+function buildChapterCardTargets(abstraction, durationSec, options = {}) {
+  const l2Segments = abstraction?.L2 ?? [];
+  if (!l2Segments.length || durationSec < CHAPTER_CARD_MIN_DURATION_SEC) {
+    return [];
+  }
+
+  const narrativeProfile = options.narrativeProfile
+    ?? resolveRecipeNarrativeProfile(options.recipe);
+
+  if (l2HasNarrativeRoles(l2Segments)) {
+    return buildNarrativeBoundChapterCardTargets(abstraction, durationSec, {
+      ...options,
+      narrativeProfile,
+    });
+  }
+
+  return buildIntervalChapterCardTargets(l2Segments, durationSec);
 }
 
 function collectChapterOverlays(segments) {
@@ -100,8 +171,9 @@ function findSegmentForOutputSec(segments, outputSec) {
 }
 
 /**
- * Brief-only chapter_card overlay hints from nearest L2 segment summaries.
- * Suggests one card every ~3–5 min on the main output timeline.
+ * Brief-only chapter_card overlay hints from L2 segment summaries.
+ * With L2 narrativeRole: one card per eligible L2 start (output-mapped).
+ * Otherwise: ~3–5 min interval fallback on the main output timeline.
  *
  * @param {object} abstraction
  * @param {object} [recipe]
@@ -117,7 +189,11 @@ export function buildChapterCardHints(abstraction, recipe = {}) {
     batchContext: recipe.batchContext ?? {},
   });
 
-  return buildChapterCardTargets(abstraction, durationSec).map((target) => ({
+  return buildChapterCardTargets(abstraction, durationSec, {
+    recipe,
+    mainOutput,
+    narrativeProfile: recipe.narrativeProfile ?? recipe.batchContext?.narrativeProfile,
+  }).map((target) => ({
     outputId: mainOutput.outputId,
     targetSec: target.targetSec,
     style: "chapter_card",
@@ -150,7 +226,12 @@ export function enrichRecipeChapterCards(recipe, { abstraction } = {}) {
     outputs,
     batchContext: recipe.batchContext ?? {},
   });
-  const targets = buildChapterCardTargets(abstraction, durationSec);
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  const targets = buildChapterCardTargets(abstraction, durationSec, {
+    recipe,
+    mainOutput,
+    narrativeProfile,
+  });
   if (!targets.length) {
     return recipe;
   }
@@ -160,6 +241,11 @@ export function enrichRecipeChapterCards(recipe, { abstraction } = {}) {
   const timeline = [...mainOutput.timeline];
 
   for (const target of targets) {
+    const caps = resolveSegmentCaps(narrativeProfile, target.l2SegmentId, abstraction);
+    if (caps && !caps.allowChapterCards) {
+      continue;
+    }
+
     if (hasChapterCardNear(existingChapterOverlays, target.targetSec)) {
       continue;
     }
@@ -209,8 +295,48 @@ export function enrichRecipeChapterCards(recipe, { abstraction } = {}) {
   return recipe;
 }
 
+function buildStructuralLoopHint(loop) {
+  const tease = loop.teaseText ? truncateText(loop.teaseText, NARRATIVE_TEASE_MAX_CHARS) : null;
+
+  switch (loop.kind) {
+    case "cold_open":
+      return {
+        type: "cold_open",
+        loopId: loop.loopId,
+        setupSceneId: loop.setupSceneId,
+        payoffSceneId: loop.payoffSceneId,
+        hint: tease
+          ? `Cold open (${loop.loopId}): zapowiedz «${tease}» bez spoilera, potem rewind do intro`
+          : `Cold open (${loop.loopId}): teaser z payoff sceny ${loop.payoffSceneId ?? "?"}, potem rewind do intro`,
+      };
+    case "payoff_tease":
+      return {
+        type: "payoff_tease",
+        loopId: loop.loopId,
+        setupSceneId: loop.setupSceneId,
+        payoffSceneId: loop.payoffSceneId,
+        hint: tease
+          ? `Payoff tease (${loop.loopId}): nawiąż do «${tease}» w hooku / pierwszych 5s`
+          : `Payoff tease (${loop.loopId}): nawiąż do payoff sceny ${loop.payoffSceneId ?? "?"}`,
+      };
+    case "callback":
+      return {
+        type: "callback",
+        loopId: loop.loopId,
+        setupSceneId: loop.setupSceneId,
+        payoffSceneId: loop.payoffSceneId,
+        hint: tease
+          ? `Callback (${loop.loopId}): setup ${loop.setupSceneId ?? "?"} → payoff ${loop.payoffSceneId ?? "?"} («${tease}»)`
+          : `Callback (${loop.loopId}): wizualny callback setup ${loop.setupSceneId ?? "?"} → payoff ${loop.payoffSceneId ?? "?"}`,
+      };
+    default:
+      return null;
+  }
+}
+
 /**
  * 1–2 bullet hints for cold open / payoff tease from L3 narrative metadata.
+ * Prefers structural `L3.openLoops[]` when present; falls back to narrativeArc/sessionSummary text.
  *
  * @param {object} abstraction
  */
@@ -218,6 +344,14 @@ export function buildNarrativeOpenLoops(abstraction) {
   const l3 = abstraction?.L3;
   if (!l3) {
     return [];
+  }
+
+  const structural = l3.openLoops ?? [];
+  if (structural.length > 0) {
+    return structural
+      .map(buildStructuralLoopHint)
+      .filter(Boolean)
+      .slice(0, 2);
   }
 
   const hints = [];
@@ -300,7 +434,9 @@ export function buildColdOpenSegmentHint(
 
   const l2Segments = abstraction?.L2 ?? [];
   const payoffSegment = l2Segments.length > 0 ? l2Segments[l2Segments.length - 1] : null;
-  const teaseSceneId = payoffSegment?.sceneIds?.[0]
+  const teaseSceneId = coldOpenLoop.payoffSceneId
+    ?? coldOpenLoop.setupSceneId
+    ?? payoffSegment?.sceneIds?.[0]
     ?? abstraction?.L1?.[abstraction.L1.length - 1]?.sceneId;
 
   if (!teaseSceneId) {
@@ -501,6 +637,10 @@ export function enrichRecipeColdOpenSegment(recipe, hint, timelineIndex, options
 
   const mainOutput = recipe.outputs.find((output) => output.outputKind === "main");
   if (!mainOutput?.timeline?.length) {
+    return recipe;
+  }
+
+  if (mainOutput.timeline.some((segment) => segment.segmentId === COLD_OPEN_SEGMENT_ID)) {
     return recipe;
   }
 

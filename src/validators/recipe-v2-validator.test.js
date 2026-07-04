@@ -738,6 +738,39 @@ describe("recipe v2 validator", () => {
     assert.equal(issues.length, 0);
   });
 
+  it("warns V24-06 using narrativeProfile L2 maxSfxEntries sum", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.narrativeProfile = {
+      segments: [
+        { l2SegmentId: "seg001", rhythm: "normal" },
+        { l2SegmentId: "seg002", rhythm: "fast" },
+      ],
+    };
+    recipe.outputs[0].timeline[0].videoOutSec = 300;
+    recipe.outputs[0].timeline[0].audioOutSec = 300;
+    recipe.sfxPlan = [
+      { sfxId: "sfx_a", source: "library", outputStartSec: 10, outputEndSec: 10.5, label: "whoosh" },
+      { sfxId: "sfx_b", source: "library", outputStartSec: 50, outputEndSec: 50.5, label: "click" },
+      { sfxId: "sfx_c", source: "library", outputStartSec: 100, outputEndSec: 100.5, label: "swoosh" },
+      { sfxId: "sfx_d", source: "library", outputStartSec: 150, outputEndSec: 150.5, label: "rise" },
+      { sfxId: "sfx_e", source: "library", outputStartSec: 200, outputEndSec: 200.5, label: "hit" },
+      { sfxId: "sfx_f", source: "library", outputStartSec: 250, outputEndSec: 250.5, label: "pop" },
+    ];
+
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", startSec: 0, endSec: 150 },
+        { segmentId: "seg002", startSec: 150, endSec: 300 },
+      ],
+    };
+
+    const issues = validateSfxDensityOnMain(recipe, { abstraction });
+    assert.ok(issues.some((i) => i.code === "V24-06" && i.severity === "warning"));
+    assert.match(issues[0].message, /max 5/);
+    assert.match(issues[0].message, /narrativeProfile L2 caps/);
+  });
+
   it("errors V25-VO-01 when from_audio_ref points to clip without speech", () => {
     const recipe = structuredClone(baseRecipe);
     recipe.clipRegistry.push({
@@ -1009,7 +1042,7 @@ describe("recipe v2 montage quality validators", () => {
     assert.equal(result.valid, false);
   });
 
-  it("validateRecipeV2 warns V25-CHR-03 for cold open without rewind intro", () => {
+  it("validateRecipeV2 errors V25-CHR-03 for cold open without rewind intro", () => {
     const recipe = structuredClone(baseRecipe);
     recipe.outputs[0].timeline = [
       {
@@ -1039,8 +1072,8 @@ describe("recipe v2 montage quality validators", () => {
     const result = validateRecipeV2(recipe);
     const chr03 = result.issues.find((issue) => issue.code === "V25-CHR-03");
     assert.ok(chr03);
-    assert.equal(chr03.severity, "warning");
-    assert.equal(result.valid, true);
+    assert.equal(chr03.severity, "error");
+    assert.equal(result.valid, false);
   });
 
   it("validateRecipeV2 emits V25-AR-02 with sceneAspectById", () => {
@@ -1134,5 +1167,361 @@ describe("recipe v2 montage quality validators", () => {
     });
 
     assert.equal(result.issues.filter((entry) => entry.code === "V26-CHAPTER-01").length, 0);
+  });
+
+  it("validateRecipeV2 returns NAR-BEAT-SPAM for slow segment with enrich beats", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 240,
+        audioInSec: 0,
+        audioOutSec: 240,
+        audioPolicy: "from_video_ref",
+      }],
+    }];
+    recipe.narrativeProfile = {
+      segments: [{ l2SegmentId: "seg002", rhythm: "slow" }],
+    };
+    recipe.creativeMoments = [{
+      momentId: "enrich_beat_01",
+      techniqueId: "zoom_slow_push",
+      outputId: "main_16x9",
+      outputStartSec: 150,
+      outputEndSec: 151,
+      retentionRole: "beat",
+      reason: "enrich",
+      confidence: 0.7,
+    }];
+
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene001"], startSec: 120, endSec: 240 },
+      ],
+    };
+    const timelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 240 },
+      ],
+    };
+
+    const result = validateRecipeV2(recipe, { abstraction, timelineIndex });
+    const beatSpam = result.issues.filter((issue) => issue.code === "NAR-BEAT-SPAM");
+    assert.equal(beatSpam.length, 1);
+    assert.match(beatSpam[0].message, /enrich_beat_/);
+  });
+
+  it("validateRecipeV2 returns NAR-PAYOFF-UNDELIVERED when openLoops has payoffSceneId but no payoff", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "seg_body",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 240,
+        audioInSec: 0,
+        audioOutSec: 240,
+        audioPolicy: "from_video_ref",
+      }],
+    }];
+    recipe.creativeMoments = [];
+
+    const timelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 120 },
+        { sceneId: "clip01_scene002", clipId: "clip01", startSec: 120, endSec: 240 },
+      ],
+    };
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+      ],
+      L3: {
+        openLoops: [{
+          loopId: "loop_01",
+          kind: "cold_open",
+          setupSceneId: "clip01_scene001",
+          payoffSceneId: "clip01_scene002",
+          teaseText: "Payoff tease",
+        }],
+      },
+    };
+
+    const result = validateRecipeV2(recipe, { abstraction, timelineIndex });
+    assert.ok(result.issues.some((i) => i.code === "NAR-PAYOFF-UNDELIVERED"));
+  });
+
+  it("validateRecipeV2 returns NAR-DRAMATIC-PAUSE-CUT when dead_air cut in preserve segment", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.narrativeProfile = {
+      silencePolicy: "trim_dead_air",
+      segments: [{ l2SegmentId: "seg001", silencePolicy: "preserve" }],
+    };
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "seg_body",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 30,
+        audioInSec: 0,
+        audioOutSec: 30,
+        audioPolicy: "from_video_ref",
+        cuts: [{
+          startWordId: "clip01_w001",
+          endWordId: "clip01_w002",
+          reason: "dead_air",
+        }],
+      }],
+    }];
+
+    const wordIndexes = [{
+      clipId: "clip01",
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    }];
+    const timelineIndex = {
+      scenes: [{ sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 120 }],
+    };
+    const abstraction = {
+      L2: [{ segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 }],
+    };
+
+    const result = validateRecipeV2(recipe, { abstraction, timelineIndex, wordIndexes });
+    assert.ok(result.issues.some((i) => i.code === "NAR-DRAMATIC-PAUSE-CUT"));
+  });
+
+  it("validateRecipeV2 returns NAR-BREATH-BEAT for beat in breath L2 segment", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 240,
+        audioInSec: 0,
+        audioOutSec: 240,
+        audioPolicy: "from_video_ref",
+      }],
+    }];
+    recipe.creativeMoments = [{
+      momentId: "beat_breath",
+      techniqueId: "zoom_slow_push",
+      outputId: "main_16x9",
+      outputStartSec: 150,
+      outputEndSec: 151,
+      retentionRole: "beat",
+      reason: "beat w oddechu",
+      confidence: 0.7,
+    }];
+
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        {
+          segmentId: "seg002",
+          sceneIds: ["clip01_scene001"],
+          startSec: 120,
+          endSec: 240,
+          narrativeRole: "breath",
+        },
+      ],
+    };
+    const timelineIndex = {
+      scenes: [{ sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 240 }],
+    };
+
+    const result = validateRecipeV2(recipe, { abstraction, timelineIndex });
+    assert.ok(result.issues.some((i) => i.code === "NAR-BREATH-BEAT"));
+  });
+
+  it("validateRecipeV2 returns NAR-CLOSURE-SPAM for enrich beats in resolution segment", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 240,
+        audioInSec: 0,
+        audioOutSec: 240,
+        audioPolicy: "from_video_ref",
+      }],
+    }];
+    recipe.creativeMoments = [{
+      momentId: "enrich_beat_closure",
+      techniqueId: "zoom_slow_push",
+      outputId: "main_16x9",
+      outputStartSec: 150,
+      outputEndSec: 151,
+      retentionRole: "beat",
+      reason: "enrich",
+      confidence: 0.7,
+    }];
+
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        {
+          segmentId: "seg002",
+          sceneIds: ["clip01_scene001"],
+          startSec: 120,
+          endSec: 240,
+          narrativeRole: "resolution",
+        },
+      ],
+    };
+    const timelineIndex = {
+      scenes: [{ sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 240 }],
+    };
+
+    const result = validateRecipeV2(recipe, { abstraction, timelineIndex });
+    assert.ok(result.issues.some((i) => i.code === "NAR-CLOSURE-SPAM"));
+  });
+
+  it("validateRecipeV2 returns NAR-CALLBACK-UNDELIVERED for callback openLoop without delivery", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.4";
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      timeline: [{
+        segmentId: "seg_body",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 240,
+        audioInSec: 0,
+        audioOutSec: 240,
+        audioPolicy: "from_video_ref",
+      }],
+    }];
+    recipe.creativeMoments = [];
+
+    const timelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 120 },
+        { sceneId: "clip01_scene002", clipId: "clip01", startSec: 120, endSec: 240 },
+      ],
+    };
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+      ],
+      L3: {
+        openLoops: [{
+          loopId: "loop_cb",
+          kind: "callback",
+          setupSceneId: "clip01_scene001",
+          payoffSceneId: "clip01_scene002",
+        }],
+      },
+    };
+
+    const result = validateRecipeV2(recipe, { abstraction, timelineIndex });
+    assert.ok(result.issues.some((i) => i.code === "NAR-CALLBACK-UNDELIVERED"));
+  });
+
+  it("validateRecipeV2 returns V22-VLOG-06 when vlogRetentionProfile disabled", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.version = "2.2";
+    recipe.creativityProfile = {
+      level: "balanced",
+      techniquePack: "youtube_vlog_2026",
+    };
+    recipe.vlogRetentionProfile = { enabled: false };
+    recipe.batchContext.requiredFormats = ["16:9"];
+    recipe.outputs = [{
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      title: "Main",
+      targetDurationSec: 720,
+      timeline: [{
+        segmentId: "m1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 720,
+        audioInSec: 0,
+        audioOutSec: 720,
+        audioPolicy: "from_video_ref",
+        outputEndSec: 720,
+      }],
+    }];
+    recipe.creativeMoments = [
+      {
+        momentId: "cm_pi_1",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 60,
+        outputEndSec: 63,
+        reason: "PI 1",
+      },
+      {
+        momentId: "cm_pi_2",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 300,
+        outputEndSec: 303,
+        reason: "PI 2",
+      },
+    ];
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(result.issues.some((i) => i.code === "V22-VLOG-06" && i.severity === "error"));
+    assert.equal(result.issues.filter((i) => i.code === "V22-VLOG-01").length, 0);
+    assert.equal(result.issues.filter((i) => i.code === "V22-VLOG-02").length, 0);
   });
 });

@@ -128,18 +128,40 @@ export const AbstractL1Schema = z.object({
   isNarrationSource: z.boolean().default(false),
 });
 
+export const NarrativeRoleSchema = z.enum([
+  "setup",
+  "development",
+  "tension",
+  "breath",
+  "climax",
+  "payoff",
+  "resolution",
+  "callback",
+]);
+
 export const AbstractL2Schema = z.object({
   segmentId: z.string(),
   startSec: z.number().nonnegative(),
   endSec: z.number().positive(),
   sceneIds: z.array(z.string()),
   summary: z.string(),
+  narrativeRole: NarrativeRoleSchema.optional(),
 });
 
 export const FormatFitSchema = z.object({
   "16:9": z.number().min(0).max(1).optional(),
   "9:16": z.number().min(0).max(1).optional(),
 }).optional();
+
+export const OpenLoopKindSchema = z.enum(["cold_open", "payoff_tease", "callback"]);
+
+export const OpenLoopSchema = z.object({
+  loopId: z.string(),
+  kind: OpenLoopKindSchema,
+  setupSceneId: z.string().optional(),
+  payoffSceneId: z.string().optional(),
+  teaseText: z.string().optional(),
+});
 
 export const AbstractL3Schema = z.object({
   sessionSummary: z.string(),
@@ -148,6 +170,7 @@ export const AbstractL3Schema = z.object({
   formatFit: FormatFitSchema,
   estimatedKeepRatio: z.number().min(0).max(1).optional(),
   hasSeparateNarration: z.boolean().default(false),
+  openLoops: z.array(OpenLoopSchema).default([]),
 });
 
 export const AbstractionBundleSchema = z.object({

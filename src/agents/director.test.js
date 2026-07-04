@@ -10,6 +10,7 @@ import {
   expandCompactSceneMapSelection,
   enrichClipRegistryForBrief,
   buildAudioEventAnchors,
+  buildEmotionalBeatHints,
 } from "./director.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
@@ -243,6 +244,63 @@ describe("director agent v2", () => {
     assert.ok(brief.retentionBeatAnchors.length >= 1);
     assert.equal(brief.retentionBeatAnchors[0].retentionRole, "beat");
     assert.ok(brief.retentionBeatAnchors[0].suggestedTechniqueId);
+  });
+
+  it("includes emotionalBeatHints for dramatic/cinematic/tense L1 moods", () => {
+    const richAbstraction = {
+      ...abstraction,
+      L1: [
+        {
+          sceneId: "clip01_scene001",
+          summary: "Kulminacja napięcia.",
+          mood: "dramatic",
+          keyMoments: ["reveal"],
+        },
+        {
+          sceneId: "clip01_scene002",
+          summary: "Kontynuacja vloga na zewnątrz.",
+          mood: "energetyczny",
+        },
+      ],
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction: richAbstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.ok(Array.isArray(brief.emotionalBeatHints));
+    assert.equal(brief.emotionalBeatHints.length, 1);
+    assert.equal(brief.emotionalBeatHints[0].sceneId, "clip01_scene001");
+    assert.equal(brief.emotionalBeatHints[0].clipId, "clip01");
+    assert.equal(brief.emotionalBeatHints[0].mood, "dramatic");
+    assert.equal(brief.emotionalBeatHints[0].retentionRole, "payoff");
+    assert.equal(brief.emotionalBeatHints[0].suggestedTechniqueId, "music_drop");
+    assert.deepEqual(brief.emotionalBeatHints[0].keyMoments, ["reveal"]);
+    assert.ok(brief.emotionalBeatHints[0].anchorTimeSec > 0);
+    assert.match(brief.emotionalBeatHints[0].suggestion, /payoff/);
+
+    const cinematicHints = buildEmotionalBeatHints(
+      { L1: [{ sceneId: "clip01_scene002", mood: "cinematic" }] },
+      timelineIndex,
+    );
+    assert.equal(cinematicHints.length, 1);
+    assert.equal(cinematicHints[0].retentionRole, "payoff");
+
+    const tenseHints = buildEmotionalBeatHints(
+      { L1: [{ sceneId: "clip01_scene002", mood: "tense" }] },
+      timelineIndex,
+    );
+    assert.equal(tenseHints.length, 1);
+
+    const noHints = buildEmotionalBeatHints(
+      { L1: [{ sceneId: "clip01_scene001", mood: "luźny" }] },
+      timelineIndex,
+    );
+    assert.equal(noHints.length, 0);
   });
 
   it("includes chapterCardHints and narrativeOpenLoops in brief", () => {
@@ -1062,6 +1120,174 @@ describe("director agent v2", () => {
     assert.ok(brief.sceneRanks.length <= 10);
     assert.equal(brief.sceneRanks[0].sceneId, "clip01_scene002");
     assert.ok(brief.sceneRanks[0].rank >= brief.sceneRanks[1].rank);
+  });
+
+  it("derives narrativeProfile from L2 narrativeRole when not explicitly set", () => {
+    const abstractionWithRoles = {
+      ...abstraction,
+      L2: [
+        { segmentId: "seg001", narrativeRole: "tension", summary: "Rising action" },
+        { segmentId: "seg002", narrativeRole: "breath", summary: "Quiet moment" },
+      ],
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction: abstractionWithRoles,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.ok(brief.narrativeProfile);
+    assert.equal(brief.narrativeProfile.segments.length, 2);
+
+    const byId = Object.fromEntries(
+      brief.narrativeProfile.segments.map((entry) => [entry.l2SegmentId, entry]),
+    );
+    assert.equal(byId.seg001.rhythm, "fast");
+    assert.equal(byId.seg001.retentionIntensity, "high");
+    assert.equal(byId.seg002.rhythm, "slow");
+    assert.equal(byId.seg002.retentionIntensity, "low");
+    assert.equal(byId.seg002.silencePolicy, "preserve");
+
+    assert.ok(brief.creativityBudgetByL2Segment);
+    assert.equal(brief.creativityBudgetByL2Segment.seg001.maxZoomMoments, 8);
+    assert.equal(brief.creativityBudgetByL2Segment.seg002.maxZoomMoments, 0);
+    assert.ok(
+      brief.creativityBudgetByL2Segment.seg002.minZoomGapSec
+        > brief.creativityBudgetByL2Segment.seg001.minZoomGapSec,
+    );
+  });
+
+  it("includes narrativeProfile in brief when provided", () => {
+    const narrativeProfile = {
+      mode: "internet_documentary",
+      segments: [{ l2SegmentId: "seg001", rhythm: "slow", retentionIntensity: "low" }],
+      maxPatternInterruptsPer10Min: 1,
+      sfxNarrativeOnly: true,
+    };
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+      narrativeProfile,
+    });
+
+    assert.deepEqual(brief.narrativeProfile, narrativeProfile);
+  });
+
+  it("filters sfxPlanDefaults when sfxNarrativeOnly and no narrative anchors", () => {
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      audioEvents: [
+        { startSec: 0.5, endSec: 1.1, label: "Laughter", score: 0.74 },
+        { startSec: 22.0, endSec: 22.4, label: "Laughter", score: 0.8 },
+      ],
+    }];
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      audioIndex: { clips: [{ clipId: "clip01", editorialTags: ["laughter"] }] },
+      perClipAnalysis,
+      requiredFormats: ["16:9"],
+      narrativeProfile: { sfxNarrativeOnly: true },
+    });
+
+    assert.equal(brief.sfxPlanDefaults.length, 0);
+  });
+
+  it("filters sfxPlanDefaults to hook-adjacent events when sfxNarrativeOnly", () => {
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      audioEvents: [
+        { startSec: 0.5, endSec: 1.1, label: "Laughter", score: 0.74 },
+        { startSec: 22.0, endSec: 22.4, label: "Laughter", score: 0.8 },
+      ],
+    }];
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      audioIndex: { clips: [{ clipId: "clip01", editorialTags: ["laughter"] }] },
+      perClipAnalysis,
+      requiredFormats: ["16:9"],
+      narrativeProfile: { sfxNarrativeOnly: true },
+      recipe: {
+        outputs: [{
+          outputId: "main_16x9",
+          outputKind: "main",
+          format: "16:9",
+          timeline: [{
+            segmentId: "seg_body",
+            segmentRole: "aroll",
+            videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+            audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+            videoInSec: 0,
+            videoOutSec: 240,
+            audioInSec: 0,
+            audioOutSec: 240,
+            audioPolicy: "from_video_ref",
+            outputStartSec: 0,
+            outputEndSec: 240,
+          }],
+        }],
+        creativeMoments: [{
+          momentId: "hook_01",
+          techniqueId: "snap_zoom",
+          retentionRole: "hook",
+          outputId: "main_16x9",
+          outputStartSec: 0,
+          outputEndSec: 2,
+        }],
+      },
+    });
+
+    assert.equal(brief.sfxPlanDefaults.length, 1);
+    assert.equal(brief.sfxPlanDefaults[0].anchorTimeSec, 0.5);
+  });
+
+  it("applies narrativeProfile silence taxonomy to brief audioIndex", () => {
+    const highEnergyCurve = [
+      { startSec: 0, endSec: 2, rmsDb: -16 },
+      { startSec: 2, endSec: 6, rmsDb: -42 },
+      { startSec: 6, endSec: 8, rmsDb: -12 },
+    ];
+    const wordIndexes = [{
+      clipId: "clip01",
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    }];
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+      energyCurve: highEnergyCurve,
+    }];
+    const narrativeProfile = { silencePolicy: "preserve" };
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      audioIndex: { clips: [{ clipId: "clip01" }], batchSummary: { dominantMood: "dramatic" } },
+      perClipAnalysis,
+      wordIndexes,
+      requiredFormats: ["16:9"],
+      narrativeProfile,
+    });
+
+    const hint = brief.audioIndex.clips[0].deadAirHints?.find((h) => h.startSec === 2);
+    assert.equal(hint?.silenceKind, "dramatic_pause");
   });
 
   it("includes L1 only when explicitly requested", () => {

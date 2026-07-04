@@ -21,6 +21,21 @@ describe("segment-catalog", () => {
     },
   ];
 
+  it("buildSegmentCatalog passes narrativeRole from L2 abstraction", () => {
+    const withRoles = {
+      L2: [{
+        segmentId: "seg001",
+        summary: "Kulminacja w restauracji",
+        sceneIds: ["clip01_scene001", "clip01_scene002"],
+        startSec: 0,
+        endSec: 120,
+        narrativeRole: "climax",
+      }],
+    };
+    const catalog = buildSegmentCatalog(withRoles, timelineIndex, clipRegistry);
+    assert.equal(catalog[0].narrativeRole, "climax");
+  });
+
   it("buildSegmentCatalog produces L2 cards with scene and clip ids", () => {
     const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
     assert.equal(catalog.length, 1);

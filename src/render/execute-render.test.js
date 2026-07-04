@@ -252,7 +252,7 @@ describe("executeRender", () => {
     assert.deepEqual(warnings[0], {
       code: "CROSSFADE_NOT_APPLIED",
       techniqueId: "crossfade",
-      message: "requires crossfade at every internal join or exactly one join",
+      message: "partial crossfade pattern: requires crossfade at every internal join or exactly one join (2/3 joins)",
     });
   });
 });

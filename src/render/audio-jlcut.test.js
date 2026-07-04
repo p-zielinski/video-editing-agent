@@ -166,4 +166,37 @@ describe("audio-jlcut", () => {
     assert.ok(built.filterComplex.includes("[carry1]"));
     assert.ok(built.filterComplex.includes("concat=n=2:v=0:a=1"));
   });
+
+  it("builds filter_complex with video xfade when crossfadeAtBoundaries provided", () => {
+    const segments = [
+      {
+        segmentRole: "broll",
+        audioPolicy: "from_audio_ref",
+        outputStartSec: 0,
+        outputEndSec: 12.5,
+        videoInSec: 0,
+        videoOutSec: 12.5,
+        audioInSec: 0,
+        audioOutSec: 12.5,
+      },
+      {
+        segmentRole: "aroll",
+        audioPolicy: "from_prev",
+        overlapSec: 0.5,
+        outputStartSec: 12,
+        outputEndSec: 32,
+        videoInSec: 0,
+        videoOutSec: 20,
+      },
+    ];
+    const built = buildJlCutFilterComplex(
+      ["/a.mp4", "/b.mp4"],
+      segments,
+      [{ durationSec: 0.4 }],
+    );
+
+    assert.ok(built.filterComplex.includes("xfade=transition=fade:duration=0.4"));
+    assert.ok(built.filterComplex.includes("acrossfade=d=0.5"));
+    assert.ok(!built.filterComplex.includes("concat=n=2:v=1:a=0[outv]"));
+  });
 });

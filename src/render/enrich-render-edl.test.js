@@ -4,6 +4,7 @@ import {
   enrichRenderEdl,
   projectHookTitleOverlays,
   projectPatternInterruptTextOverlays,
+  projectEmphasisTextOverlays,
   prioritizeHookWindow,
   clampCreativeMomentsToHookWindow,
 } from "./enrich-render-edl.js";
@@ -58,6 +59,31 @@ describe("enrich-render-edl", () => {
     assert.equal(enriched[0].textOverlays[0].text, "Hook tekstowy");
     assert.equal(enriched[0].textOverlays[0].role, "hook");
     assert.equal(enriched[0].textOverlays[0].style, "hook_question");
+  });
+
+  it("projects emphasis_text creativeMoments into textOverlays with emphasis style", () => {
+    const segments = [{
+      segmentId: "seg_s1",
+      outputStartSec: 0,
+      outputEndSec: 58,
+      textOverlays: [],
+    }];
+
+    const enriched = projectEmphasisTextOverlays(segments, [
+      {
+        techniqueId: "emphasis_text",
+        outputId: "short_9x16",
+        outputStartSec: 12,
+        outputEndSec: 15,
+        params: { text: "3 MILLION VIEWS", position: "center" },
+      },
+    ], "short_9x16");
+
+    assert.equal(enriched[0].textOverlays.length, 1);
+    assert.equal(enriched[0].textOverlays[0].text, "3 MILLION VIEWS");
+    assert.equal(enriched[0].textOverlays[0].role, "beat");
+    assert.equal(enriched[0].textOverlays[0].style, "emphasis");
+    assert.equal(enriched[0].textOverlays[0].position, "center");
   });
 
   it("projects pattern_interrupt cut_text params.text into textOverlays", () => {

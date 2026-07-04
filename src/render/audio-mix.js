@@ -118,6 +118,107 @@ export function buildSidechainCompressFilter(duckingDb = DEFAULT_DUCKING_DB) {
   return `sidechaincompress=threshold=${threshold.toFixed(3)}:ratio=${ratio.toFixed(1)}:attack=50:release=400`;
 }
 
+/**
+ * Resolve ducking depth windows for a mix segment (output timeline seconds).
+ * Falls back to segment.duckingDb, then musicBed.duckingDb, then DEFAULT_DUCKING_DB.
+ */
+function buildDuckingWindowExpr({ startSec, endSec }) {
+  if (endSec == null) {
+    return `gte(t\\,${startSec})`;
+  }
+  return `gte(t\\,${startSec})*lt(t\\,${endSec})`;
+}
+
+/**
+ * Insert no-duck windows (duckingDb: 0) for gaps between explicit duckingWindows.
+ */
+export function fillDuckingWindowGaps(windows, segmentEndSec) {
+  if (!windows.length) {
+    return windows;
+  }
+
+  const sorted = [...windows].sort((a, b) => a.startSec - b.startSec);
+  const filled = [];
+
+  if (sorted[0].startSec > 0) {
+    filled.push({ startSec: 0, endSec: sorted[0].startSec, duckingDb: 0 });
+  }
+
+  for (let i = 0; i < sorted.length; i += 1) {
+    const current = sorted[i];
+    filled.push(current);
+    const next = sorted[i + 1];
+    if (next && current.endSec != null && current.endSec < next.startSec) {
+      filled.push({ startSec: current.endSec, endSec: next.startSec, duckingDb: 0 });
+    }
+  }
+
+  const last = sorted[sorted.length - 1];
+  if (last.endSec != null && segmentEndSec != null && last.endSec < segmentEndSec) {
+    filled.push({ startSec: last.endSec, endSec: segmentEndSec, duckingDb: 0 });
+  }
+
+  return filled;
+}
+
+export function resolveDuckingWindows(mixSegment, plan) {
+  const globalDb = plan?.musicBed?.duckingDb ?? DEFAULT_DUCKING_DB;
+
+  if (mixSegment?.duckingWindows?.length) {
+    const windows = mixSegment.duckingWindows.map((w) => ({
+      startSec: w.startSec,
+      endSec: w.endSec,
+      duckingDb: w.duckingDb ?? globalDb,
+    }));
+    return fillDuckingWindowGaps(windows, mixSegment.musicOutSec ?? null);
+  }
+
+  const duckingDb = mixSegment?.duckingDb ?? globalDb;
+  return [{ startSec: 0, endSec: null, duckingDb }];
+}
+
+function buildDuckingWindowMaskFilter(inputLabel, outputLabel, window) {
+  const windowExpr = buildDuckingWindowExpr(window);
+  return `${inputLabel}volume='if(${windowExpr}\\,1\\,0)':eval=frame${outputLabel}`;
+}
+
+/**
+ * Duck music bed under voice — single depth or per-window sidechain branches.
+ */
+export function buildMusicBedDuckingFilters(musicLabel, voiceLabel, duckingWindows) {
+  if (duckingWindows.length === 1 && duckingWindows[0].startSec === 0 && duckingWindows[0].endSec == null) {
+    const scFilter = buildSidechainCompressFilter(duckingWindows[0].duckingDb);
+    return {
+      filters: [`${musicLabel}${voiceLabel}${scFilter}[ducked]`],
+      outputLabel: "[ducked]",
+    };
+  }
+
+  const filters = [];
+  const branchLabels = duckingWindows.map((_, i) => `[dk${i}]`);
+  filters.push(`${musicLabel}asplit=${duckingWindows.length}${branchLabels.join("")}`);
+
+  const maskedLabels = [];
+  for (let i = 0; i < duckingWindows.length; i += 1) {
+    const window = duckingWindows[i];
+    const maskedLabel = `[dk${i}m]`;
+    if (window.duckingDb === 0) {
+      filters.push(buildDuckingWindowMaskFilter(branchLabels[i], maskedLabel, window));
+    } else {
+      const scFilter = buildSidechainCompressFilter(window.duckingDb);
+      const duckedLabel = `[dk${i}d]`;
+      filters.push(`${branchLabels[i]}${voiceLabel}${scFilter}${duckedLabel}`);
+      filters.push(buildDuckingWindowMaskFilter(duckedLabel, maskedLabel, window));
+    }
+    maskedLabels.push(maskedLabel);
+  }
+
+  filters.push(
+    `${maskedLabels.join("")}amix=inputs=${maskedLabels.length}:duration=first:dropout_transition=0[ducked]`,
+  );
+  return { filters, outputLabel: "[ducked]" };
+}
+
 export function resolveSfxPath(label) {
   if (!label) {
     return null;
@@ -219,10 +320,14 @@ export function buildAudioMixFilterGraph({
     }
 
     if (mixSegment?.duckUnderVoice !== false) {
-      const duckingDb = plan?.musicBed?.duckingDb ?? DEFAULT_DUCKING_DB;
-      const scFilter = buildSidechainCompressFilter(duckingDb);
-      filters.push(`[music][voice]${scFilter}[ducked]`);
-      mixInputs.push("[ducked]");
+      const duckingWindows = resolveDuckingWindows(mixSegment, plan);
+      const { filters: duckFilters, outputLabel } = buildMusicBedDuckingFilters(
+        bedLabel,
+        "[voice]",
+        duckingWindows,
+      );
+      filters.push(...duckFilters);
+      mixInputs.push(outputLabel);
     } else {
       mixInputs.push("[music]");
     }

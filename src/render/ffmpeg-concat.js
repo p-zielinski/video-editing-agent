@@ -7,6 +7,7 @@ const BOUNDARY_TOLERANCE_SEC = 0.1;
 const DEFAULT_CROSSFADE_SEC = 0.3;
 const DEFAULT_SNAP_TOLERANCE_SEC = 0.5;
 const SNAP_EPSILON_SEC = 0.001;
+const MIN_CROSSFADE_JOIN_DURATION_SEC = 0.5;
 
 export function findCutOnBeatAtBoundary(creativeMoments, segments, toleranceSec = BOUNDARY_TOLERANCE_SEC) {
   if (!segments || segments.length < 2) {
@@ -302,6 +303,59 @@ export function resolveSegmentDurations(segments) {
   );
 }
 
+export function segmentDurationSec(segment) {
+  return (segment?.outputEndSec ?? 0) - (segment?.outputStartSec ?? 0);
+}
+
+/**
+ * Per-join video crossfade eligibility (expanded for J/L + crossfade coexistence).
+ * - aroll → aroll on the same source clip
+ * - broll → aroll when both segments exceed 0.5 s
+ */
+export function isJoinCrossfadeEligible(outgoing, incoming) {
+  if (!outgoing || !incoming) {
+    return false;
+  }
+
+  const outRole = outgoing.segmentRole ?? "aroll";
+  const inRole = incoming.segmentRole ?? "aroll";
+  const outDur = segmentDurationSec(outgoing);
+  const inDur = segmentDurationSec(incoming);
+  const outClip = resolveSegmentClipId(outgoing);
+  const inClip = resolveSegmentClipId(incoming);
+
+  if (outRole === "aroll" && inRole === "aroll" && outClip && outClip === inClip) {
+    return true;
+  }
+
+  if (
+    outRole === "broll"
+    && inRole === "aroll"
+    && outDur > MIN_CROSSFADE_JOIN_DURATION_SEC
+    && inDur > MIN_CROSSFADE_JOIN_DURATION_SEC
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Crossfade boundaries eligible for video xfade when J/L audio overlap is present.
+ * Audio stays on the J/L path; only video may xfade at these joins.
+ */
+export function resolveJlVideoCrossfadeBoundaries(creativeMoments, segments) {
+  const boundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
+  return boundaries.map((cf, boundaryIndex) => {
+    if (!cf) {
+      return null;
+    }
+    return isJoinCrossfadeEligible(segments[boundaryIndex], segments[boundaryIndex + 1])
+      ? cf
+      : null;
+  });
+}
+
 /**
  * Offset for xfade at a crossfade boundary (1-based boundaryIndex).
  */
@@ -492,8 +546,10 @@ export function isCrossfadeEligible(segmentPaths, segments, creativeMoments) {
     || isMultiSegmentCrossfadeEligible(segmentPaths, segments, creativeMoments);
 }
 
-const CROSSFADE_JL_OVERLAP_MESSAGE = "requires timeline without J/L overlap";
-const CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE = "requires crossfade at every internal join or exactly one join";
+const CROSSFADE_JL_INELIGIBLE_JOIN_MESSAGE =
+  "J/L overlap: join not eligible for video crossfade (requires aroll→aroll same clip, or broll→aroll with both segments >0.5s)";
+const CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE =
+  "partial crossfade pattern: requires crossfade at every internal join or exactly one join";
 
 /**
  * True when a boundary crossfade exists but concat did not apply xfade (defer to warning, not creative).
@@ -512,16 +568,31 @@ export function getCrossfadeNotAppliedReason(segmentPaths, segments, creativeMom
   if (!findCrossfadeAtBoundary(creativeMoments, segments)) {
     return null;
   }
+
+  const boundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
+  const crossfadeCount = boundaries.filter(Boolean).length;
+
   if (hasJlCutOverlap(segments)) {
-    return CROSSFADE_JL_OVERLAP_MESSAGE;
+    const hasEligibleJlJoin = boundaries.some(
+      (cf, boundaryIndex) => cf
+        && isJoinCrossfadeEligible(segments[boundaryIndex], segments[boundaryIndex + 1]),
+    );
+    if (hasEligibleJlJoin) {
+      return null;
+    }
+    return CROSSFADE_JL_INELIGIBLE_JOIN_MESSAGE;
   }
+
   if (isCrossfadeEligible(segmentPaths, segments, creativeMoments)) {
     return null;
   }
 
-  const boundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
-  const crossfadeCount = boundaries.filter(Boolean).length;
-  if ((segmentPaths?.length ?? 0) >= 3 && crossfadeCount > 1) {
+  const numBoundaries = (segmentPaths?.length ?? 0) - 1;
+  if (numBoundaries >= 2 && crossfadeCount > 1 && crossfadeCount < numBoundaries) {
+    return `${CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE} (${crossfadeCount}/${numBoundaries} joins)`;
+  }
+
+  if (numBoundaries >= 2 && crossfadeCount > 0 && crossfadeCount < numBoundaries) {
     return CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE;
   }
 
@@ -639,6 +710,25 @@ export async function concatSegmentFiles(segmentPaths, outputPath, {
   const crossfadeAtBoundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
   const crossfade = crossfadeAtBoundaries.find(Boolean);
   const hasJlCut = hasJlCutOverlap(segments);
+  const jlVideoCrossfadeAtBoundaries = hasJlCut
+    ? resolveJlVideoCrossfadeBoundaries(creativeMoments, segments)
+    : null;
+  const hasJlVideoCrossfade = Boolean(jlVideoCrossfadeAtBoundaries?.some(Boolean));
+
+  // J/L + crossfade at the same join: keep J/L audio (acrossfade/overlap), video xfade when eligible.
+  if (hasJlVideoCrossfade) {
+    await applyJlCutAudio(pathsToConcat, segments, outputPath, {
+      encodeProfile,
+      crossfadeAtBoundaries: jlVideoCrossfadeAtBoundaries,
+      runFfmpegFn,
+    });
+    return {
+      outputPath,
+      appliedCrossfade: true,
+      appliedBeatSnaps: [],
+      alreadyAlignedBeatSnaps: [],
+    };
+  }
 
   if (!hasJlCut && crossfade) {
     if (pathsToConcat.length === 2) {

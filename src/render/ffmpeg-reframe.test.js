@@ -34,9 +34,10 @@ describe("ffmpeg-reframe", () => {
     });
 
     assert.ok(filter);
-    assert.match(filter, /crop=\d+:\d+:\d+:\d+/);
-    assert.ok(filter.includes("scale=1080:1920"));
-    assert.ok(!filter.includes("pad="));
+    assert.equal(filter.type, "vf");
+    assert.match(filter.filter, /crop=\d+:\d+:\d+:\d+/);
+    assert.ok(filter.filter.includes("scale=1080:1920"));
+    assert.ok(!filter.filter.includes("pad="));
   });
 
   it("pads 16:9 source when no reframe needed", () => {
@@ -51,9 +52,10 @@ describe("ffmpeg-reframe", () => {
     });
 
     assert.ok(filter);
-    assert.ok(filter.includes("scale=1920:1080"));
-    assert.ok(filter.includes("pad=1920:1080"));
-    assert.ok(!filter.includes("crop="));
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("scale=1920:1080"));
+    assert.ok(filter.filter.includes("pad=1920:1080"));
+    assert.ok(!filter.filter.includes("crop="));
   });
 
   it("applies setpts when speed differs from 1", () => {
@@ -67,7 +69,7 @@ describe("ffmpeg-reframe", () => {
       context,
     });
 
-    assert.ok(filter?.includes("setpts=PTS/1.5"));
+    assert.ok(filter?.type === "vf" && filter.filter.includes("setpts=PTS/1.5"));
   });
 
   it("pillarboxes 1080x1920 source into 16:9 output by default", () => {
@@ -81,9 +83,10 @@ describe("ffmpeg-reframe", () => {
     });
 
     assert.ok(filter);
-    assert.ok(filter.includes("scale=1920:1080"));
-    assert.ok(filter.includes("pad=1920:1080"));
-    assert.ok(!filter.includes("crop="));
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("scale=1920:1080"));
+    assert.ok(filter.filter.includes("pad=1920:1080"));
+    assert.ok(!filter.filter.includes("crop="));
   });
 
   it("fills 1080x1920 source into 16:9 when fitMode is fill", () => {
@@ -98,9 +101,10 @@ describe("ffmpeg-reframe", () => {
     });
 
     assert.ok(filter);
-    assert.match(filter, /crop=\d+:\d+:\d+:\d+/);
-    assert.ok(filter.includes("scale=1920:1080"));
-    assert.ok(!filter.includes("pad="));
+    assert.equal(filter.type, "vf");
+    assert.match(filter.filter, /crop=\d+:\d+:\d+:\d+/);
+    assert.ok(filter.filter.includes("scale=1920:1080"));
+    assert.ok(!filter.filter.includes("pad="));
   });
 
   it("pillarboxes 1080x1920 source when only reframe center is set on 16:9 output", () => {
@@ -115,8 +119,9 @@ describe("ffmpeg-reframe", () => {
     });
 
     assert.ok(filter);
-    assert.ok(filter.includes("pad=1920:1080"));
-    assert.ok(!filter.includes("crop="));
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("pad=1920:1080"));
+    assert.ok(!filter.filter.includes("crop="));
   });
 
   it("pillarboxes when fitMode is explicitly pillarbox even with center reframe", () => {
@@ -130,7 +135,63 @@ describe("ffmpeg-reframe", () => {
       context,
     });
 
-    assert.ok(filter.includes("pad=1920:1080"));
-    assert.ok(!filter.includes("crop="));
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("pad=1920:1080"));
+    assert.ok(!filter.filter.includes("crop="));
+  });
+
+  it("blur-pillarboxes 1080x1920 source when fitMode is pillarbox_blur", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip_vertical", sceneId: "clip_vertical_scene001" },
+        videoTransform: { fitMode: "pillarbox_blur" },
+      },
+      format: "16:9",
+      dimensions: { width: 1920, height: 1080 },
+      context,
+    });
+
+    assert.equal(filter.type, "filter_complex");
+    assert.ok(filter.filter.includes("split=2"));
+    assert.ok(filter.filter.includes("gblur="));
+    assert.ok(filter.filter.includes("overlay="));
+    assert.ok(filter.filter.includes("scale=1920:1080"));
+    assert.ok(!filter.filter.includes("pad="));
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=increase"));
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=decrease"));
+  });
+
+  it("prefers blur pillarbox over face reframe when fitMode is pillarbox_blur", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip_vertical", sceneId: "clip01_scene001" },
+        videoTransform: { reframe: "face", fitMode: "pillarbox_blur" },
+      },
+      format: "16:9",
+      dimensions: { width: 1920, height: 1080 },
+      spatialIndex,
+      context,
+    });
+
+    assert.equal(filter.type, "filter_complex");
+    assert.ok(filter.filter.includes("gblur="));
+    assert.ok(!/crop=\d+:\d+:\d+:\d+/.test(filter.filter));
+  });
+
+  it("keeps black pillarbox when fitMode is pillarbox (not blur)", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip_vertical", sceneId: "clip_vertical_scene001" },
+        videoTransform: { fitMode: "pillarbox" },
+      },
+      format: "16:9",
+      dimensions: { width: 1920, height: 1080 },
+      context,
+    });
+
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("pad=1920:1080"));
+    assert.ok(!filter.filter.includes("split="));
+    assert.ok(!filter.filter.includes("gblur="));
   });
 });

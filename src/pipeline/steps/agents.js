@@ -11,6 +11,7 @@ import {
   shouldUseSuperDirector,
 } from "../../lib/segment-catalog.js";
 import { mergeSegmentRecipes } from "../../lib/recipe-merge.js";
+import { resolveEffectiveNarrativeProfile } from "../../lib/narrative-profile.js";
 import { runCritic } from "../../agents/critic.js";
 import { runFixer, shouldInvokeFixer } from "../../agents/fixer.js";
 import { EditRecipeV2Schema } from "../../schemas/edit-recipe-v2.js";
@@ -22,7 +23,8 @@ import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-anal
 import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/audio-mix-plan.js";
 import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
 import { enrichRecipeChapterCards, buildChapterCardHints, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
-import { enrichRecipeRetentionBeats } from "../../editorial/shorts-retention.js";
+import { enrichRecipeRetentionBeats, stripEnrichBeatsInSlowSegments } from "../../editorial/shorts-retention.js";
+import { enrichRecipeActTransitions } from "../../editorial/act-transitions.js";
 import {
   buildBrollSyncHintsForRecipe,
   enrichBrollSyncFromHints,
@@ -30,6 +32,11 @@ import {
 } from "../../editorial/broll-sync-hints.js";
 
 import { enrichRecipeDeadAirHandling } from "../../editorial/dead-air-enrich.js";
+import { enrichRecipePacingTrim } from "../../editorial/pacing-enrich.js";
+import { enrichRecipeFastRhythmSpeed } from "../../editorial/speed-enrich.js";
+import { enrichRecipePayoffMoments } from "../../editorial/payoff-enrich.js";
+import { enrichRecipeCallbackMoments } from "../../editorial/callback-enrich.js";
+import { enrichRecipeClosureCta } from "../../editorial/closure-enrich.js";
 import { refineClipRegistryFromL1 } from "./clip-profile.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
@@ -90,6 +97,8 @@ export function applyDeterministicRecipeEnrichers(recipe, {
     ...(recipe.batchContext ?? {}),
   };
 
+  recipe.creativeMoments = stripEnrichBeatsInSlowSegments(recipe, abstraction, { wordIndexes });
+
   const coldOpenHint = buildColdOpenSegmentHint(
     abstraction,
     {
@@ -104,6 +113,32 @@ export function applyDeterministicRecipeEnrichers(recipe, {
     audioIndex,
     clipRegistry,
     perClipAnalysis,
+    wordIndexes,
+    abstraction,
+    timelineIndex,
+  });
+
+  recipe.creativeMoments = enrichRecipeDeadAirHandling(recipe, {
+    audioIndex,
+    timelineIndex,
+    wordIndexes,
+    perClipAnalysis,
+    abstraction,
+  });
+
+  enrichRecipePacingTrim(recipe, {
+    abstraction,
+    timelineIndex,
+    wordIndexes,
+    estimatedKeepRatio: abstraction?.L3?.estimatedKeepRatio,
+    audioIndex,
+    perClipAnalysis,
+  });
+
+  enrichRecipeFastRhythmSpeed(recipe, {
+    abstraction,
+    timelineIndex,
+    wordIndexes,
   });
 
   recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
@@ -111,15 +146,35 @@ export function applyDeterministicRecipeEnrichers(recipe, {
     abstraction,
     timelineIndex,
     spatialIndex,
+    wordIndexes,
   });
 
-  recipe.creativeMoments = enrichRecipeDeadAirHandling(recipe, {
+  recipe.creativeMoments = enrichRecipePayoffMoments(recipe, {
+    abstraction,
+    timelineIndex,
+    wordIndexes,
     audioIndex,
+  });
+
+  recipe.creativeMoments = enrichRecipeCallbackMoments(recipe, {
+    abstraction,
     timelineIndex,
     wordIndexes,
   });
 
+  enrichRecipeClosureCta(recipe, { abstraction });
+
   enrichRecipeChapterCards(recipe, { abstraction });
+
+  recipe.creativeMoments = enrichRecipeActTransitions(recipe, {
+    abstraction,
+    narrativeProfile: resolveEffectiveNarrativeProfile({
+      recipe,
+      batchContext: effectiveBatchContext,
+      abstraction,
+    }),
+    wordIndexes,
+  });
 
   if (effectiveBatchContext.brollStrategy !== "minimal") {
     const brollSyncHints = buildBrollSyncHintsForRecipe({
@@ -259,6 +314,7 @@ function buildRecipeValidationOptions({
   audioIndex,
   abstraction,
   timelineIndex,
+  perClipAnalysis,
   keyframeArtifacts,
   batchContext,
 }) {
@@ -269,6 +325,10 @@ function buildRecipeValidationOptions({
     spatialIndex,
     wordIndexes,
     audioIndex,
+    abstraction,
+    timelineIndex,
+    perClipAnalysis,
+    estimatedKeepRatio: abstraction?.L3?.estimatedKeepRatio,
     brollSyncHints: buildBrollSyncHintsForRecipe({
       abstraction,
       timelineIndex,
@@ -356,6 +416,18 @@ export async function runDirectStep({
         sceneIds,
       });
     }
+
+  }
+
+  if (!recipe.narrativeProfile) {
+    const derived = resolveEffectiveNarrativeProfile({
+      batchContext,
+      abstraction,
+      recipe,
+    });
+    if (derived) {
+      recipe.narrativeProfile = derived;
+    }
   }
 
   recipe.audioMixPlan = mergeAudioMixPlan(recipe, deriveAudioMixPlanDefaults({
@@ -415,6 +487,7 @@ export async function runReviewStep({
       audioIndex,
       abstraction: readJson(path.join(workDir, ARTIFACTS.abstraction)),
       timelineIndex: readJson(path.join(workDir, ARTIFACTS.timelineIndex)),
+      perClipAnalysis,
       keyframeArtifacts,
       batchContext,
     }));
@@ -443,6 +516,7 @@ export async function runReviewStep({
     audioIndex,
     abstraction,
     timelineIndex,
+    perClipAnalysis,
     keyframeArtifacts,
     batchContext,
   };

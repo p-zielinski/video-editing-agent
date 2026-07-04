@@ -8,6 +8,8 @@ Nie naruszaj scene registry SR1–SR6.
 
 - **recipe** — EditRecipe do poprawy
 - **issues** — lista z krytyka (`heuristicIssues` + uwagi modelu); napraw wszystkie `error`
+- **narrativeIssues** — wyfiltrowane kody NAR-* z `issues` (gdy występują); napraw priorytetowo nad V22-VLOG-01 w konflikcie
+- **openLoops**, **narrativeProfile** — kontekst narracji z L3 / recipe (gdy są NAR issues)
 - **sessionSummary** — obiekt L3 (kontekst narracji i `estimatedKeepRatio`)
 - **techniqueCatalog** — dozwolone techniki i budżet
 - **shortsRetentionProfile** — profil retencji shortów (gdy v2.2+ / retention włączone)
@@ -63,13 +65,32 @@ Gdy recipe zawiera `vlogRetentionProfile` lub issues V22-VLOG-*:
 
 | Kod | Naprawa |
 |-----|---------|
-| V22-VLOG-01 | Dodaj `creativeMoments` z `retentionRole: beat` na output `outputKind: main` w pozycjach z `retentionBeatTargetsMain` |
-| V22-VLOG-02 | Rozłóż beaty równomiernie na main — max luka między beatami ≤ interval + tolerance |
+| V22-VLOG-01 | Dodaj `creativeMoments` z `retentionRole: beat` na output `outputKind: main` w pozycjach z `retentionBeatTargetsMain`. Gdy `narrativeProfile` — **nie** licz segmentów L2 z `rhythm: slow`, `retentionIntensity: low` ani `narrativeRole: breath` do minimum beatów |
+| V22-VLOG-02 | Rozłóż beaty równomiernie na main — max luka między beatami ≤ interval + tolerance. Gdy `narrativeProfile` — **wyłącz** z liczenia luk zakresy outputu mapowane na wolne segmenty L2 (`slow` / `low` / `breath`); nie dodawaj beatów w środku oddechu |
 | V22-VLOG-03 | Zamień agresywną technikę na beatach (`jump_cut`, `hard_cut_energy`, `pattern_interrupt`, `snap_zoom`) na łagodną z rotacji (`zoom_slow_push`, `ken_burns_light`, `music_swell`, `silence_beat`) |
 | V22-VLOG-04 | Zrotuj `techniqueId` beatów — unikaj 3+ kolejnych z tym samym ID; użyj `retentionTechniqueRotationMain` z briefu |
 | V22-VLOG-05 | Dodaj lub przesuń beat w pozycjach z `retentionBeatTargetsMain` (±tolerance) |
+| V22-VLOG-06 | Usuń lub przesuń nadmiarowe `pattern_interrupt` na main — max `narrativeProfile.maxPatternInterruptsPer10Min` (domyślnie 1) w każdym oknie 10 min |
 
 Preferuj rotację z `retentionTechniqueRotationMain` w briefu — unikaj agresywnych technik shortów na main.
+
+### Narracja vs retencja (kody NAR-*)
+
+Kody **NAR-*** z severity `warning` uruchamiają fixer — napraw je tak samo priorytetowo jak błędy retencji. Payload może zawierać `narrativeIssues` (wyfiltrowane NAR-*), `openLoops` i `narrativeProfile` jako kontekst naprawy.
+
+Gdy issues zawierają kody **NAR-*** (szczególnie **NAR-BEAT-SPAM** w segmentach `rhythm: slow` / `retentionIntensity: low`):
+
+| Kod | Naprawa |
+|-----|---------|
+| NAR-BEAT-SPAM | **Usuń** nadmiarowe beaty / `enrich_beat_*` w wolnych segmentach L2 — **nie** dodawaj beatów w tych sekcjach, nawet gdy V22-VLOG-01 wymaga minimum globalnie |
+| NAR-BREATH-BEAT | **Usuń** beaty / `pattern_interrupt` / `snap_zoom` w segmentach L2 `breath` lub `rhythm: slow`; nie dodawaj pulsu retencyjnego w oddechu |
+| NAR-CLOSURE-SPAM | **Usuń** `enrich_beat_*` i nadmiarowe beaty w segmencie L2 `resolution`; zostaw max 1 łagodny beat zamknięcia |
+| NAR-CALLBACK-UNDELIVERED | Dodaj `match_cut` lub `textOverlays` z `role: payoff` przy `payoffSceneId` z callback open loop (±30 s output) |
+| NAR-DRAMATIC-PAUSE-CUT | Usuń `cuts[]` z `reason: "dead_air"` w segmentach `silencePolicy: preserve` lub w regionach `deadAirHints` z `silenceKind: dramatic_pause`; nie zastępuj agresywnym `silence_beat` |
+| NAR-PAYOFF-UNDELIVERED | Dodaj jeden mocny moment `retentionRole: payoff` przy `payoffSceneId` z `openLoops[]` zamiast kolejnych beatów w środku filmu |
+| NAR-PAYOFF-MISSING | Dodaj `retentionRole: payoff` w finalnym segmencie L2 / kulminacji |
+
+**Priorytet:** NAR-* > V22-VLOG-01 przy konflikcie w tym samym segmencie L2. Preferuj usunięcie beatów w wolnych sekcjach nad dokładaniem pulsu retencyjnego.
 
 ### Multi-clip chronology i B-roll strategy (v2.5)
 
@@ -83,6 +104,20 @@ Preferuj rotację z `retentionTechniqueRotationMain` w briefu — unikaj agresyw
 | V25-CHR-01 | Przestaw segmenty A-roll na main rosnąco wg `sortIndex`; cold open tease na początku jest OK |
 | V25-CHR-02 | Grupuj klipy wg `daySegments` — wcześniejszy dzień przed późniejszym |
 | V25-CHR-03 | Po cold open dodaj rewind intro do chronologicznego startu (segment + overlay + hard_cut_energy) |
+
+### Narracja / open loops (NAR)
+
+Gdy issues NAR-* lub w `sessionSummary` / L3 jest `openLoops[]` / `narrativeProfile`:
+
+| Kod | Naprawa |
+|-----|---------|
+| NAR-PAYOFF-UNDELIVERED | Dodaj `creativeMoments` z `retentionRole: payoff` przy `payoffSceneId` z open loop (±30s output) lub `textOverlays` z `role: payoff` na segmencie tej sceny |
+| NAR-PAYOFF-MISSING | Dodaj `retentionRole: payoff` w zakresie outputu segmentu L2 kulminacji (`narrativeRole: climax`) lub `textOverlays` z `role: payoff` w tym zakresie — np. `music_drop` + napis payoff |
+| NAR-BEAT-SPAM | Usuń nadmiarowe beaty / `enrich_beat_*` w segmentach L2 z `rhythm: slow` lub `retentionIntensity: low`; nie dodawaj nowych beatów w tych sekcjach |
+| NAR-BREATH-BEAT | Usuń beaty / `pattern_interrupt` / `snap_zoom` w segmentach L2 `breath` lub `rhythm: slow`; zachowaj montaż oddechowy bez pulsu |
+| NAR-CLOSURE-SPAM | Usuń `enrich_beat_*` i nadmiarowe beaty w segmencie L2 `resolution`; max 1 łagodny beat zamknięcia |
+| NAR-CALLBACK-UNDELIVERED | Dodaj `match_cut` lub overlay `role: payoff` przy `payoffSceneId` z callback open loop (±30 s) |
+| NAR-DRAMATIC-PAUSE-CUT | Usuń `cuts[]` z `reason: "dead_air"` w segmentach z `silencePolicy: preserve` lub w regionie `deadAirHints` z `silenceKind: dramatic_pause` |
 
 ### Pacing (v2.4)
 
@@ -107,7 +142,7 @@ Preferuj rotację z `retentionTechniqueRotationMain` w briefu — unikaj agresyw
 
 `audioIndex.clips[].silenceGaps` — przy dead air przesuń `videoInSec`/`audioInSec` na koniec gapu lub dodaj cięcie na `silence_start`.
 
-`audioIndex.clips[].deadAirHints` — scalone RMS + Whisper (`source`: `audio` | `transcript` | `both`). Przy dead air tnij na `endSec` hintu z `source: "both"`; przy V21-13 ustaw `silence_beat` na początek/koniec hintu lub najbliższy `cutSuggestion`; skróć segment zamiast zostawiać pauzę. Post-director enrich (`enrichRecipeDeadAirCuts`) automatycznie dodaje `cuts[]` z `reason: "dead_air"` lub trimuje `videoInSec`/`audioInSec` przy bezpiecznych gapach; `silence_beat` zostaje fallbackiem gdy cięcie grozi ucięciem słowa lub gdy `narrativeProfile.silencePolicy: "preserve"`.
+`audioIndex.clips[].deadAirHints` — scalone RMS + Whisper (`source`: `audio` | `transcript` | `both`). Każdy hint ma `silenceKind`: `dead_air` (tnij), `dramatic_pause` (zachowaj), `breath_before_punchline` (bez cięcia; opcjonalny lekki `silence_beat`). Przy `dead_air` tnij na `endSec` hintu z `source: "both"`; przy V21-13 ustaw `silence_beat` na początek/koniec hintu lub najbliższy `cutSuggestion`; skróć segment zamiast zostawiać pauzę. Post-director enrich (`enrichRecipeDeadAirCuts`) automatycznie dodaje `cuts[]` z `reason: "dead_air"` lub trimuje `videoInSec`/`audioInSec` przy bezpiecznych gapach `silenceKind: "dead_air"`; `silence_beat` zostaje fallbackiem gdy cięcie grozi ucięciem słowa, dla `breath_before_punchline` (lekki dip), lub gdy `narrativeProfile.silencePolicy: "preserve"`.
 
 `audioIndex.clips[].energyPeaks` — przy hookach i `zoom_punch_in` kotwicz na peak z wysokim `rmsDb`.
 

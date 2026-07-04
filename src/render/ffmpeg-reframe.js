@@ -1,5 +1,7 @@
 import { computeReframeCrop } from "./reframe.js";
 
+const DEFAULT_BLUR_SIGMA = 20;
+
 function findSpatialAnchor(spatialIndex, sceneId) {
   const scene = spatialIndex?.scenes?.find((s) => s.sceneId === sceneId);
   if (!scene?.anchors?.length) {
@@ -13,7 +15,56 @@ function targetAspectForFormat(format) {
 }
 
 /**
+ * FFmpeg filter graph for TikTok-style blurred pillarbox (9:16 → 16:9).
+ * Expects input on the implicit stream; caller prefixes with [0:v].
+ */
+export function buildBlurPillarboxFilterGraph(dimensions, { blurSigma = DEFAULT_BLUR_SIGMA } = {}) {
+  const width = dimensions.width;
+  const height = dimensions.height;
+  return [
+    "split=2[pb_fg][pb_bg]",
+    `[pb_bg]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},gblur=sigma=${blurSigma}[pb_blur]`,
+    `[pb_fg]scale=${width}:${height}:force_original_aspect_ratio=decrease[pb_fg_scaled]`,
+    "[pb_blur][pb_fg_scaled]overlay=(W-w)/2:(H-h)/2",
+  ].join(";");
+}
+
+/**
+ * Compose base video transform with sync/pad extras for segment render.
+ *
+ * @param {{ type: "vf" | "filter_complex", filter: string } | null} baseResult
+ * @param {string[]} extraFilters
+ * @returns {{ mode: "vf", chain: string } | { mode: "filter_complex", graph: string } | null}
+ */
+export function composeSegmentVideoFilter(baseResult, extraFilters = []) {
+  const extras = extraFilters.filter(Boolean);
+  const extraChain = extras.join(",");
+
+  if (!baseResult && !extraChain) {
+    return null;
+  }
+
+  if (baseResult?.type === "filter_complex") {
+    if (extraChain) {
+      return {
+        mode: "filter_complex",
+        graph: `[0:v]${baseResult.filter}[vbase];[vbase]${extraChain}`,
+      };
+    }
+    return {
+      mode: "filter_complex",
+      graph: `[0:v]${baseResult.filter}`,
+    };
+  }
+
+  const chain = [baseResult?.filter, ...extras].filter(Boolean).join(",");
+  return chain ? { mode: "vf", chain } : null;
+}
+
+/**
  * Build -vf filter chain for a segment (crop, scale, speed).
+ *
+ * @returns {{ type: "vf" | "filter_complex", filter: string } | null}
  */
 export function buildSegmentVideoFilter({
   segment,
@@ -39,11 +90,29 @@ export function buildSegmentVideoFilter({
   const aspectDiffers = Math.abs(sourceAspect - targetAspect) > 0.01;
 
   const useFillInLandscape = format !== "9:16" && aspectDiffers && fitMode === "fill";
+  const useBlurPillarbox = format !== "9:16" && aspectDiffers && fitMode === "pillarbox_blur";
 
-  const useCropReframe = format === "9:16"
+  const useCropReframe = !useBlurPillarbox && (
+    format === "9:16"
     || reframeMode === "face"
     || reframeMode === "subject"
-    || useFillInLandscape;
+    || useFillInLandscape
+  );
+
+  if (useBlurPillarbox && dimensions) {
+    const blurGraph = buildBlurPillarboxFilterGraph(dimensions);
+    const speed = videoTransform.speed ?? 1;
+    if (speed !== 1) {
+      return {
+        type: "filter_complex",
+        filter: `${blurGraph}[pb_out];[pb_out]setpts=PTS/${speed}`,
+      };
+    }
+    return {
+      type: "filter_complex",
+      filter: blurGraph,
+    };
+  }
 
   if (useCropReframe && dimensions) {
     const useSpatialAnchor = reframeMode === "face" || reframeMode === "subject";
@@ -82,5 +151,7 @@ export function buildSegmentVideoFilter({
     filters.push(`setpts=PTS/${speed}`);
   }
 
-  return filters.length > 0 ? filters.join(",") : null;
+  return filters.length > 0
+    ? { type: "vf", filter: filters.join(",") }
+    : null;
 }

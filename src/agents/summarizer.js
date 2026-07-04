@@ -1,4 +1,8 @@
-import { AbstractionBundleSchema, AbstractL1Schema } from "../schemas/edit-recipe.js";
+import {
+  AbstractionBundleSchema,
+  AbstractL1Schema,
+  AbstractL2Schema,
+} from "../schemas/edit-recipe.js";
 import {
   chunkTimelineForL2,
   enrichSceneInputWithClipMeta,
@@ -18,6 +22,16 @@ const L1_OUTPUT_SCHEMA = {
   visualQuality: "low|medium|high",
   stability: "stable|shaky|unknown",
   isNarrationSource: "boolean — true gdy scena pochodzi z klipu narration_track lub audio_only z mową",
+};
+
+const L2_OUTPUT_SCHEMA = {
+  segmentId: "string",
+  startSec: "number",
+  endSec: "number",
+  sceneIds: ["string"],
+  summary: "string",
+  narrativeRole:
+    "setup|development|tension|breath|climax|payoff|resolution|callback — rola segmentu w łuku fabularnym",
 };
 
 function buildClipHints(clipRegistry = []) {
@@ -119,16 +133,11 @@ export async function summarizeSegment(client, segment, l1Summaries) {
     task: "L2_segment_summary",
     segment,
     sceneSummaries: scenes,
-    outputSchema: {
-      segmentId: "string",
-      startSec: "number",
-      endSec: "number",
-      sceneIds: ["string"],
-      summary: "string",
-    },
+    outputSchema: L2_OUTPUT_SCHEMA,
   });
 
-  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
+  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
+  return AbstractL2Schema.parse(raw);
 }
 
 export async function summarizeSession(client, { l2Summaries, userContext, stats, clipRegistry = [] }) {
@@ -146,6 +155,13 @@ export async function summarizeSession(client, { l2Summaries, userContext, stats
       formatFit: { "16:9": "0-1", "9:16": "0-1" },
       estimatedKeepRatio: "0-1",
       hasSeparateNarration: "boolean — true gdy narracja nagrana osobno (narration_track / audio_only z mową, oddzielnie od B-roll)",
+      openLoops: [{
+        loopId: "loop_01",
+        kind: "cold_open|payoff_tease|callback",
+        setupSceneId: "sceneId setupu (opcjonalnie)",
+        payoffSceneId: "sceneId payoffu (opcjonalnie)",
+        teaseText: "krótki tekst zapowiedzi bez spoilera (opcjonalnie)",
+      }],
     },
   });
 
@@ -184,7 +200,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
 
   for (const segment of segmentDefs) {
     const summary = await summarizeSegment(client, segment, l1);
-    l2.push(summary);
+    l2.push(AbstractL2Schema.parse(summary));
   }
 
   const l3 = await summarizeSession(client, {

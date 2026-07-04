@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildCreativityBudgetByL2Segment,
   computeCreativityBudget,
+  computeCreativityBudgetForL2Segment,
   computeCreativityBudgetForRecipe,
   computeDurationTuning,
   meetsCreativityLevel,
@@ -113,5 +115,34 @@ describe("technique-budget", () => {
     assert.equal(byOutputId.main_16x9.maxRetentionBeatMoments, 13);
     assert.equal(byOutputId.short_9x16.maxRetentionBeatMoments, undefined);
     assert.equal(byOutputId.short_9x16.maxTotalTechniqueMoments, 1);
+  });
+
+  it("computeCreativityBudgetForL2Segment scales from RHYTHM_CAPS rhythm", () => {
+    const base = computeCreativityBudget(15 * 60, { level: "balanced" });
+    assert.equal(base.maxZoomMoments, 3);
+
+    const slow = computeCreativityBudgetForL2Segment(base, "slow", "low");
+    assert.equal(slow.maxZoomMoments, 0);
+    assert.equal(slow.maxTotalTechniqueMoments, 0);
+    assert.ok(slow.minZoomGapSec > base.minZoomGapSec);
+
+    const fast = computeCreativityBudgetForL2Segment(base, "fast", "high");
+    assert.ok(fast.maxZoomMoments > base.maxZoomMoments);
+    assert.ok(fast.maxTotalTechniqueMoments > base.maxTotalTechniqueMoments);
+    assert.ok(fast.minZoomGapSec < base.minZoomGapSec);
+  });
+
+  it("buildCreativityBudgetByL2Segment maps narrativeProfile segments", () => {
+    const base = computeCreativityBudget(10 * 60, { level: "balanced" });
+    const byL2 = buildCreativityBudgetByL2Segment(base, {
+      segments: [
+        { l2SegmentId: "seg001", rhythm: "fast", retentionIntensity: "high" },
+        { l2SegmentId: "seg002", rhythm: "slow", retentionIntensity: "low" },
+      ],
+    });
+
+    assert.ok(byL2.seg001.maxZoomMoments > byL2.seg002.maxZoomMoments);
+    assert.equal(byL2.seg002.maxZoomMoments, 0);
+    assert.ok(byL2.seg002.minZoomGapSec > byL2.seg001.minZoomGapSec);
   });
 });

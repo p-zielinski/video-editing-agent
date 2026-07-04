@@ -40,6 +40,25 @@ export const FIXABLE_V25_WARNING_CODES = new Set([
   "V25-CHR-03",
 ]);
 
+/** NAR-* narrative warnings the fixer should attempt to repair. */
+export const FIXABLE_NAR_WARNING_CODES = new Set([
+  "NAR-BEAT-SPAM",
+  "NAR-BREATH-BEAT",
+  "NAR-CLOSURE-SPAM",
+  "NAR-CALLBACK-UNDELIVERED",
+  "NAR-PAYOFF-UNDELIVERED",
+  "NAR-PAYOFF-MISSING",
+  "NAR-DRAMATIC-PAUSE-CUT",
+]);
+
+export function isNarrativeIssueCode(code) {
+  return typeof code === "string" && code.startsWith("NAR-");
+}
+
+export function extractNarrativeIssues(issues = []) {
+  return issues.filter((issue) => isNarrativeIssueCode(issue.code));
+}
+
 export function shouldInvokeFixer(issues = []) {
   if (issues.some((issue) => issue.severity === "error")) {
     return true;
@@ -48,7 +67,8 @@ export function shouldInvokeFixer(issues = []) {
     (issue) => issue.severity === "warning"
       && (FIXABLE_VLOG_WARNING_CODES.has(issue.code)
         || FIXABLE_V24_WARNING_CODES.has(issue.code)
-        || FIXABLE_V25_WARNING_CODES.has(issue.code)),
+        || FIXABLE_V25_WARNING_CODES.has(issue.code)
+        || FIXABLE_NAR_WARNING_CODES.has(issue.code)),
   );
 }
 
@@ -197,6 +217,24 @@ function buildRetentionFixerContext(recipe) {
   return context;
 }
 
+function buildNarrativeFixerContext({ recipe, sessionSummary, issues }) {
+  const narrativeIssues = extractNarrativeIssues(issues);
+  if (narrativeIssues.length === 0) {
+    return {};
+  }
+
+  const context = { narrativeIssues };
+  const openLoops = sessionSummary?.openLoops;
+  if (openLoops?.length) {
+    context.openLoops = openLoops;
+  }
+  const narrativeProfile = recipe.narrativeProfile ?? sessionSummary?.narrativeProfile;
+  if (narrativeProfile) {
+    context.narrativeProfile = narrativeProfile;
+  }
+  return context;
+}
+
 export async function runFixer(client, {
   recipe,
   review,
@@ -246,9 +284,15 @@ export async function runFixer(client, {
     ...(brollSyncHints?.length ? { brollSyncHints } : {}),
   };
 
+  const narrativeContext = buildNarrativeFixerContext({
+    recipe,
+    sessionSummary: abstraction.L3,
+    issues: review.issues,
+  });
   const user = JSON.stringify({
     recipe,
     issues: review.issues,
+    ...narrativeContext,
     sessionSummary: abstraction.L3,
     ...fixerContext,
   });

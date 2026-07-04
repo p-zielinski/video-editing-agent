@@ -108,6 +108,11 @@ export function shouldUseSuperDirector(timelineIndex, abstraction) {
   return durationSec > SUPER_DIRECTOR_DURATION_THRESHOLD_SEC || l2Count > 1;
 }
 
+export function resolveNarrativeRoleForSegment(segmentId, abstraction) {
+  const segment = (abstraction?.L2 ?? []).find((entry) => entry.segmentId === segmentId);
+  return segment?.narrativeRole ?? null;
+}
+
 export function resolveSegmentPicks(superPlan, catalog) {
   const catalogById = new Map(catalog.map((card) => [card.segmentId, card]));
   const orderIndex = new Map(

@@ -69,6 +69,7 @@ export const TextOverlayStyleSchema = z.enum([
   "hook_number",
   "emphasis",
   "chapter_card",
+  "cta",
   "subtitle_style",
 ]);
 
@@ -80,6 +81,8 @@ export const TextOverlayRoleSchema = z.enum([
   "chapter",
 ]);
 
+export const TextOverlayAnimationSchema = z.enum(["fade", "static"]);
+
 export const TextOverlayV2Schema = z.object({
   overlayId: z.string().optional(),
   text: z.string(),
@@ -88,7 +91,11 @@ export const TextOverlayV2Schema = z.object({
   position: z.string().optional(),
   style: TextOverlayStyleSchema.optional(),
   role: TextOverlayRoleSchema.optional(),
+  animation: TextOverlayAnimationSchema.optional(),
 });
+
+/** creativeMoments / timeline retention roles; textOverlays use TextOverlayRoleSchema (includes cta). */
+export const RetentionRoleSchema = z.enum(["hook", "beat", "payoff", "breath", "closure"]);
 
 export const VideoTransformSchema = z.object({
   crop: z.object({
@@ -98,7 +105,7 @@ export const VideoTransformSchema = z.object({
     h: z.number(),
   }).optional(),
   reframe: z.enum(["center", "face", "subject"]).optional(),
-  fitMode: z.enum(["pillarbox", "fill"]).optional(),
+  fitMode: z.enum(["pillarbox", "pillarbox_blur", "fill"]).optional(),
   speed: z.number().positive().max(4).default(1),
   speedMode: z.enum(["video_only", "video_audio"]).default("video_audio"),
 }).optional();
@@ -124,6 +131,7 @@ export const TimelineSegmentV2Schema = z.object({
   videoTransform: VideoTransformSchema,
   sourceVolumeDb: z.number().min(-60).max(12).default(0).optional(),
   intent: z.string().optional(),
+  retentionRole: RetentionRoleSchema.optional(),
   // deprecated / migration-only — walidator emituje SOURCE_REF_IN_V2_SEGMENT / DEPRECATED_AUDIO_OFFSET
   sourceRef: MediaRefSchema.optional(),
   audioOffsetSec: z.number().optional(),
@@ -243,9 +251,6 @@ export const SpatialRefSchema = z.object({
   { message: "spatialRef wymaga timestampSec lub (bbox + anchorType)" },
 );
 
-/** creativeMoments retention roles; textOverlays use TextOverlayRoleSchema (includes cta). */
-export const RetentionRoleSchema = z.enum(["hook", "beat", "payoff"]);
-
 export const CreativeMomentSchema = z.object({
   momentId: z.string(),
   techniqueId: z.string(),
@@ -285,17 +290,61 @@ export const VlogRetentionProfileSchema = z.object({
   mode: z.literal("vlog").default("vlog"),
 });
 
+export const NarrativeRhythmSchema = z.enum(["slow", "normal", "fast"]);
+
+export const NarrativeRetentionIntensitySchema = z.enum(["low", "medium", "high"]);
+
+export const NarrativeSilencePolicySchema = z.enum([
+  "preserve",
+  "trim_dead_air",
+  "aggressive",
+]);
+
+export const NarrativeProfileModeSchema = z.enum([
+  "internet_documentary",
+  "retention_vlog",
+]);
+
+export const NarrativeSegmentProfileSchema = z.object({
+  l2SegmentId: z.string(),
+  rhythm: NarrativeRhythmSchema.optional(),
+  retentionIntensity: NarrativeRetentionIntensitySchema.optional(),
+  silencePolicy: NarrativeSilencePolicySchema.optional(),
+});
+
+export const NarrativeProfileSchema = z.object({
+  mode: NarrativeProfileModeSchema.optional(),
+  segments: z.array(NarrativeSegmentProfileSchema).default([]),
+  maxPatternInterruptsPer10Min: z.number().nonnegative().optional(),
+  sfxNarrativeOnly: z.boolean().optional(),
+  /** Global default when a segment omits silencePolicy. */
+  silencePolicy: NarrativeSilencePolicySchema.optional(),
+});
+
 export const AudioMixMusicBedSchema = z.object({
   trackId: z.string(),
   volumeDb: z.number(),
   duckingDb: z.number(),
 });
 
+export const AudioMixDuckingWindowSchema = z.object({
+  startSec: z.number().nonnegative(),
+  endSec: z.number().positive(),
+  duckingDb: z.number(),
+}).refine(
+  (window) => window.startSec < window.endSec,
+  { message: "duckingWindow: startSec must be less than endSec" },
+);
+
 export const AudioMixSegmentSchema = z.object({
   outputId: z.string(),
   musicInSec: z.number().nonnegative().optional(),
   musicOutSec: z.number().positive().optional(),
   duckUnderVoice: z.boolean(),
+  /** Per-output override; falls back to musicBed.duckingDb when omitted. */
+  duckingDb: z.number().optional(),
+  /** Time windows with per-window duck depth (output timeline seconds). */
+  duckingWindows: z.array(AudioMixDuckingWindowSchema).max(16).optional(),
 });
 
 export const AudioMixPlanSchema = z.object({
@@ -369,6 +418,21 @@ export const RenderStylePresetsSchema = z.object({
   }).partial().optional(),
 });
 
+export const PacingTrimMetaSchema = z.object({
+  segmentsRemoved: z.number().int().nonnegative().default(0),
+  deadAirCuts: z.number().int().nonnegative().default(0),
+  edgeTrims: z.number().int().nonnegative().default(0),
+  exhausted: z.boolean().default(false),
+  applied: z.boolean().default(false).optional(),
+});
+
+export const StructuredCallbackSchema = z.object({
+  callbackId: z.string(),
+  setupSceneId: z.string(),
+  payoffSceneId: z.string(),
+  teaseText: z.string().optional(),
+});
+
 export const EditRecipeV2Schema = z.object({
   version: z.enum(["2.0", "2.1", "2.2", "2.3", "2.4"]),
   batchId: z.string(),
@@ -381,10 +445,13 @@ export const EditRecipeV2Schema = z.object({
   creativeMoments: z.array(CreativeMomentSchema).default([]),
   shortsRetentionProfile: ShortsRetentionProfileSchema.optional(),
   vlogRetentionProfile: VlogRetentionProfileSchema.optional(),
+  narrativeProfile: NarrativeProfileSchema.optional(),
   audioMixPlan: AudioMixPlanSchema.optional(),
   sfxPlan: z.array(SfxPlanEntrySchema).default([]),
   colorGrade: ColorGradeSchema.optional(),
   renderStylePresets: RenderStylePresetsSchema.optional(),
+  pacingTrimMeta: PacingTrimMetaSchema.optional(),
+  structuredCallbacks: z.array(StructuredCallbackSchema).default([]).optional(),
   needsHumanReview: z.boolean().default(false),
   reviewNotes: z.string().optional(),
 });

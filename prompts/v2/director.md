@@ -12,7 +12,7 @@ Obiekt zagnieżdżony w **brief**:
 - **fillerStats** — `totalFillers` + `perScene[]` z próbkami fillerów (`wordId`, `word`, czasy)
 - **sceneMapPolicy** / **sceneMapOmittedCount** — gdy duży batch (domyślnie >50 scen multi-clip / >40 single): `compact_large_batch` i liczba scen pominiętych w `sceneMap` (pełna lista w `sceneRanks` + `brollCandidates`)
 - **daySegments** — (multi-clip) grupy klipów wg daty nagrania (`creationTime`); montuj main w kolejności segmentów dnia
-- **brollCandidates**, **excludedHints**, **clipRegistry**, **topicIndex**, **spatialIndex**, **transcriptExcerpts**, **audioIndex**, **techniqueCatalog**, **creativityBudget**, **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, …
+- **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, **emotionalBeatHints**, **narrativeProfile**, **segmentNarrativeProfile**, …
 
 ### clipRegistry[]
 
@@ -40,7 +40,7 @@ Płaski payload (bez zagnieżdżonego `brief`):
 - **sceneSummariesL1** — pełne L1 dla `sceneIds` z draftu
 - **topicIndex**, **spatialIndex**, **spatialRefExamples**, **transcriptExcerpts**, **audioIndex**
 - **clipRegistry**, **sessionSummary**, **userContext**, **requiredFormats**
-- **creativityProfile**, **techniqueCatalog**, **creativityBudget**
+- **creativityProfile**, **techniqueCatalog**, **creativityBudget**, **creativityBudgetByOutput**, **creativityBudgetByL2Segment**
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops** (gdy retention)
 
 ## sceneMap — pola montażowe
@@ -142,10 +142,19 @@ Gdy narracja jest **częściowa** — intro z mową na kamerze (A-roll), potem B
 
 FaceTime, nagranie ekranu telefonu, pionowy screen recording w main 16:9:
 
-- Krótkie segmenty `broll` z materiału `9:16` — domyślnie `videoTransform.fitMode: "pillarbox"` (pasy boczne, bez kadrowania twarzy)
+- Krótkie segmenty `broll` z materiału `9:16` — domyślnie `videoTransform.fitMode: "pillarbox"` (czarne pasy boczne, bez kadrowania twarzy)
+- `fitMode: "pillarbox_blur"` — styl TikTok/Reels: rozmyte tło z tego samego ujęcia zamiast czarnych pasów; preferuj na krótkich wstawkach pionowych w main 16:9 (FaceTime, screen recording telefonu)
 - **Nie** ustawiaj `reframe: "face"` / `"subject"` na wstawkach pionowych w main 16:9 — to psuje kompozycję
 - `fitMode: "fill"` tylko gdy świadomie chcesz wypełnić kadr (crop+scale) — np. `reframe: "center"` + `fitMode: "fill"`
-- Dla A-roll pionowego w main 16:9 walidator emituje V25-AR-02 — preferuj B-roll insert lub pillarbox
+- Dla A-roll pionowego w main 16:9 walidator emituje V25-AR-02 — preferuj B-roll insert, `pillarbox` lub `pillarbox_blur`
+
+```json
+{
+  "segmentRole": "broll",
+  "videoTransform": { "fitMode": "pillarbox_blur" },
+  "intent": "Pionowy screen recording — rozmyte tło zamiast czarnych pasów"
+}
+```
 
 ## B-roll z topicIndex
 
@@ -266,6 +275,17 @@ Typy: `whole_clip`, `scene`, `time_range`. Pole `usableAsBroll` wymagane. `whole
 
 Brief zawiera `techniqueCatalog` (dozwolone zabiegi z packa) i `creativityBudget` (limity zoomów, gęstości).
 
+### creativityBudget vs creativityBudgetByL2Segment
+
+- **`creativityBudget`** — domyślny budżet całego outputu (poziom `creativityProfile.level`).
+- **`creativityBudgetByOutput`** — ten sam budżet per `outputId` (main vs short); **agregat** do planowania całości.
+- **`creativityBudgetByL2Segment`** — gdy jest `narrativeProfile`, limity **per faza L2** (`l2SegmentId` → budżet), skalowane z `rhythm` i `retentionIntensity`:
+  - `rhythm: slow` → mniej `maxZoomMoments` / `maxTotalTechniqueMoments`, większy `minZoomGapSec` (oddech, breath).
+  - `rhythm: fast` → więcej momentów, krótsze odstępy (napięcie).
+  - `retentionIntensity: low` dodatkowo ściska budżet; `high` — lekko poluzowuje.
+
+W **segment-director** brief `creativityBudget` jest już **lokalny** dla bieżącego L2 (z `creativityBudgetByL2Segment[segmentId]`). Przy `initial_draft` planuj `creativeMoments` w obrębie limitu fazy — nie przenoś zoomów z `rhythm: slow` do `rhythm: fast`.
+
 ### creativityProfile
 
 - `level`: `safe` | `balanced` | `bold` | `shorts` — nie przekraczaj budżetu z briefu
@@ -318,6 +338,120 @@ Renderer mapuje `creativeMoments` na passy FFmpeg — **nazwa techniki ≠ to sa
 
 Dla prawdziwego skrócenia materiału używaj `timeline[].segments` (granice, `cuts[].wordIds`, dead air trim), nie `jump_cut` / `hard_cut_energy` / `silence_beat`.
 
+## Playbook: graphics, akty i payoff audio
+
+### `emphasis_text` — kiedy i gdzie
+
+Renderer mapuje `emphasis_text` na `textOverlays` (drawtext). Technika w katalogu ma `requiresOutputKind: short` — na main używaj **wyłącznie** `textOverlays[]`, nie `creativeMoments` z `techniqueId: emphasis_text`.
+
+| Format | Dostawa | Kiedy | Gdzie | Limity |
+|--------|---------|-------|-------|--------|
+| Short 9:16 | `creativeMoments` `emphasis_text` **lub** `textOverlays` `style: emphasis` | Punchline, liczba, cytat, kluczowa myśl | `position: bottom_third` przy punchline; `center` przy liczbie/statystyce | Max 1 duży napis na 15 s (overlay budget) |
+| Main 16:9 | Tylko `textOverlays` `style: emphasis` | Podkreślenie myśli L2, callback do open loop, liczba w payoff | Dolna trzecia kadru; unikaj zasłaniania twarzy A-roll | Max ~1 na 3 min; oszczędnie |
+
+**Short — creativeMoment:**
+
+```json
+{
+  "momentId": "cm_emph_01",
+  "techniqueId": "emphasis_text",
+  "outputId": "short_9x16",
+  "outputStartSec": 18,
+  "outputEndSec": 21,
+  "params": { "text": "47 000 zł", "position": "center" },
+  "reason": "Liczba payoff — podkreślenie bez pełnego hooka"
+}
+```
+
+**Main — textOverlay (nie creativeMoment):**
+
+```json
+{
+  "textOverlays": [{
+    "overlayId": "emph_l2_02",
+    "text": "To zmieniło wszystko",
+    "outputStartSec": 312,
+    "outputEndSec": 315,
+    "style": "emphasis",
+    "role": "payoff",
+    "position": "bottom_center"
+  }]
+}
+```
+
+Kotwicz na `anchorWordId` z transkryptu lub `energyPeaks` / L1 `keyMoments` w tolerancji ±2 s.
+
+### `dip_to_black` — przejścia aktów (main 16:9)
+
+`dip_to_black` to fade out/in w creative pass (0.3–0.8 s) — **kinowy reset** między dużymi częściami vlogu. Nie myl z `textOverlays` `style: chapter_card` (etykieta rozdziału).
+
+| Sygnał | Akcja |
+|--------|-------|
+| Main ≥8 min, granica aktów L2 (`setup`→`tension`, `climax`→`resolution`) | `creativeMoments` `dip_to_black` + opcjonalnie `chapter_card` overlay na początku nowego segmentu L2 |
+| Brief `actTransitionHints[]` | Ustaw `outputStartSec` ≈ `targetSec` z hintu (±30 s) |
+| Segment L2 `rhythm: slow` / `breath` | **Bez** `dip_to_black` — zachowaj płynność |
+| Short 9:16 | Unikaj — zbyt ciężkie; preferuj `pattern_interrupt` lub `hard_cut_energy` |
+
+**Przykład na granicy aktu (~480 s, main 16:9):**
+
+```json
+{
+  "momentId": "cm_dip_act2",
+  "techniqueId": "dip_to_black",
+  "outputId": "main_16x9",
+  "outputStartSec": 478,
+  "outputEndSec": 480.6,
+  "params": { "durationSec": 0.6 },
+  "reason": "Przejście setup→tension — reset uwagi przed częścią 2"
+}
+```
+
+Para z kartą rozdziału: overlay `chapter_card` na ~481 s (po fade-in), `dip_to_black` na granicy — dwa różne sygnały (reset wizualny vs etykieta).
+
+### `music_drop` vs `music_swell` — payoff i beaty
+
+Oba wymagają `audioMixPlan.musicBed`. Renderer automatyzuje głośność bed w oknie momentu.
+
+| Technika | Efekt | `retentionRole` | Kiedy |
+|----------|-------|-----------------|-------|
+| `music_swell` | Podbicie bed ~+3 dB | `beat` | Cadence retencji (co ~45 s main, ~25 s short), reveal sekcji, energia po oddechu |
+| `music_drop` | Ściemnienie bed ~−6 dB | `payoff` | Kulminacja narracji L2, emocjonalny reveal, zamknięcie open loop — **nie** zwykły beat |
+
+**Zasady:**
+
+- Rotacja vlog: `zoom_slow_push` → `ken_burns_light` → **`music_swell`** → `silence_beat` — swell na beatach, **nie** drop
+- `music_drop` max 1–2 na main; tylko przy `retentionRole: payoff` i L2 `narrativeRole: climax`
+- Bez `musicBed` — enrich użyje `music_swell` jako fallback; director powinien ustawić `audioMixPlan` gdy `audioMixDefaults.musicBed` jest w briefie
+- Nie stosuj `music_drop` na każdym beacie retencji — to psuje dramaturgię (warning w critic)
+
+**Payoff (main):**
+
+```json
+{
+  "momentId": "cm_payoff_drop",
+  "techniqueId": "music_drop",
+  "outputId": "main_16x9",
+  "outputStartSec": 540,
+  "outputEndSec": 548,
+  "retentionRole": "payoff",
+  "reason": "Kulminacja L2 — muzyka schodzi pod reveal emocjonalny"
+}
+```
+
+**Beat cadence (main):**
+
+```json
+{
+  "momentId": "cm_beat_swell",
+  "techniqueId": "music_swell",
+  "outputId": "main_16x9",
+  "outputStartSec": 180,
+  "outputEndSec": 183,
+  "retentionRole": "beat",
+  "reason": "Beat retencji — podbicie energii na cadence"
+}
+```
+
 ## Gramatyka retencji shortów (v2.2)
 
 Gdy brief zawiera `shortsRetentionProfile` i `retentionGrammarSummary` — stosuj dla outputów `outputKind: "short"`:
@@ -338,7 +472,7 @@ Gdy brief zawiera `shortsRetentionProfile` i `retentionGrammarSummary` — stosu
 ### Pola v2.2
 
 - `shortsRetentionProfile` — profil z briefu (nie wyłączaj dla short output)
-- `creativeMoments[].retentionRole`: `hook` | `beat` | `payoff`
+- `creativeMoments[].retentionRole`: `hook` | `beat` | `payoff` | `breath` | `closure`
 - `textOverlays[].style`: `hook_large` | `emphasis` | `chapter_card`
 - `textOverlays[].role`: `hook` | `retention_beat` | `payoff` | `cta`
 
@@ -356,6 +490,15 @@ Gdy brief zawiera `vlogRetentionProfile` i `retentionGrammarSummary` — stosuj 
 - **Unikaj** `jump_cut` i `hard_cut_energy` na beatach retencji — to impulsy renderera, nie montażowe akcenty na długim vlogu
 - `payoff` tylko przy kulminacji narracji (L2/L3), nie na każdym beacie
 
+### Emocjonalne payoff (`emotionalBeatHints`)
+
+Gdy brief zawiera `emotionalBeatHints[]` — sceny L1 z nastrojem `dramatic` / `cinematic` / `tense` (lub polskie odpowiedniki):
+
+- `sceneId`, `clipId`, `mood`, `anchorTimeSec` — kotwica w materiale źródłowym
+- `retentionRole: payoff` — **nie** `beat`; jeden mocny moment (`music_drop`, `match_cut`) przy tej scenie
+- `suggestedTechniqueId` — domyślnie `music_drop` gdy jest `audioMixPlan.musicBed`
+- Nie zamieniaj każdego beata retencji na payoff — użyj hintów tylko tam, gdzie L1 sygnalizuje kulminację emocjonalną
+
 ### Kotwice beatów (`retentionBeatAnchors`)
 
 Gdy brief zawiera `retentionBeatAnchors[]` — preferuj te pozycje zamiast wymyślania czasów:
@@ -371,7 +514,7 @@ Gdy brief zawiera `retentionBeatAnchors[]` — preferuj te pozycje zamiast wymy�
 - `vlogRetentionProfile` — profil z briefu (nie wyłączaj dla main output)
 - `retentionBeatTargets` — idealne sekundy beatów na osi main
 - `retentionTechniqueRotation` — kolejność technik per slot
-- `creativeMoments[].retentionRole`: `beat` | `payoff` (hook tylko na shortach)
+- `creativeMoments[].retentionRole`: `beat` | `payoff` | `breath` | `closure` (hook tylko na shortach)
 
 ### Walidacja (kody V22-VLOG)
 
@@ -384,8 +527,68 @@ Receptura z włączonym `vlogRetentionProfile` podlega regułom **V22-VLOG-01 �
 | V22-VLOG-03 | Agresywne techniki (`jump_cut`, `hard_cut_energy`, `pattern_interrupt`, `snap_zoom`) na beat — warning |
 | V22-VLOG-04 | 3+ kolejne beaty z tym samym `techniqueId` — warning (monotonna rotacja) |
 | V22-VLOG-05 | Beat daleko od `retentionBeatTargets` (±tolerance) — warning (gdy targets w recipe) |
+| V22-VLOG-06 | Max `pattern_interrupt` na main w każdym oknie 10 min — domyślnie 1; override przez `narrativeProfile.maxPatternInterruptsPer10Min`; **działa nawet gdy `vlogRetentionProfile.enabled: false`** |
 
 Pack `youtube_vlog_2026` — techniki z rotacji vlog; `silence_beat` dozwolony przy `level: balanced`.
+
+## Faza 2 — narracja i hamulce retencji
+
+### Model sześciu faz (main 16:9)
+
+Łuk narracji długiego formu — mapuj na segmenty L2 (`narrativeRole` z summarizera) i opcjonalnie `timeline[].retentionRole` / `creativeMoments[].retentionRole`:
+
+| Faza | Rola retencji | Zasady montażowe |
+|------|---------------|------------------|
+| HOOK / obietnica | `hook` | Cold open lub pierwsze 3–5 s; obietnica bez spoilera |
+| NAPIĘCIE | `beat` | Beat wizualny, zoom, B-roll tematyczny |
+| ODDECH | `breath` | Zachowana cisza, wolny segment — **bez** beatów, `pattern_interrupt`, `snap_zoom` |
+| ROZWÓJ | — | Chronologia, A-roll + B-roll pod mowę |
+| PAYOFF | `payoff` | `music_drop`, jeden mocny moment przy kulminacji L2 |
+| ZAMKNIĘCIE | `closure` | Krótko, bez dokładania beatów — max 1 beat, zero `enrich_beat_*` |
+
+Gdy L2 ma `narrativeRole: breath` lub `narrativeProfile` ustawia `rhythm: slow` — nie dodawaj beatów retencji w tym zakresie. Segment zamknięcia (`narrativeRole: resolution`) — unikaj `enrich_beat_*` i więcej niż jednego beata. Callback z `openLoops[]` (`kind: callback`) — dostarcz `match_cut` lub overlay `role: payoff` przy `payoffSceneId`.
+
+Gdy brief zawiera `narrativeProfile` (z Super Directora lub `batchContext`) — respektuj hamulce narracyjne na main:
+
+### `narrativeProfile` (recipe)
+
+Kopiuj z briefu na recepturę (nie wyłączaj dla main):
+
+| Pole | Znaczenie |
+|------|-----------|
+| `mode` | `internet_documentary` (wolniej, mniej beatów) lub `retention_vlog` |
+| `segments[]` | Per segment L2: `l2SegmentId`, `rhythm`, `retentionIntensity`, `silencePolicy` — każdy segment ma też wpis w `creativityBudgetByL2Segment` |
+| `maxPatternInterruptsPer10Min` | Twardy limit `pattern_interrupt` na main (walidacja **V22-VLOG-06**) |
+| `sfxNarrativeOnly` | Gdy `true` — SFX tylko przy momentach narracyjnych (hook, payoff, kulminacja); unikaj „tapnięć” na każdym beacie |
+| `silencePolicy` | Domyślna polityka ciszy gdy segment jej nie ma: `preserve` \| `trim_dead_air` \| `aggressive` |
+
+### `segmentNarrativeProfile` (brief segment-director)
+
+W drill-down / segment-director brief może być **jeden** wpis z `narrativeProfile.segments[]` dla bieżącego L2 — stosuj `rhythm: slow` / `retentionIntensity: low` → **bez** dodatkowych beatów retencji w tym segmencie; `silencePolicy: preserve` → nie tnij dead air, zachowaj pauzy dramatyczne. **`creativityBudget`** w tym briefie to budżet **tylko tej fazy** (patrz `creativityBudgetByL2Segment`).
+
+### `audioIndex` — `silenceKind` na `deadAirHints`
+
+Po fuzji RMS + transkrypt każdy `deadAirHints[]` ma `silenceKind`:
+
+| `silenceKind` | Działanie |
+|---------------|-----------|
+| `dead_air` | Bezpieczne do cięcia (`cuts[]` `reason: dead_air` lub trim in/out) |
+| `dramatic_pause` | **Nie tnij** — pauza narracyjna; enrich i walidator **NAR-DRAMATIC-PAUSE-CUT** |
+| `breath_before_punchline` | Zachowaj; opcjonalny lekki `silence_beat`, bez agresywnego cięcia |
+
+Przy `narrativeProfile.silencePolicy: preserve` lub segmencie z `silencePolicy: preserve` — bias w stronę `dramatic_pause` zamiast `dead_air`.
+
+### Walidacja narracji (kody NAR-*)
+
+| Kod | Reguła |
+|-----|--------|
+| NAR-PAYOFF-UNDELIVERED | `openLoops` cold_open/payoff_tease bez payoffu **przy** `payoffSceneId` (±30 s na osi main) |
+| NAR-PAYOFF-MISSING | Segment L2 kulminacji bez `retentionRole: payoff` |
+| NAR-BEAT-SPAM | Segment L2 `slow` / `retentionIntensity: low` — max 1 beat, **zero** `enrich_beat_*` |
+| NAR-BREATH-BEAT | Segment L2 `breath` lub `rhythm: slow` — brak beatów / `pattern_interrupt` / `snap_zoom` |
+| NAR-CLOSURE-SPAM | Segment L2 `resolution` (zamknięcie) — max 1 beat, **zero** `enrich_beat_*` |
+| NAR-CALLBACK-UNDELIVERED | `openLoops` `kind: callback` z `payoffSceneId` — brak `match_cut` ani overlay `role: payoff` przy scenie (±30 s) |
+| NAR-DRAMATIC-PAUSE-CUT | Cięcie `dead_air` w regionie `dramatic_pause` lub segmencie z `silencePolicy: preserve` |
 
 `voice_pitch_shift` — modulacja wysokości głosu (FFmpeg pitch) na krótki fragment; używaj **oszczędnie** przy humorze / alter ego / punchline (max **2** na output, `semitones` w ±8). Tylko na A-roll (`forbiddenOnSegmentRole: broll`). Wymaga `level: bold` (vlog) lub `shorts` (pack retention).
 
@@ -395,7 +598,8 @@ Gdy brief zawiera `chapterCardHints[]` lub `narrativeOpenLoops[]` — użyj jako
 
 ### `chapterCardHints[]`
 
-- Co ~3–5 min na main (`style: chapter_card`) — tekst z najbliższego segmentu L2 (`suggestedText`, `l2SegmentId`)
+- Gdy L2 ma `narrativeRole` — karty na **początkach segmentów L2** (`targetSec` zmapowany na output main); pomijaj `breath` i segmenty z `narrativeProfile.rhythm: slow`
+- Bez `narrativeRole` na L2 — fallback co ~3–5 min (`style: chapter_card`), tekst z najbliższego segmentu L2 (`suggestedText`, `l2SegmentId`)
 - `targetSec` — docelowa pozycja na osi outputu main
 - Dodaj `textOverlays[]` z `style: chapter_card`, `role: retention_beat` lub dedykowanym `overlayId` — krótki napis rozdziału (2–4 s), nie zasłaniaj twarzy
 - Na main 16:9 ≥3 min — min. 1 karta gdy hints w briefie
@@ -412,7 +616,7 @@ Po Twoim szkicu pipeline **uzupełnia luki deterministycznie** — nie usuwaj an
 
 | Enricher | Zachowanie | Twoja rola |
 |----------|------------|------------|
-| `enrichRecipeRetentionBeats` | Dodaje `creativeMoments` z `momentId: enrich_beat_*` tylko gdy brak beatów w tolerancji anchorów | Ustaw beaty retencji (`retentionRole: beat`) na main — enrich **nie zastępuje** Twoich momentów |
+| `enrichRecipeRetentionBeats` | Uzupełnia **main (vlog)** i **short (9:16)**: `enrich_beat_*` gdy brak beatów w tolerancji anchorów (rotacja vlog na main, rotacja shortów na short); na short dodaje `enrich_hook_001` gdy brak hooka w oknie 0–3 s | Ustaw beaty (`retentionRole: beat`) i hook (moment lub `textOverlays` z `role: hook`) — enrich **nie zastępuje** Twoich momentów |
 | `enrichRecipeChapterCards` | Dodaje `textOverlays` z `overlayId: enrich_chapter_*` gdy brak `chapter_card` przy `chapterCardHints` | Dodaj karty rozdziałów z briefu — enrich wypełnia brakujące sloty |
 | `enrichRecipeSfxPlan` | Merge `audio_event` z analizy; trim do V24-06 (max 1 SFX / 90 s main) | Wybierz SFX narracyjnie — enrich nie duplikuje pokrytych eventów |
 | `enrichRecipeColdOpenSegment` | Tease + rewind intro/markery gdy brak cold open na main | Użyj `coldOpenSegmentHint` z briefu; enrich dodaje tease/rewind gdy brak |
@@ -422,7 +626,8 @@ Po Twoim szkicu pipeline **uzupełnia luki deterministycznie** — nie usuwaj an
 
 - Nie usuwaj `enrich_*` momentów/overlays enrichera — enrich uzupełnia luki, nie zastępuje dyrektywy
 - Nie polegaj na enrich zamiast beatów/kart — director jest autorem głównym; enrich ratuje luki po walidacji
-- `enrich_beat_*` używa rotacji vlog (`zoom_slow_push`, `ken_burns_light`, …) — unikaj agresywnych technik shortów na main
+- `enrich_beat_*` na main używa rotacji vlog (`zoom_slow_push`, `ken_burns_light`, …); na short — rotacji shortów (`pattern_interrupt`, `retention_beat`, …)
+- `enrich_hook_001` tylko na short, gdy brak hook momentu i brak `textOverlays` z `role: hook` / stylem hook w oknie hooka
 
 ## Plan miksowania audio (v2.3, pre-render)
 
@@ -459,9 +664,11 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
 
 - Dla segmentów z muzyką zewnętrzną ustaw `audioPolicy: "external"` na co najmniej jednym segmencie danego `outputId`
 - `audioMixPlan.segments[]` — per output: `musicInSec` / `musicOutSec` (oś outputu), `duckUnderVoice: true` gdy muzyka schodzi pod głos
+- `duckingDb` (per segment) — nadpisuje głębokość duckingu z `musicBed.duckingDb` dla całego zakresu segmentu mix
+- `duckingWindows[]` — okna na osi outputu z własnym `duckingDb` per okno (`startSec`, `endSec`, `duckingDb`); renderer stosuje sidechain per okno zamiast jednego poziomu na cały output
 - Głos A-roll: `from_video_ref` / `from_audio_ref`; muzyka bed: osobna ścieżka przez `external`
 
-### Przykład
+### Przykład (stały ducking)
 
 ```json
 {
@@ -485,6 +692,34 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
   }
 }
 ```
+
+### Przykład (zmienny ducking — intro głośniejsza muzyka, VO głębiej)
+
+```json
+{
+  "audioMixPlan": {
+    "musicBed": {
+      "trackId": "upbeat_vlog_01",
+      "volumeDb": -18,
+      "duckingDb": -12
+    },
+    "segments": [
+      {
+        "outputId": "main_16x9",
+        "musicInSec": 0,
+        "musicOutSec": 600,
+        "duckUnderVoice": true,
+        "duckingWindows": [
+          { "startSec": 0, "endSec": 15, "duckingDb": -6 },
+          { "startSec": 15, "endSec": 600, "duckingDb": -12 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Intro (0–15 s): muzyka tylko lekko schodzi pod brak głosu (`-6 dB`). Po starcie VO (15 s+): pełne ducking pod głos (`-12 dB`). Bez `duckingWindows` obowiązuje `segments[].duckingDb` lub fallback `musicBed.duckingDb`.
 
 Zwracaj wyłącznie JSON EditRecipe v2.3. Gdy `audioMixDefaults.musicBed` jest ustawione — dołącz `audioMixPlan` (lub v2.2/v2.1/v2.0 bez creativeMoments / audioMixPlan).
 

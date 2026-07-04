@@ -193,6 +193,40 @@ describe("ffmpeg-segment", () => {
     assert.match(args[vfIdx + 1], /trim=duration=7/);
   });
 
+  it("buildSegmentFfmpegArgs uses filter_complex for pillarbox_blur vertical broll", () => {
+    const verticalContext = {
+      ...context,
+      clips: {
+        ...context.clips,
+        clip_vertical: { sourcePath: "/tmp/vertical.mp4", resolution: { w: 1080, h: 1920 } },
+      },
+    };
+    const segment = {
+      ...baseSegment,
+      segmentId: "seg_vertical_broll",
+      segmentRole: "broll",
+      videoRef: { clipId: "clip_vertical", sceneId: "clip_vertical_scene001" },
+      videoSourcePath: "/tmp/vertical.mp4",
+      videoTransform: { fitMode: "pillarbox_blur" },
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      verticalContext,
+      "/tmp/out.mp4",
+      {
+        encodeProfile,
+        format: "16:9",
+        dimensions: { width: 1920, height: 1080 },
+      },
+    );
+    const fcIdx = args.indexOf("-filter_complex");
+    assert.ok(fcIdx >= 0);
+    const graph = args[fcIdx + 1];
+    assert.match(graph, /split=2/);
+    assert.match(graph, /gblur=/);
+    assert.ok(!args.includes("-vf"));
+  });
+
   it("buildSegmentFfmpegArgs warns on broll A/V desync", () => {
     const segment = {
       ...baseSegment,

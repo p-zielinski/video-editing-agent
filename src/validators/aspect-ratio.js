@@ -13,7 +13,7 @@ function aspectsMismatch(sourceAspect, outputFormat) {
 
 function hasIntentionalReframe(segment) {
   const fitMode = segment.videoTransform?.fitMode;
-  if (fitMode === "pillarbox" || fitMode === "fill") {
+  if (fitMode === "pillarbox" || fitMode === "pillarbox_blur" || fitMode === "fill") {
     return true;
   }
   const reframe = segment.videoTransform?.reframe;

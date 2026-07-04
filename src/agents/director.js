@@ -6,6 +6,7 @@ import { drillDownSceneDetails, buildDaySegments } from "../lib/abstraction-chun
 import { detectInputMode } from "../lib/input-mode.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import {
+  buildCreativityBudgetByL2Segment,
   computeCreativityBudgetForRecipe,
   mergeCreativityProfile,
   parseCreativityFromContext,
@@ -31,7 +32,7 @@ import {
   buildBrollSyncHints,
   buildKeyframesByClip,
 } from "../editorial/broll-sync-hints.js";
-import { buildSfxPlanFromAudio } from "../editorial/sfx-plan.js";
+import { buildSfxPlanFromAudio, filterSfxPlanForNarrativeOnly } from "../editorial/sfx-plan.js";
 import { listSfxCatalog } from "../editorial/sfx-library.js";
 import {
   buildChapterCardHints,
@@ -44,6 +45,9 @@ import {
   buildTranscriptExcerpts,
   formatSpatialSummary,
 } from "../editorial/editorial-context.js";
+import {
+  resolveEffectiveNarrativeProfile,
+} from "../lib/narrative-profile.js";
 import { buildTopSceneRanks } from "../editorial/scene-rank.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 
@@ -117,6 +121,10 @@ const EDIT_RECIPE_V2_OUTPUT_SCHEMA = {
         musicInSec: 0,
         musicOutSec: 120,
         duckUnderVoice: true,
+        duckingDb: -12,
+        duckingWindows: [
+          { startSec: 0, endSec: 30, duckingDb: -12 },
+        ],
       },
     ],
   },
@@ -141,7 +149,7 @@ const EDIT_RECIPE_V2_OUTPUT_SCHEMA = {
           syncMode: "align_start",
           overlapSec: 0,
           cuts: [],
-          videoTransform: { speed: 1, speedMode: "video_audio", reframe: "center|face|subject?", fitMode: "pillarbox|fill?" },
+          videoTransform: { speed: 1, speedMode: "video_audio", reframe: "center|face|subject?", fitMode: "pillarbox|pillarbox_blur|fill?" },
           sourceVolumeDb: 0,
           intent: "string?",
         },
@@ -512,6 +520,61 @@ function resolveRetentionRules(vlogRetention, shortsRetention) {
     return "V22-VLOG-01 … V22-VLOG-05";
   }
   return "V22-01 … V22-07";
+}
+
+const EMOTIONAL_PAYOFF_MOODS = new Set([
+  "dramatic",
+  "cinematic",
+  "tense",
+  "dramatyczny",
+  "filmowy",
+  "napięcie",
+  "napięciowy",
+]);
+
+function isEmotionalPayoffMood(mood) {
+  const normalized = String(mood ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (EMOTIONAL_PAYOFF_MOODS.has(normalized)) {
+    return true;
+  }
+  return normalized.includes("dramatic")
+    || normalized.includes("cinematic")
+    || normalized.includes("napięci");
+}
+
+/**
+ * L1 mood → payoff hints for director brief (GAP-NAR-03).
+ */
+export function buildEmotionalBeatHints(abstraction, timelineIndex) {
+  const sceneById = new Map(
+    (timelineIndex?.scenes ?? []).map((scene) => [scene.sceneId, scene]),
+  );
+
+  return (abstraction?.L1 ?? [])
+    .filter((entry) => isEmotionalPayoffMood(entry.mood))
+    .map((entry) => {
+      const scene = sceneById.get(entry.sceneId);
+      const startSec = scene?.startSec ?? 0;
+      const endSec = scene?.endSec ?? startSec + (scene?.durationSec ?? 0);
+      const anchorTimeSec = Math.round(((startSec + endSec) / 2) * 10) / 10;
+      const clipId = scene?.clipId ?? entry.sceneId.match(/^(.+)_scene\d+$/)?.[1];
+
+      return {
+        sceneId: entry.sceneId,
+        clipId,
+        mood: entry.mood,
+        anchorTimeSec,
+        retentionRole: "payoff",
+        suggestedTechniqueId: "music_drop",
+        ...(entry.keyMoments?.length ? { keyMoments: entry.keyMoments } : {}),
+        suggestion:
+          `L1 mood «${entry.mood}» — rozważ creativeMoment z retentionRole: payoff `
+          + `(np. music_drop lub match_cut) przy tej scenie`,
+      };
+    });
 }
 
 function buildL1SceneSummaries(abstraction, scenes) {
@@ -1007,6 +1070,7 @@ export function buildDirectorBrief({
   keyframesByClip = null,
   recipe = null,
   outputs = null,
+  narrativeProfile = null,
 }) {
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
   const sortedClipRegistry = [...clipRegistry].sort(
@@ -1132,6 +1196,22 @@ export function buildDirectorBrief({
     audioCaps: DIRECTOR_AUDIO_CAPS,
     perClipAnalysis,
     wordIndexes,
+    recipe: (() => {
+      const effectiveNarrativeProfile = resolveEffectiveNarrativeProfile({
+        narrativeProfile,
+        batchContext,
+        recipe,
+        abstraction,
+      });
+      if (effectiveNarrativeProfile) {
+        return {
+          ...(recipe ?? {}),
+          narrativeProfile: effectiveNarrativeProfile,
+          outputs: recipe?.outputs ?? [],
+        };
+      }
+      return recipe ?? undefined;
+    })(),
   });
 
   const audioEventAnchors = buildAudioEventAnchors(timelineIndex, perClipAnalysis);
@@ -1270,6 +1350,43 @@ export function buildDirectorBrief({
     brief.narrativeOpenLoops = narrativeOpenLoops;
   }
 
+  const emotionalBeatHints = buildEmotionalBeatHints(abstraction, timelineIndex);
+  if (emotionalBeatHints.length > 0) {
+    brief.emotionalBeatHints = emotionalBeatHints;
+  }
+
+  const effectiveNarrativeProfile = resolveEffectiveNarrativeProfile({
+    narrativeProfile,
+    batchContext,
+    recipe,
+    abstraction,
+  });
+  if (effectiveNarrativeProfile) {
+    brief.narrativeProfile = effectiveNarrativeProfile;
+    const creativityBudgetByL2Segment = buildCreativityBudgetByL2Segment(
+      creativityBudget,
+      effectiveNarrativeProfile,
+    );
+    if (Object.keys(creativityBudgetByL2Segment).length > 0) {
+      brief.creativityBudgetByL2Segment = creativityBudgetByL2Segment;
+    }
+  }
+
+  if (brief.sfxPlanDefaults?.length && effectiveNarrativeProfile?.sfxNarrativeOnly) {
+    brief.sfxPlanDefaults = filterSfxPlanForNarrativeOnly(brief.sfxPlanDefaults, {
+      outputs: outputs ?? recipe?.outputs ?? (requiredFormats.includes("16:9")
+        ? [{
+          outputId: "main_16x9",
+          outputKind: "main",
+          format: "16:9",
+          timeline: [],
+        }]
+        : []),
+      creativeMoments: recipe?.creativeMoments ?? [],
+      narrativeProfile: effectiveNarrativeProfile,
+    });
+  }
+
   if (sceneCount <= L1_SCENE_SUMMARIES_THRESHOLD) {
     brief.l1SceneSummaries = buildL1SceneSummaries(abstraction, timelineIndex.scenes);
   }
@@ -1340,6 +1457,9 @@ export async function runDirector(client, {
   }
   if (!raw.vlogRetentionProfile && brief.vlogRetentionProfile) {
     raw.vlogRetentionProfile = brief.vlogRetentionProfile;
+  }
+  if (!raw.narrativeProfile && brief.narrativeProfile) {
+    raw.narrativeProfile = brief.narrativeProfile;
   }
   if (!raw.creativeMoments) {
     raw.creativeMoments = [];
@@ -1443,6 +1563,16 @@ export async function directorDrillDown(client, {
     keyframesByClip: keyframesByClip ?? buildKeyframesByClip(timelineIndex),
   });
 
+  const effectiveNarrativeProfile = resolveEffectiveNarrativeProfile({
+    narrativeProfile: recipe.narrativeProfile,
+    batchContext: { ...batchContext, ...recipe.batchContext },
+    recipe,
+    abstraction,
+  });
+  const creativityBudgetByL2Segment = effectiveNarrativeProfile
+    ? buildCreativityBudgetByL2Segment(creativityBudget, effectiveNarrativeProfile)
+    : {};
+
   const user = JSON.stringify({
     task: "drill_down_refine",
     draftRecipe: recipe,
@@ -1491,6 +1621,10 @@ export async function directorDrillDown(client, {
     }),
     creativityBudget: summarizeCreativityBudgetForBrief(creativityBudget),
     creativityBudgetByOutput,
+    ...(Object.keys(creativityBudgetByL2Segment).length > 0
+      ? { creativityBudgetByL2Segment }
+      : {}),
+    ...(effectiveNarrativeProfile ? { narrativeProfile: effectiveNarrativeProfile } : {}),
     outputSchema: EDIT_RECIPE_V2_OUTPUT_SCHEMA,
   });
 
@@ -1517,6 +1651,16 @@ export async function directorDrillDown(client, {
   }
   if (!raw.clipRegistry || raw.clipRegistry.length === 0) {
     raw.clipRegistry = clipRegistry;
+  }
+  if (!raw.narrativeProfile) {
+    const derived = recipe.narrativeProfile
+      ?? resolveEffectiveNarrativeProfile({
+        batchContext: { ...batchContext, ...recipe.batchContext },
+        abstraction,
+      });
+    if (derived) {
+      raw.narrativeProfile = derived;
+    }
   }
 
   return EditRecipeV2Schema.parse(raw);

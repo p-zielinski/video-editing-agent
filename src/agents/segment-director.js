@@ -116,6 +116,7 @@ export function buildSegmentDirectorBrief(context, {
     keyframesByClip,
     includeL1: false,
     creativityProfile: superPlan.creativityProfile,
+    narrativeProfile: superPlan.narrativeProfile,
     targetDurationSec: segmentPick?.targetKeepRatio != null
       ? scopedTimeline.scenes?.reduce((sum, scene) => sum + (scene.durationSec ?? 0), 0)
         * segmentPick.targetKeepRatio
@@ -131,6 +132,18 @@ export function buildSegmentDirectorBrief(context, {
     shortsSources: superPlan.shortsSources ?? [],
     excludedClips: superPlan.excludedClips ?? [],
   };
+
+  const segmentNarrativeProfile = superPlan.narrativeProfile?.segments?.find(
+    (entry) => entry.l2SegmentId === segmentId,
+  );
+  if (segmentNarrativeProfile) {
+    brief.segmentNarrativeProfile = segmentNarrativeProfile;
+  }
+
+  const segmentCreativityBudget = brief.creativityBudgetByL2Segment?.[segmentId];
+  if (segmentCreativityBudget) {
+    brief.creativityBudget = segmentCreativityBudget;
+  }
 
   return brief;
 }
@@ -178,6 +191,9 @@ export async function runSegmentDirector(client, context, {
   raw.batchContext.inputMode = brief.inputMode;
   if (!raw.creativityProfile) {
     raw.creativityProfile = brief.creativityProfile;
+  }
+  if (!raw.narrativeProfile && brief.narrativeProfile) {
+    raw.narrativeProfile = brief.narrativeProfile;
   }
   if (!raw.creativeMoments) {
     raw.creativeMoments = [];

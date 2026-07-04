@@ -59,11 +59,16 @@ describe("dead-air-cuts", () => {
   it("enrichRecipeDeadAirCuts adds dead_air cut for high-confidence inter-word gap", () => {
     const recipe = buildMainRecipe([buildArollSegment()]);
     const audioIndex = {
-      clips: [{ clipId: "clip01", deadAirHints: [interWordHint] }],
+      clips: [{ clipId: "clip01" }],
     };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+    }];
 
     const result = enrichRecipeDeadAirCuts(recipe, {
       audioIndex,
+      perClipAnalysis,
       wordIndexes: [interWordWords],
     });
 
@@ -77,19 +82,17 @@ describe("dead-air-cuts", () => {
 
   it("mid-sentence dead air falls back to silence_beat only", () => {
     const recipe = buildMainRecipe([buildArollSegment()]);
-    const overlappingHint = {
-      clipId: "clip01",
-      startSec: 3,
-      endSec: 7,
-      source: "both",
-      durationSec: 4,
-    };
     const audioIndex = {
-      clips: [{ clipId: "clip01", deadAirHints: [overlappingHint] }],
+      clips: [{ clipId: "clip01" }],
     };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 3, endSec: 7, durationSec: 4 }],
+    }];
 
     const cutResult = enrichRecipeDeadAirCuts(recipe, {
       audioIndex,
+      perClipAnalysis,
       wordIndexes: [interWordWords],
     });
     assert.equal(cutResult.appliedCuts, 0);
@@ -97,6 +100,8 @@ describe("dead-air-cuts", () => {
 
     const moments = enrichRecipeSilenceBeatFromDeadAir(recipe, {
       audioIndex,
+      perClipAnalysis,
+      wordIndexes: [interWordWords],
       cutHintKeys: cutResult.cutHintKeys,
     });
     assert.ok(moments.some((moment) => moment.techniqueId === "silence_beat"));
@@ -107,39 +112,113 @@ describe("dead-air-cuts", () => {
       narrativeProfile: { silencePolicy: "preserve" },
     });
     const audioIndex = {
-      clips: [{ clipId: "clip01", deadAirHints: [interWordHint] }],
+      clips: [{ clipId: "clip01" }],
     };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+    }];
 
     const cutResult = enrichRecipeDeadAirCuts(recipe, {
       audioIndex,
+      perClipAnalysis,
       wordIndexes: [interWordWords],
     });
     assert.equal(cutResult.appliedCuts, 0);
 
     const moments = enrichRecipeDeadAirHandling(recipe, {
       audioIndex,
+      perClipAnalysis,
       wordIndexes: [interWordWords],
     });
     assert.equal(recipe.outputs[0].timeline[0].cuts.length, 0);
     assert.equal(moments.filter((m) => m.techniqueId === "silence_beat").length, 0);
   });
 
+  it("per-segment silencePolicy preserve skips only matching L2 hints", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+      ],
+    };
+    const timelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 120 },
+        { sceneId: "clip01_scene002", clipId: "clip01", startSec: 120, endSec: 240 },
+      ],
+    };
+    const seg001Hint = {
+      clipId: "clip01",
+      startSec: 2,
+      endSec: 6,
+      source: "both",
+      durationSec: 4,
+    };
+    const seg002Hint = {
+      clipId: "clip01",
+      startSec: 122,
+      endSec: 126,
+      source: "both",
+      durationSec: 4,
+    };
+    const seg002Words = {
+      clipId: "clip01",
+      words: [
+        { wordId: "clip01_w010", word: "later", start: 120, end: 122 },
+        { wordId: "clip01_w011", word: "pause", start: 126, end: 128 },
+      ],
+    };
+    const recipe = buildMainRecipe([
+      buildArollSegment({ videoInSec: 0, videoOutSec: 240 }),
+    ], {
+      narrativeProfile: {
+        silencePolicy: "trim_dead_air",
+        segments: [{ l2SegmentId: "seg002", silencePolicy: "preserve" }],
+      },
+    });
+    const audioIndex = {
+      clips: [{ clipId: "clip01" }],
+    };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [
+        { startSec: 2, endSec: 6, durationSec: 4 },
+        { startSec: 122, endSec: 126, durationSec: 4 },
+      ],
+    }];
+
+    const cutResult = enrichRecipeDeadAirCuts(recipe, {
+      audioIndex,
+      perClipAnalysis,
+      wordIndexes: [interWordWords, seg002Words],
+      abstraction,
+      timelineIndex,
+    });
+
+    assert.equal(cutResult.appliedCuts, 1);
+    assert.equal(recipe.outputs[0].timeline[0].cuts.length, 1);
+    assert.equal(recipe.outputs[0].timeline[0].cuts[0].startWordId, "clip01_w001");
+  });
+
   it("trims segment in-point when dead air is at segment start", () => {
     const recipe = buildMainRecipe([buildArollSegment({ videoInSec: 2, videoOutSec: 30 })]);
-    const edgeHint = {
+    const edgeWords = {
       clipId: "clip01",
-      startSec: 0,
-      endSec: 5,
-      source: "both",
-      durationSec: 5,
+      words: [{ wordId: "clip01_w001", word: "hello", start: 5, end: 8 }],
     };
     const audioIndex = {
-      clips: [{ clipId: "clip01", deadAirHints: [edgeHint] }],
+      clips: [{ clipId: "clip01" }],
     };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 5, durationSec: 3 }],
+    }];
 
     const result = enrichRecipeDeadAirCuts(recipe, {
       audioIndex,
-      wordIndexes: [interWordWords],
+      perClipAnalysis,
+      wordIndexes: [edgeWords],
     });
 
     assert.equal(result.appliedCuts, 1);
@@ -148,18 +227,112 @@ describe("dead-air-cuts", () => {
     assert.equal(segment.videoInSec, 5);
   });
 
+  it("skips edge trim when new in-point would meet or exceed out-point", () => {
+    const recipe = buildMainRecipe([buildArollSegment({ videoInSec: 2, videoOutSec: 5 })]);
+    const edgeWords = {
+      clipId: "clip01",
+      words: [{ wordId: "clip01_w001", word: "hello", start: 5, end: 8 }],
+    };
+    const audioIndex = {
+      clips: [{ clipId: "clip01" }],
+    };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 5, durationSec: 3 }],
+    }];
+
+    const result = enrichRecipeDeadAirCuts(recipe, {
+      audioIndex,
+      perClipAnalysis,
+      wordIndexes: [edgeWords],
+    });
+
+    assert.equal(result.appliedCuts, 0);
+    const segment = recipe.outputs[0].timeline[0];
+    assert.equal(segment.videoInSec, 2);
+    assert.equal(segment.videoOutSec, 5);
+    assert.equal(segment.cuts?.length ?? 0, 0);
+  });
+
   it("enrichRecipeDeadAirHandling applies cuts before silence_beat fallback", () => {
     const recipe = buildMainRecipe([buildArollSegment()]);
     const audioIndex = {
-      clips: [{ clipId: "clip01", deadAirHints: [interWordHint] }],
+      clips: [{ clipId: "clip01" }],
     };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+    }];
 
     const moments = enrichRecipeDeadAirHandling(recipe, {
       audioIndex,
+      perClipAnalysis,
       wordIndexes: [interWordWords],
     });
 
     assert.equal(recipe.outputs[0].timeline[0].cuts.length, 1);
+    assert.equal(moments.filter((m) => m.techniqueId === "silence_beat").length, 0);
+  });
+
+  it("inter-word dead_air cut shifts output time for silence_beat placement", () => {
+    const recipe = buildMainRecipe([buildArollSegment()]);
+    const audioIndex = {
+      clips: [{ clipId: "clip01" }],
+    };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+    }];
+
+    enrichRecipeDeadAirCuts(recipe, {
+      audioIndex,
+      perClipAnalysis,
+      wordIndexes: [interWordWords],
+    });
+
+    const moments = enrichRecipeSilenceBeatFromDeadAir(recipe, {
+      audioIndex,
+      hints: [{
+        clipId: "clip01",
+        startSec: 6,
+        endSec: 8,
+        source: "both",
+        silenceKind: "dead_air",
+        durationSec: 2,
+      }],
+      wordIndexes: [interWordWords],
+      cutHintKeys: new Set(),
+    });
+
+    const beat = moments.find((moment) => moment.techniqueId === "silence_beat");
+    assert.ok(beat);
+    assert.equal(beat.outputStartSec, 4);
+  });
+
+  it("enrichRecipeDeadAirHandling tags hints via buildAudioIndexSummary before cuts", () => {
+    const highEnergyCurve = [
+      { startSec: 0, endSec: 2, rmsDb: -16 },
+      { startSec: 2, endSec: 6, rmsDb: -42 },
+      { startSec: 6, endSec: 8, rmsDb: -12 },
+    ];
+    const recipe = buildMainRecipe([buildArollSegment()]);
+    const audioIndex = {
+      clips: [{ clipId: "clip01" }],
+      batchSummary: { dominantMood: "dramatic" },
+    };
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+      energyCurve: highEnergyCurve,
+    }];
+
+    const moments = enrichRecipeDeadAirHandling(recipe, {
+      audioIndex,
+      perClipAnalysis,
+      wordIndexes: [interWordWords],
+    });
+
+    assert.equal(recipe.outputs[0].timeline[0].cuts.length, 0);
     assert.equal(moments.filter((m) => m.techniqueId === "silence_beat").length, 0);
   });
 });

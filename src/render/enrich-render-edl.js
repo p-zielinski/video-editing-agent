@@ -140,6 +140,53 @@ function projectHookTitleOverlays(segments, creativeMoments, outputId) {
   });
 }
 
+function projectEmphasisTextOverlays(segments, creativeMoments, outputId) {
+  const emphasisMoments = (creativeMoments ?? []).filter(
+    (m) => m.outputId === outputId && m.techniqueId === "emphasis_text",
+  );
+
+  if (emphasisMoments.length === 0) {
+    return segments;
+  }
+
+  const positionMap = {
+    top: "top_center",
+    bottom_third: "bottom_center",
+    center: "center",
+  };
+
+  return segments.map((seg) => {
+    const overlays = [...(seg.textOverlays ?? [])];
+
+    for (const moment of emphasisMoments) {
+      const targetSeg = findSegmentForMoment(segments, moment.outputStartSec);
+      if (targetSeg?.segmentId !== seg.segmentId) {
+        continue;
+      }
+
+      const text = moment.params?.text ?? moment.reason;
+      if (!text) {
+        continue;
+      }
+
+      if (hasOverlayInWindow(overlays, moment.outputStartSec, moment.outputEndSec, { text })) {
+        continue;
+      }
+
+      overlays.push({
+        text,
+        outputStartSec: moment.outputStartSec,
+        outputEndSec: moment.outputEndSec,
+        style: moment.params?.style ?? "emphasis",
+        role: "beat",
+        position: positionMap[moment.params?.position] ?? "bottom_center",
+      });
+    }
+
+    return { ...seg, textOverlays: overlays };
+  });
+}
+
 function projectPatternInterruptTextOverlays(segments, creativeMoments, outputId) {
   const textMoments = (creativeMoments ?? []).filter(
     (m) => m.outputId === outputId
@@ -283,6 +330,12 @@ export function enrichRenderEdl(edl, { recipe, context, output, spatialIndex }) 
     edl.outputId,
   );
 
+  segments = projectEmphasisTextOverlays(
+    segments,
+    creativeMoments,
+    edl.outputId,
+  );
+
   const retention = recipe?.shortsRetentionProfile;
   const isShort = output?.outputKind === "short" || edl.outputKind === "short";
   if (retention?.enabled && isShort) {
@@ -300,6 +353,7 @@ export {
   attachSpatialRef,
   projectHookTitleOverlays,
   projectPatternInterruptTextOverlays,
+  projectEmphasisTextOverlays,
   prioritizeHookWindow,
   isHookCreativeMoment,
 };

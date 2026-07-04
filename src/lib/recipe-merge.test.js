@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mergeSegmentRecipes } from "./recipe-merge.js";
+import { resolveEffectiveNarrativeProfile } from "./narrative-profile.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 
 function buildPartialRecipe(outputId, timeline, creativeMoments = [], segmentId) {
@@ -86,6 +87,74 @@ describe("recipe-merge", () => {
     assert.equal(parsed.outputs[0].timeline[1].outputStartSec, 10);
     assert.equal(parsed.outputs[0].timeline[1].outputEndSec, 15);
     assert.equal(parsed.creativeMoments[0].outputStartSec, 2);
+  });
+
+  it("copies narrativeProfile from super plan onto merged recipe", () => {
+    const superPlan = {
+      segmentOrder: ["seg001"],
+      segmentPicks: [{ segmentId: "seg001", priority: 1 }],
+      narrativeProfile: {
+        mode: "retention_vlog",
+        segments: [{
+          l2SegmentId: "seg001",
+          rhythm: "normal",
+          retentionIntensity: "medium",
+          silencePolicy: "trim_dead_air",
+        }],
+        maxPatternInterruptsPer10Min: 2,
+        sfxNarrativeOnly: false,
+      },
+    };
+    const partial = buildPartialRecipe("main_16x9", [{
+      segmentId: "p1_s1",
+      segmentRole: "aroll",
+      videoRef: { clipId: "c1", sceneId: "s1" },
+      audioRef: { clipId: "c1", sceneId: "s1" },
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_video_ref",
+      overlapSec: 0,
+      cuts: [],
+    }], [], "seg001");
+
+    const merged = mergeSegmentRecipes(superPlan, [partial]);
+    assert.equal(merged.narrativeProfile.mode, "retention_vlog");
+    assert.equal(merged.narrativeProfile.segments[0].l2SegmentId, "seg001");
+    assert.equal(merged.narrativeProfile.maxPatternInterruptsPer10Min, 2);
+  });
+
+  it("derives narrativeProfile from L2 roles after merge when super plan omits it", () => {
+    const superPlan = {
+      segmentOrder: ["seg001"],
+      segmentPicks: [{ segmentId: "seg001", priority: 1 }],
+    };
+    const partial = buildPartialRecipe("main_16x9", [{
+      segmentId: "p1_s1",
+      segmentRole: "aroll",
+      videoRef: { clipId: "c1", sceneId: "s1" },
+      audioRef: { clipId: "c1", sceneId: "s1" },
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "from_video_ref",
+      overlapSec: 0,
+      cuts: [],
+    }], [], "seg001");
+
+    const merged = mergeSegmentRecipes(superPlan, [partial]);
+    assert.equal(merged.narrativeProfile, undefined);
+
+    const abstraction = {
+      L2: [{ segmentId: "seg001", narrativeRole: "breath", sceneIds: ["s1"] }],
+    };
+    const derived = resolveEffectiveNarrativeProfile({ abstraction, recipe: merged });
+    assert.equal(derived.segments[0].l2SegmentId, "seg001");
+    assert.equal(derived.segments[0].rhythm, "slow");
+    assert.equal(derived.segments[0].retentionIntensity, "low");
+    assert.equal(derived.segments[0].silencePolicy, "preserve");
   });
 
   it("unions excluded clips from partials and super plan", () => {

@@ -1,6 +1,11 @@
-import { buildDeadAirMontageHints } from "./editorial-context.js";
-import { lookupWordIndex } from "./audio-index-summary.js";
+import { buildDeadAirMontageHints, buildSilenceBeatDipHints } from "./editorial-context.js";
+import { buildAudioIndexSummary, lookupWordIndex } from "./audio-index-summary.js";
 import { mapSourceTimeToOutputSec } from "./shorts-retention.js";
+import {
+  findL2SegmentIdForSourceTime,
+  resolveRecipeNarrativeProfile,
+  resolveSilencePolicyForHint,
+} from "../lib/narrative-profile.js";
 
 const DEFAULT_TOLERANCE_SEC = 0.8;
 const DEFAULT_MIN_GAP_SEC = 45;
@@ -12,18 +17,63 @@ function roundSec(value) {
   return Math.round(value * 10) / 10;
 }
 
+function resolveTaggedAudioSummary(recipe, {
+  audioIndex,
+  perClipAnalysis = null,
+  wordIndexes = null,
+  timelineIndex = null,
+} = {}) {
+  if (!audioIndex?.clips?.length) {
+    return null;
+  }
+  return buildAudioIndexSummary(audioIndex, {
+    perClipAnalysis,
+    wordIndexes,
+    timelineIndex,
+    narrativeProfile: resolveRecipeNarrativeProfile(recipe),
+  });
+}
+
+function resolveTaggedDeadAirMontageHints(recipe, options = {}) {
+  if (options.hints) {
+    return options.hints;
+  }
+  const audioSummary = resolveTaggedAudioSummary(recipe, options);
+  return audioSummary ? buildDeadAirMontageHints(audioSummary) : [];
+}
+
+function resolveTaggedDeadAirSilenceHints(recipe, options = {}) {
+  if (options.hints) {
+    return options.hints;
+  }
+  const audioSummary = resolveTaggedAudioSummary(recipe, options);
+  if (!audioSummary) {
+    return [];
+  }
+  return [
+    ...buildDeadAirMontageHints(audioSummary),
+    ...buildSilenceBeatDipHints(audioSummary),
+  ];
+}
+
 function deadAirHintKey(hint) {
   return `${hint.clipId}:${hint.startSec}:${hint.endSec}`;
 }
 
-function resolveSilencePolicy(recipe) {
-  return recipe.narrativeProfile?.silencePolicy
-    ?? recipe.batchContext?.narrativeProfile?.silencePolicy
-    ?? null;
-}
+function shouldPreserveSilence(recipe, hint, abstraction, timelineIndex) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  if (!narrativeProfile || !hint) {
+    return false;
+  }
 
-function shouldPreserveSilence(recipe) {
-  return resolveSilencePolicy(recipe) === "preserve";
+  const midSec = (hint.startSec + hint.endSec) / 2;
+  const l2SegmentId = findL2SegmentIdForSourceTime(
+    abstraction,
+    timelineIndex,
+    hint.clipId,
+    midSec,
+  );
+  return resolveSilencePolicyForHint(narrativeProfile, l2SegmentId) === "preserve";
 }
 
 function resolveSegmentClipId(segment) {
@@ -121,6 +171,9 @@ function tryEdgeTrim(segment, hint) {
     && hint.endSec < audioOut - BOUNDARY_TOLERANCE_SEC
   ) {
     const newIn = roundSec(Math.max(audioIn, hint.endSec));
+    if (newIn >= audioOut) {
+      return false;
+    }
     segment.videoInSec = newIn;
     segment.audioInSec = newIn;
     return true;
@@ -132,6 +185,9 @@ function tryEdgeTrim(segment, hint) {
     && hint.startSec < audioOut - BOUNDARY_TOLERANCE_SEC
   ) {
     const newOut = roundSec(Math.min(audioOut, hint.startSec));
+    if (audioIn >= newOut) {
+      return false;
+    }
     segment.videoOutSec = newOut;
     segment.audioOutSec = newOut;
     return true;
@@ -203,17 +259,25 @@ export function enrichRecipeDeadAirCuts(recipe, {
   audioIndex,
   timelineIndex = null,
   wordIndexes = null,
+  perClipAnalysis = null,
   hints = null,
   maxCuts = 6,
+  abstraction = null,
 } = {}) {
   const mainOutput = recipe.outputs?.find((output) => output.outputKind === "main");
   const emptyResult = { appliedCuts: 0, cutHintKeys: new Set() };
 
-  if (!mainOutput?.timeline?.length || shouldPreserveSilence(recipe)) {
+  if (!mainOutput?.timeline?.length) {
     return emptyResult;
   }
 
-  const resolvedHints = hints ?? buildDeadAirMontageHints(audioIndex);
+  const resolvedHints = resolveTaggedDeadAirMontageHints(recipe, {
+    audioIndex,
+    perClipAnalysis,
+    wordIndexes,
+    timelineIndex,
+    hints,
+  });
   const cutHintKeys = new Set();
   let appliedCuts = 0;
 
@@ -222,6 +286,12 @@ export function enrichRecipeDeadAirCuts(recipe, {
       break;
     }
     if (hint.source !== "both") {
+      continue;
+    }
+    if (hint.silenceKind && hint.silenceKind !== "dead_air") {
+      continue;
+    }
+    if (shouldPreserveSilence(recipe, hint, abstraction, timelineIndex)) {
       continue;
     }
 
@@ -276,19 +346,28 @@ function hasSilenceBeatGapViolation(moments, outputSec, minGapSec) {
 export function enrichRecipeSilenceBeatFromDeadAir(recipe, {
   audioIndex,
   timelineIndex: _timelineIndex,
+  perClipAnalysis = null,
+  wordIndexes = null,
   hints = null,
   cutHintKeys = null,
   maxMoments = 3,
   minGapFromSameTechniqueSec = DEFAULT_MIN_GAP_SEC,
   anchorToleranceSec = DEFAULT_TOLERANCE_SEC,
   durationSec = DEFAULT_DURATION_SEC,
+  abstraction = null,
 } = {}) {
   const mainOutput = recipe.outputs?.find((output) => output.outputKind === "main");
-  if (!mainOutput?.timeline?.length || shouldPreserveSilence(recipe)) {
+  if (!mainOutput?.timeline?.length) {
     return recipe.creativeMoments ?? [];
   }
 
-  const resolvedHints = hints ?? buildDeadAirMontageHints(audioIndex);
+  const resolvedHints = resolveTaggedDeadAirSilenceHints(recipe, {
+    audioIndex,
+    perClipAnalysis,
+    wordIndexes,
+    timelineIndex: _timelineIndex,
+    hints,
+  });
   const existing = [...(recipe.creativeMoments ?? [])];
   const newMoments = [];
   const skippedKeys = cutHintKeys ?? new Set();
@@ -300,9 +379,19 @@ export function enrichRecipeSilenceBeatFromDeadAir(recipe, {
     if (skippedKeys.has(deadAirHintKey(hint))) {
       continue;
     }
+    if (hint.source !== "both") {
+      continue;
+    }
+    if (hint.silenceKind === "dramatic_pause") {
+      continue;
+    }
+    if (shouldPreserveSilence(recipe, hint, abstraction, _timelineIndex)) {
+      continue;
+    }
 
     const outputStartSec = mapSourceTimeToOutputSec(recipe, hint.clipId, hint.endSec, {
       outputKind: "main",
+      wordIndexes,
     });
     if (outputStartSec == null) {
       continue;
@@ -322,8 +411,10 @@ export function enrichRecipeSilenceBeatFromDeadAir(recipe, {
       outputStartSec,
       outputEndSec: roundSec(outputStartSec + durationSec),
       params: { durationSec },
-      reason: `Enriched silence_beat at dead air ${hint.startSec}–${hint.endSec}s (source: both)`,
-      confidence: 0.7,
+      reason: hint.silenceKind === "breath_before_punchline"
+        ? `Enriched silence_beat at breath_before_punchline ${hint.startSec}–${hint.endSec}s`
+        : `Enriched silence_beat at dead air ${hint.startSec}–${hint.endSec}s (source: both)`,
+      confidence: hint.silenceKind === "breath_before_punchline" ? 0.55 : 0.7,
     });
   }
 

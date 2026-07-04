@@ -257,6 +257,10 @@ function validateLargeHookOverlayBudget(output, overlays, durationSec) {
   return issues;
 }
 
+/**
+ * V22-06 — graphics creativeMoments with requiresOutputKind: short only on short outputs.
+ * textOverlays (e.g. main chapter_card style) are not creativeMoments and are exempt.
+ */
 function validateGraphicsOutputKind(output, catalog, moments) {
   const issues = [];
 

@@ -19,6 +19,19 @@ export const DIRECTOR_AUDIO_CAPS = {
 
 const MIN_DEAD_AIR_GAP_SEC = 0.5;
 
+export const SILENCE_KINDS = ["dead_air", "dramatic_pause", "breath_before_punchline"];
+
+const DRAMATIC_PAUSE_MIN_SEC = 2;
+const BREATH_MAX_GAP_SEC = 2;
+const HIGH_ENERGY_RMS_DB = -20;
+const LOW_RMS_DB = -38;
+const MONO_RMS_SPREAD_DB = 8;
+const ENERGY_LOOKBACK_SEC = 4;
+const ENERGY_WINDOW_SEC = 6;
+
+const DRAMATIC_MOODS = new Set(["dramatic", "cinematic", "documentary", "serious"]);
+const COMEDY_MOODS = new Set(["comedy", "humor", "humorous", "funny"]);
+
 function lookupPerClipAnalysis(clipId, perClipAnalysis) {
   if (!perClipAnalysis) {
     return null;
@@ -62,6 +75,169 @@ export function lookupWordIndex(clipId, wordIndexes, timelineIndex) {
 
 function gapDurationSec(gap) {
   return (gap.endSec ?? 0) - (gap.startSec ?? 0);
+}
+
+function rmsInRange(energyCurve, startSec, endSec) {
+  const values = [];
+  for (const point of energyCurve ?? []) {
+    if (point.endSec <= startSec || point.startSec >= endSec) {
+      continue;
+    }
+    values.push(point.rmsDb);
+  }
+  return values;
+}
+
+function maxRmsInRange(energyCurve, startSec, endSec) {
+  const values = rmsInRange(energyCurve, startSec, endSec);
+  return values.length > 0 ? Math.max(...values) : null;
+}
+
+function avgRmsInRange(energyCurve, startSec, endSec) {
+  const values = rmsInRange(energyCurve, startSec, endSec);
+  if (values.length === 0) {
+    return null;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function rmsSpreadInRange(energyCurve, startSec, endSec) {
+  const values = rmsInRange(energyCurve, startSec, endSec);
+  if (values.length < 2) {
+    return null;
+  }
+  return Math.max(...values) - Math.min(...values);
+}
+
+function wordAfterGap(gap, wordIndex) {
+  if (!wordIndex?.words?.length) {
+    return null;
+  }
+  const words = [...wordIndex.words].sort((a, b) => a.start - b.start);
+  return words.find((word) => word.start >= gap.endSec - 0.05) ?? null;
+}
+
+function wordBeforeGap(gap, wordIndex) {
+  if (!wordIndex?.words?.length) {
+    return null;
+  }
+  const words = [...wordIndex.words].sort((a, b) => a.start - b.start);
+  let previous = null;
+  for (const word of words) {
+    if (word.end <= gap.startSec + 0.05) {
+      previous = word;
+    }
+  }
+  return previous;
+}
+
+function hasHighEnergyBeforeGap(gap, energyCurve) {
+  const peak = maxRmsInRange(
+    energyCurve,
+    Math.max(0, gap.startSec - ENERGY_LOOKBACK_SEC),
+    gap.startSec,
+  );
+  return peak != null && peak >= HIGH_ENERGY_RMS_DB;
+}
+
+function isMonotoneAroundGap(gap, energyCurve) {
+  const spread = rmsSpreadInRange(
+    energyCurve,
+    Math.max(0, gap.startSec - ENERGY_WINDOW_SEC),
+    gap.endSec + 2,
+  );
+  return spread != null && spread <= MONO_RMS_SPREAD_DB;
+}
+
+function isBreathBeforePunchline(gap, energyCurve, wordIndex) {
+  const duration = gapDurationSec(gap);
+  if (duration > BREATH_MAX_GAP_SEC || duration <= MIN_DEAD_AIR_GAP_SEC) {
+    return false;
+  }
+
+  const after = wordAfterGap(gap, wordIndex);
+  const before = wordBeforeGap(gap, wordIndex);
+  if (!after || !before) {
+    return false;
+  }
+
+  const gapRms = avgRmsInRange(energyCurve, gap.startSec, gap.endSec);
+  const afterRms = maxRmsInRange(energyCurve, after.start, after.end + 0.2);
+  const lowGapRms = gapRms == null || gapRms <= LOW_RMS_DB;
+  const punchlineLift = afterRms != null && afterRms >= HIGH_ENERGY_RMS_DB;
+  return lowGapRms || punchlineLift;
+}
+
+/**
+ * Deterministic silence taxonomy for fused dead-air hints.
+ */
+export function classifySilenceKind(
+  gap,
+  {
+    wordIndex = null,
+    energyCurve = [],
+    dominantMood = null,
+    narrativeProfile = null,
+  } = {},
+) {
+  const duration = gapDurationSec(gap);
+  const policy = narrativeProfile?.silencePolicy ?? null;
+  const mood = dominantMood?.toLowerCase?.() ?? null;
+
+  if (policy === "preserve") {
+    if (duration > DRAMATIC_PAUSE_MIN_SEC || hasHighEnergyBeforeGap(gap, energyCurve)) {
+      return "dramatic_pause";
+    }
+    if (isBreathBeforePunchline(gap, energyCurve, wordIndex)) {
+      return "breath_before_punchline";
+    }
+    return "dramatic_pause";
+  }
+
+  if (
+    duration > DRAMATIC_PAUSE_MIN_SEC
+    && (hasHighEnergyBeforeGap(gap, energyCurve) || (mood && DRAMATIC_MOODS.has(mood)))
+  ) {
+    return "dramatic_pause";
+  }
+
+  if (
+    isBreathBeforePunchline(gap, energyCurve, wordIndex)
+    || (mood && COMEDY_MOODS.has(mood) && duration <= BREATH_MAX_GAP_SEC && wordAfterGap(gap, wordIndex))
+  ) {
+    return "breath_before_punchline";
+  }
+
+  if (isMonotoneAroundGap(gap, energyCurve) || policy === "aggressive") {
+    return "dead_air";
+  }
+
+  return "dead_air";
+}
+
+export function tagDeadAirHintsWithSilenceKind(
+  hints,
+  {
+    wordIndex = null,
+    energyCurve = [],
+    dominantMood = null,
+    narrativeProfile = null,
+  } = {},
+) {
+  return (hints ?? []).map((hint) => {
+    if (hint.silenceKind) {
+      return hint;
+    }
+    return {
+      ...hint,
+      silenceKind: classifySilenceKind(hint, {
+        wordIndex,
+        energyCurve,
+        dominantMood,
+        narrativeProfile,
+      }),
+    };
+  });
 }
 
 function findTranscriptGaps(wordIndex) {
@@ -250,7 +426,13 @@ function filterMusicLibraryTracks(musicLibrary) {
  */
 export function buildAudioIndexSummary(
   audioIndex,
-  { perClipAnalysis, wordIndexes, timelineIndex, caps = DEFAULT_AUDIO_CAPS } = {},
+  {
+    perClipAnalysis,
+    wordIndexes,
+    timelineIndex,
+    caps = DEFAULT_AUDIO_CAPS,
+    narrativeProfile = null,
+  } = {},
 ) {
   if (!audioIndex?.clips?.length) {
     return undefined;
@@ -262,7 +444,16 @@ export function buildAudioIndexSummary(
     clips: audioIndex.clips.map((clip) => {
       const analysis = lookupPerClipAnalysis(clip.clipId, perClipAnalysis);
       const wordIndex = lookupWordIndex(clip.clipId, wordIndexes, timelineIndex);
-      const deadAirHints = fuseDeadAirHints(analysis, wordIndex, caps.deadAirHints);
+      const fusedHints = fuseDeadAirHints(analysis, wordIndex, caps.deadAirHints);
+      const rawHints = fusedHints.length > 0
+        ? fusedHints
+        : (clip.deadAirHints ?? []);
+      const deadAirHints = tagDeadAirHintsWithSilenceKind(rawHints, {
+        wordIndex,
+        energyCurve: analysis?.energyCurve ?? clip.energyCurve ?? [],
+        dominantMood: audioIndex.batchSummary?.dominantMood ?? null,
+        narrativeProfile,
+      });
       const enriched = enrichClipFromAnalysis(clip, perClipAnalysis, caps);
 
       return {

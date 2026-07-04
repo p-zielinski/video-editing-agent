@@ -515,6 +515,7 @@
                               "hook_number",
                               "emphasis",
                               "chapter_card",
+                              "cta",
                               "subtitle_style"
                             ]
                           },
@@ -526,6 +527,13 @@
                               "payoff",
                               "cta",
                               "chapter"
+                            ]
+                          },
+                          "animation": {
+                            "type": "string",
+                            "enum": [
+                              "fade",
+                              "static"
                             ]
                           }
                         },
@@ -577,6 +585,7 @@
                           "type": "string",
                           "enum": [
                             "pillarbox",
+                            "pillarbox_blur",
                             "fill"
                           ]
                         },
@@ -605,6 +614,16 @@
                     },
                     "intent": {
                       "type": "string"
+                    },
+                    "retentionRole": {
+                      "type": "string",
+                      "enum": [
+                        "hook",
+                        "beat",
+                        "payoff",
+                        "breath",
+                        "closure"
+                      ]
                     },
                     "sourceRef": {
                       "type": "object",
@@ -872,7 +891,9 @@
                 "enum": [
                   "hook",
                   "beat",
-                  "payoff"
+                  "payoff",
+                  "breath",
+                  "closure"
                 ]
               },
               "reason": {
@@ -991,6 +1012,74 @@
           },
           "additionalProperties": false
         },
+        "narrativeProfile": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "internet_documentary",
+                "retention_vlog"
+              ]
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "l2SegmentId": {
+                    "type": "string"
+                  },
+                  "rhythm": {
+                    "type": "string",
+                    "enum": [
+                      "slow",
+                      "normal",
+                      "fast"
+                    ]
+                  },
+                  "retentionIntensity": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "silencePolicy": {
+                    "type": "string",
+                    "enum": [
+                      "preserve",
+                      "trim_dead_air",
+                      "aggressive"
+                    ]
+                  }
+                },
+                "required": [
+                  "l2SegmentId"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "maxPatternInterruptsPer10Min": {
+              "type": "number",
+              "minimum": 0
+            },
+            "sfxNarrativeOnly": {
+              "type": "boolean"
+            },
+            "silencePolicy": {
+              "type": "string",
+              "enum": [
+                "preserve",
+                "trim_dead_air",
+                "aggressive"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "audioMixPlan": {
           "type": "object",
           "properties": {
@@ -1048,6 +1137,35 @@
                   },
                   "duckUnderVoice": {
                     "type": "boolean"
+                  },
+                  "duckingDb": {
+                    "type": "number"
+                  },
+                  "duckingWindows": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "startSec": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "endSec": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "duckingDb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "startSec",
+                        "endSec",
+                        "duckingDb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 16
                   }
                 },
                 "required": [
@@ -1306,6 +1424,62 @@
             }
           },
           "additionalProperties": false
+        },
+        "pacingTrimMeta": {
+          "type": "object",
+          "properties": {
+            "segmentsRemoved": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "deadAirCuts": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "edgeTrims": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "exhausted": {
+              "type": "boolean",
+              "default": false
+            },
+            "applied": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "structuredCallbacks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "callbackId": {
+                "type": "string"
+              },
+              "setupSceneId": {
+                "type": "string"
+              },
+              "payoffSceneId": {
+                "type": "string"
+              },
+              "teaseText": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "callbackId",
+              "setupSceneId",
+              "payoffSceneId"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
         },
         "needsHumanReview": {
           "type": "boolean",

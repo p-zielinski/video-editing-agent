@@ -228,6 +228,47 @@ describe("critic agent", () => {
     assert.equal(payload.topicIndex.topics[0].matchingScenes[0].sceneId, "clip01_scene002");
   });
 
+  it("heuristicReview surfaces dead-air coverage when perClipAnalysis is wired", () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.2",
+      creativeMoments: [],
+    };
+    const wordIndexes = [{
+      clipId: "clip01",
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    }];
+    const perClipAnalysis = [{
+      clipId: "clip01",
+      silenceGaps: [{ startSec: 2, endSec: 6, durationSec: 4 }],
+    }];
+    const audioIndex = { clips: [{ clipId: "clip01" }] };
+
+    const withoutPerClip = heuristicReview(recipe, {
+      requiredFormats: ["16:9"],
+      wordIndexes,
+      audioIndex,
+    });
+    assert.ok(
+      !withoutPerClip.some((i) => i.code === "V26-DEADAIR-01"),
+      "without perClipAnalysis dead-air validator should not run",
+    );
+
+    const withPerClip = heuristicReview(recipe, {
+      requiredFormats: ["16:9"],
+      wordIndexes,
+      audioIndex,
+      perClipAnalysis,
+    });
+    assert.ok(
+      withPerClip.some((i) => i.code === "V26-DEADAIR-01"),
+      "perClipAnalysis must reach validateRecipeV2 via heuristicReview",
+    );
+  });
+
   it("critic payload includes retention context when shorts retention applies", async () => {
     const base = loadFixture("recipe-draft.json");
     const recipe = {

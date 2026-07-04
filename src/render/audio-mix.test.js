@@ -12,12 +12,16 @@ import {
   buildVoiceMomentVolumeFilter,
   buildVoicePitchShiftFilter,
   computePitchShiftSampleRate,
+  fillDuckingWindowGaps,
+  resolveDuckingWindows,
   resolveMusicBedMoments,
   resolveVoiceAudioMoments,
   resolveSfxPath,
   resolveSfxPlanEntries,
   applyAudioMix,
 } from "./audio-mix.js";
+import { AudioMixDuckingWindowSchema, AudioMixSegmentSchema } from "../schemas/edit-recipe-v2.js";
+import { validateAudioMixPlan } from "../validators/recipe-v2.js";
 import { resolveFfmpegBins } from "../lib/ffmpeg-bin.js";
 import { resolveEncodeProfile } from "./render-config.js";
 
@@ -58,6 +62,140 @@ describe("audio-mix", () => {
     const defaulted = buildSidechainCompressFilter();
     const explicit = buildSidechainCompressFilter(-12);
     assert.equal(defaulted, explicit);
+  });
+
+  it("resolveDuckingWindows falls back to musicBed.duckingDb when segment omits override", () => {
+    const windows = resolveDuckingWindows(
+      { duckUnderVoice: true },
+      { musicBed: { duckingDb: -14 } },
+    );
+    assert.deepEqual(windows, [{ startSec: 0, endSec: null, duckingDb: -14 }]);
+  });
+
+  it("resolveDuckingWindows uses segment.duckingDb override over global bed", () => {
+    const windows = resolveDuckingWindows(
+      { duckUnderVoice: true, duckingDb: -8 },
+      { musicBed: { duckingDb: -14 } },
+    );
+    assert.deepEqual(windows, [{ startSec: 0, endSec: null, duckingDb: -8 }]);
+  });
+
+  it("resolveDuckingWindows expands segment.duckingWindows per output timeline", () => {
+    const windows = resolveDuckingWindows(
+      {
+        duckUnderVoice: true,
+        duckingWindows: [
+          { startSec: 0, endSec: 30, duckingDb: -12 },
+          { startSec: 30, endSec: 60, duckingDb: -6 },
+        ],
+      },
+      { musicBed: { duckingDb: -14 } },
+    );
+    assert.deepEqual(windows, [
+      { startSec: 0, endSec: 30, duckingDb: -12 },
+      { startSec: 30, endSec: 60, duckingDb: -6 },
+    ]);
+  });
+
+  it("fillDuckingWindowGaps inserts no-duck windows for uncovered regions", () => {
+    const filled = fillDuckingWindowGaps([
+      { startSec: 10, endSec: 30, duckingDb: -12 },
+      { startSec: 40, endSec: 50, duckingDb: -6 },
+    ], 60);
+
+    assert.deepEqual(filled, [
+      { startSec: 0, endSec: 10, duckingDb: 0 },
+      { startSec: 10, endSec: 30, duckingDb: -12 },
+      { startSec: 30, endSec: 40, duckingDb: 0 },
+      { startSec: 40, endSec: 50, duckingDb: -6 },
+      { startSec: 50, endSec: 60, duckingDb: 0 },
+    ]);
+  });
+
+  it("resolveDuckingWindows auto-fills gaps when musicOutSec is set", () => {
+    const windows = resolveDuckingWindows(
+      {
+        duckUnderVoice: true,
+        musicOutSec: 60,
+        duckingWindows: [
+          { startSec: 0, endSec: 30, duckingDb: -12 },
+          { startSec: 30, endSec: 50, duckingDb: -6 },
+        ],
+      },
+      { musicBed: { duckingDb: -14 } },
+    );
+
+    assert.deepEqual(windows, [
+      { startSec: 0, endSec: 30, duckingDb: -12 },
+      { startSec: 30, endSec: 50, duckingDb: -6 },
+      { startSec: 50, endSec: 60, duckingDb: 0 },
+    ]);
+  });
+
+  it("AudioMixDuckingWindowSchema rejects inverted startSec >= endSec", () => {
+    assert.throws(
+      () => AudioMixDuckingWindowSchema.parse({ startSec: 30, endSec: 10, duckingDb: -12 }),
+      /startSec must be less than endSec/,
+    );
+  });
+
+  it("AudioMixSegmentSchema rejects duckingWindows arrays longer than 16", () => {
+    const windows = Array.from({ length: 17 }, (_, i) => ({
+      startSec: i * 2,
+      endSec: i * 2 + 1,
+      duckingDb: -12,
+    }));
+    assert.throws(
+      () => AudioMixSegmentSchema.parse({
+        outputId: "main_16x9",
+        duckUnderVoice: true,
+        duckingWindows: windows,
+      }),
+      /Array must contain at most 16 element/,
+    );
+  });
+
+  it("validateAudioMixPlan warns V24-09 when duckingWindows exceeds 16", () => {
+    const windows = Array.from({ length: 17 }, (_, i) => ({
+      startSec: i * 2,
+      endSec: i * 2 + 1,
+      duckingDb: -12,
+    }));
+    const issues = validateAudioMixPlan({
+      audioMixPlan: {
+        segments: [{
+          outputId: "main_16x9",
+          duckUnderVoice: true,
+          duckingWindows: windows,
+        }],
+      },
+      outputs: [{ outputId: "main_16x9", timeline: [] }],
+    });
+    assert.ok(issues.some((i) => i.code === "V24-09" && i.severity === "warning"));
+  });
+
+  it("buildAudioMixFilterGraph applies per-window duckingDb on music bed (0-30s -12dB, 30-60s -6dB)", () => {
+    const graph = buildAudioMixFilterGraph({
+      plan: { musicBed: { volumeDb: -18, duckingDb: -14 } },
+      mixSegment: {
+        duckUnderVoice: true,
+        duckingWindows: [
+          { startSec: 0, endSec: 30, duckingDb: -12 },
+          { startSec: 30, endSec: 60, duckingDb: -6 },
+        ],
+      },
+      bedPath: "/tmp/bed.mp3",
+      voiceLoudnormFilter: "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true",
+    });
+
+    const scFilters = graph.filters.filter((f) => f.includes("sidechaincompress"));
+    assert.equal(scFilters.length, 2);
+    assert.ok(scFilters[0].includes("ratio=6.0"), "0-30s window should duck -12dB");
+    assert.ok(scFilters[1].includes("ratio=3.0"), "30-60s window should duck -6dB");
+    assert.ok(graph.filters.some((f) => f.includes("gte(t\\,0)*lt(t\\,30)")));
+    assert.ok(graph.filters.some((f) => f.includes("gte(t\\,30)*lt(t\\,60)")));
+    assert.ok(graph.filters.some((f) => f.includes("asplit=2")));
+    assert.ok(graph.filters.some((f) => f.includes("amix=inputs=2")));
   });
 
   it("buildAudioMixFilterGraph embeds ducking-derived sidechaincompress params", () => {

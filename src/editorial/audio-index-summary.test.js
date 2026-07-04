@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildAudioIndexSummary,
+  classifySilenceKind,
   fuseDeadAirHints,
 } from "./audio-index-summary.js";
 
@@ -136,6 +137,10 @@ describe("buildAudioIndexSummary", () => {
     const map = new Map([[perClipAnalysis[0].clipId, perClipAnalysis[0]]]);
     const summary = buildAudioIndexSummary(audioIndex, { perClipAnalysis: map });
     assert.equal(summary.clips[0].cutSuggestions.length, 3);
+  });
+
+  it("classifySilenceKind defaults to dead_air without energy context", () => {
+    assert.equal(classifySilenceKind({ startSec: 1, endSec: 2 }), "dead_air");
   });
 
   it("fuseDeadAirHints merges audio silence with transcript gaps", () => {

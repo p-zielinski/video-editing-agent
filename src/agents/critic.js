@@ -192,7 +192,9 @@ export function heuristicReview(recipe, {
   wordIndexes = [],
   estimatedKeepRatio,
   audioIndex = null,
+  perClipAnalysis = null,
   brollSyncHints,
+  abstraction = null,
 } = {}) {
   if (isRecipeV2(recipe.version)) {
     const { budget } = buildCreativityValidationContext(recipe);
@@ -206,9 +208,12 @@ export function heuristicReview(recipe, {
       sceneAspectById,
       wordIndexes,
       audioIndex,
+      perClipAnalysis,
       creativityBudget: budget,
       estimatedKeepRatio,
       brollSyncHints,
+      abstraction,
+      timelineIndex,
     }).issues;
   }
 
@@ -236,8 +241,10 @@ export async function runCritic(client, {
     timelineIndex,
     wordIndexes,
     audioIndex,
+    perClipAnalysis,
     estimatedKeepRatio: abstraction?.L3?.estimatedKeepRatio,
     brollSyncHints,
+    abstraction,
   });
   const isV2Recipe = isRecipeV2(recipe.version);
   const system = loadPrompt("critic", { version: isV2Recipe ? "v2" : "v1" })

@@ -1,5 +1,6 @@
 import { buildAudioIndexSummary } from "./audio-index-summary.js";
 import { buildTopicIndexSummary } from "./topic-index-summary.js";
+import { resolveRecipeNarrativeProfile } from "../lib/narrative-profile.js";
 
 const MAX_WORDS_PER_SCENE = 80;
 
@@ -94,6 +95,7 @@ export function buildEditorialContext({
     wordIndexes,
     timelineIndex,
     caps: audioCaps,
+    narrativeProfile: resolveRecipeNarrativeProfile(recipe),
   });
   if (audioSummary) {
     context.audioIndex = audioSummary;
@@ -120,6 +122,33 @@ export function buildEditorialContext({
 const DEAD_AIR_MONTAGE_TECHNIQUES = ["silence_beat", "hard_cut_energy"];
 const MAX_DEAD_AIR_MONTAGE_HINTS = 10;
 
+function isCutEligibleDeadAirHint(deadAir) {
+  if (deadAir.source !== "both") {
+    return false;
+  }
+  if (deadAir.silenceKind == null) {
+    return true;
+  }
+  return deadAir.silenceKind === "dead_air";
+}
+
+function isSilenceBeatDipEligibleHint(deadAir) {
+  return deadAir.source === "both" && deadAir.silenceKind === "breath_before_punchline";
+}
+
+function hintToMontageEntry(clip, deadAir, suggestedTechniques, suggestion) {
+  return {
+    clipId: clip.clipId,
+    startSec: deadAir.startSec,
+    endSec: deadAir.endSec,
+    source: deadAir.source,
+    ...(deadAir.silenceKind ? { silenceKind: deadAir.silenceKind } : {}),
+    durationSec: Math.round((deadAir.endSec - deadAir.startSec) * 10) / 10,
+    suggestedTechniques,
+    suggestion,
+  };
+}
+
 /**
  * Suggest montage actions for high-confidence dead air (RMS + transcript fusion).
  * Brief-only hints for the director — does not mutate the recipe.
@@ -132,20 +161,46 @@ export function buildDeadAirMontageHints(audioIndexSummary) {
   const hints = [];
   for (const clip of audioIndexSummary.clips) {
     for (const deadAir of clip.deadAirHints ?? []) {
-      if (deadAir.source !== "both") {
+      if (!isCutEligibleDeadAirHint(deadAir)) {
         continue;
       }
-      hints.push({
-        clipId: clip.clipId,
-        startSec: deadAir.startSec,
-        endSec: deadAir.endSec,
-        source: deadAir.source,
-        durationSec: Math.round((deadAir.endSec - deadAir.startSec) * 10) / 10,
-        suggestedTechniques: DEAD_AIR_MONTAGE_TECHNIQUES,
-        suggestion:
-          `High-confidence dead air ${deadAir.startSec.toFixed(1)}–${deadAir.endSec.toFixed(1)}s: `
+      const kindLabel = deadAir.silenceKind ?? "dead_air";
+      hints.push(hintToMontageEntry(
+        clip,
+        deadAir,
+        DEAD_AIR_MONTAGE_TECHNIQUES,
+        `High-confidence ${kindLabel} ${deadAir.startSec.toFixed(1)}–${deadAir.endSec.toFixed(1)}s: `
           + "trim segment at endSec or anchor silence_beat / hard_cut_energy near the cut",
-      });
+      ));
+    }
+  }
+
+  return hints
+    .sort((a, b) => b.durationSec - a.durationSec)
+    .slice(0, MAX_DEAD_AIR_MONTAGE_HINTS);
+}
+
+/**
+ * Optional silence_beat dips for breath_before_punchline (no timeline cut).
+ */
+export function buildSilenceBeatDipHints(audioIndexSummary) {
+  if (!audioIndexSummary?.clips?.length) {
+    return [];
+  }
+
+  const hints = [];
+  for (const clip of audioIndexSummary.clips) {
+    for (const deadAir of clip.deadAirHints ?? []) {
+      if (!isSilenceBeatDipEligibleHint(deadAir)) {
+        continue;
+      }
+      hints.push(hintToMontageEntry(
+        clip,
+        deadAir,
+        ["silence_beat"],
+        `Breath before punchline ${deadAir.startSec.toFixed(1)}–${deadAir.endSec.toFixed(1)}s: `
+          + "optional light silence_beat dip only (preserve timing)",
+      ));
     }
   }
 

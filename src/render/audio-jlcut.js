@@ -80,25 +80,64 @@ function mergeAudioStreams(parts, leftLabel, rightLabel, overlap, outLabel) {
   parts.push(`${leftLabel}${rightLabel}concat=n=2:v=0:a=1${outLabel}`);
 }
 
+function appendJlCutVideoChain(parts, n, segmentDurations, crossfadeAtBoundaries) {
+  for (let i = 0; i < n; i += 1) {
+    parts.push(`[${i}:v]setpts=PTS-STARTPTS[s${i}v]`);
+  }
+
+  let curV = "s0v";
+  let curDur = segmentDurations[0] ?? 0;
+  let stepIdx = 0;
+
+  for (let b = 0; b < n - 1; b += 1) {
+    const nextIdx = b + 1;
+    const cf = crossfadeAtBoundaries?.[b];
+    const isLast = b === n - 2;
+    const outV = isLast ? "outv" : `mv${stepIdx}`;
+
+    if (cf) {
+      const d = Math.max(0.05, cf.durationSec);
+      const offset = Math.max(0, curDur - d);
+      parts.push(
+        `[${curV}][s${nextIdx}v]xfade=transition=fade:duration=${d}:offset=${offset}[${outV}]`,
+      );
+      curDur += (segmentDurations[nextIdx] ?? 0) - d;
+    } else {
+      parts.push(`[${curV}][s${nextIdx}v]concat=n=2:v=1:a=0[${outV}]`);
+      curDur += segmentDurations[nextIdx] ?? 0;
+    }
+
+    curV = outV;
+    stepIdx += 1;
+  }
+}
+
 /**
  * Build filter_complex for J/L-cut compositing.
- * Video concatenates all inputs; audio carries neighbor streams for from_prev/from_next.
+ * Video concatenates all inputs (or xfade at eligible crossfade joins when crossfadeAtBoundaries
+ * is set). Audio always follows J/L overlap rules — when both crossfade and J/L overlap exist at a
+ * join, J/L audio wins (acrossfade on overlapSec) and only video may xfade.
  */
-export function buildJlCutFilterComplex(segmentPaths, segments) {
+export function buildJlCutFilterComplex(segmentPaths, segments, crossfadeAtBoundaries = null) {
   const n = segmentPaths.length;
   if (n < 2) {
     return null;
   }
 
   const parts = [];
-  const videoLabels = [];
+  const segmentDurations = segments.map((segment) => segmentVideoDurationSec(segment));
+  const useVideoXfade = Boolean(crossfadeAtBoundaries?.some(Boolean));
 
-  for (let i = 0; i < n; i += 1) {
-    parts.push(`[${i}:v]setpts=PTS-STARTPTS[v${i}]`);
-    videoLabels.push(`[v${i}]`);
+  if (useVideoXfade) {
+    appendJlCutVideoChain(parts, n, segmentDurations, crossfadeAtBoundaries);
+  } else {
+    const videoLabels = [];
+    for (let i = 0; i < n; i += 1) {
+      parts.push(`[${i}:v]setpts=PTS-STARTPTS[v${i}]`);
+      videoLabels.push(`[v${i}]`);
+    }
+    parts.push(`${videoLabels.join("")}concat=n=${n}:v=1:a=0[outv]`);
   }
-
-  parts.push(`${videoLabels.join("")}concat=n=${n}:v=1:a=0[outv]`);
 
   let audioChain = null;
   const consumedAudioStartSec = new Map();
@@ -198,15 +237,16 @@ export function buildJlCutFilterComplex(segmentPaths, segments) {
  */
 export async function applyJlCutAudio(segmentPaths, segments, outputPath, {
   encodeProfile,
+  crossfadeAtBoundaries = null,
   runFfmpegFn = runFfmpeg,
-}) {
+} = {}) {
   if (segmentPaths.length === 1) {
     fs.copyFileSync(segmentPaths[0], outputPath);
     return;
   }
 
   if (hasJlCutOverlap(segments)) {
-    const built = buildJlCutFilterComplex(segmentPaths, segments);
+    const built = buildJlCutFilterComplex(segmentPaths, segments, crossfadeAtBoundaries);
     if (!built) {
       throw new Error("applyJlCutAudio: nie udało się zbudować filter_complex dla J/L-cut");
     }

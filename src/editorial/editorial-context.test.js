@@ -194,7 +194,7 @@ describe("editorial-context", () => {
       clips: [{
         clipId: "clip01",
         deadAirHints: [
-          { startSec: 72, endSec: 73.2, source: "both" },
+          { startSec: 72, endSec: 73.2, source: "both", silenceKind: "dead_air" },
           { startSec: 9, endSec: 72, source: "transcript" },
         ],
       }],
@@ -204,6 +204,7 @@ describe("editorial-context", () => {
     assert.equal(montageHints.length, 1);
     assert.equal(montageHints[0].clipId, "clip01");
     assert.equal(montageHints[0].source, "both");
+    assert.equal(montageHints[0].silenceKind, "dead_air");
     assert.deepEqual(montageHints[0].suggestedTechniques, ["silence_beat", "hard_cut_energy"]);
     assert.match(montageHints[0].suggestion, /silence_beat/);
   });

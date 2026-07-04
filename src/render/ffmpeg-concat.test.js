@@ -9,6 +9,8 @@ import {
   isTwoSegmentCrossfadeEligible,
   isMultiSegmentCrossfadeEligible,
   isCrossfadeEligible,
+  isJoinCrossfadeEligible,
+  resolveJlVideoCrossfadeBoundaries,
   shouldDeferCrossfadeToCreative,
   getCrossfadeNotAppliedReason,
   resolvePostConcatCreativeMoments,
@@ -147,6 +149,146 @@ describe("ffmpeg-concat", () => {
     );
   });
 
+  it("isJoinCrossfadeEligible true for aroll→aroll same clip", () => {
+    const outgoing = {
+      segmentRole: "aroll",
+      outputStartSec: 0,
+      outputEndSec: 10,
+      videoRef: { clipId: "clip01" },
+    };
+    const incoming = {
+      segmentRole: "aroll",
+      outputStartSec: 10,
+      outputEndSec: 20,
+      videoRef: { clipId: "clip01" },
+    };
+    assert.equal(isJoinCrossfadeEligible(outgoing, incoming), true);
+  });
+
+  it("isJoinCrossfadeEligible true for broll→aroll when both segments exceed 0.5s", () => {
+    const outgoing = {
+      segmentRole: "broll",
+      outputStartSec: 0,
+      outputEndSec: 12.5,
+      videoRef: { clipId: "clip02" },
+    };
+    const incoming = {
+      segmentRole: "aroll",
+      outputStartSec: 12,
+      outputEndSec: 25,
+      videoRef: { clipId: "clip01" },
+    };
+    assert.equal(isJoinCrossfadeEligible(outgoing, incoming), true);
+  });
+
+  it("isJoinCrossfadeEligible false for broll→aroll when segment duration is 0.5s or less", () => {
+    const outgoing = {
+      segmentRole: "broll",
+      outputStartSec: 0,
+      outputEndSec: 0.5,
+      videoRef: { clipId: "clip02" },
+    };
+    const incoming = {
+      segmentRole: "aroll",
+      outputStartSec: 0.5,
+      outputEndSec: 10,
+      videoRef: { clipId: "clip01" },
+    };
+    assert.equal(isJoinCrossfadeEligible(outgoing, incoming), false);
+  });
+
+  it("isJoinCrossfadeEligible false for aroll→aroll on different clips", () => {
+    const outgoing = {
+      segmentRole: "aroll",
+      outputStartSec: 0,
+      outputEndSec: 10,
+      videoRef: { clipId: "clip01" },
+    };
+    const incoming = {
+      segmentRole: "aroll",
+      outputStartSec: 10,
+      outputEndSec: 20,
+      videoRef: { clipId: "clip02" },
+    };
+    assert.equal(isJoinCrossfadeEligible(outgoing, incoming), false);
+  });
+
+  it("resolveJlVideoCrossfadeBoundaries keeps crossfade only on eligible J/L joins", () => {
+    const segments = [
+      {
+        segmentRole: "broll",
+        outputStartSec: 0,
+        outputEndSec: 12.5,
+        videoRef: { clipId: "clip02" },
+        audioPolicy: "from_audio_ref",
+      },
+      {
+        segmentRole: "aroll",
+        outputStartSec: 12,
+        outputEndSec: 32,
+        videoRef: { clipId: "clip01" },
+        audioPolicy: "from_prev",
+        overlapSec: 0.5,
+      },
+    ];
+    const moments = [{
+      techniqueId: "crossfade",
+      outputStartSec: 12,
+      params: { durationSec: 0.4 },
+    }];
+    const boundaries = resolveJlVideoCrossfadeBoundaries(moments, segments);
+    assert.equal(boundaries.length, 1);
+    assert.equal(boundaries[0]?.durationSec, 0.4);
+  });
+
+  it("getCrossfadeNotAppliedReason explains ineligible J/L join for crossfade", () => {
+    const segments = [
+      {
+        segmentRole: "aroll",
+        outputStartSec: 0,
+        outputEndSec: 10,
+        videoRef: { clipId: "clip01" },
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentRole: "aroll",
+        outputStartSec: 9.5,
+        outputEndSec: 20,
+        videoRef: { clipId: "clip02" },
+        audioPolicy: "from_prev",
+        overlapSec: 0.5,
+      },
+    ];
+    const moments = [{ techniqueId: "crossfade", outputStartSec: 9.5, outputEndSec: 10 }];
+    const reason = getCrossfadeNotAppliedReason(["a.mp4", "b.mp4"], segments, moments);
+    assert.ok(reason?.includes("J/L overlap"));
+    assert.ok(reason?.includes("broll→aroll"));
+  });
+
+  it("getCrossfadeNotAppliedReason null when J/L join is eligible for video crossfade", () => {
+    const segments = [
+      {
+        segmentRole: "broll",
+        outputStartSec: 0,
+        outputEndSec: 12.5,
+        videoRef: { clipId: "clip02" },
+      },
+      {
+        segmentRole: "aroll",
+        outputStartSec: 12,
+        outputEndSec: 32,
+        videoRef: { clipId: "clip01" },
+        audioPolicy: "from_prev",
+        overlapSec: 0.5,
+      },
+    ];
+    const moments = [{ techniqueId: "crossfade", outputStartSec: 12, outputEndSec: 12.4 }];
+    assert.equal(
+      getCrossfadeNotAppliedReason(["a.mp4", "b.mp4"], segments, moments),
+      null,
+    );
+  });
+
   it("shouldDeferCrossfadeToCreative false when 3 segments and crossfade will apply", () => {
     const segments = [
       { outputStartSec: 0, outputEndSec: 30 },
@@ -246,8 +388,77 @@ describe("ffmpeg-concat", () => {
     ];
     assert.equal(
       getCrossfadeNotAppliedReason(["a.mp4", "b.mp4", "c.mp4", "d.mp4"], segments, moments),
-      "requires crossfade at every internal join or exactly one join",
+      "partial crossfade pattern: requires crossfade at every internal join or exactly one join (2/3 joins)",
     );
+  });
+
+  it("resolvePostConcatCreativeMoments emits CROSSFADE_NOT_APPLIED for ineligible J/L crossfade join", () => {
+    const segments = [
+      {
+        segmentRole: "aroll",
+        outputStartSec: 0,
+        outputEndSec: 10,
+        videoRef: { clipId: "clip01" },
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentRole: "aroll",
+        outputStartSec: 9.5,
+        outputEndSec: 20,
+        videoRef: { clipId: "clip02" },
+        audioPolicy: "from_prev",
+        overlapSec: 0.5,
+      },
+    ];
+    const creativeMoments = [
+      { techniqueId: "crossfade", outputStartSec: 9.5, outputEndSec: 10 },
+    ];
+
+    const { moments, warnings } = resolvePostConcatCreativeMoments({
+      creativeMoments,
+      segments,
+      segmentPaths: ["a.mp4", "b.mp4"],
+      appliedCrossfade: false,
+    });
+
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].code, "CROSSFADE_NOT_APPLIED");
+    assert.ok(warnings[0].message.includes("J/L overlap"));
+    assert.equal(moments.length, 0);
+  });
+
+  it("resolvePostConcatCreativeMoments drops crossfade when J/L video xfade was applied", () => {
+    const segments = [
+      {
+        segmentRole: "broll",
+        outputStartSec: 0,
+        outputEndSec: 12.5,
+        videoRef: { clipId: "clip02" },
+      },
+      {
+        segmentRole: "aroll",
+        outputStartSec: 12,
+        outputEndSec: 32,
+        videoRef: { clipId: "clip01" },
+        audioPolicy: "from_prev",
+        overlapSec: 0.5,
+      },
+    ];
+    const creativeMoments = [
+      { techniqueId: "crossfade", outputStartSec: 12, outputEndSec: 12.4 },
+      { techniqueId: "zoom_in", outputStartSec: 2, outputEndSec: 5 },
+    ];
+
+    const { moments, warnings } = resolvePostConcatCreativeMoments({
+      creativeMoments,
+      segments,
+      segmentPaths: ["a.mp4", "b.mp4"],
+      appliedCrossfade: true,
+    });
+
+    assert.equal(warnings.length, 0);
+    assert.equal(moments.length, 1);
+    assert.equal(moments[0].techniqueId, "zoom_in");
   });
 
   it("resolvePostConcatCreativeMoments emits CROSSFADE_NOT_APPLIED for partial multi-segment crossfade", () => {

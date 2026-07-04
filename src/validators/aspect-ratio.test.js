@@ -56,6 +56,31 @@ describe("aspect-ratio validator", () => {
     assert.equal(issues.length, 0);
   });
 
+  it("does not warn when fitMode is pillarbox_blur", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        format: "16:9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "broll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 5,
+          audioPolicy: "from_audio_ref",
+          videoTransform: { fitMode: "pillarbox_blur" },
+        }],
+      }],
+    };
+
+    const issues = validateAspectRatio(recipe, { sceneAspectById });
+    assert.equal(issues.length, 0);
+  });
+
   it("does not warn when fitMode is set", () => {
     const recipe = {
       outputs: [{

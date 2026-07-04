@@ -17,10 +17,19 @@ import { validateAspectRatio, buildSceneAspectMap } from "./aspect-ratio.js";
 import { validateBrollAvSync } from "./broll-av-sync.js";
 import { validateBrollSyncHintAdherence } from "./broll-sync-hint-adherence.js";
 import { validateChapterCardHintCoverage } from "./chapter-card-hints.js";
+import { validateFillerCutCoverage } from "./filler-coverage.js";
+import { validateDeadAirCoverage } from "./dead-air-coverage.js";
+import { validateClosureCta } from "./closure-cta.js";
 import { deriveTeaseSceneIdFromRecipe } from "../editorial/chapter-hints.js";
 import { validateMultiClipChronology } from "./chronology.js";
 import { validateBrollStrategy } from "./broll-strategy.js";
+import { validateNarrative } from "./narrative.js";
 import { resolveSfxById, resolveSfxByTag } from "../editorial/sfx-library.js";
+import { validateSfxNarrativeOnly } from "../editorial/sfx-plan.js";
+import {
+  resolveRecipeNarrativeProfile,
+  resolveSegmentCaps,
+} from "../lib/narrative-profile.js";
 
 function refsEqual(a, b) {
   return a.clipId === b.clipId && a.sceneId === b.sceneId;
@@ -612,6 +621,18 @@ export function validateAudioMixPlan(recipe, { catalogPath } = {}) {
     }
   }
 
+  for (const segment of plan.segments ?? []) {
+    const windowCount = segment.duckingWindows?.length ?? 0;
+    if (windowCount > 16) {
+      issues.push({
+        severity: "warning",
+        code: "V24-09",
+        message: `audioMixPlan segment ${segment.outputId}: duckingWindows ma ${windowCount} wpisów (max 16)`,
+        outputId: segment.outputId,
+      });
+    }
+  }
+
   if (!plan.musicBed) {
     return issues;
   }
@@ -717,7 +738,24 @@ export function validateSfxPlanCatalog(recipe) {
 
 export const SFX_DENSITY_SEC_PER_ENTRY = 90;
 
-export function resolveSfxDensityMaxEntries(recipe) {
+export function resolveSfxDensityMaxEntries(recipe, { abstraction } = {}) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  if (narrativeProfile) {
+    const l2SegmentIds = (abstraction?.L2 ?? []).map((segment) => segment.segmentId);
+    const segmentIds = l2SegmentIds.length > 0
+      ? l2SegmentIds
+      : (narrativeProfile.segments ?? []).map((segment) => segment.l2SegmentId).filter(Boolean);
+
+    if (segmentIds.length > 0) {
+      let sum = 0;
+      for (const segmentId of segmentIds) {
+        const caps = resolveSegmentCaps(narrativeProfile, segmentId, abstraction);
+        sum += caps?.maxSfxEntries ?? 0;
+      }
+      return sum;
+    }
+  }
+
   const mainDurationSec = estimateMainOutputDurationSec(recipe.outputs ?? []);
   if (mainDurationSec <= 0) {
     return Infinity;
@@ -725,7 +763,7 @@ export function resolveSfxDensityMaxEntries(recipe) {
   return Math.ceil(mainDurationSec / SFX_DENSITY_SEC_PER_ENTRY);
 }
 
-export function validateSfxDensityOnMain(recipe) {
+export function validateSfxDensityOnMain(recipe, { abstraction } = {}) {
   const sfxPlan = recipe.sfxPlan;
   if (!sfxPlan?.length) {
     return [];
@@ -736,7 +774,8 @@ export function validateSfxDensityOnMain(recipe) {
     return [];
   }
 
-  const maxEntries = resolveSfxDensityMaxEntries(recipe);
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  const maxEntries = resolveSfxDensityMaxEntries(recipe, { abstraction });
   if (sfxPlan.length <= maxEntries) {
     return [];
   }
@@ -744,10 +783,14 @@ export function validateSfxDensityOnMain(recipe) {
   const mainOutputId = recipe.outputs?.find((output) => output.outputKind === "main")?.outputId
     ?? recipe.outputs?.[0]?.outputId;
 
+  const capLabel = narrativeProfile
+    ? "narrativeProfile L2 caps"
+    : `${mainDurationSec.toFixed(0)}s, 1/90s`;
+
   return [{
     severity: "warning",
     code: "V24-06",
-    message: `sfxPlan ma ${sfxPlan.length} wpisów — max ${maxEntries} na main (${mainDurationSec.toFixed(0)}s, 1/90s)`,
+    message: `sfxPlan ma ${sfxPlan.length} wpisów — max ${maxEntries} na main (${capLabel})`,
     outputId: mainOutputId,
   }];
 }
@@ -861,6 +904,9 @@ export function validateRecipeV2(recipe, {
   musicCatalogPath,
   brollSyncHints,
   chapterCardHints,
+  abstraction = null,
+  timelineIndex = null,
+  perClipAnalysis = null,
 } = {}) {
   const parsed = EditRecipeV2Schema.parse(recipe);
   const formats = requiredFormats ?? getRequiredFormats(parsed);
@@ -907,13 +953,23 @@ export function validateRecipeV2(recipe, {
     ...validatePacingGuard(parsed, { estimatedKeepRatio }),
     ...(hasV24SfxFields(parsed) ? [
       ...validateSfxPlan(parsed),
-      ...validateSfxDensityOnMain(parsed),
+      ...validateSfxDensityOnMain(parsed, { abstraction }),
       ...validateSfxPlanCatalog(parsed),
+      ...validateSfxNarrativeOnly(parsed, { wordIndexes }),
     ] : []),
     ...validateAspectRatio(parsed, { sceneAspectById }),
     ...validateBrollAvSync(parsed),
     ...validateBrollSyncHintAdherence(parsed, { brollSyncHints }),
     ...validateChapterCardHintCoverage(recipe, { chapterCardHints, wordIndexes }),
+    ...validateFillerCutCoverage(parsed, { abstraction, timelineIndex }),
+    ...validateDeadAirCoverage(parsed, {
+      audioIndex,
+      abstraction,
+      timelineIndex,
+      wordIndexes,
+      perClipAnalysis,
+    }),
+    ...validateClosureCta(parsed, { abstraction, wordIndexes }),
     ...validateMultiClipChronology(parsed, {
       teaseSceneId: deriveTeaseSceneIdFromRecipe(parsed),
     }),
@@ -929,6 +985,15 @@ export function validateRecipeV2(recipe, {
     ...validateVlogRetention(parsed, catalog, {
       creativityLevel: profile.level,
       retentionBeatTargets: parsed.retentionBeatTargets,
+      abstraction,
+      timelineIndex,
+      wordIndexes,
+    }),
+    ...validateNarrative(parsed, {
+      abstraction,
+      timelineIndex,
+      audioIndex,
+      wordIndexes,
     }),
   ];
 

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSfxPlanFromAudio, enrichRecipeSfxPlan, trimSfxPlanToDensityCap } from "../../src/editorial/sfx-plan.js";
+import { buildSfxPlanFromAudio, enrichRecipeSfxPlan, trimSfxPlanToDensityCap, validateSfxNarrativeOnly } from "../../src/editorial/sfx-plan.js";
 import { SfxPlanEntrySchema } from "../../src/schemas/edit-recipe-v2.js";
 
 describe("sfx-plan", () => {
@@ -166,6 +166,77 @@ describe("enrichRecipeSfxPlan", () => {
     assert.equal(laughter.length, 1);
   });
 
+  it("respects maxSfxEntries cap per L2 rhythm", () => {
+    const sfxTimelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 120 },
+        { sceneId: "clip01_scene002", clipId: "clip01", startSec: 120, endSec: 240 },
+      ],
+    };
+    const sfxAbstraction = {
+      L2: [
+        {
+          segmentId: "seg_slow",
+          startSec: 0,
+          endSec: 120,
+          sceneIds: ["clip01_scene001"],
+        },
+        {
+          segmentId: "seg_fast",
+          startSec: 120,
+          endSec: 240,
+          sceneIds: ["clip01_scene002"],
+        },
+      ],
+    };
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: 240,
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 240,
+          audioInSec: 0,
+          audioOutSec: 240,
+          audioPolicy: "from_video_ref",
+        }],
+      }],
+      sfxPlan: [],
+      clipRegistry,
+      narrativeProfile: {
+        segments: [
+          { l2SegmentId: "seg_slow", rhythm: "slow" },
+          { l2SegmentId: "seg_fast", rhythm: "fast" },
+        ],
+      },
+    };
+    const manyEvents = Array.from({ length: 8 }, (_, index) => ({
+      startSec: index * 15 + 5,
+      endSec: index * 15 + 5.5,
+      label: "Laughter",
+      score: 0.9 - index * 0.01,
+    }));
+
+    const plan = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry,
+      perClipAnalysis: [{ clipId: "clip01", audioEvents: manyEvents }],
+      abstraction: sfxAbstraction,
+      timelineIndex: sfxTimelineIndex,
+    });
+
+    const slowSfx = plan.filter((entry) => (entry.anchorTimeSec ?? entry.outputStartSec) < 120);
+    const fastSfx = plan.filter((entry) => (entry.anchorTimeSec ?? entry.outputStartSec) >= 120);
+    assert.equal(slowSfx.length, 0);
+    assert.ok(fastSfx.length <= 3);
+  });
+
   it("caps total entries at 6 per output", () => {
     const manyEvents = Array.from({ length: 20 }, (_, index) => ({
       startSec: index + 10,
@@ -209,6 +280,137 @@ describe("enrichRecipeSfxPlan", () => {
     });
 
     assert.equal(plan.length, 0);
+  });
+
+  it("skips enrich SFX when sfxNarrativeOnly and no narrative anchors", () => {
+    const recipe = {
+      outputs: [{ outputId: "main", outputKind: "main" }],
+      sfxPlan: [],
+      clipRegistry,
+      narrativeProfile: { sfxNarrativeOnly: true },
+      creativeMoments: [],
+    };
+
+    const plan = enrichRecipeSfxPlan(recipe, { audioIndex, clipRegistry, perClipAnalysis });
+
+    assert.equal(plan.length, 0);
+  });
+
+  it("sfxNarrativeOnly only adds SFX near hook/payoff/cold-open anchors", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 30,
+          audioInSec: 0,
+          audioOutSec: 30,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 30,
+        }],
+      }],
+      sfxPlan: [],
+      clipRegistry,
+      narrativeProfile: { sfxNarrativeOnly: true },
+      creativeMoments: [{
+        momentId: "hook_01",
+        techniqueId: "snap_zoom",
+        retentionRole: "hook",
+        outputId: "main_16x9",
+        outputStartSec: 0,
+        outputEndSec: 2,
+      }],
+    };
+    const hookEventAnalysis = [{
+      clipId: "clip01",
+      audioEvents: [
+        { startSec: 0.5, endSec: 1.1, label: "Laughter", score: 0.74 },
+        { startSec: 22.0, endSec: 22.4, label: "Laughter", score: 0.8 },
+      ],
+    }];
+
+    const plan = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry,
+      perClipAnalysis: hookEventAnalysis,
+    });
+
+    assert.equal(plan.length, 1);
+    assert.equal(plan[0].anchorTimeSec, 0.5);
+    assert.ok(!plan.some((entry) => entry.anchorTimeSec === 22));
+  });
+
+  it("sfxNarrativeOnly maps anchor through dead_air cuts when wordIndexes provided", () => {
+    const wordIndexes = [{
+      clipId: "clip01",
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    }];
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 30,
+          audioInSec: 0,
+          audioOutSec: 30,
+          audioPolicy: "from_video_ref",
+          cuts: [{
+            startWordId: "clip01_w001",
+            endWordId: "clip01_w002",
+            reason: "dead_air",
+          }],
+        }],
+      }],
+      sfxPlan: [],
+      clipRegistry,
+      narrativeProfile: { sfxNarrativeOnly: true },
+      creativeMoments: [{
+        momentId: "hook_01",
+        techniqueId: "snap_zoom",
+        retentionRole: "hook",
+        outputId: "main_16x9",
+        outputStartSec: 0,
+        outputEndSec: 2,
+      }],
+    };
+    const postCutEventAnalysis = [{
+      clipId: "clip01",
+      audioEvents: [
+        { startSec: 6.5, endSec: 7.1, label: "Laughter", score: 0.74 },
+        { startSec: 22.0, endSec: 22.4, label: "Laughter", score: 0.8 },
+      ],
+    }];
+
+    const withWordIndexes = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry,
+      perClipAnalysis: postCutEventAnalysis,
+      wordIndexes,
+    });
+    assert.equal(withWordIndexes.length, 1);
+    assert.equal(withWordIndexes[0].anchorTimeSec, 6.5);
+    assert.equal(withWordIndexes[0].outputStartSec, 2.5);
+
+    const withoutWordIndexes = enrichRecipeSfxPlan(recipe, {
+      audioIndex,
+      clipRegistry,
+      perClipAnalysis: postCutEventAnalysis,
+    });
+    assert.equal(withoutWordIndexes.length, 0);
   });
 
   it("returns existing plan when audio index is missing", () => {
@@ -350,5 +552,98 @@ describe("trimSfxPlanToDensityCap", () => {
     const remapped = remapSfxPlanToOutputTimeline(recipe);
     assert.equal(remapped[0].outputStartSec, 5);
     assert.equal(remapped[0].outputEndSec, 5.4);
+  });
+});
+
+describe("validateSfxNarrativeOnly", () => {
+  it("V24-08 when sfxNarrativeOnly and entry outside narrative anchors", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 30,
+          audioInSec: 0,
+          audioOutSec: 30,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 30,
+        }],
+      }],
+      clipRegistry: [{ clipId: "clip01", durationSec: 30 }],
+      narrativeProfile: { sfxNarrativeOnly: true },
+      creativeMoments: [{
+        momentId: "hook_01",
+        techniqueId: "snap_zoom",
+        retentionRole: "hook",
+        outputId: "main_16x9",
+        outputStartSec: 0,
+        outputEndSec: 2,
+      }],
+      sfxPlan: [{
+        sfxId: "evt_far",
+        source: "audio_event",
+        clipId: "clip01",
+        anchorTimeSec: 22,
+        outputStartSec: 22,
+        outputEndSec: 22.4,
+        volumeDb: -6,
+        label: "laughter",
+      }],
+    };
+
+    const issues = validateSfxNarrativeOnly(recipe);
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].code, "V24-08");
+  });
+
+  it("passes when sfxNarrativeOnly entry is near hook anchor", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 30,
+          audioInSec: 0,
+          audioOutSec: 30,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 30,
+        }],
+      }],
+      clipRegistry: [{ clipId: "clip01", durationSec: 30 }],
+      narrativeProfile: { sfxNarrativeOnly: true },
+      creativeMoments: [{
+        momentId: "hook_01",
+        techniqueId: "snap_zoom",
+        retentionRole: "hook",
+        outputId: "main_16x9",
+        outputStartSec: 0,
+        outputEndSec: 2,
+      }],
+      sfxPlan: [{
+        sfxId: "evt_near",
+        source: "audio_event",
+        clipId: "clip01",
+        anchorTimeSec: 0.5,
+        outputStartSec: 0.5,
+        outputEndSec: 1.1,
+        volumeDb: -6,
+        label: "laughter",
+      }],
+    };
+
+    const issues = validateSfxNarrativeOnly(recipe);
+    assert.equal(issues.length, 0);
   });
 });

@@ -16,6 +16,14 @@ const SUPER_DIRECTOR_OUTPUT_SCHEMA = {
     },
   ],
   crossSegmentNotes: ["string"],
+  crossSegmentCallbacks: [
+    {
+      callbackId: "cb_restaurant_echo",
+      setupSceneId: "clip01_scene001",
+      payoffSceneId: "clip01_scene010",
+      teaseText: "Pamiętacie restaurację?",
+    },
+  ],
   shortsSources: ["seg001"],
   globalTheme: "string?",
   creativityProfile: {
@@ -23,6 +31,20 @@ const SUPER_DIRECTOR_OUTPUT_SCHEMA = {
     allowMidSentenceCuts: false,
     techniquePack: "youtube_vlog_2026",
     maxTechniqueDensityPerMin: 0.3,
+  },
+  narrativeProfile: {
+    mode: "internet_documentary|retention_vlog",
+    segments: [
+      {
+        l2SegmentId: "seg001",
+        rhythm: "slow|normal|fast",
+        retentionIntensity: "low|medium|high",
+        silencePolicy: "preserve|trim_dead_air|aggressive",
+      },
+    ],
+    maxPatternInterruptsPer10Min: 1,
+    sfxNarrativeOnly: true,
+    silencePolicy: "preserve|trim_dead_air|aggressive",
   },
   excludedClips: ["clipId"],
 };

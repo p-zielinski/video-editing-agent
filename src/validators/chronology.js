@@ -119,15 +119,16 @@ export function validateMultiClipChronology(recipe, { teaseSceneId = null } = {}
     }
   }
 
-  const hasColdOpen = enriched.some((segment) => segment.segmentId === COLD_OPEN_SEGMENT_ID);
-  if (hasColdOpen) {
+  const hasColdOpenTease = enriched.some((segment) => segment.segmentId === COLD_OPEN_SEGMENT_ID)
+    || (teaseSceneId && enriched[0]?.videoRef?.sceneId === teaseSceneId);
+  if (hasColdOpenTease) {
     const rewindIdx = enriched.findIndex(
       (segment) => segment.segmentId === REWIND_INTRO_SEGMENT_ID
         || segment.segmentId === "enrich_rewind_intro_01",
     );
     if (rewindIdx < 0 || rewindIdx > 2) {
       issues.push({
-        severity: "warning",
+        severity: "error",
         code: "V25-CHR-03",
         message: "Cold open bez rewind do chronologicznego intro w pierwszych segmentach",
         outputId: main.outputId,

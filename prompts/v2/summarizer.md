@@ -41,8 +41,25 @@ Gdy `task` to `L2_segment_summary`, otrzymujesz:
 - **sceneSummaries** — wpisy L1 tylko dla scen z `segment.sceneIds`
 - **outputSchema** — pola wyjściowe segmentu
 
-Zwróć jeden obiekt L2: `segmentId`, `startSec`, `endSec`, `sceneIds`, `summary` (narracja segmentu po polsku, łączy sceny w wątek).
+Zwróć jeden obiekt L2: `segmentId`, `startSec`, `endSec`, `sceneIds`, `summary` (narracja segmentu po polsku, łączy sceny w wątek), opcjonalnie `narrativeRole`.
 Nie wymyślaj scen spoza `sceneIds`. Zachowaj kolejność chronologiczną w `summary`.
+
+### narrativeRole (mapa łuku fabularnego)
+
+Przypisz **jedną** rolę narracyjną segmentowi — gdzie leży w łuku całej sesji (porównaj z `sceneSummaries` i chronologią `startSec`/`endSec`):
+
+| `narrativeRole` | Kiedy użyć |
+|-----------------|------------|
+| `setup` | Wprowadzenie kontekstu, postaci, miejsca |
+| `development` | Rozwój wątku, eksploracja, budowanie świata |
+| `tension` | Narastanie napięcia, problem, konflikt, cliffhanger |
+| `breath` | Oddech po intensywności — spokojniejszy odcinek, bez presji retencji |
+| `climax` | Kulminacja — najważniejszy moment, szczyt emocji |
+| `payoff` | Rozwiązanie, satysfakcja, „aha moment” |
+| `resolution` | Zamknięcie, podsumowanie, pożegnanie |
+| `callback` | Powrót do motywu z wcześniejszego segmentu (echo, puenta) |
+
+Typowy łuk wielosegmentowy: `setup` → `development` → `tension` → `climax` → `payoff` → `resolution`, z `breath` między intensywnymi blokami i `callback` gdy segment nawiązuje do wcześniejszego wątku. Krótki jednosegmentowy materiał może mieć `development` lub `climax` — nie wymuszaj sztucznego `setup`.
 
 ## L3_session_summary
 
@@ -61,3 +78,9 @@ Zwróć obiekt L3:
 - **formatFit** — opcjonalnie `{ "16:9": 0.0–1.0, "9:16": 0.0–1.0 }` — jak dobrze materiał nadaje się do każdego formatu (niższy score = słabszy deliverable)
 - **estimatedKeepRatio** (0–1) — jaki ułamek materiału warto zachować przy `qualityOverQuantity`
 - **hasSeparateNarration** (`boolean`) — `true`, gdy w batchu jest osobna ścieżka narracji (patrz sekcja Voice-over); inaczej `false`
+- **openLoops** (opcjonalnie) — strukturalne pętle narracyjne dla cold open / callback:
+  - `loopId` — stabilny identyfikator (`loop_01`, …)
+  - `kind` — `cold_open` | `payoff_tease` | `callback`
+  - `setupSceneId` — scena setupu (opcjonalnie)
+  - `payoffSceneId` — scena payoffu (opcjonalnie)
+  - `teaseText` — krótka zapowiedź bez spoilera (opcjonalnie)

@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildDrawtextFilters } from "./ffmpeg-graphics.js";
+import {
+  buildDrawtextFilters,
+  buildOverlayAlphaExpression,
+  resolveOverlayAnimation,
+} from "./ffmpeg-graphics.js";
 import { DEFAULT_RENDER_STYLE_PRESETS } from "./style-presets.js";
 
 describe("ffmpeg-graphics", () => {
@@ -22,6 +26,26 @@ describe("ffmpeg-graphics", () => {
     assert.ok(filter.includes("bordercolor=0x000000"));
     assert.ok(filter.includes("HELLO WORLD"));
     assert.ok(filter.includes("fontsize=72"));
+  });
+
+  it("uses chapter_card documentary preset instead of hook_large fallback", () => {
+    const [filter] = buildDrawtextFilters(
+      [{
+        text: "Part 2 — The climb",
+        style: "chapter_card",
+        outputStartSec: 120,
+        outputEndSec: 124,
+      }],
+      {
+        dimensions: { width: 1920, height: 1080 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    );
+
+    assert.ok(filter.includes("fontsize=44"));
+    assert.ok(!filter.includes("fontsize=72"));
+    assert.ok(filter.includes("Part 2"));
+    assert.ok(!filter.includes("borderw="));
   });
 
   it("omits border when preset has no stroke", () => {
@@ -80,5 +104,96 @@ describe("ffmpeg-graphics", () => {
 
     assert.ok(filter.includes("'max(48,min(w-text_w-48"));
     assert.ok(filter.includes("'max(120,min(h-text_h-200"));
+  });
+
+  it("adds alpha fade expression for chapter_card preset (fade default)", () => {
+    const [filter] = buildDrawtextFilters(
+      [{
+        text: "Part 2",
+        style: "chapter_card",
+        outputStartSec: 10,
+        outputEndSec: 14,
+      }],
+      {
+        dimensions: { width: 1920, height: 1080 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    );
+
+    assert.ok(filter.includes("alpha='"));
+    assert.ok(filter.includes("255*(t-10)/0.3"));
+    assert.ok(filter.includes("255*(14-t)/0.3"));
+    assert.ok(filter.includes("enable='between(t,10,14)'"));
+  });
+
+  it("omits alpha for hook_large static preset", () => {
+    const [filter] = buildDrawtextFilters(
+      [{
+        text: "HOOK",
+        style: "hook_large",
+        outputStartSec: 0,
+        outputEndSec: 2.5,
+      }],
+      {
+        dimensions: { width: 1080, height: 1920 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    );
+
+    assert.ok(!filter.includes("alpha='"));
+  });
+
+  it("respects per-overlay animation override over style preset", () => {
+    const [staticHook] = buildDrawtextFilters(
+      [{
+        text: "HOOK",
+        style: "hook_large",
+        animation: "fade",
+        outputStartSec: 0,
+        outputEndSec: 3,
+      }],
+      {
+        dimensions: { width: 1080, height: 1920 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    );
+    const [staticEmphasis] = buildDrawtextFilters(
+      [{
+        text: "WOW",
+        style: "emphasis",
+        animation: "static",
+        outputStartSec: 5,
+        outputEndSec: 8,
+      }],
+      {
+        dimensions: { width: 1920, height: 1080 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    );
+
+    assert.ok(staticHook.includes("alpha='"));
+    assert.ok(!staticEmphasis.includes("alpha='"));
+  });
+
+  it("buildOverlayAlphaExpression clamps fade to half duration for short overlays", () => {
+    const alpha = buildOverlayAlphaExpression(1, 1.4);
+    assert.ok(alpha.includes("255*(t-1)/0.2"));
+    assert.ok(alpha.includes("255*(1.4-t)/0.2"));
+  });
+
+  it("resolveOverlayAnimation prefers overlay, then style preset, then fade", () => {
+    assert.equal(
+      resolveOverlayAnimation({ animation: "static" }, { animation: "fade" }),
+      "static",
+    );
+    assert.equal(
+      resolveOverlayAnimation({}, DEFAULT_RENDER_STYLE_PRESETS.overlays.cta),
+      "fade",
+    );
+    assert.equal(
+      resolveOverlayAnimation({}, DEFAULT_RENDER_STYLE_PRESETS.overlays.hook_large),
+      "static",
+    );
+    assert.equal(resolveOverlayAnimation({}, {}), "fade");
   });
 });

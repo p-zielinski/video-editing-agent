@@ -2,6 +2,13 @@ import { enrichAudioEvents, mapLabelToEditorialTag } from "./audio-event-tags.js
 import { mapSourceTimeToOutputSec } from "./shorts-retention.js";
 import { resolveSfxByTag } from "./sfx-library.js";
 import { resolveSfxDensityMaxEntries } from "../validators/recipe-v2.js";
+import { COLD_OPEN_SEGMENT_ID } from "./chapter-hints.js";
+import {
+  findL2SegmentIdForSourceTime,
+  resolveL2OutputRangeSec,
+  resolveRecipeNarrativeProfile,
+  resolveSegmentCaps,
+} from "../lib/narrative-profile.js";
 
 /** Editorial tags worth surfacing as SFX plan entries (excludes speech, music, silence). */
 const SFX_WORTHY_TAGS = new Set([
@@ -24,6 +31,7 @@ const DEFAULT_MIN_EVENT_SCORE = 0.45;
 const DEFAULT_MAX_ENTRIES = 20;
 const ENRICH_MIN_EVENT_SCORE = 0.55;
 const ENRICH_MAX_ENTRIES_PER_OUTPUT = 6;
+const NARRATIVE_SFX_ANCHOR_TOLERANCE_SEC = 4;
 
 /** @type {Record<string, string>} */
 const LIBRARY_SFX_BY_TAG = {
@@ -180,6 +188,85 @@ export function buildSfxPlanFromAudio(audioIndex, { maxEntries = DEFAULT_MAX_ENT
     .map((candidate) => candidate.entry);
 }
 
+function resolveMainOutput(recipe) {
+  return (recipe?.outputs ?? []).find(
+    (output) => output.outputKind === "main" || output.format === "16:9",
+  );
+}
+
+function countSfxInL2Segment(sfxEntries, l2SegmentId, abstraction, recipe, wordIndexes) {
+  const mainOutput = resolveMainOutput(recipe);
+  if (!mainOutput) {
+    return 0;
+  }
+  const range = resolveL2OutputRangeSec(
+    l2SegmentId,
+    abstraction,
+    recipe,
+    mainOutput,
+    wordIndexes,
+  );
+  if (!range) {
+    return 0;
+  }
+  return sfxEntries.filter((entry) => {
+    const start = entry.outputStartSec ?? 0;
+    return start >= range.startSec && start <= range.endSec;
+  }).length;
+}
+
+function filterSfxCandidatesByL2Caps(
+  candidates,
+  existingSfx,
+  recipe,
+  { abstraction, timelineIndex, wordIndexes } = {},
+) {
+  if (!candidates.length) {
+    return candidates;
+  }
+
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  const hasL2Context = (abstraction?.L2 ?? []).length > 0;
+  if (!narrativeProfile && !hasL2Context) {
+    return candidates;
+  }
+
+  const accepted = [];
+  const working = [...existingSfx];
+
+  for (const candidate of candidates) {
+    const anchorTimeSec = candidate.anchorTimeSec ?? candidate.outputStartSec;
+    const l2SegmentId = findL2SegmentIdForSourceTime(
+      abstraction,
+      timelineIndex,
+      candidate.clipId,
+      anchorTimeSec,
+    );
+    if (!l2SegmentId) {
+      accepted.push(candidate);
+      working.push(candidate);
+      continue;
+    }
+
+    const caps = resolveSegmentCaps(narrativeProfile, l2SegmentId, abstraction);
+    if (!caps) {
+      accepted.push(candidate);
+      working.push(candidate);
+      continue;
+    }
+
+    const count = countSfxInL2Segment(working, l2SegmentId, abstraction, recipe, wordIndexes);
+    if (count >= caps.maxSfxEntries) {
+      continue;
+    }
+
+    accepted.push(candidate);
+    working.push(candidate);
+  }
+
+  return accepted;
+}
+
 function resolveClipRegistry(clipRegistry, recipe) {
   if (clipRegistry?.length) {
     return clipRegistry;
@@ -226,6 +313,107 @@ function sfxEntryScore(entry) {
   return entry.source === "library" ? 0.5 : 0.55;
 }
 
+function collectNarrativeSfxAnchorRanges(recipe) {
+  const ranges = [];
+
+  for (const moment of recipe.creativeMoments ?? []) {
+    if (moment.retentionRole === "hook" || moment.retentionRole === "payoff") {
+      const start = moment.outputStartSec ?? moment.anchorSec ?? 0;
+      const end = moment.outputEndSec ?? start + 3;
+      ranges.push({
+        startSec: start - NARRATIVE_SFX_ANCHOR_TOLERANCE_SEC,
+        endSec: end + NARRATIVE_SFX_ANCHOR_TOLERANCE_SEC,
+      });
+    }
+  }
+
+  const mainOutput = recipe.outputs?.find(
+    (output) => output.outputKind === "main" || output.format === "16:9",
+  );
+  for (const segment of mainOutput?.timeline ?? []) {
+    if (segment.segmentId === COLD_OPEN_SEGMENT_ID) {
+      ranges.push({
+        startSec: segment.outputStartSec ?? 0,
+        endSec: segment.outputEndSec ?? (segment.outputStartSec ?? 0) + 8,
+      });
+    }
+  }
+
+  return ranges;
+}
+
+function isNearNarrativeSfxAnchor(outputSec, anchorRanges) {
+  return anchorRanges.some(
+    (range) => outputSec >= range.startSec && outputSec <= range.endSec,
+  );
+}
+
+function isNarrativeSfxCandidate(entry, recipe, anchorRanges, wordIndexes) {
+  if (!entry.clipId || entry.anchorTimeSec == null) {
+    return false;
+  }
+  const outputKind = resolveOutputKindForSfx(recipe, entry.outputId);
+  const outputSec = mapSourceTimeToOutputSec(recipe, entry.clipId, entry.anchorTimeSec, {
+    outputKind,
+    wordIndexes,
+  });
+  if (outputSec == null || !Number.isFinite(outputSec)) {
+    return false;
+  }
+  return isNearNarrativeSfxAnchor(outputSec, anchorRanges);
+}
+
+/**
+ * Keep only SFX entries near narrative anchors when sfxNarrativeOnly is enabled.
+ *
+ * @param {object[]} sfxPlan
+ * @param {object} recipe
+ * @returns {object[]}
+ */
+export function filterSfxPlanForNarrativeOnly(sfxPlan, recipe, { wordIndexes } = {}) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  if (narrativeProfile?.sfxNarrativeOnly !== true) {
+    return sfxPlan;
+  }
+
+  const anchorRanges = collectNarrativeSfxAnchorRanges(recipe);
+  if (!anchorRanges.length) {
+    return [];
+  }
+
+  return sfxPlan.filter((entry) => isNarrativeSfxCandidate(entry, recipe, anchorRanges, wordIndexes));
+}
+
+/**
+ * V24-08 — sfxPlan entries outside narrative anchors when sfxNarrativeOnly is set.
+ */
+export function validateSfxNarrativeOnly(recipe, { wordIndexes } = {}) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  if (narrativeProfile?.sfxNarrativeOnly !== true) {
+    return [];
+  }
+
+  const sfxPlan = recipe?.sfxPlan ?? [];
+  if (!sfxPlan.length) {
+    return [];
+  }
+
+  const anchorRanges = collectNarrativeSfxAnchorRanges(recipe);
+  const issues = [];
+
+  for (const entry of sfxPlan) {
+    if (anchorRanges.length === 0 || !isNarrativeSfxCandidate(entry, recipe, anchorRanges, wordIndexes)) {
+      issues.push({
+        severity: "warning",
+        code: "V24-08",
+        message: `sfxPlan ${entry.sfxId}: poza zakresem anchorów narracyjnych (sfxNarrativeOnly)`,
+      });
+    }
+  }
+
+  return issues;
+}
+
 /**
  * Trim recipe.sfxPlan to V24-06 density cap (max ceil(mainDuration/90) on main).
  * Prefers director entries at the start of the plan; drops lowest-score enrich candidates.
@@ -270,6 +458,9 @@ export function enrichRecipeSfxPlan(recipe, {
   perClipAnalysis,
   maxEntriesPerOutput = ENRICH_MAX_ENTRIES_PER_OUTPUT,
   minEventScore = ENRICH_MIN_EVENT_SCORE,
+  wordIndexes = null,
+  abstraction = null,
+  timelineIndex = null,
 } = {}) {
   const existing = recipe?.sfxPlan ?? [];
   const registry = resolveClipRegistry(clipRegistry, recipe);
@@ -291,9 +482,19 @@ export function enrichRecipeSfxPlan(recipe, {
     && !isEventCoveredByExisting(entry, existing),
   );
 
-  const merged = [...existing, ...candidates.slice(0, slots)];
+  const eligibleCandidates = filterSfxPlanForNarrativeOnly(candidates, recipe, { wordIndexes });
+  const cappedCandidates = filterSfxCandidatesByL2Caps(eligibleCandidates, existing, recipe, {
+    abstraction,
+    timelineIndex,
+    wordIndexes,
+  });
+
+  const merged = [...existing, ...cappedCandidates.slice(0, slots)];
   return trimSfxPlanToDensityCap(
-    { ...recipe, sfxPlan: remapSfxPlanToOutputTimeline({ ...recipe, sfxPlan: merged }) },
+    {
+      ...recipe,
+      sfxPlan: remapSfxPlanToOutputTimeline({ ...recipe, sfxPlan: merged }, { wordIndexes }),
+    },
     { directorEntryCount: existing.length },
   );
 }
@@ -312,7 +513,7 @@ function resolveOutputKindForSfx(recipe, outputId) {
  * @param {object} recipe
  * @returns {object[]}
  */
-export function remapSfxPlanToOutputTimeline(recipe) {
+export function remapSfxPlanToOutputTimeline(recipe, { wordIndexes } = {}) {
   const sfxPlan = recipe?.sfxPlan ?? [];
   if (!sfxPlan.length || !(recipe.outputs ?? []).length) {
     return sfxPlan;
@@ -324,7 +525,10 @@ export function remapSfxPlanToOutputTimeline(recipe) {
     }
 
     const outputKind = resolveOutputKindForSfx(recipe, entry.outputId);
-    const mappedStart = mapSourceTimeToOutputSec(recipe, entry.clipId, entry.anchorTimeSec, { outputKind });
+    const mappedStart = mapSourceTimeToOutputSec(recipe, entry.clipId, entry.anchorTimeSec, {
+      outputKind,
+      wordIndexes,
+    });
     if (mappedStart == null || !Number.isFinite(mappedStart)) {
       return entry;
     }

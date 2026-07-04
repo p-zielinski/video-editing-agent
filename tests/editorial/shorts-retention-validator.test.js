@@ -330,6 +330,42 @@ describe("shorts-retention validator", () => {
     assert.ok(issues.some((i) => i.code === "V22-06" && i.severity === "error"));
   });
 
+  it("V22-06 rejects chapter_card creativeMoment on main output", () => {
+    const recipe = structuredClone(baseShortRecipe);
+    recipe.creativeMoments = [
+      {
+        momentId: "cm_chapter_bad",
+        techniqueId: "chapter_card",
+        outputId: "main_16x9",
+        outputStartSec: 120,
+        outputEndSec: 122,
+        reason: "Karta na main jako creativeMoment",
+      },
+    ];
+    const issues = validateShortsRetention(recipe, catalog);
+    const v2206 = issues.filter((i) => i.code === "V22-06");
+    assert.equal(v2206.length, 1);
+    assert.equal(v2206[0].momentId, "cm_chapter_bad");
+    assert.match(v2206[0].message, /chapter_card/);
+  });
+
+  it("main chapter_card textOverlays do not trigger V22-06", () => {
+    const recipe = structuredClone(baseShortRecipe);
+    recipe.outputs[0].timeline[0].textOverlays = [
+      {
+        overlayId: "ch_01",
+        text: "Część 2",
+        outputStartSec: 120,
+        outputEndSec: 123,
+        style: "chapter_card",
+        role: "retention_beat",
+      },
+    ];
+    recipe.creativeMoments = [];
+    const issues = validateShortsRetention(recipe, catalog);
+    assert.ok(!issues.some((i) => i.code === "V22-06"));
+  });
+
   it("passes valid short retention recipe", () => {
     const recipe = structuredClone(baseShortRecipe);
     recipe.creativeMoments = validMoments();

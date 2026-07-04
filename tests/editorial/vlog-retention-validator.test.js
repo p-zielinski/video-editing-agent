@@ -318,6 +318,142 @@ describe("vlog-retention validator", () => {
     assert.ok(result.issues.some((i) => i.code === "V22-VLOG-01"));
   });
 
+  it("V22-VLOG-06 errors when two pattern_interrupt fall in same 10min window on 12min main", () => {
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.outputs[0].targetDurationSec = 720;
+    recipe.outputs[0].timeline[0].outputEndSec = 720;
+    recipe.outputs[0].timeline[0].videoOutSec = 720;
+    recipe.outputs[0].timeline[0].audioOutSec = 720;
+    recipe.creativeMoments = [
+      ...validVlogMoments(),
+      {
+        momentId: "cm_pi_1",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 60,
+        outputEndSec: 63,
+        reason: "PI 1",
+      },
+      {
+        momentId: "cm_pi_2",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 300,
+        outputEndSec: 303,
+        reason: "PI 2",
+      },
+    ];
+    const issues = validateVlogRetention(recipe, catalog);
+    assert.ok(issues.some((i) => i.code === "V22-VLOG-06" && i.severity === "error"));
+  });
+
+  it("V22-VLOG-06 warns when one pattern_interrupt reaches per-10min limit on main", () => {
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.outputs[0].targetDurationSec = 600;
+    recipe.outputs[0].timeline[0].outputEndSec = 600;
+    recipe.outputs[0].timeline[0].videoOutSec = 600;
+    recipe.outputs[0].timeline[0].audioOutSec = 600;
+    recipe.creativeMoments = [
+      ...validVlogMoments(),
+      {
+        momentId: "cm_pi_1",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 120,
+        outputEndSec: 123,
+        reason: "PI at limit",
+      },
+    ];
+    const issues = validateVlogRetention(recipe, catalog);
+    assert.ok(issues.some((i) => i.code === "V22-VLOG-06" && i.severity === "warning"));
+    assert.equal(issues.filter((i) => i.code === "V22-VLOG-06" && i.severity === "error").length, 0);
+  });
+
+  it("V22-VLOG-06 ignores pattern_interrupt on short output", () => {
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.outputs.push({
+      outputId: "short_9x16",
+      format: "9:16",
+      outputKind: "short",
+      targetDurationSec: 45,
+      timeline: [{ outputEndSec: 45, videoInSec: 0, videoOutSec: 45 }],
+    });
+    recipe.creativeMoments = [
+      ...validVlogMoments(),
+      {
+        momentId: "cm_pi_short",
+        techniqueId: "pattern_interrupt",
+        outputId: "short_9x16",
+        outputStartSec: 5,
+        outputEndSec: 8,
+        reason: "Short PI",
+      },
+    ];
+    const issues = validateVlogRetention(recipe, catalog);
+    assert.equal(issues.filter((i) => i.code === "V22-VLOG-06").length, 0);
+  });
+
+  it("V22-VLOG-06 respects narrativeProfile.maxPatternInterruptsPer10Min override", () => {
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.outputs[0].targetDurationSec = 720;
+    recipe.outputs[0].timeline[0].outputEndSec = 720;
+    recipe.outputs[0].timeline[0].videoOutSec = 720;
+    recipe.outputs[0].timeline[0].audioOutSec = 720;
+    recipe.narrativeProfile = { maxPatternInterruptsPer10Min: 2 };
+    recipe.creativeMoments = [
+      ...validVlogMoments(),
+      {
+        momentId: "cm_pi_1",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 60,
+        outputEndSec: 63,
+        reason: "PI 1",
+      },
+      {
+        momentId: "cm_pi_2",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 300,
+        outputEndSec: 303,
+        reason: "PI 2",
+      },
+    ];
+    const issues = validateVlogRetention(recipe, catalog);
+    assert.equal(issues.filter((i) => i.code === "V22-VLOG-06").length, 0);
+  });
+
+  it("V22-VLOG-06 runs when vlogRetentionProfile disabled but main output exists", () => {
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.vlogRetentionProfile = { enabled: false };
+    recipe.outputs[0].targetDurationSec = 720;
+    recipe.outputs[0].timeline[0].outputEndSec = 720;
+    recipe.outputs[0].timeline[0].videoOutSec = 720;
+    recipe.outputs[0].timeline[0].audioOutSec = 720;
+    recipe.creativeMoments = [
+      {
+        momentId: "cm_pi_1",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 60,
+        outputEndSec: 63,
+        reason: "PI 1",
+      },
+      {
+        momentId: "cm_pi_2",
+        techniqueId: "pattern_interrupt",
+        outputId: "main_16x9",
+        outputStartSec: 300,
+        outputEndSec: 303,
+        reason: "PI 2",
+      },
+    ];
+    const issues = validateVlogRetention(recipe, catalog);
+    assert.ok(issues.some((i) => i.code === "V22-VLOG-06" && i.severity === "error"));
+    assert.equal(issues.filter((i) => i.code === "V22-VLOG-01").length, 0);
+    assert.equal(issues.filter((i) => i.code === "V22-VLOG-02").length, 0);
+  });
+
   it("validateRecipeV2 skips V22-VLOG for v2.1 without opt-in", () => {
     const recipe = {
       version: "2.1",
@@ -332,5 +468,177 @@ describe("vlog-retention validator", () => {
     };
     const result = validateRecipeV2(recipe);
     assert.equal(result.issues.filter((i) => i.code?.startsWith("V22-VLOG")).length, 0);
+  });
+
+  const tenMinNarrativeFixtures = () => {
+    const abstraction = {
+      L2: [
+        {
+          segmentId: "seg_fast",
+          startSec: 0,
+          endSec: 300,
+          sceneIds: ["clip01_scene001"],
+        },
+        {
+          segmentId: "seg_slow",
+          startSec: 0,
+          endSec: 300,
+          sceneIds: ["clip01_scene002"],
+          narrativeRole: "breath",
+        },
+      ],
+    };
+    const timelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 300 },
+        { sceneId: "clip01_scene002", clipId: "clip01", startSec: 0, endSec: 300 },
+      ],
+    };
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.outputs[0].targetDurationSec = 600;
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "m_fast",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 300,
+        audioInSec: 0,
+        audioOutSec: 300,
+        audioPolicy: "from_video_ref",
+        outputStartSec: 0,
+        outputEndSec: 300,
+      },
+      {
+        segmentId: "m_slow",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        videoInSec: 0,
+        videoOutSec: 300,
+        audioInSec: 0,
+        audioOutSec: 300,
+        audioPolicy: "from_video_ref",
+        outputStartSec: 300,
+        outputEndSec: 600,
+      },
+    ];
+    recipe.narrativeProfile = {
+      segments: [{ l2SegmentId: "seg_slow", rhythm: "slow", retentionIntensity: "low" }],
+    };
+    return { recipe, abstraction, timelineIndex };
+  };
+
+  function beatMomentsAt(times) {
+    const techniques = ["zoom_slow_push", "ken_burns_light", "music_swell", "silence_beat"];
+    return times.map((outputStartSec, index) => ({
+      momentId: `cm_beat_${index}`,
+      techniqueId: techniques[index % techniques.length],
+      outputId: "main_16x9",
+      outputStartSec,
+      outputEndSec: outputStartSec + 4,
+      retentionRole: "beat",
+      reason: `Beat ${index + 1}`,
+    }));
+  }
+
+  it("V22-VLOG-01 exempts 5min slow L2 when narrativeProfile present — fewer beats required", () => {
+    const { recipe, abstraction, timelineIndex } = tenMinNarrativeFixtures();
+    recipe.creativeMoments = beatMomentsAt([48, 93, 138, 183, 228, 273]);
+
+    const withProfile = validateVlogRetention(recipe, catalog, { abstraction, timelineIndex });
+    assert.equal(withProfile.filter((i) => i.code === "V22-VLOG-01").length, 0);
+
+    delete recipe.narrativeProfile;
+    const withoutProfile = validateVlogRetention(recipe, catalog, { abstraction, timelineIndex });
+    assert.equal(withoutProfile.filter((i) => i.code === "V22-VLOG-01").length, 0);
+  });
+
+  it("V22-VLOG-02 exempts slow breath segment — no beat required mid-breath", () => {
+    const abstraction = {
+      L2: [
+        {
+          segmentId: "seg_open",
+          startSec: 0,
+          endSec: 200,
+          sceneIds: ["clip01_scene001"],
+        },
+        {
+          segmentId: "seg_breath",
+          startSec: 0,
+          endSec: 300,
+          sceneIds: ["clip01_scene002"],
+          narrativeRole: "breath",
+        },
+        {
+          segmentId: "seg_close",
+          startSec: 0,
+          endSec: 100,
+          sceneIds: ["clip01_scene003"],
+        },
+      ],
+    };
+    const timelineIndex = {
+      scenes: [
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 200 },
+        { sceneId: "clip01_scene002", clipId: "clip01", startSec: 0, endSec: 300 },
+        { sceneId: "clip01_scene003", clipId: "clip01", startSec: 0, endSec: 100 },
+      ],
+    };
+    const recipe = structuredClone(baseVlogRecipe);
+    recipe.outputs[0].targetDurationSec = 600;
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "m_open",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 200,
+        audioInSec: 0,
+        audioOutSec: 200,
+        audioPolicy: "from_video_ref",
+        outputStartSec: 0,
+        outputEndSec: 200,
+      },
+      {
+        segmentId: "m_breath",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+        videoInSec: 0,
+        videoOutSec: 300,
+        audioInSec: 0,
+        audioOutSec: 300,
+        audioPolicy: "from_video_ref",
+        outputStartSec: 200,
+        outputEndSec: 500,
+      },
+      {
+        segmentId: "m_close",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene003" },
+        videoInSec: 0,
+        videoOutSec: 100,
+        audioInSec: 0,
+        audioOutSec: 100,
+        audioPolicy: "from_video_ref",
+        outputStartSec: 500,
+        outputEndSec: 600,
+      },
+    ];
+    recipe.narrativeProfile = {
+      segments: [{ l2SegmentId: "seg_breath", rhythm: "slow", retentionIntensity: "low" }],
+    };
+    recipe.creativeMoments = beatMomentsAt([48, 93, 138, 188, 505, 550]);
+
+    const withProfile = validateVlogRetention(recipe, catalog, { abstraction, timelineIndex });
+    assert.equal(withProfile.filter((i) => i.code === "V22-VLOG-02").length, 0);
+
+    delete recipe.narrativeProfile;
+    const withoutProfile = validateVlogRetention(recipe, catalog, { abstraction, timelineIndex });
+    assert.equal(withoutProfile.filter((i) => i.code === "V22-VLOG-02").length, 0);
   });
 });

@@ -1,9 +1,23 @@
-import { buildOutputTimeline } from "../lib/build-output-timeline.js";
+import { buildOutputTimeline, resolveWordIndexForSegment } from "../lib/build-output-timeline.js";
+import { buildKeepRanges } from "../render/audio-cuts.js";
+import {
+  findL2SegmentIdForSourceTime,
+  isSlowBreathNarrativeSegment,
+  resolveL2OutputRangeSec,
+  resolveL2SegmentProfile,
+  resolveRecipeNarrativeProfile,
+  resolveSegmentCaps,
+  shouldSkipRetentionBeatEnrich,
+} from "../lib/narrative-profile.js";
 import {
   buildSpatialRefFromAnchor,
   deriveClipIdFromSceneId,
   findAnchorNearTimestamp,
 } from "./spatial-ref.js";
+import { buildTopSceneRanks } from "./scene-rank.js";
+
+export const SHORT_HOOK_SEGMENT_ID = "enrich_short_hook_01";
+const DEFAULT_SHORT_HOOK_MAX_SEC = 3;
 
 export const DEFAULT_SHORTS_RETENTION_PROFILE = {
   enabled: false,
@@ -617,13 +631,42 @@ function resolveMappingOutputs(recipeOrOutputs) {
   return recipeOrOutputs?.outputs ?? [];
 }
 
+function mapSourceOffsetInSegment(segment, sourceTimeSec, wordIndex) {
+  const sourceIn = segment.audioInSec ?? segment.videoInSec ?? 0;
+  const sourceOut = segment.audioOutSec ?? segment.videoOutSec ?? sourceIn;
+
+  if (!segment.cuts?.length || !wordIndex?.words?.length) {
+    return sourceTimeSec - sourceIn;
+  }
+
+  const keepRanges = buildKeepRanges(segment.cuts, wordIndex, sourceIn, sourceOut);
+  if (!keepRanges?.length) {
+    return sourceTimeSec - sourceIn;
+  }
+
+  let outputOffset = 0;
+  for (const range of keepRanges) {
+    const rangeSourceStart = sourceIn + range.start;
+    const rangeSourceEnd = sourceIn + range.end;
+    if (sourceTimeSec < rangeSourceStart) {
+      break;
+    }
+    if (sourceTimeSec <= rangeSourceEnd + 0.001) {
+      return outputOffset + Math.max(0, sourceTimeSec - rangeSourceStart);
+    }
+    outputOffset += range.end - range.start;
+  }
+
+  return outputOffset;
+}
+
 /**
  * Map clip source time to output timeline position by walking output segments.
  * Falls back to sourceTimeSec when no timeline is materialized yet (pre-recipe brief).
  * @param {object|object[]} recipeOrOutputs — recipe or outputs array
  * @param {string} clipId
  * @param {number} sourceTimeSec
- * @param {{ outputKind?: "main"|"short" }} [options]
+ * @param {{ outputKind?: "main"|"short", wordIndexes?: object[] }} [options]
  * @returns {number|null}
  */
 export function mapSourceTimeToOutputSec(recipeOrOutputs, clipId, sourceTimeSec, options = {}) {
@@ -640,7 +683,9 @@ export function mapSourceTimeToOutputSec(recipeOrOutputs, clipId, sourceTimeSec,
     return Math.round(sourceTimeSec * 10) / 10;
   }
 
-  const enrichedTimeline = buildOutputTimeline(output);
+  const enrichedTimeline = buildOutputTimeline(output, {
+    wordIndexes: options.wordIndexes,
+  });
 
   for (const segment of enrichedTimeline) {
     if (resolveSegmentClipId(segment) !== clipId) {
@@ -654,7 +699,9 @@ export function mapSourceTimeToOutputSec(recipeOrOutputs, clipId, sourceTimeSec,
     }
 
     const outputStartSec = segment.outputStartSec ?? 0;
-    return Math.round((outputStartSec + (sourceTimeSec - sourceIn)) * 10) / 10;
+    const wordIndex = resolveWordIndexForSegment(segment, options.wordIndexes);
+    const sourceOffset = mapSourceOffsetInSegment(segment, sourceTimeSec, wordIndex);
+    return Math.round((outputStartSec + sourceOffset) * 10) / 10;
   }
 
   return null;
@@ -671,10 +718,11 @@ function collectRetentionAnchorCandidates(audioIndex, abstraction, timelineIndex
   const candidates = [];
   const mappingSource = mapContext.recipe ?? mapContext.outputs;
   const outputKind = mapContext.outputKind ?? "main";
+  const { wordIndexes } = mapContext;
 
   function attachOutputSec(sourceTimeSec, clipId) {
     const mapped = mappingSource
-      ? mapSourceTimeToOutputSec(mappingSource, clipId, sourceTimeSec, { outputKind })
+      ? mapSourceTimeToOutputSec(mappingSource, clipId, sourceTimeSec, { outputKind, wordIndexes })
       : Math.round(sourceTimeSec * 10) / 10;
     return mapped ?? Math.round(sourceTimeSec * 10) / 10;
   }
@@ -868,13 +916,14 @@ function hasBeatNearSec(beatMoments, targetSec, toleranceSec) {
 function collectEnergyPeakOutputSecs(audioIndex, mapContext = {}) {
   const mappingSource = mapContext.recipe ?? mapContext.outputs;
   const outputKind = mapContext.outputKind ?? "main";
+  const { wordIndexes } = mapContext;
   const peaks = [];
 
   for (const clip of audioIndex?.clips ?? []) {
     for (const peak of clip.energyPeaks ?? []) {
       const mid = Math.round(((peak.startSec + peak.endSec) / 2) * 10) / 10;
       const mapped = mappingSource
-        ? mapSourceTimeToOutputSec(mappingSource, clip.clipId, mid, { outputKind })
+        ? mapSourceTimeToOutputSec(mappingSource, clip.clipId, mid, { outputKind, wordIndexes })
         : mid;
       peaks.push(mapped ?? mid);
     }
@@ -931,36 +980,255 @@ function countEnrichBeatMoments(moments) {
   }
   return maxIndex;
 }
+function collectTextOverlaysFromOutput(output) {
+  const overlays = [];
+  for (const segment of output?.timeline ?? []) {
+    const segmentStart = segment.outputStartSec ?? 0;
+    for (const overlay of segment.textOverlays ?? []) {
+      overlays.push({
+        ...overlay,
+        outputStartSec: overlay.outputStartSec ?? segmentStart,
+      });
+    }
+  }
+  return overlays;
+}
 
-function hasHookMomentInWindow(moments, outputId, hookWindowSec) {
-  return moments.some(
+function isHookOverlayInWindow(overlay, hookWindowSec) {
+  const startSec = overlay.outputStartSec ?? 0;
+  if (startSec >= hookWindowSec) {
+    return false;
+  }
+  if (overlay.role === "hook") {
+    return true;
+  }
+  return isLargeHookOverlay(overlay);
+}
+
+function hasHookMomentInWindow(moments, outputId, hookWindowSec, textOverlays = []) {
+  if (moments.some(
     (moment) => moment.outputId === outputId
       && moment.outputStartSec < hookWindowSec
       && isHookMoment(moment),
+  )) {
+    return true;
+  }
+  return textOverlays.some((overlay) => isHookOverlayInWindow(overlay, hookWindowSec));
+}
+
+function sceneUsedInTimeline(timeline, sceneId) {
+  return (timeline ?? []).some(
+    (segment) => segment.videoRef?.sceneId === sceneId
+      || segment.audioRef?.sceneId === sceneId,
   );
+}
+
+function isHookSceneAtTimelineStart(shortOutput, hookSceneId) {
+  const first = shortOutput?.timeline?.[0];
+  if (!first) {
+    return false;
+  }
+  if (first.segmentId === SHORT_HOOK_SEGMENT_ID) {
+    return true;
+  }
+  if (!hookSceneId) {
+    return true;
+  }
+  return first.videoRef?.sceneId === hookSceneId
+    || first.audioRef?.sceneId === hookSceneId;
+}
+
+function resolveColdOpenHookSceneId(abstraction) {
+  const loops = abstraction?.L3?.openLoops ?? [];
+  const coldOpen = loops.find((loop) => loop.kind === "cold_open");
+  if (!coldOpen) {
+    return null;
+  }
+  return coldOpen.payoffSceneId ?? coldOpen.setupSceneId ?? null;
+}
+
+function resolveKeyMomentsHookSceneId(abstraction) {
+  let bestSceneId = null;
+  let bestBroll = -1;
+
+  for (const l1 of abstraction?.L1 ?? []) {
+    if (!l1.keyMoments?.length) {
+      continue;
+    }
+    const broll = l1.brollPotential ?? 0;
+    if (broll > bestBroll) {
+      bestBroll = broll;
+      bestSceneId = l1.sceneId;
+    }
+  }
+
+  return bestBroll >= 0.5 ? bestSceneId : null;
+}
+
+function resolveEnergyHookSceneId(timelineIndex, audioIndex) {
+  let bestSceneId = null;
+  let bestRms = -Infinity;
+
+  for (const clip of audioIndex?.clips ?? []) {
+    for (const peak of clip.energyPeaks ?? []) {
+      const mid = (peak.startSec + peak.endSec) / 2;
+      const scene = (timelineIndex?.scenes ?? []).find(
+        (entry) => entry.clipId === clip.clipId
+          && mid >= (entry.startSec ?? 0)
+          && mid < (entry.endSec ?? entry.startSec + (entry.durationSec ?? 0)),
+      );
+      if (!scene) {
+        continue;
+      }
+      const rms = peak.rmsDb ?? 0;
+      if (rms > bestRms) {
+        bestRms = rms;
+        bestSceneId = scene.sceneId;
+      }
+    }
+  }
+
+  return bestSceneId;
+}
+
+function resolveRankedHookSceneId(abstraction, timelineIndex, audioIndex) {
+  const ranks = buildTopSceneRanks(abstraction, timelineIndex, audioIndex, { limit: 1 });
+  return ranks[0]?.sceneId ?? null;
+}
+
+/**
+ * Resolve best hook scene for shorts — cold_open loop, then scene ranks / keyMoments / energy.
+ * @param {object} abstraction
+ * @param {object} timelineIndex
+ * @param {object} [audioIndex]
+ * @returns {{ sceneId: string|null, source: string }}
+ */
+export function resolveBestHookScene(abstraction, timelineIndex, audioIndex) {
+  const coldOpenSceneId = resolveColdOpenHookSceneId(abstraction);
+  if (coldOpenSceneId) {
+    return { sceneId: coldOpenSceneId, source: "cold_open_loop" };
+  }
+
+  const rankedSceneId = resolveRankedHookSceneId(abstraction, timelineIndex, audioIndex)
+    ?? resolveKeyMomentsHookSceneId(abstraction)
+    ?? resolveEnergyHookSceneId(timelineIndex, audioIndex);
+  if (rankedSceneId) {
+    return { sceneId: rankedSceneId, source: "scene_rank" };
+  }
+
+  return { sceneId: null, source: "timeline_start" };
+}
+
+/**
+ * Prepend non-chronological hook tease segment on short output (mirrors cold-open prepend).
+ * @returns {boolean} whether a segment was prepended
+ */
+export function prependShortHookSegment(
+  shortOutput,
+  hookSceneId,
+  timelineIndex,
+  { allowBrollReuse = false } = {},
+) {
+  if (!hookSceneId || !shortOutput?.timeline?.length) {
+    return false;
+  }
+
+  if (isHookSceneAtTimelineStart(shortOutput, hookSceneId)) {
+    return false;
+  }
+
+  if (!allowBrollReuse && sceneUsedInTimeline(shortOutput.timeline, hookSceneId)) {
+    return false;
+  }
+
+  const scene = (timelineIndex?.scenes ?? []).find(
+    (entry) => entry.sceneId === hookSceneId,
+  );
+  if (!scene) {
+    return false;
+  }
+
+  const clipId = deriveClipIdFromSceneId(hookSceneId);
+  const sceneEnd = scene.endSec ?? (scene.startSec ?? 0) + (scene.durationSec ?? DEFAULT_SHORT_HOOK_MAX_SEC);
+  const sceneStart = scene.startSec ?? 0;
+  const duration = Math.min(DEFAULT_SHORT_HOOK_MAX_SEC, sceneEnd - sceneStart);
+  const videoInSec = Math.max(sceneStart, sceneEnd - duration);
+  const videoOutSec = sceneEnd;
+
+  shortOutput.timeline.unshift({
+    segmentId: SHORT_HOOK_SEGMENT_ID,
+    segmentRole: "aroll",
+    videoRef: { clipId, sceneId: hookSceneId },
+    audioRef: { clipId, sceneId: hookSceneId },
+    videoInSec,
+    videoOutSec,
+    audioInSec: videoInSec,
+    audioOutSec: videoOutSec,
+    audioPolicy: "from_video_ref",
+    overlapSec: 0,
+    cuts: [],
+    textOverlays: [],
+  });
+
+  return true;
 }
 
 /**
  * Add hook creativeMoment when shorts profile requires one and director omitted it.
+ * Prepends best-scene tease when hook scene is not already at timeline start.
  * @param {object} shortOutput
  * @param {object} profile
  * @param {object[]} existingMoments
+ * @param {{ abstraction?: object, timelineIndex?: object, audioIndex?: object, recipe?: object }} [options]
  * @returns {object[]}
  */
-function enrichShortHookMoment(shortOutput, profile, existingMoments) {
+function enrichShortHookMoment(shortOutput, profile, existingMoments, options = {}) {
   if (!profile?.enabled || !profile.requireHookMoment) {
     return [];
   }
 
   const hookWindowSec = profile.hookWindowSec ?? DEFAULT_SHORTS_RETENTION_PROFILE.hookWindowSec;
-  if (hasHookMomentInWindow(existingMoments, shortOutput.outputId, hookWindowSec)) {
+  const textOverlays = collectTextOverlaysFromOutput(shortOutput);
+  if (existingMoments.some((moment) => moment.momentId === "enrich_hook_001")) {
     return [];
+  }
+  if (hasHookMomentInWindow(
+    existingMoments,
+    shortOutput.outputId,
+    hookWindowSec,
+    textOverlays,
+  )) {
+    return [];
+  }
+
+  const { abstraction, timelineIndex, audioIndex, recipe } = options;
+  const allowBrollReuse = recipe?.batchContext?.allowBrollReuse ?? false;
+  const { sceneId: hookSceneId, source: hookSource } = resolveBestHookScene(
+    abstraction ?? {},
+    timelineIndex ?? {},
+    audioIndex,
+  );
+
+  let prepended = false;
+  if (hookSceneId) {
+    prepended = prependShortHookSegment(
+      shortOutput,
+      hookSceneId,
+      timelineIndex,
+      { allowBrollReuse },
+    );
   }
 
   const useTitleOverlay = profile.requireHookOverlay !== false;
   const techniqueId = useTitleOverlay ? "hook_title_overlay" : "hook_visual_punch";
   const durationSec = useTitleOverlay ? 2.5 : 0.8;
   const outputEndSec = Math.min(durationSec, hookWindowSec);
+
+  const reason = prepended
+    ? `Enriched non-chronological hook from ${hookSource} scene ${hookSceneId}`
+    : hookSceneId && hookSource !== "timeline_start"
+      ? `Enriched hook at best scene ${hookSceneId} (${hookSource})`
+      : "Enriched hook moment in opening window";
 
   return [{
     momentId: "enrich_hook_001",
@@ -970,7 +1238,7 @@ function enrichShortHookMoment(shortOutput, profile, existingMoments) {
     outputEndSec: Math.round(outputEndSec * 10) / 10,
     retentionRole: "hook",
     params: useTitleOverlay ? { style: "hook_large" } : {},
-    reason: "Enriched hook moment in opening window",
+    reason,
     confidence: 0.65,
   }];
 }
@@ -985,6 +1253,106 @@ function enrichShortHookMoment(shortOutput, profile, existingMoments) {
  * @param {{ audioIndex?: object, abstraction?: object, timelineIndex?: object, spatialIndex?: object }} options
  * @returns {object[]}
  */
+function countRetentionBeatsInL2Segment(
+  moments,
+  l2SegmentId,
+  abstraction,
+  recipe,
+  targetOutput,
+  wordIndexes,
+  { enrichOnly = false } = {},
+) {
+  const range = resolveL2OutputRangeSec(
+    l2SegmentId,
+    abstraction,
+    recipe,
+    targetOutput,
+    wordIndexes,
+  );
+  if (!range) {
+    return 0;
+  }
+
+  return moments.filter((moment) => {
+    if (!isRetentionBeatMoment(moment)) {
+      return false;
+    }
+    if (enrichOnly && !(moment.momentId ?? "").startsWith("enrich_beat_")) {
+      return false;
+    }
+    const start = moment.outputStartSec ?? 0;
+    return start >= range.startSec && start <= range.endSec;
+  }).length;
+}
+
+function resolveAnchorL2SegmentId(anchor, abstraction, timelineIndex, targetOutput) {
+  let clipId = anchor.clipId;
+  let sourceTimeSec = anchor.timeSec ?? anchor.anchorTimeSec;
+
+  if ((!clipId || !Number.isFinite(sourceTimeSec)) && Number.isFinite(anchor.outputSec)) {
+    const resolved = resolveSegmentAtOutputSec(targetOutput, anchor.outputSec);
+    if (resolved) {
+      clipId = resolveSegmentClipId(resolved.segment);
+      sourceTimeSec = resolved.sourceTimeSec;
+    }
+  }
+
+  return findL2SegmentIdForSourceTime(
+    abstraction,
+    timelineIndex,
+    clipId,
+    sourceTimeSec,
+  );
+}
+
+function shouldSkipBeatEnrichForAnchor(
+  anchor,
+  recipe,
+  abstraction,
+  timelineIndex,
+  targetOutput,
+  { coverageMoments = [], wordIndexes } = {},
+) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  const l2SegmentId = resolveAnchorL2SegmentId(anchor, abstraction, timelineIndex, targetOutput);
+
+  const caps = resolveSegmentCaps(narrativeProfile, l2SegmentId, abstraction);
+  if (caps) {
+    if (caps.maxEnrichBeats === 0) {
+      return true;
+    }
+    const enrichCount = countRetentionBeatsInL2Segment(
+      coverageMoments,
+      l2SegmentId,
+      abstraction,
+      recipe,
+      targetOutput,
+      wordIndexes,
+      { enrichOnly: true },
+    );
+    if (enrichCount >= caps.maxEnrichBeats) {
+      return true;
+    }
+    const totalCount = countRetentionBeatsInL2Segment(
+      coverageMoments,
+      l2SegmentId,
+      abstraction,
+      recipe,
+      targetOutput,
+      wordIndexes,
+      { enrichOnly: false },
+    );
+    return totalCount >= caps.maxRetentionBeats;
+  }
+
+  if (!narrativeProfile?.segments?.length) {
+    return false;
+  }
+
+  const segmentProfile = resolveL2SegmentProfile(narrativeProfile, l2SegmentId);
+  return shouldSkipRetentionBeatEnrich(segmentProfile);
+}
+
 function enrichRetentionBeatsForOutput(
   recipe,
   targetOutput,
@@ -996,20 +1364,33 @@ function enrichRetentionBeatsForOutput(
     abstraction,
     timelineIndex,
     spatialIndex,
+    wordIndexes,
   },
 ) {
   const outputKind = mode === "shorts" ? "short" : "main";
   const defaults = resolveRetentionDefaults(mode);
-  const beatMoments = existingMoments.filter(
-    (moment) => moment.outputId === targetOutput.outputId && isRetentionBeatMoment(moment),
+  const outputMoments = existingMoments.filter((moment) => moment.outputId === targetOutput.outputId);
+  const enrichBeatMoments = outputMoments.filter(
+    (moment) => (moment.momentId ?? "").startsWith("enrich_beat_"),
   );
+  const existingEnrichBeatCount = enrichBeatMoments.length;
+  const beatMoments = outputMoments.filter((moment) => isRetentionBeatMoment(moment));
+  const directorBeatCount = beatMoments.filter(
+    (moment) => !(moment.momentId ?? "").startsWith("enrich_beat_"),
+  ).length;
   const existingBeatCount = beatMoments.length;
   const maxBeats = resolveMaxRetentionBeatMoments(recipe, profile, outputKind);
-  const slots = existingBeatCount === 0
-    ? Math.min(ENRICH_ZERO_BEAT_BACKFILL_CAP, maxBeats)
-    : Math.max(0, maxBeats - existingBeatCount);
 
-  if (!audioIndex?.clips?.length || slots === 0) {
+  if (directorBeatCount === 0 && existingEnrichBeatCount >= ENRICH_ZERO_BEAT_BACKFILL_CAP) {
+    return [];
+  }
+
+  const slots = directorBeatCount === 0
+    ? Math.min(ENRICH_ZERO_BEAT_BACKFILL_CAP, maxBeats) - existingEnrichBeatCount
+    : Math.max(0, maxBeats - existingBeatCount);
+  const effectiveSlots = Math.max(0, slots);
+
+  if (!audioIndex?.clips?.length || effectiveSlots === 0) {
     return [];
   }
 
@@ -1033,10 +1414,11 @@ function enrichRetentionBeatsForOutput(
       mode,
       recipe,
       outputKind,
+      wordIndexes,
     },
   );
   const toleranceSec = profile.retentionBeatToleranceSec ?? defaults.retentionBeatToleranceSec;
-  const mapContext = { recipe, outputKind };
+  const mapContext = { recipe, outputKind, wordIndexes };
   const energyPeakOutputSecs = collectEnergyPeakOutputSecs(audioIndex, mapContext);
   let cooldownPeakSecs = peaksWithNearbyBeats(
     energyPeakOutputSecs,
@@ -1046,9 +1428,10 @@ function enrichRetentionBeatsForOutput(
 
   const newMoments = [];
   let enrichIndex = countEnrichBeatMoments(existingMoments);
+  const coverageMoments = [...beatMoments, ...enrichBeatMoments];
 
   for (const anchor of anchors) {
-    if (newMoments.length >= slots) {
+    if (newMoments.length >= effectiveSlots) {
       break;
     }
 
@@ -1056,17 +1439,38 @@ function enrichRetentionBeatsForOutput(
       continue;
     }
 
-    const covered = hasBeatNearSec(beatMoments, anchor.idealOutputSec, toleranceSec)
-      || hasBeatNearSec(beatMoments, anchor.outputSec, toleranceSec)
+    const covered = hasBeatNearSec(coverageMoments, anchor.idealOutputSec, toleranceSec)
+      || hasBeatNearSec(coverageMoments, anchor.outputSec, toleranceSec)
       || hasBeatNearSec(newMoments, anchor.outputSec, toleranceSec);
 
     if (covered) {
       continue;
     }
 
+    if (shouldSkipBeatEnrichForAnchor(anchor, recipe, abstraction, timelineIndex, targetOutput, {
+      coverageMoments: [...coverageMoments, ...newMoments],
+      wordIndexes,
+    })) {
+      continue;
+    }
+
+    const techniqueId = anchor.suggestedTechniqueId;
+    if (techniqueId === "pattern_interrupt") {
+      const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+      const l2SegmentId = resolveAnchorL2SegmentId(
+        anchor,
+        abstraction,
+        timelineIndex,
+        targetOutput,
+      );
+      const caps = resolveSegmentCaps(narrativeProfile, l2SegmentId, abstraction);
+      if (caps && !caps.allowPatternInterrupt) {
+        continue;
+      }
+    }
+
     const beatDurationSec = enrichBeatDurationSec(enrichIndex);
     const outputStartSec = anchor.outputSec;
-    const techniqueId = anchor.suggestedTechniqueId;
     enrichIndex += 1;
 
     const spatialRef = resolveSpatialRefForBeat({
@@ -1120,10 +1524,11 @@ export function enrichRecipeRetentionBeats(recipe, {
   abstraction,
   timelineIndex,
   spatialIndex,
+  wordIndexes,
 } = {}) {
   let moments = recipe?.creativeMoments ?? [];
   const outputs = recipe?.outputs ?? [];
-  const enrichOptions = { audioIndex, abstraction, timelineIndex, spatialIndex };
+  const enrichOptions = { audioIndex, abstraction, timelineIndex, spatialIndex, wordIndexes, recipe };
 
   const mainOutput = outputs.find(
     (output) => output.outputKind === "main" || output.format === "16:9",
@@ -1150,7 +1555,7 @@ export function enrichRecipeRetentionBeats(recipe, {
   if (shortOutput && shortsProfile.enabled) {
     moments = [
       ...moments,
-      ...enrichShortHookMoment(shortOutput, shortsProfile, moments),
+      ...enrichShortHookMoment(shortOutput, shortsProfile, moments, enrichOptions),
     ];
     moments = [
       ...moments,
@@ -1168,13 +1573,98 @@ export function enrichRecipeRetentionBeats(recipe, {
   return moments;
 }
 
+function collectSlowBreathL2OutputRanges(recipe, mainOutput, abstraction, wordIndexes) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  const ranges = [];
+  const seen = new Set();
+
+  for (const l2Segment of abstraction?.L2 ?? []) {
+    const segmentProfile = narrativeProfile
+      ? resolveL2SegmentProfile(narrativeProfile, l2Segment.segmentId)
+      : null;
+    if (!isSlowBreathNarrativeSegment(segmentProfile, l2Segment)) {
+      continue;
+    }
+    if (seen.has(l2Segment.segmentId)) {
+      continue;
+    }
+    const range = resolveL2OutputRangeSec(
+      l2Segment.segmentId,
+      abstraction,
+      recipe,
+      mainOutput,
+      wordIndexes,
+    );
+    if (range) {
+      ranges.push(range);
+      seen.add(l2Segment.segmentId);
+    }
+  }
+
+  return ranges;
+}
+
+function isEnrichBeatInSlowBreathRange(moment, outputId, ranges) {
+  if (!(moment.momentId ?? "").startsWith("enrich_beat_")) {
+    return false;
+  }
+  if (moment.outputId !== outputId) {
+    return false;
+  }
+  const sec = moment.outputStartSec ?? 0;
+  return ranges.some((range) => sec >= range.startSec && sec < range.endSec);
+}
+
+/**
+ * Remove enrich_beat_* creativeMoments that fall inside slow/breath L2 output ranges.
+ * Run before retention enrich so slow sections stay clean.
+ *
+ * @param {object} recipe
+ * @param {object} [abstraction]
+ * @param {{ wordIndexes?: object[] }} [options]
+ * @returns {object[]} filtered creativeMoments
+ */
+export function stripEnrichBeatsInSlowSegments(recipe, abstraction, { wordIndexes = null } = {}) {
+  const moments = recipe?.creativeMoments ?? [];
+  if (!moments.length || !abstraction?.L2?.length) {
+    return moments;
+  }
+
+  const mainOutput = (recipe.outputs ?? []).find(
+    (output) => output.outputKind === "main" || output.format === "16:9",
+  );
+  if (!mainOutput) {
+    return moments;
+  }
+
+  const slowBreathRanges = collectSlowBreathL2OutputRanges(
+    recipe,
+    mainOutput,
+    abstraction,
+    wordIndexes,
+  );
+  if (!slowBreathRanges.length) {
+    return moments;
+  }
+
+  const filtered = moments.filter(
+    (moment) => !isEnrichBeatInSlowBreathRange(moment, mainOutput.outputId, slowBreathRanges),
+  );
+
+  if (filtered.length !== moments.length) {
+    recipe.creativeMoments = filtered;
+  }
+
+  return filtered;
+}
+
 /**
  * Snap ideal retention beat positions to nearest energyPeaks or L1 keyMoments.
  * Brief-only — does not mutate the recipe.
  * @param {object} audioIndex
  * @param {object} abstraction
  * @param {object} profile
- * @param {{ timelineIndex?: object, durationSec?: number, mode?: "vlog"|"shorts", recipe?: object, outputs?: object[], outputKind?: "main"|"short" }} [options]
+ * @param {{ timelineIndex?: object, durationSec?: number, mode?: "vlog"|"shorts", recipe?: object, outputs?: object[], outputKind?: "main"|"short", wordIndexes?: object[] }} [options]
  */
 export function buildRetentionBeatAnchors(audioIndex, abstraction, profile = {}, options = {}) {
   if (!profile?.enabled) {
@@ -1196,6 +1686,7 @@ export function buildRetentionBeatAnchors(audioIndex, abstraction, profile = {},
       recipe: options.recipe,
       outputs: options.outputs,
       outputKind,
+      wordIndexes: options.wordIndexes,
     },
   );
 

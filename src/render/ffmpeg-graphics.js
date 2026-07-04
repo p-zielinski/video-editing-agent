@@ -45,6 +45,31 @@ function escapeDrawtext(text) {
     .replace(/'/g, "\\'");
 }
 
+const OVERLAY_FADE_SEC = 0.3;
+
+/**
+ * Resolve overlay animation: per-overlay override, then style preset, then fade.
+ */
+export function resolveOverlayAnimation(overlay, style) {
+  return overlay.animation ?? style?.animation ?? "fade";
+}
+
+/**
+ * FFmpeg drawtext alpha expression (0–255): fade in first fadeSec, fade out last fadeSec.
+ */
+export function buildOverlayAlphaExpression(startSec, endSec, fadeSec = OVERLAY_FADE_SEC) {
+  const duration = endSec - startSec;
+  const fade = Math.min(fadeSec, duration / 2);
+  if (fade <= 0) {
+    return null;
+  }
+  const round = (n) => Math.round(n * 1000) / 1000;
+  const s = round(startSec);
+  const e = round(endSec);
+  const f = round(fade);
+  return `if(lt(t,${s}),0,if(lt(t,${s + f}),255*(t-${s})/${f},if(lt(t,${e - f}),255,if(lt(t,${e}),255*(${e}-t)/${f},0))))`;
+}
+
 /**
  * Build drawtext filter strings for text overlays (exported for unit tests).
  */
@@ -79,6 +104,13 @@ export function buildDrawtextFilters(overlays, { dimensions, stylePresets, forma
     }
     if (style.strokeColor) {
       parts.push(`bordercolor=${style.strokeColor.replace("#", "0x")}`);
+    }
+
+    if (resolveOverlayAnimation(overlay, style) === "fade") {
+      const alpha = buildOverlayAlphaExpression(overlay.outputStartSec, overlay.outputEndSec);
+      if (alpha) {
+        parts.push(`alpha='${alpha}'`);
+      }
     }
 
     return parts.join(":");

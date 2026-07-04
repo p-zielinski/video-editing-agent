@@ -1,7 +1,7 @@
 import path from "node:path";
 import { runFfmpeg } from "../lib/ffmpeg.js";
 import { resolveSegmentOutputDuration } from "../lib/build-output-timeline.js";
-import { buildSegmentVideoFilter } from "./ffmpeg-reframe.js";
+import { buildSegmentVideoFilter, composeSegmentVideoFilter } from "./ffmpeg-reframe.js";
 import { applyAudioCutsToRange, applyVideoCutsToRange } from "./audio-cuts.js";
 import {
   buildAtempoFilterChain,
@@ -181,7 +181,10 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     : buildVideoSyncFilter(segment, videoDur, audioDur);
   const combinedAudioFilter = buildCombinedAudioFilter(segment, videoDur, audioDur, options);
   const videoOnlyPadFilter = buildVideoOnlyPadFilter(segment, videoDur, audioDur);
-  const videoFilterChain = [baseVideoFilter, syncFilter, videoOnlyPadFilter].filter(Boolean).join(",") || null;
+  const videoFilter = composeSegmentVideoFilter(
+    baseVideoFilter,
+    [syncFilter, videoOnlyPadFilter],
+  );
 
   const isJlCutVideoOnly = isJlCutBorrowedAudio(segment);
   const isMuted = segment.audioPolicy === "mute";
@@ -226,8 +229,10 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
   }
 
   if (hasAudioCuts) {
-    const videoPre = videoFilterChain
-      ? `[0:v]${videoFilterChain}[vcutin]`
+    const videoPre = videoFilter
+      ? (videoFilter.mode === "filter_complex"
+        ? `${videoFilter.graph}[vcutin]`
+        : `[0:v]${videoFilter.chain}[vcutin]`)
       : "[0:v]setpts=PTS-STARTPTS[vcutin]";
 
     const videoCutsFilter = applyVideoCutsToRange({
@@ -256,31 +261,53 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     args.push("-filter_complex", `${videoPre};${videoCutsFilter};${audioGraph}${audioCutsFilter}`);
     args.push("-map", "[vout]", "-map", "[aout]");
     pushShortestIfNeeded(args, segment);
-  } else if (videoFilterChain || combinedAudioFilter) {
-    if (videoFilterChain && combinedAudioFilter && useSeparateAudio && audioPath) {
-      const filterComplex = `[0:v]${videoFilterChain}[vout];[1:a]${combinedAudioFilter}[aout]`;
+  } else if (videoFilter || combinedAudioFilter) {
+    if (videoFilter && combinedAudioFilter && useSeparateAudio && audioPath) {
+      const videoOut = videoFilter.mode === "filter_complex"
+        ? `${videoFilter.graph}[vout]`
+        : `[0:v]${videoFilter.chain}[vout]`;
+      const filterComplex = `${videoOut};[1:a]${combinedAudioFilter}[aout]`;
       args.push("-filter_complex", filterComplex);
       args.push("-map", "[vout]", "-map", "[aout]");
       pushShortestIfNeeded(args, segment);
-    } else if (videoFilterChain) {
+    } else if (videoFilter) {
       if (isMuted || isJlCutVideoOnly) {
-        args.push("-vf", videoFilterChain);
-        args.push("-map", "0:v:0", "-an");
+        if (videoFilter.mode === "filter_complex") {
+          args.push("-filter_complex", `${videoFilter.graph}[vout]`);
+          args.push("-map", "[vout]", "-an");
+        } else {
+          args.push("-vf", videoFilter.chain);
+          args.push("-map", "0:v:0", "-an");
+        }
       } else if (combinedAudioFilter) {
-        args.push("-vf", videoFilterChain);
+        if (videoFilter.mode === "filter_complex") {
+          args.push("-filter_complex", `${videoFilter.graph}[vout]`);
+          args.push("-map", "[vout]");
+        } else {
+          args.push("-vf", videoFilter.chain);
+          args.push("-map", "0:v:0");
+        }
         args.push("-af", combinedAudioFilter);
         if (useSeparateAudio && audioPath) {
-          args.push("-map", "0:v:0", "-map", "1:a:0");
+          args.push("-map", "1:a:0");
           pushShortestIfNeeded(args, segment);
         } else {
-          args.push("-map", "0:v:0", "-map", "0:a:0?");
+          args.push("-map", "0:a:0?");
         }
       } else if (useSeparateAudio && audioPath) {
-        args.push("-vf", videoFilterChain);
-        args.push("-map", "0:v:0", "-map", "1:a:0");
+        if (videoFilter.mode === "filter_complex") {
+          args.push("-filter_complex", `${videoFilter.graph}[vout]`);
+          args.push("-map", "[vout]", "-map", "1:a:0");
+        } else {
+          args.push("-vf", videoFilter.chain);
+          args.push("-map", "0:v:0", "-map", "1:a:0");
+        }
         pushShortestIfNeeded(args, segment);
+      } else if (videoFilter.mode === "filter_complex") {
+        args.push("-filter_complex", `${videoFilter.graph}[vout]`);
+        args.push("-map", "[vout]", "-map", "0:a:0?");
       } else {
-        args.push("-vf", videoFilterChain);
+        args.push("-vf", videoFilter.chain);
         args.push("-map", "0:v:0", "-map", "0:a:0?");
       }
     } else if (combinedAudioFilter && !isMuted) {

@@ -60,4 +60,13 @@ describe("loadTechniqueCatalog", () => {
     assert.ok(shortsPitch);
     assert.equal(shortsPitch.constraints.requiresCreativityLevel, "shorts");
   });
+
+  it("chapter_card requires short creativeMoment; documents main textOverlays delivery", () => {
+    const catalog = loadTechniqueCatalog({ pack: "shorts_retention_2026" });
+    const chapterCard = catalog.byId.get("chapter_card");
+    assert.ok(chapterCard);
+    assert.equal(chapterCard.constraints.requiresOutputKind, "short");
+    assert.match(chapterCard.whenToUse, /textOverlays/i);
+    assert.match(chapterCard.whenToAvoid, /main/i);
+  });
 });

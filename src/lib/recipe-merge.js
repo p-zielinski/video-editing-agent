@@ -317,6 +317,12 @@ export function mergeSegmentRecipes(superPlan, partials, options = {}) {
       ...superPlan.creativityProfile,
     };
   }
+  if (superPlan.narrativeProfile) {
+    base.narrativeProfile = superPlan.narrativeProfile;
+  }
+  if (superPlan.crossSegmentCallbacks?.length) {
+    base.structuredCallbacks = superPlan.crossSegmentCallbacks;
+  }
 
   return base;
 }

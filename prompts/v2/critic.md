@@ -11,7 +11,8 @@ Jesteś krytykiem montażu wideo v2. Oceniasz EditRecipe 2.0 pod kątem:
 - **creativeMoments (v2.1):** V21-01 … V21-15, NEEDS_SPATIAL_REVIEW.
 - **renderer fidelity:** techniki ≠ zawsze efekt montażowy offline — patrz sekcja „Uczciwość renderera”; nie karz za pulse zamiast cięcia, ale zgłaszaj V21-14 (J/L w creativeMoments), V21-15 (partial crossfade), V22-06 (`chapter_card` na main).
 - **shorts retention (v2.2):** V22-01 … V22-07 dla `outputKind: short` (tylko gdy retention włączone).
-- **vlog retention (v2.2):** V22-VLOG-01 … V22-VLOG-05 dla main 16:9 (gdy `vlogRetentionProfile` lub 16:9 bez short-only).
+- **vlog retention (v2.2):** V22-VLOG-01 … V22-VLOG-06 dla main 16:9 (gdy `vlogRetentionProfile` lub 16:9 bez short-only).
+- **narracja (P1-3):** NAR-PAYOFF-UNDELIVERED, NAR-PAYOFF-MISSING, NAR-BEAT-SPAM, NAR-DRAMATIC-PAUSE-CUT — gdy L3 `openLoops[]` lub `narrativeProfile` z wolnymi segmentami.
 - **audio mix (v2.4):** V23-02 (LUFS poza [-24,-12]), V23-03 (`musicBed.trackId` brak w katalogu / brak pliku).
 - **sfxPlan / presety (v2.4):** V24-01…V24-06 — `sfxPlan` clipId/zakresy, gęstość na main, `renderStylePresets` safeZone 9:16.
 - **pacing (v2.4):** V24-05 — gdy `qualityOverQuantity` lub `estimatedKeepRatio` z L3: main output zbyt długi względem materiału źródłowego.
@@ -143,8 +144,9 @@ Severity: V22-01, V22-02, V22-04 → error przy `level: shorts`; warning przy ba
 | V22-VLOG-03 | Agresywne techniki (`jump_cut`, `hard_cut_energy`, `pattern_interrupt`, `snap_zoom`) na beat — warning |
 | V22-VLOG-04 | 3+ kolejne beaty z tym samym `techniqueId` — warning (monotonna rotacja) |
 | V22-VLOG-05 | Beat daleko od `retentionBeatTargets` (±tolerance) — warning (gdy targets w recipe) |
+| V22-VLOG-06 | Max `pattern_interrupt` na main w oknie 10 min — domyślnie 1 (error przy przekroczeniu; warning przy limicie) |
 
-Severity: V22-VLOG-01, V22-VLOG-02 → `error`; V22-VLOG-03 … V22-VLOG-05 → `warning`.
+Severity: V22-VLOG-01, V22-VLOG-02, V22-VLOG-06 (przekroczenie) → `error`; V22-VLOG-03 … V22-VLOG-05, V22-VLOG-06 (na limicie) → `warning`.
 
 ### Kody V24 (sfxPlan / presety / pacing)
 
@@ -174,6 +176,35 @@ Severity: V24-01 … V24-03 → `error`; V24-04 … V24-06 → `warning`.
 | V25-CHR-02 | Main timeline: klip z późniejszego dnia przed klipami z wcześniejszego (`daySegments`) |
 | V25-CHR-03 | Cold open bez rewind do chronologicznego intro w pierwszych segmentach |
 
-Severity: V25-VO-01, V25-VO-02, V25-BROLL-02, V25-BROLL-03, V25-CHR-01, V25-CHR-02 → `error`; V25-BROLL-04, V25-BROLL-05, V25-BROLL-06, V25-CHR-03 → `warning`.
+Severity: V25-VO-01, V25-VO-02, V25-BROLL-02, V25-BROLL-03, V25-CHR-01, V25-CHR-02, V25-CHR-03 → `error`; V25-BROLL-04, V25-BROLL-05, V25-BROLL-06 → `warning`.
+
+### Kody NAR (narracja / open loops)
+
+Walidacja deterministyczna (`heuristicIssues`) gdy w `sessionSummary` / L3 jest `openLoops[]` lub `narrativeProfile` z wolnymi segmentami.
+
+| Kod | Reguła |
+|-----|--------|
+| NAR-PAYOFF-UNDELIVERED | `openLoops[]` z `kind: cold_open` lub `payoff_tease` i `payoffSceneId` — brak `creativeMoments` z `retentionRole: payoff` ani overlay `role: payoff` przy tej scenie (±30s output) |
+| NAR-PAYOFF-MISSING | Segment L2 z `narrativeRole: climax` (lub ostatni L2) — brak `creativeMoments` z `retentionRole: payoff` ani `textOverlays` z `role: payoff` w zakresie outputu kulminacji |
+| NAR-BEAT-SPAM | Segment L2 z `narrativeProfile.segments[].rhythm: slow` lub `retentionIntensity: low` — więcej niż 1 beat retencji lub jakikolwiek `enrich_beat_*` w zakresie output tego segmentu |
+| NAR-BREATH-BEAT | Segment L2 `breath` lub `rhythm: slow` — beat retencji, `pattern_interrupt` lub `snap_zoom` w zakresie output tego segmentu |
+| NAR-CLOSURE-SPAM | Segment L2 `resolution` (zamknięcie) — więcej niż 1 beat lub jakikolwiek `enrich_beat_*` w zakresie output |
+| NAR-CALLBACK-UNDELIVERED | `openLoops` `kind: callback` z `payoffSceneId` — brak `match_cut` ani overlay `role: payoff` przy scenie (±30 s output) |
+| NAR-DRAMATIC-PAUSE-CUT | `cuts[]` z `reason: "dead_air"` w segmencie L2 z `silencePolicy: preserve` lub w regionie `deadAirHints` z `kind: dramatic_pause` |
+
+Severity: wszystkie NAR-* → `warning`.
+
+### Priorytet fixera (narracja vs retencja)
+
+Gdy występują kody **NAR-*** (szczególnie **NAR-BEAT-SPAM** w segmentach `rhythm: slow` / `retentionIntensity: low`):
+
+- **Nie** dodawaj beatów ani `enrich_beat_*` w tych sekcjach, nawet gdy V22-VLOG-01 wymaga minimum beatów globalnie.
+- Preferuj **usunięcie** nadmiarowych beatów w wolnych segmentach zamiast „naprawy” retencji przez dokładanie pulsu.
+- Przy **NAR-DRAMATIC-PAUSE-CUT**: usuń `cuts[]` `dead_air` w preserve / dramatic_pause; nie zastępuj agresywnym `silence_beat` w tych miejscach.
+- Przy **NAR-PAYOFF-UNDELIVERED**: dodaj jeden mocny moment `retentionRole: payoff` przy `payoffSceneId` zamiast kolejnych beatów w środku filmu.
+- Przy **NAR-PAYOFF-MISSING**: dodaj `retentionRole: payoff` (`music_drop`, `zoom_punch_in`) lub `textOverlays` z `role: payoff` w zakresie segmentu L2 kulminacji — nie tylko beaty retencji.
+- Przy **NAR-BREATH-BEAT**: usuń beaty / `pattern_interrupt` / `snap_zoom` z segmentów L2 `breath` lub `rhythm: slow` — zostaw ciszę i montaż oddechowy.
+- Przy **NAR-CLOSURE-SPAM**: usuń `enrich_beat_*` i nadmiarowe beaty w segmencie L2 `resolution`; max 1 łagodny beat zamknięcia.
+- Przy **NAR-CALLBACK-UNDELIVERED**: dodaj `match_cut` lub overlay `role: payoff` przy `payoffSceneId` z callback open loop (±30 s) zamiast kolejnych beatów retencji.
 
 Zwracaj JSON: { "approved": boolean, "issues": [{ "severity": "error|warning|suggestion", "code", "message", "outputId?", "sceneId?" }], "summary": string }

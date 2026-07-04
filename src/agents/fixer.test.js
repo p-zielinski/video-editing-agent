@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { runFixer, shouldInvokeFixer } from "./fixer.js";
+import {
+  runFixer,
+  shouldInvokeFixer,
+  FIXABLE_NAR_WARNING_CODES,
+} from "./fixer.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 
 const audioIndex = {
@@ -275,12 +279,92 @@ describe("fixer agent", () => {
     ]), true);
   });
 
+  it("shouldInvokeFixer returns true for NAR-BREATH-BEAT warning", () => {
+    assert.ok(FIXABLE_NAR_WARNING_CODES.has("NAR-BREATH-BEAT"));
+    assert.ok(FIXABLE_NAR_WARNING_CODES.has("NAR-CLOSURE-SPAM"));
+    assert.ok(FIXABLE_NAR_WARNING_CODES.has("NAR-CALLBACK-UNDELIVERED"));
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "NAR-BREATH-BEAT", message: "beat in breath segment" },
+    ]), true);
+  });
+
+  it("shouldInvokeFixer returns true for NAR-BEAT-SPAM warning", () => {
+    assert.ok(FIXABLE_NAR_WARNING_CODES.has("NAR-BEAT-SPAM"));
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "NAR-BEAT-SPAM", message: "too many beats in slow segment" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "NAR-OTHER", message: "unlisted narrative code" },
+    ]), false);
+  });
+
+  it("shouldInvokeFixer returns true for NAR-DRAMATIC-PAUSE-CUT error", () => {
+    assert.equal(shouldInvokeFixer([
+      { severity: "error", code: "NAR-DRAMATIC-PAUSE-CUT", message: "dead_air cut in preserve segment" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "NAR-DRAMATIC-PAUSE-CUT", message: "dead_air cut in dramatic_pause" },
+    ]), true);
+  });
+
+  it("runFixer includes narrativeIssues and narrative context in payload", async () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.2",
+      narrativeProfile: {
+        mode: "internet_documentary",
+        segments: [{ l2SegmentId: "seg001", rhythm: "slow", silencePolicy: "preserve" }],
+      },
+      creativeMoments: [],
+    };
+    const abstraction = {
+      ...loadFixture("abstraction.json"),
+      L3: {
+        ...loadFixture("abstraction.json").L3,
+        openLoops: [{
+          kind: "cold_open",
+          payoffSceneId: "clip01_scene002",
+          tease: "co się stało?",
+        }],
+      },
+    };
+    const timelineIndex = loadFixture("timeline-index.json");
+    const fixerResponse = loadFixture("fixer-response.json");
+    const review = {
+      version: "1.0",
+      batchId: "testbatch",
+      iteration: 1,
+      approved: false,
+      issues: [
+        { severity: "warning", code: "NAR-BEAT-SPAM", message: "beat spam" },
+        { severity: "warning", code: "V22-VLOG-01", message: "min beats" },
+      ],
+      summary: "fix narrative",
+    };
+
+    const client = createMockOpenAIClient([fixerResponse], { captureRequests: true });
+    await runFixer(client, {
+      recipe,
+      review,
+      abstraction,
+      timelineIndex,
+      audioIndex,
+    });
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.equal(payload.narrativeIssues.length, 1);
+    assert.equal(payload.narrativeIssues[0].code, "NAR-BEAT-SPAM");
+    assert.equal(payload.openLoops.length, 1);
+    assert.equal(payload.narrativeProfile.mode, "internet_documentary");
+    assert.equal(payload.issues.length, 2);
+  });
+
   it("shouldInvokeFixer returns true for V24-05 and V25 chronology/broll warnings", () => {
     assert.equal(shouldInvokeFixer([
       { severity: "warning", code: "V24-05", message: "main too long" },
     ]), true);
     assert.equal(shouldInvokeFixer([
-      { severity: "warning", code: "V25-CHR-03", message: "cold open rewind" },
+      { severity: "error", code: "V25-CHR-03", message: "cold open rewind" },
     ]), true);
     assert.equal(shouldInvokeFixer([
       { severity: "warning", code: "V25-BROLL-04", message: "broll pool" },

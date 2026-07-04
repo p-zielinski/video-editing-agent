@@ -597,6 +597,8 @@ function validateGlobalBudgetLimits(moments, budget, catalog) {
 
 /**
  * Walidacja creativeMoments vs katalog i budżet (V21-01 … V21-15).
+ * Graphics output-kind gating (V22-06) lives in shorts-retention.js and applies only to
+ * creativeMoments — main chapter_card / emphasis via textOverlays[] is not checked here.
  */
 export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spatialIndex, audioIndexByClip } = {}) {
   const moments = recipe.creativeMoments ?? [];

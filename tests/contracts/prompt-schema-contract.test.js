@@ -39,6 +39,8 @@ const CRITICAL_PATHS = [
   "audioMixPlan.segments[].musicInSec",
   "audioMixPlan.segments[].musicOutSec",
   "audioMixPlan.segments[].duckUnderVoice",
+  "audioMixPlan.segments[].duckingDb",
+  "audioMixPlan.segments[].duckingWindows",
   "creativeMoments[].momentId",
   "creativeMoments[].techniqueId",
   "creativeMoments[].outputId",

@@ -2,6 +2,7 @@ import {
   computeScaledMinRetentionBeats,
   DEFAULT_VLOG_RETENTION_PROFILE,
 } from "./shorts-retention.js";
+import { RHYTHM_CAPS } from "../lib/narrative-profile.js";
 
 export const CREATIVITY_LEVELS = ["safe", "balanced", "bold", "shorts"];
 
@@ -202,6 +203,88 @@ export function estimateOutputDurationSec(output) {
  * Brief-safe subset of a creativity budget (director / critic payloads).
  * @param {ReturnType<typeof computeCreativityBudget>} budget
  */
+const RETENTION_INTENSITY_MULTIPLIERS = {
+  low: 0.5,
+  medium: 1,
+  high: 1.25,
+};
+
+const RHYTHM_ENRICH_BASELINE = RHYTHM_CAPS.normal.maxEnrichBeats;
+
+/**
+ * Scale output-level creativity limits for one L2 narrative phase.
+ * Uses `RHYTHM_CAPS.maxEnrichBeats` as the rhythm scale; `retentionIntensity`
+ * further tightens or relaxes zoom/technique density and gap spacing.
+ *
+ * @param {ReturnType<typeof computeCreativityBudget>} baseBudget
+ * @param {"slow"|"normal"|"fast"} rhythm
+ * @param {"low"|"medium"|"high"} [retentionIntensity="medium"]
+ */
+export function computeCreativityBudgetForL2Segment(
+  baseBudget,
+  rhythm,
+  retentionIntensity = "medium",
+) {
+  const caps = RHYTHM_CAPS[rhythm];
+  if (!caps || !baseBudget) {
+    return baseBudget;
+  }
+
+  const rhythmScale = caps.maxEnrichBeats / RHYTHM_ENRICH_BASELINE;
+  const intensityScale = RETENTION_INTENSITY_MULTIPLIERS[retentionIntensity] ?? 1;
+  const momentScale = rhythmScale * intensityScale;
+
+  const maxZoomMoments = Math.max(
+    0,
+    Math.round(baseBudget.maxZoomMoments * momentScale),
+  );
+  const maxTotalTechniqueMoments = Math.max(
+    0,
+    Math.round(baseBudget.maxTotalTechniqueMoments * momentScale),
+  );
+  const gapRhythmScale = RHYTHM_ENRICH_BASELINE / Math.max(caps.maxEnrichBeats, 0.25);
+  const minZoomGapSec = Math.round(
+    baseBudget.minZoomGapSec * gapRhythmScale / intensityScale,
+  );
+
+  return {
+    rhythm,
+    retentionIntensity,
+    level: baseBudget.level,
+    allowMidSentenceCuts: baseBudget.allowMidSentenceCuts,
+    maxZoomMoments,
+    minZoomGapSec,
+    maxTotalZoomDutySec: baseBudget.maxTotalZoomDutySec * momentScale,
+    maxTotalTechniqueMoments,
+  };
+}
+
+/**
+ * Map each narrativeProfile L2 segment to a scaled creativity budget.
+ * @param {ReturnType<typeof computeCreativityBudget>} baseBudget
+ * @param {{ segments?: Array<{ l2SegmentId: string, rhythm?: string, retentionIntensity?: string }> }} narrativeProfile
+ */
+export function buildCreativityBudgetByL2Segment(baseBudget, narrativeProfile) {
+  if (!baseBudget || !narrativeProfile?.segments?.length) {
+    return {};
+  }
+
+  const byL2Segment = {};
+  for (const segment of narrativeProfile.segments) {
+    if (!segment.l2SegmentId || !segment.rhythm) {
+      continue;
+    }
+    byL2Segment[segment.l2SegmentId] = summarizeCreativityBudgetForBrief(
+      computeCreativityBudgetForL2Segment(
+        baseBudget,
+        segment.rhythm,
+        segment.retentionIntensity ?? "medium",
+      ),
+    );
+  }
+  return byL2Segment;
+}
+
 export function summarizeCreativityBudgetForBrief(budget) {
   const summary = {
     level: budget.level,
