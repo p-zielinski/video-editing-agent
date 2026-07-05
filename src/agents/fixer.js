@@ -40,6 +40,14 @@ export const FIXABLE_V25_WARNING_CODES = new Set([
   "V25-CHR-03",
 ]);
 
+/** V26 warnings the fixer should attempt to repair. */
+export const FIXABLE_V26_WARNING_CODES = new Set([
+  "V26-FILLER-01",
+  "V26-DEADAIR-01",
+  "V26-CTA-01",
+  "V26-CHAPTER-01",
+]);
+
 /** NAR-* narrative warnings the fixer should attempt to repair. */
 export const FIXABLE_NAR_WARNING_CODES = new Set([
   "NAR-BEAT-SPAM",
@@ -68,6 +76,7 @@ export function shouldInvokeFixer(issues = []) {
       && (FIXABLE_VLOG_WARNING_CODES.has(issue.code)
         || FIXABLE_V24_WARNING_CODES.has(issue.code)
         || FIXABLE_V25_WARNING_CODES.has(issue.code)
+        || FIXABLE_V26_WARNING_CODES.has(issue.code)
         || FIXABLE_NAR_WARNING_CODES.has(issue.code)),
   );
 }

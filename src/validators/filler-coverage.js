@@ -1,7 +1,7 @@
 export const HIGH_FILLER_RATIO_THRESHOLD = 0.6;
 export const FILLER_COVERAGE_VALIDATOR_CODE = "V26-FILLER-01";
 
-function computeSceneFillerRatio(sceneId, timelineIndex) {
+export function computeSceneFillerRatio(sceneId, timelineIndex) {
   const sceneMeta = (timelineIndex?.scenes ?? []).find((entry) => entry.sceneId === sceneId);
   if (!sceneMeta) {
     return 0;

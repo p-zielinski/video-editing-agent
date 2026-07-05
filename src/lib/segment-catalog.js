@@ -1,4 +1,5 @@
 import { sortScenesByClipOrder } from "./abstraction-chunking.js";
+import { buildTopSceneRanks } from "../editorial/scene-rank.js";
 
 export const SUPER_DIRECTOR_MAX_SEGMENT_PICKS = 10;
 export const SUPER_DIRECTOR_DURATION_THRESHOLD_SEC = 600;
@@ -56,6 +57,13 @@ export function buildSegmentCatalog(abstraction, timelineIndex, clipRegistry = [
     const sceneIds = (segment.sceneIds ?? []).filter((sceneId) =>
       sortedScenes.some((scene) => scene.sceneId === sceneId),
     );
+    const segmentScenes = sortedScenes.filter((scene) => sceneIds.includes(scene.sceneId));
+    const topSceneRanks = buildTopSceneRanks(
+      abstraction,
+      { ...timelineIndex, scenes: segmentScenes },
+      null,
+      { limit: 3, clipRegistry },
+    );
 
     return {
       segmentId: segment.segmentId,
@@ -66,6 +74,9 @@ export function buildSegmentCatalog(abstraction, timelineIndex, clipRegistry = [
       startSec: segment.startSec,
       endSec: segment.endSec,
       narrativeRole: segment.narrativeRole,
+      topSceneRanks,
+      speechSceneCount: segmentScenes.filter((scene) => scene.hasSpeech).length,
+      brollSceneCount: segmentScenes.filter((scene) => !scene.hasSpeech).length,
     };
   });
 }

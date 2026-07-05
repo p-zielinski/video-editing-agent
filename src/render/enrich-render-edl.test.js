@@ -5,6 +5,7 @@ import {
   projectHookTitleOverlays,
   projectPatternInterruptTextOverlays,
   projectEmphasisTextOverlays,
+  projectChapterCardOverlays,
   prioritizeHookWindow,
   clampCreativeMomentsToHookWindow,
 } from "./enrich-render-edl.js";
@@ -138,6 +139,31 @@ describe("enrich-render-edl", () => {
 
     assert.equal(enriched[0].textOverlays.length, 1);
     assert.equal(enriched[0].textOverlays[0].text, "EXISTING");
+  });
+
+  it("projects chapter_card creativeMoments into textOverlays", () => {
+    const segments = [{
+      segmentId: "seg_s1",
+      outputStartSec: 0,
+      outputEndSec: 58,
+      textOverlays: [],
+    }];
+
+    const enriched = projectChapterCardOverlays(segments, [
+      {
+        techniqueId: "chapter_card",
+        outputId: "short_9x16",
+        outputStartSec: 40,
+        outputEndSec: 42,
+        params: { label: "Część 2" },
+      },
+    ], "short_9x16");
+
+    assert.equal(enriched[0].textOverlays.length, 1);
+    assert.equal(enriched[0].textOverlays[0].text, "Część 2");
+    assert.equal(enriched[0].textOverlays[0].style, "chapter_card");
+    assert.equal(enriched[0].textOverlays[0].role, "chapter");
+    assert.equal(enriched[0].textOverlays[0].position, "center");
   });
 
   it("clamps hook overlays to hook window for shorts", () => {

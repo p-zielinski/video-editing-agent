@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { runFfmpeg } from "../lib/ffmpeg.js";
 import { resolveSegmentOutputDuration } from "../lib/build-output-timeline.js";
+import { buildXfadeVideoFilter } from "./xfade-transitions.js";
 
 /**
  * Overlap at boundary between segment i-1 and segment i.
@@ -33,6 +34,44 @@ function segmentVideoDurationSec(segment) {
     return Math.max(0.01, segment.outputEndSec - segment.outputStartSec);
   }
   return Math.max(0.01, segment.videoOutSec - segment.videoInSec);
+}
+
+/**
+ * Effective video duration after J/L overlap trim/pad at concat.
+ */
+export function resolveJlVideoSegmentDuration(segIdx, segments) {
+  let dur = segmentVideoDurationSec(segments[segIdx]);
+  if (segIdx > 0 && segments[segIdx].audioPolicy === "from_prev") {
+    dur -= overlapAtBoundary(segments, segIdx);
+  }
+  if (segments[segIdx].audioPolicy === "from_next") {
+    dur += segments[segIdx].overlapSec ?? 0;
+  }
+  return Math.max(0.01, dur);
+}
+
+/**
+ * Per-segment video filter: L-cut trims start; J-cut extends end with frozen last frame.
+ */
+export function buildJlVideoInputFilter(segIdx, segments) {
+  const outLabel = `s${segIdx}v`;
+  let chain = `[${segIdx}:v]setpts=PTS-STARTPTS`;
+
+  if (segIdx > 0 && segments[segIdx].audioPolicy === "from_prev") {
+    const trimStart = overlapAtBoundary(segments, segIdx);
+    if (trimStart > 0) {
+      chain += `,trim=start=${trimStart},setpts=PTS-STARTPTS`;
+    }
+  }
+
+  if (segments[segIdx].audioPolicy === "from_next") {
+    const padEnd = segments[segIdx].overlapSec ?? 0;
+    if (padEnd > 0) {
+      chain += `,tpad=stop_mode=clone:stop_duration=${padEnd}`;
+    }
+  }
+
+  return `${chain}[${outLabel}]`;
 }
 
 function totalOutputDurationSec(segments) {
@@ -80,9 +119,11 @@ function mergeAudioStreams(parts, leftLabel, rightLabel, overlap, outLabel) {
   parts.push(`${leftLabel}${rightLabel}concat=n=2:v=0:a=1${outLabel}`);
 }
 
-function appendJlCutVideoChain(parts, n, segmentDurations, crossfadeAtBoundaries) {
+function appendJlCutVideoChain(parts, n, segments, crossfadeAtBoundaries) {
+  const segmentDurations = segments.map((_, i) => resolveJlVideoSegmentDuration(i, segments));
+
   for (let i = 0; i < n; i += 1) {
-    parts.push(`[${i}:v]setpts=PTS-STARTPTS[s${i}v]`);
+    parts.push(buildJlVideoInputFilter(i, segments));
   }
 
   let curV = "s0v";
@@ -98,9 +139,11 @@ function appendJlCutVideoChain(parts, n, segmentDurations, crossfadeAtBoundaries
     if (cf) {
       const d = Math.max(0.05, cf.durationSec);
       const offset = Math.max(0, curDur - d);
-      parts.push(
-        `[${curV}][s${nextIdx}v]xfade=transition=fade:duration=${d}:offset=${offset}[${outV}]`,
-      );
+      parts.push(buildXfadeVideoFilter(curV, `s${nextIdx}v`, outV, {
+        durationSec: d,
+        offsetSec: offset,
+        transitionType: cf.transitionType ?? "fade",
+      }));
       curDur += (segmentDurations[nextIdx] ?? 0) - d;
     } else {
       parts.push(`[${curV}][s${nextIdx}v]concat=n=2:v=1:a=0[${outV}]`);
@@ -125,16 +168,15 @@ export function buildJlCutFilterComplex(segmentPaths, segments, crossfadeAtBound
   }
 
   const parts = [];
-  const segmentDurations = segments.map((segment) => segmentVideoDurationSec(segment));
   const useVideoXfade = Boolean(crossfadeAtBoundaries?.some(Boolean));
 
   if (useVideoXfade) {
-    appendJlCutVideoChain(parts, n, segmentDurations, crossfadeAtBoundaries);
+    appendJlCutVideoChain(parts, n, segments, crossfadeAtBoundaries);
   } else {
     const videoLabels = [];
     for (let i = 0; i < n; i += 1) {
-      parts.push(`[${i}:v]setpts=PTS-STARTPTS[v${i}]`);
-      videoLabels.push(`[v${i}]`);
+      parts.push(buildJlVideoInputFilter(i, segments));
+      videoLabels.push(`[s${i}v]`);
     }
     parts.push(`${videoLabels.join("")}concat=n=${n}:v=1:a=0[outv]`);
   }

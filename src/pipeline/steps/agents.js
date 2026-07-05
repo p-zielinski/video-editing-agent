@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { createOpenAIClient } from "../../agents/openai-client.js";
 import { buildAbstractionBundle } from "../../agents/summarizer.js";
-import { runDirector, directorDrillDown, extractSceneIdsFromRecipe } from "../../agents/director.js";
+import { runDirector, directorDrillDown, extractSceneIdsFromRecipe, attachRetentionBeatTargets } from "../../agents/director.js";
 import { runSuperDirector } from "../../agents/super-director.js";
 import { runSegmentDirector } from "../../agents/segment-director.js";
 import {
@@ -12,6 +12,8 @@ import {
 } from "../../lib/segment-catalog.js";
 import { mergeSegmentRecipes } from "../../lib/recipe-merge.js";
 import { resolveEffectiveNarrativeProfile } from "../../lib/narrative-profile.js";
+import { buildEmotionalBeatHints } from "../../agents/director.js";
+import { validateStitchContinuity } from "../../validators/stitch-continuity.js";
 import { runCritic } from "../../agents/critic.js";
 import { runFixer, shouldInvokeFixer } from "../../agents/fixer.js";
 import { EditRecipeV2Schema } from "../../schemas/edit-recipe-v2.js";
@@ -32,12 +34,25 @@ import {
 } from "../../editorial/broll-sync-hints.js";
 
 import { enrichRecipeDeadAirHandling } from "../../editorial/dead-air-enrich.js";
+import { enrichRecipeFillerCuts } from "../../editorial/filler-enrich.js";
 import { enrichRecipePacingTrim } from "../../editorial/pacing-enrich.js";
 import { enrichRecipeFastRhythmSpeed } from "../../editorial/speed-enrich.js";
 import { enrichRecipePayoffMoments } from "../../editorial/payoff-enrich.js";
 import { enrichRecipeCallbackMoments } from "../../editorial/callback-enrich.js";
 import { enrichRecipeClosureCta } from "../../editorial/closure-enrich.js";
+import { enrichRecipeJlCutSnap } from "../../editorial/jlcut-snap.js";
+import { enrichUnpickedL2Bridges } from "../../editorial/bridge-enrich.js";
+import { enrichJumpCutsAsTimeCuts } from "../../render/time-cuts.js";
+import { runSuperCritic } from "../../agents/super-critic.js";
 import { refineClipRegistryFromL1 } from "./clip-profile.js";
+import {
+  snapshotRecipeStage,
+  createEnricherAuditWrapper,
+  buildProvenanceDocument,
+  writeRecipeProvenance,
+  readRecipeProvenance,
+  stripRecipeProvenanceFields,
+} from "../../lib/recipe-provenance.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
 
@@ -77,10 +92,60 @@ export async function runSuperDirectorDirectPath(client, context) {
     })),
   );
 
-  return mergeSegmentRecipes(superPlan, partials, { wordIndexes: context.wordIndexes });
+  const recipe = mergeSegmentRecipes(superPlan, partials, { wordIndexes: context.wordIndexes });
+  enrichUnpickedL2Bridges(recipe, { abstraction, superPlan });
+  enrichJumpCutsAsTimeCuts(recipe);
+  attachRetentionBeatTargets(recipe, {
+    requiredFormats,
+    batchContext: context.batchContext,
+    timelineIndex,
+  });
+
+  const stitchIssues = validateStitchContinuity(recipe, {
+    superPlan,
+    abstraction,
+    partials,
+    wordIndexes: context.wordIndexes,
+  });
+  recipe.stitchValidation = {
+    valid: stitchIssues.filter((issue) => issue.severity === "error").length === 0,
+    issues: stitchIssues,
+  };
+
+  const superCritic = await runSuperCritic(client, {
+    recipe,
+    superPlan,
+    abstraction,
+    partials,
+    timelineIndex: context.timelineIndex,
+    topicIndex: context.topicIndex,
+    spatialIndex: context.spatialIndex,
+    audioIndex: context.audioIndex,
+    perClipAnalysis: context.perClipAnalysis,
+    wordIndexes: context.wordIndexes,
+  });
+  recipe.superCriticReview = superCritic;
+  if (superCritic.crossSegmentNotes?.length) {
+    recipe.superPlanNotes = [
+      ...(recipe.superPlanNotes ?? []),
+      ...superCritic.crossSegmentNotes,
+    ];
+  }
+
+  const stitchErrors = stitchIssues.filter((issue) => issue.severity === "error");
+  if (stitchErrors.length > 0) {
+    const error = new Error(
+      `Scalona receptura nie przeszła walidacji stitch: ${stitchErrors.map((issue) => issue.message).join("; ")}`,
+    );
+    error.code = "STITCH_VALIDATION_FAILED";
+    error.validation = recipe.stitchValidation;
+    throw error;
+  }
+
+  return recipe;
 }
 
-export function applyDeterministicRecipeEnrichers(recipe, {
+function buildDeterministicEnricherSteps(recipe, {
   abstraction,
   timelineIndex,
   topicIndex,
@@ -97,97 +162,186 @@ export function applyDeterministicRecipeEnrichers(recipe, {
     ...(recipe.batchContext ?? {}),
   };
 
-  recipe.creativeMoments = stripEnrichBeatsInSlowSegments(recipe, abstraction, { wordIndexes });
+  const emotionalBeatHints = buildEmotionalBeatHints(abstraction, timelineIndex);
 
-  const coldOpenHint = buildColdOpenSegmentHint(
-    abstraction,
+  return [
     {
-      outputs: recipe.outputs,
-      batchContext: effectiveBatchContext,
+      name: "stripEnrichBeatsInSlowSegments",
+      apply: () => {
+        recipe.creativeMoments = stripEnrichBeatsInSlowSegments(recipe, abstraction, { wordIndexes });
+      },
     },
-    { clipRegistry, timelineIndex },
-  );
-  enrichRecipeColdOpenSegment(recipe, coldOpenHint, timelineIndex);
+    {
+      name: "enrichRecipeColdOpenSegment",
+      apply: () => {
+        const coldOpenHint = buildColdOpenSegmentHint(
+          abstraction,
+          {
+            outputs: recipe.outputs,
+            batchContext: effectiveBatchContext,
+          },
+          { clipRegistry, timelineIndex },
+        );
+        enrichRecipeColdOpenSegment(recipe, coldOpenHint, timelineIndex);
+      },
+    },
+    {
+      name: "enrichRecipeSfxPlan",
+      apply: () => {
+        recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
+          audioIndex,
+          clipRegistry,
+          perClipAnalysis,
+          wordIndexes,
+          abstraction,
+          timelineIndex,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeDeadAirHandling",
+      apply: () => {
+        recipe.creativeMoments = enrichRecipeDeadAirHandling(recipe, {
+          audioIndex,
+          timelineIndex,
+          wordIndexes,
+          perClipAnalysis,
+          abstraction,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeFillerCuts",
+      apply: () => {
+        enrichRecipeFillerCuts(recipe, {
+          abstraction,
+          timelineIndex,
+          wordIndexes,
+        });
+      },
+    },
+    {
+      name: "enrichRecipePacingTrim",
+      apply: () => {
+        enrichRecipePacingTrim(recipe, {
+          abstraction,
+          timelineIndex,
+          wordIndexes,
+          estimatedKeepRatio: abstraction?.L3?.estimatedKeepRatio,
+          audioIndex,
+          perClipAnalysis,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeFastRhythmSpeed",
+      apply: () => {
+        enrichRecipeFastRhythmSpeed(recipe, {
+          abstraction,
+          timelineIndex,
+          wordIndexes,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeJlCutSnap",
+      apply: () => {
+        enrichRecipeJlCutSnap(recipe, wordIndexes);
+      },
+    },
+    {
+      name: "enrichRecipeRetentionBeats",
+      apply: () => {
+        recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
+          audioIndex,
+          abstraction,
+          timelineIndex,
+          spatialIndex,
+          wordIndexes,
+        });
+      },
+    },
+    {
+      name: "enrichRecipePayoffMoments",
+      apply: () => {
+        recipe.creativeMoments = enrichRecipePayoffMoments(recipe, {
+          abstraction,
+          timelineIndex,
+          wordIndexes,
+          audioIndex,
+          emotionalBeatHints,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeCallbackMoments",
+      apply: () => {
+        recipe.creativeMoments = enrichRecipeCallbackMoments(recipe, {
+          abstraction,
+          timelineIndex,
+          wordIndexes,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeClosureCta",
+      apply: () => {
+        enrichRecipeClosureCta(recipe, { abstraction });
+      },
+    },
+    {
+      name: "enrichRecipeChapterCards",
+      apply: () => {
+        enrichRecipeChapterCards(recipe, { abstraction });
+      },
+    },
+    {
+      name: "enrichRecipeActTransitions",
+      apply: () => {
+        recipe.creativeMoments = enrichRecipeActTransitions(recipe, {
+          abstraction,
+          narrativeProfile: resolveEffectiveNarrativeProfile({
+            recipe,
+            batchContext: effectiveBatchContext,
+            abstraction,
+          }),
+          wordIndexes,
+        });
+      },
+    },
+    {
+      name: "enrichBrollSyncFromHints",
+      apply: () => {
+        if (effectiveBatchContext.brollStrategy !== "minimal") {
+          const brollSyncHints = buildBrollSyncHintsForRecipe({
+            abstraction,
+            timelineIndex,
+            topicIndex,
+            keyframeArtifacts,
+            batchContext: effectiveBatchContext,
+            recipe,
+          });
+          enrichBrollSyncFromHints(recipe, brollSyncHints);
+        }
+      },
+    },
+    {
+      name: "enrichJumpCutsAsTimeCuts",
+      apply: () => {
+        enrichJumpCutsAsTimeCuts(recipe);
+      },
+    },
+  ];
+}
 
-  recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
-    audioIndex,
-    clipRegistry,
-    perClipAnalysis,
-    wordIndexes,
-    abstraction,
-    timelineIndex,
-  });
+const applyDeterministicRecipeEnrichersWithAudit = createEnricherAuditWrapper(
+  buildDeterministicEnricherSteps,
+);
 
-  recipe.creativeMoments = enrichRecipeDeadAirHandling(recipe, {
-    audioIndex,
-    timelineIndex,
-    wordIndexes,
-    perClipAnalysis,
-    abstraction,
-  });
-
-  enrichRecipePacingTrim(recipe, {
-    abstraction,
-    timelineIndex,
-    wordIndexes,
-    estimatedKeepRatio: abstraction?.L3?.estimatedKeepRatio,
-    audioIndex,
-    perClipAnalysis,
-  });
-
-  enrichRecipeFastRhythmSpeed(recipe, {
-    abstraction,
-    timelineIndex,
-    wordIndexes,
-  });
-
-  recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
-    audioIndex,
-    abstraction,
-    timelineIndex,
-    spatialIndex,
-    wordIndexes,
-  });
-
-  recipe.creativeMoments = enrichRecipePayoffMoments(recipe, {
-    abstraction,
-    timelineIndex,
-    wordIndexes,
-    audioIndex,
-  });
-
-  recipe.creativeMoments = enrichRecipeCallbackMoments(recipe, {
-    abstraction,
-    timelineIndex,
-    wordIndexes,
-  });
-
-  enrichRecipeClosureCta(recipe, { abstraction });
-
-  enrichRecipeChapterCards(recipe, { abstraction });
-
-  recipe.creativeMoments = enrichRecipeActTransitions(recipe, {
-    abstraction,
-    narrativeProfile: resolveEffectiveNarrativeProfile({
-      recipe,
-      batchContext: effectiveBatchContext,
-      abstraction,
-    }),
-    wordIndexes,
-  });
-
-  if (effectiveBatchContext.brollStrategy !== "minimal") {
-    const brollSyncHints = buildBrollSyncHintsForRecipe({
-      abstraction,
-      timelineIndex,
-      topicIndex,
-      keyframeArtifacts,
-      batchContext: effectiveBatchContext,
-      recipe,
-    });
-    enrichBrollSyncFromHints(recipe, brollSyncHints);
+export function applyDeterministicRecipeEnrichers(recipe, context) {
+  for (const step of buildDeterministicEnricherSteps(recipe, context)) {
+    step.apply();
   }
-
   return recipe;
 }
 
@@ -246,7 +400,10 @@ function loadSpatialIndex(workDir) {
   return readJson(spatialPath);
 }
 
-export async function ensureSpatialIndex(workDir, { force = false, faceStub = false } = {}) {
+export async function ensureSpatialIndex(
+  workDir,
+  { force = false, faceStub = false, globalCacheDisabled = false } = {},
+) {
   const spatialPath = path.join(workDir, ARTIFACTS.spatialIndex);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.spatialIndex, force)) {
     return readJson(spatialPath);
@@ -255,6 +412,7 @@ export async function ensureSpatialIndex(workDir, { force = false, faceStub = fa
     workDir,
     force: force || isArtifactStale(workDir, ARTIFACTS.spatialIndex),
     faceStub,
+    globalCacheDisabled,
   });
 }
 
@@ -355,6 +513,7 @@ export async function runDirectStep({
   batchContext = {},
   force = false,
   faceStub = false,
+  globalCacheDisabled = false,
 }) {
   const draftPath = path.join(workDir, ARTIFACTS.recipeDraft);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.recipeDraft, force)) {
@@ -366,7 +525,7 @@ export async function runDirectStep({
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const clipRegistry = loadClipRegistry(workDir, { abstraction, timelineIndex });
   const topicIndex = loadTopicIndex(workDir);
-  const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub });
+  const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
@@ -396,6 +555,7 @@ export async function runDirectStep({
     keyframesByClip,
     userContext,
     requiredFormats,
+    workDir,
     batchContext: {
       ...batchContext,
       requiredFormats,
@@ -439,7 +599,9 @@ export async function runDirectStep({
     },
   }));
 
-  applyDeterministicRecipeEnrichers(recipe, {
+  const afterDirector = snapshotRecipeStage(recipe, "afterDirector");
+
+  const enricherContext = {
     abstraction,
     timelineIndex,
     topicIndex,
@@ -450,7 +612,18 @@ export async function runDirectStep({
     batchContext,
     keyframeArtifacts,
     wordIndexes,
-  });
+  };
+  const { enricherLog } = applyDeterministicRecipeEnrichersWithAudit(recipe, enricherContext);
+  const afterEnrichers = snapshotRecipeStage(recipe, "afterEnrichers");
+
+  writeRecipeProvenance(workDir, buildProvenanceDocument({
+    batchId: recipe.batchId,
+    afterDirector,
+    afterEnrichers,
+    enricherLog,
+    stitchValidation: recipe.stitchValidation ?? null,
+    superCriticReview: recipe.superCriticReview ?? null,
+  }));
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
   writeJson(draftPath, recipe);
@@ -466,11 +639,12 @@ export async function runReviewStep({
   maxIterations = MAX_REVIEW_ITERATIONS,
   force = false,
   faceStub = false,
+  globalCacheDisabled = false,
 }) {
   const finalPath = path.join(workDir, ARTIFACTS.recipeFinal);
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const topicIndex = loadTopicIndex(workDir);
-  const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub });
+  const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
@@ -611,7 +785,22 @@ export async function runReviewStep({
     throw error;
   }
 
-  writeJson(path.join(workDir, ARTIFACTS.recipeFinal), recipe);
+  const afterReview = snapshotRecipeStage(recipe, "afterReview");
+  const { recipe: recipeForFinal, stitchValidation, superCriticReview } = stripRecipeProvenanceFields(recipe);
+  const existingProvenance = readRecipeProvenance(workDir) ?? {};
 
-  return { recipe, review: lastReview, validation, finalWritten: true };
+  writeRecipeProvenance(workDir, buildProvenanceDocument({
+    batchId: recipe.batchId,
+    afterDirector: existingProvenance.afterDirector ?? null,
+    afterEnrichers: existingProvenance.afterEnrichers ?? null,
+    afterReview,
+    enricherLog: existingProvenance.enricherLog ?? [],
+    stitchValidation: stitchValidation ?? existingProvenance.stitchValidation ?? null,
+    superCriticReview: superCriticReview ?? existingProvenance.superCriticReview ?? null,
+    reviewIterations: iteration,
+  }));
+
+  writeJson(path.join(workDir, ARTIFACTS.recipeFinal), EditRecipeV2Schema.parse(recipeForFinal));
+
+  return { recipe: recipeForFinal, review: lastReview, validation, finalWritten: true };
 }

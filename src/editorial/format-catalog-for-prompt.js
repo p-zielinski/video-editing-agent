@@ -1,4 +1,5 @@
 import { SAFE_ALLOWED_TECHNIQUE_IDS } from "./technique-budget.js";
+import { getTechniqueRenderSupport } from "../render/render-capabilities.js";
 
 function formatParamSummary(params = {}) {
   const parts = [];
@@ -47,8 +48,8 @@ export function formatCatalogForPrompt(catalog, budget) {
       gated.push("spatialRef");
     }
     const forbidden = (t.constraints?.forbiddenOnSegmentRole ?? []).join(",") || "—";
-
-    return {
+    const renderSupport = t.renderSupport ?? getTechniqueRenderSupport(t.id);
+    const row = {
       id: t.id,
       category: t.category,
       label: t.label,
@@ -58,6 +59,11 @@ export function formatCatalogForPrompt(catalog, budget) {
       forbiddenOn: forbidden,
       syncHints: (t.syncHints ?? []).slice(0, 3),
     };
+    if (renderSupport === "stub" || renderSupport === "partial") {
+      row.renderSupport = renderSupport;
+    }
+
+    return row;
   });
 
   return {

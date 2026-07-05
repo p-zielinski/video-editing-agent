@@ -50,10 +50,32 @@ describe("audio-jlcut", () => {
 
     assert.ok(built.filterComplex.includes("concat=n=3:v=1:a=0[outv]"));
     assert.ok(built.filterComplex.includes("acrossfade=d=2:c1=tri:c2=tri"));
+    assert.ok(built.filterComplex.includes("trim=start=2"));
     assert.ok(built.filterComplex.includes("apad=whole_dur=28"));
     assert.ok(!built.filterComplex.includes("anullsrc"));
     assert.equal(built.videoMap, "[outv]");
     assert.equal(built.audioMap, "[outa]");
+  });
+
+  it("extends previous segment video with tpad for J-cut from_next", () => {
+    const segments = [
+      {
+        audioPolicy: "from_next",
+        overlapSec: 1.5,
+        outputStartSec: 0,
+        outputEndSec: 10,
+      },
+      {
+        audioPolicy: "from_video_ref",
+        overlapSec: 0,
+        outputStartSec: 9.5,
+        outputEndSec: 20,
+      },
+    ];
+    const built = buildJlCutFilterComplex(["/a.mp4", "/b.mp4"], segments);
+
+    assert.ok(built.filterComplex.includes("tpad=stop_mode=clone:stop_duration=1.5"));
+    assert.ok(built.filterComplex.includes("apad=whole_dur=19"));
   });
 
   it("carry-forward logic for 3-segment timeline with from_prev on index 2", () => {

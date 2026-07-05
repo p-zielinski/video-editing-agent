@@ -4,11 +4,25 @@
   "category": "graphics",
   "label": "Chapter card",
   "description": "Krótka karta rozdziału — „Część 2”, licznik, reset struktury. Na main 16:9 dostarczaj przez textOverlays[] (style chapter_card), nie creativeMoment — V22-06.",
-  "platforms": ["shorts"],
-  "trendTags": ["shorts", "retention", "vlog"],
+  "platforms": [
+    "shorts"
+  ],
+  "trendTags": [
+    "shorts",
+    "retention",
+    "vlog"
+  ],
   "params": {
-    "label": { "type": "string", "default": "Część 2" },
-    "durationSec": { "type": "number", "min": 1, "max": 3, "default": 2 }
+    "label": {
+      "type": "string",
+      "default": "Część 2"
+    },
+    "durationSec": {
+      "type": "number",
+      "min": 1,
+      "max": 3,
+      "default": 2
+    }
   },
   "constraints": {
     "maxDurationSec": 3,
@@ -18,5 +32,9 @@
   },
   "whenToUse": "Short (>40 s): creativeMoment chapter_card. Main 16:9: textOverlays[] style chapter_card przy początkach segmentów L2 (chapterCardHints) — nie creativeMoment.",
   "whenToAvoid": "Krótki highlight <30 s; chapter_card jako creativeMoment na main (użyj textOverlays).",
-  "syncHints": ["beat", "output_start"]
+  "syncHints": [
+    "beat",
+    "output_start"
+  ],
+  "renderSupport": "graphics_only"
 }

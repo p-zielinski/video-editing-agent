@@ -139,4 +139,13 @@ describe("cli", () => {
     assert.throws(() => resolveMaxReviewIterations("11"), /--max-review-iterations/);
     assert.throws(() => resolveMaxReviewIterations("abc"), /--max-review-iterations/);
   });
+
+  it("parseArgs sets --quality-profile for report", () => {
+    const args = parseArgs([
+      "node", "cli.js", "report",
+      "--batch-id", "abc12345",
+      "--quality-profile", "production",
+    ]);
+    assert.equal(args.qualityProfile, "production");
+  });
 });

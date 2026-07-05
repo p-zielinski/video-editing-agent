@@ -227,7 +227,7 @@ describe("ffmpeg-segment", () => {
     assert.ok(!args.includes("-vf"));
   });
 
-  it("buildSegmentFfmpegArgs warns on broll A/V desync", () => {
+  it("buildSegmentFfmpegArgs auto-repairs broll A/V desync", () => {
     const segment = {
       ...baseSegment,
       segmentId: "seg_broll",
@@ -249,7 +249,7 @@ describe("ffmpeg-segment", () => {
       { encodeProfile },
     );
     assert.equal(warnings.length, 1);
-    assert.equal(warnings[0].code, "broll_av_desync");
+    assert.equal(warnings[0].code, "broll_av_desync_repaired");
   });
 
   it("buildSegmentFfmpegArgs uses separate audio inputs for broll cross-clip", () => {
@@ -558,7 +558,7 @@ describe("ffmpeg-segment", () => {
     assert.match(args[afIdx + 1], /volume=0\.5011872336272722/);
   });
 
-  it("buildSegmentFfmpegArgs skips fit_video_to_audio stretch when speed is set", () => {
+  it("buildSegmentFfmpegArgs applies fit_video_to_audio after speed transform", () => {
     const segment = {
       ...baseSegment,
       syncMode: "fit_video_to_audio",
@@ -575,12 +575,12 @@ describe("ffmpeg-segment", () => {
       { encodeProfile },
     );
     const joined = args.join(" ");
-    assert.doesNotMatch(joined, /trim=duration=7/);
+    assert.match(joined, /trim=duration=3\.5/);
     assert.match(joined, /setpts=PTS\/2/);
     assert.match(joined, /atempo=2/);
   });
 
-  it("buildCombinedAudioFilter chains atempo and volume, skips fit sync when speed set", () => {
+  it("buildCombinedAudioFilter chains atempo before fit sync when speed set", () => {
     const filter = buildCombinedAudioFilter(
       {
         syncMode: "fit_audio_to_video",
@@ -591,8 +591,7 @@ describe("ffmpeg-segment", () => {
       10,
       7,
     );
-    assert.doesNotMatch(filter, /apad=/);
-    assert.match(filter, /atempo=2/);
+    assert.match(filter, /atempo=2,apad=pad_dur=1\.5/);
     assert.match(filter, /volume=0\.5011872336272722/);
   });
 });

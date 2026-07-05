@@ -188,6 +188,56 @@ describe("enrichRecipePayoffMoments", () => {
     assert.equal(moments.length, 0);
   });
 
+  it("adds payoff candidate from emotionalBeatHints", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+      ],
+      L3: { narrativeArc: "intro" },
+    };
+    const recipe = buildMainRecipe();
+
+    const moments = enrichRecipePayoffMoments(recipe, {
+      abstraction,
+      timelineIndex,
+      emotionalBeatHints: [{
+        sceneId: "clip01_scene002",
+        anchorTimeSec: 180,
+        mood: "dramatic",
+        retentionRole: "payoff",
+      }],
+    });
+
+    assert.equal(moments.length, 1);
+    assert.match(moments[0].reason, /emotionalBeat/);
+  });
+
+  it("maps emotionalBeatHints via sceneId when anchorTimeSec is omitted", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+      ],
+      L3: { narrativeArc: "intro" },
+    };
+    const recipe = buildMainRecipe();
+
+    const moments = enrichRecipePayoffMoments(recipe, {
+      abstraction,
+      timelineIndex,
+      emotionalBeatHints: [{
+        sceneId: "clip01_scene002",
+        clipId: "clip01",
+        mood: "dramatic",
+        retentionRole: "payoff",
+      }],
+    });
+
+    assert.equal(moments.length, 1);
+    assert.match(moments[0].reason, /emotionalBeat/);
+    assert.ok(Math.abs(moments[0].outputStartSec - 180) <= 30);
+  });
+
   it("clears NAR-PAYOFF-UNDELIVERED for structural open loop", () => {
     const recipe = buildMainRecipe({
       audioMixPlan: { musicBed: { trackId: "bed_01", volumeDb: -18, duckingDb: -12 } },

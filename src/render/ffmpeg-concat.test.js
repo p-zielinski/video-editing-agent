@@ -120,7 +120,7 @@ describe("ffmpeg-concat", () => {
     );
   });
 
-  it("isMultiSegmentCrossfadeEligible false for partial crossfade on 4 segments", () => {
+  it("isMultiSegmentCrossfadeEligible true for partial crossfade on 4 segments", () => {
     const segments = [
       { outputStartSec: 0, outputEndSec: 10 },
       { outputStartSec: 10, outputEndSec: 20 },
@@ -133,7 +133,7 @@ describe("ffmpeg-concat", () => {
     ];
     assert.equal(
       isMultiSegmentCrossfadeEligible(["a.mp4", "b.mp4", "c.mp4", "d.mp4"], segments, moments),
-      false,
+      true,
     );
   });
 
@@ -375,7 +375,24 @@ describe("ffmpeg-concat", () => {
     );
   });
 
-  it("getCrossfadeNotAppliedReason explains partial crossfade on 4 segments", () => {
+  it("builds chained xfade filter_complex for partial crossfade on 4 segments", () => {
+    const segmentDurations = [10, 10, 10, 10];
+    const crossfadeAtBoundaries = [
+      { durationSec: 0.3 },
+      { durationSec: 0.3 },
+      null,
+    ];
+    const built = buildMultiSegmentXfadeFilterComplex({ segmentDurations, crossfadeAtBoundaries });
+
+    assert.ok(built.filterComplex.includes("[s0v][s1v]xfade=transition=fade:duration=0.3:offset=9.7"));
+    assert.ok(built.filterComplex.includes("[m0v][s2v]xfade=transition=fade:duration=0.3:offset=19.4"));
+    assert.ok(built.filterComplex.includes("[m1v][s3v]concat=n=2:v=1:a=0[m2v]"));
+    assert.ok(built.filterComplex.includes("[m1a][s3a]concat=n=2:v=0:a=1[m2a]"));
+    assert.equal(built.videoMap, "[m2v]");
+    assert.equal(built.audioMap, "[m2a]");
+  });
+
+  it("getCrossfadeNotAppliedReason null for partial crossfade on 4 segments", () => {
     const segments = [
       { outputStartSec: 0, outputEndSec: 10 },
       { outputStartSec: 10, outputEndSec: 20 },
@@ -388,7 +405,7 @@ describe("ffmpeg-concat", () => {
     ];
     assert.equal(
       getCrossfadeNotAppliedReason(["a.mp4", "b.mp4", "c.mp4", "d.mp4"], segments, moments),
-      "partial crossfade pattern: requires crossfade at every internal join or exactly one join (2/3 joins)",
+      null,
     );
   });
 
@@ -461,7 +478,7 @@ describe("ffmpeg-concat", () => {
     assert.equal(moments[0].techniqueId, "zoom_in");
   });
 
-  it("resolvePostConcatCreativeMoments emits CROSSFADE_NOT_APPLIED for partial multi-segment crossfade", () => {
+  it("resolvePostConcatCreativeMoments drops crossfade when partial multi-segment xfade applied", () => {
     const segments = [
       { outputStartSec: 0, outputEndSec: 10 },
       { outputStartSec: 10, outputEndSec: 20 },
@@ -478,12 +495,10 @@ describe("ffmpeg-concat", () => {
       creativeMoments,
       segments,
       segmentPaths: ["a.mp4", "b.mp4", "c.mp4", "d.mp4"],
-      appliedCrossfade: false,
+      appliedCrossfade: true,
     });
 
-    assert.equal(warnings.length, 1);
-    assert.equal(warnings[0].code, "CROSSFADE_NOT_APPLIED");
-    assert.equal(warnings[0].techniqueId, "crossfade");
+    assert.equal(warnings.length, 0);
     assert.equal(moments.length, 1);
     assert.equal(moments[0].techniqueId, "zoom_in");
   });

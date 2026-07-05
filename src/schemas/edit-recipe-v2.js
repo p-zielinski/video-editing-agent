@@ -53,6 +53,21 @@ export const WordCutSchema = z.object({
   keepIfStoryCritical: z.boolean().default(false),
 });
 
+export const TimeCutSchema = z.object({
+  atOutputSec: z.number().nonnegative(),
+  gapSec: z.number().min(0.02).max(0.5).default(0.04),
+  reason: z.enum(["jump_cut", "hard_cut_energy"]).default("jump_cut"),
+  momentId: z.string().optional(),
+});
+
+export const PictureInPictureSchema = z.object({
+  enabled: z.boolean().default(true),
+  sceneId: z.string().optional(),
+  position: z.enum(["top_right", "top_left", "bottom_right", "bottom_left"]).default("bottom_right"),
+  scale: z.number().min(0.1).max(0.5).default(0.28),
+  marginPx: z.number().int().min(0).max(200).default(24),
+}).optional();
+
 export const SubtitlePolicyV2Schema = z.enum(["word_by_word", "phrase", "off"]);
 
 export const SubtitlesConfigSchema = z.object({
@@ -81,7 +96,14 @@ export const TextOverlayRoleSchema = z.enum([
   "chapter",
 ]);
 
-export const TextOverlayAnimationSchema = z.enum(["fade", "static"]);
+export const TextOverlayAnimationSchema = z.enum([
+  "fade",
+  "static",
+  "slide_up",
+  "slide_down",
+  "slide_left",
+  "slide_right",
+]);
 
 export const TextOverlayV2Schema = z.object({
   overlayId: z.string().optional(),
@@ -126,6 +148,8 @@ export const TimelineSegmentV2Schema = z.object({
   syncMode: SyncModeSchema.default("align_start"),
   allowBrollReuse: z.boolean().default(false),
   cuts: z.array(WordCutSchema).default([]),
+  timeCuts: z.array(TimeCutSchema).default([]),
+  pictureInPicture: PictureInPictureSchema,
   subtitles: SubtitlesConfigSchema.optional(),
   textOverlays: z.array(TextOverlayV2Schema).default([]),
   videoTransform: VideoTransformSchema,
@@ -305,11 +329,18 @@ export const NarrativeProfileModeSchema = z.enum([
   "retention_vlog",
 ]);
 
+export const NarrativeEnrichPolicySchema = z.object({
+  allowRetentionEnrich: z.boolean().default(true),
+  allowPacingTrim: z.boolean().default(true),
+  allowFillerCuts: z.boolean().default(true),
+});
+
 export const NarrativeSegmentProfileSchema = z.object({
   l2SegmentId: z.string(),
   rhythm: NarrativeRhythmSchema.optional(),
   retentionIntensity: NarrativeRetentionIntensitySchema.optional(),
   silencePolicy: NarrativeSilencePolicySchema.optional(),
+  enrichPolicy: NarrativeEnrichPolicySchema.optional(),
 });
 
 export const NarrativeProfileSchema = z.object({
@@ -426,6 +457,12 @@ export const PacingTrimMetaSchema = z.object({
   applied: z.boolean().default(false).optional(),
 });
 
+export const RetentionBeatTargetSchema = z.object({
+  outputId: z.string(),
+  targetSec: z.number().nonnegative(),
+  label: z.string().optional(),
+});
+
 export const StructuredCallbackSchema = z.object({
   callbackId: z.string(),
   setupSceneId: z.string(),
@@ -445,6 +482,7 @@ export const EditRecipeV2Schema = z.object({
   creativeMoments: z.array(CreativeMomentSchema).default([]),
   shortsRetentionProfile: ShortsRetentionProfileSchema.optional(),
   vlogRetentionProfile: VlogRetentionProfileSchema.optional(),
+  retentionBeatTargets: z.array(RetentionBeatTargetSchema).optional(),
   narrativeProfile: NarrativeProfileSchema.optional(),
   audioMixPlan: AudioMixPlanSchema.optional(),
   sfxPlan: z.array(SfxPlanEntrySchema).default([]),

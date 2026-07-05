@@ -9,6 +9,7 @@ import {
   writeBatchQualityReport,
 } from "./batch-quality-report.js";
 import { ARTIFACTS, writeJson } from "../pipeline/work-paths.js";
+import { buildProvenanceDocument } from "./recipe-provenance.js";
 
 describe("batch_quality_report", () => {
   let workDir;
@@ -357,9 +358,110 @@ describe("batch_quality_report", () => {
       scenes: [],
     });
 
-    const { outPath, report } = writeBatchQualityReport(workDir);
+    const { outPath, report } = writeBatchQualityReport(workDir, { qualityProfile: "production" });
     assert.ok(fs.existsSync(outPath));
     assert.equal(report.batchId, "batch03");
+    assert.equal(report.qualityProfile, "production");
     assert.equal(path.basename(outPath), ARTIFACTS.batchQualityReport);
+  });
+
+  it("computes stub coverage and provenance metrics when artifacts exist", () => {
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+      batchId: "batch_prov",
+      scenes: [],
+      stats: { totalWords: 0, fillerWordCount: 0 },
+    });
+    writeJson(path.join(workDir, ARTIFACTS.spatialIndex), {
+      version: "1.0",
+      batchId: "batch_prov",
+      scenes: [{ sceneId: "clip01_scene001", anchors: [{ type: "face" }] }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+      batchId: "batch_prov",
+      clips: [{ clipId: "clip01" }, { clipId: "clip02" }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.vision("clip01")), {
+      clipId: "clip01",
+      captions: [{ caption: "[stub] test" }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.audioAnalysis("clip02")), {
+      clipId: "clip02",
+      analysisMode: "stub",
+    });
+    writeJson(path.join(workDir, ARTIFACTS.review), {
+      version: "1.0",
+      batchId: "batch_prov",
+      iteration: 2,
+      approved: true,
+      issues: [],
+      summary: "ok",
+    });
+    writeJson(path.join(workDir, ARTIFACTS.recipeProvenance), buildProvenanceDocument({
+      batchId: "batch_prov",
+      enricherLog: [{
+        enricher: "pacing-enrich",
+        delta: { segmentsAdded: 1, creativeMomentsAdded: 2, cutsAdded: 0, segmentsRemoved: 0, sfxPlanAdded: 0 },
+      }],
+      stitchValidation: {
+        valid: false,
+        issues: [{ severity: "warning", code: "STITCH-01", message: "gap" }],
+      },
+      reviewIterations: 2,
+    }));
+
+    const report = buildBatchQualityReport(workDir);
+    assert.equal(report.metrics.stubCoverage.vision, 50);
+    assert.equal(report.metrics.stubCoverage.audio, 50);
+    assert.equal(report.metrics.reviewIterations, 2);
+    assert.equal(report.metrics.enricherContribution.totals.creativeMomentsAdded, 2);
+    assert.equal(report.metrics.stitchIssues.length, 1);
+  });
+
+  it("handles missing recipe provenance gracefully", () => {
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+      batchId: "batch_no_prov",
+      scenes: [],
+      stats: { totalWords: 0, fillerWordCount: 0 },
+    });
+    writeJson(path.join(workDir, ARTIFACTS.spatialIndex), {
+      version: "1.0",
+      batchId: "batch_no_prov",
+      scenes: [],
+    });
+
+    const report = buildBatchQualityReport(workDir);
+    assert.equal(report.metrics.enricherContribution, null);
+    assert.equal(report.metrics.stitchIssues, null);
+  });
+
+  it("production profile flags stub coverage and missing review", () => {
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+      batchId: "batch_prod",
+      scenes: [{ sceneId: "clip01_scene001" }],
+      stats: { totalWords: 0, fillerWordCount: 0 },
+    });
+    writeJson(path.join(workDir, ARTIFACTS.spatialIndex), {
+      version: "1.0",
+      batchId: "batch_prod",
+      scenes: [{ sceneId: "clip01_scene001", anchors: [{ type: "face" }] }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.abstraction), {
+      L1: [{ sceneId: "clip01_scene001", brollPotential: 0.2 }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.topicIndex), {
+      topics: [{ topicId: "t1", matchingScenes: [{ sceneId: "clip02_scene001", score: 0.9 }] }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+      batchId: "batch_prod",
+      clips: [{ clipId: "clip01" }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.vision("clip01")), {
+      clipId: "clip01",
+      captions: [{ caption: "[stub] test" }],
+    });
+
+    const report = buildBatchQualityReport(workDir, { qualityProfile: "production" });
+    assert.ok(report.metrics.qualityGateFailures.includes("stub_coverage_nonzero"));
+    assert.ok(report.metrics.qualityGateFailures.includes("review_not_approved"));
   });
 });

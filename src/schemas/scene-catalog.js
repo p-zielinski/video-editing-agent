@@ -42,6 +42,7 @@ export const SceneCatalogSchema = z.object({
     aspectRatio: AspectRatioSchema.optional(),
     resolution: ResolutionSchema.optional(),
     mediaType: MediaTypeSchema.optional(),
+    contentHash: z.string().optional(),
   })),
   scenes: z.array(SceneSchema),
 });

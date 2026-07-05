@@ -4,11 +4,27 @@
   "category": "audio",
   "label": "Music drop",
   "description": "Ściszenie muzyki pod ważną kwestią.",
-  "platforms": ["youtube", "shorts"],
-  "trendTags": ["audio_mix", "ducking"],
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "audio_mix",
+    "ducking"
+  ],
   "params": {
-    "gainDb": { "type": "number", "min": -12, "max": -3, "default": -6 },
-    "durationSec": { "type": "number", "min": 2, "max": 30, "default": 8 }
+    "gainDb": {
+      "type": "number",
+      "min": -12,
+      "max": -3,
+      "default": -6
+    },
+    "durationSec": {
+      "type": "number",
+      "min": 2,
+      "max": 30,
+      "default": 8
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 20,
@@ -19,5 +35,9 @@
   },
   "whenToUse": "Ważne zdanie, emocjonalny moment.",
   "whenToAvoid": "Brak ścieżki muzycznej (audioPolicy external).",
-  "syncHints": ["word_emphasis", "sentence_start"]
+  "syncHints": [
+    "word_emphasis",
+    "sentence_start"
+  ],
+  "renderSupport": "audio_only"
 }

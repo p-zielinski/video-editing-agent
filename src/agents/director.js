@@ -27,7 +27,11 @@ import {
   suggestRetentionMoments,
 } from "../editorial/shorts-retention.js";
 import { buildSpatialRefExamples } from "../editorial/spatial-ref.js";
-import { buildAudioIndexSummary, DIRECTOR_AUDIO_CAPS } from "../editorial/audio-index-summary.js";
+import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
+import { DIRECTOR_BRIEF_CAPS, DRILL_DOWN_CAPS } from "../editorial/brief-caps.js";
+import {
+  EDIT_RECIPE_V2_OUTPUT_SCHEMA,
+} from "../schemas/export-director-schema.js";
 import {
   buildBrollSyncHints,
   buildKeyframesByClip,
@@ -39,6 +43,9 @@ import {
   buildColdOpenSegmentHint,
   buildNarrativeOpenLoops,
 } from "../editorial/chapter-hints.js";
+import { buildActTransitionHints } from "../editorial/act-transitions.js";
+import { loadTwelveLabsByClip } from "../lib/twelvelabs-merge.js";
+import { summarizeTwelveLabsForBrief } from "../lib/twelvelabs-client.js";
 import {
   buildDeadAirMontageHints,
   buildEditorialContext,
@@ -51,122 +58,13 @@ import {
 import { buildTopSceneRanks } from "../editorial/scene-rank.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 
-const L1_SUMMARY_MAX_CHARS = 500;
-const VISION_CAPTION_MAX_CHARS = 200;
-const L1_SCENE_SUMMARIES_THRESHOLD = 30;
-const BROLL_SYNC_HINTS_LIMIT = 25;
-const MIN_SCENES_PER_CLIP_COMPACT = 2;
-
-function truncateSummary(text, maxLen = L1_SUMMARY_MAX_CHARS) {
+function truncateSummary(text, maxLen = DIRECTOR_BRIEF_CAPS.L1_SUMMARY_MAX_CHARS) {
   const s = text ?? "";
   if (s.length <= maxLen) {
     return s;
   }
   return `${s.slice(0, maxLen - 1)}…`;
 }
-
-const EDIT_RECIPE_V2_OUTPUT_SCHEMA = {
-  version: "2.3",
-  batchId: "string",
-  batchContext: {
-    inputMode: "single_clip|multi_clip_day",
-    theme: "string?",
-    requiredFormats: ["16:9", "9:16"],
-    brollStrategy: "match_speech_topics",
-    brollMatchThreshold: 0.55,
-    qualityOverQuantity: true,
-    allowBrollReuse: false,
-    maxBrollSegmentsPerOutput: 30,
-    shortsStrategy: "standalone_highlights",
-    shortsMaxDurationSec: 60,
-  },
-  creativityProfile: {
-    level: "safe|balanced|bold|shorts",
-    allowMidSentenceCuts: false,
-    techniquePack: "youtube_vlog_2026",
-    maxTechniqueDensityPerMin: 0.3,
-  },
-  creativeMoments: [
-    {
-      momentId: "cm_001",
-      techniqueId: "zoom_punch_in",
-      outputId: "string",
-      outputStartSec: 0,
-      outputEndSec: 2.5,
-      params: {},
-      retentionRole: "hook|beat|payoff?",
-      reason: "string",
-      confidence: 0.85,
-    },
-  ],
-  shortsRetentionProfile: {
-    enabled: true,
-    hookWindowSec: 3,
-    retentionBeatIntervalSec: 25,
-    requireHookMoment: true,
-    requireHookOverlay: true,
-    techniquePack: "shorts_retention_2026",
-  },
-  audioMixPlan: {
-    voiceTargetLufs: -16,
-    musicBed: {
-      trackId: "string",
-      volumeDb: -18,
-      duckingDb: -12,
-    },
-    preWhisperNormalizeLufs: -18,
-    segments: [
-      {
-        outputId: "string",
-        musicInSec: 0,
-        musicOutSec: 120,
-        duckUnderVoice: true,
-        duckingDb: -12,
-        duckingWindows: [
-          { startSec: 0, endSec: 30, duckingDb: -12 },
-        ],
-      },
-    ],
-  },
-  clipRegistry: [],
-  outputs: [
-    {
-      outputId: "string",
-      format: "16:9|9:16",
-      outputKind: "main|short",
-      title: "string",
-      timeline: [
-        {
-          segmentId: "string",
-          segmentRole: "aroll|broll",
-          videoRef: { clipId: "string", sceneId: "string" },
-          audioRef: { clipId: "string", sceneId: "string" },
-          videoInSec: 0,
-          videoOutSec: 10,
-          audioInSec: 0,
-          audioOutSec: 10,
-          audioPolicy: "from_video_ref|from_audio_ref|from_prev|from_next|external|mute",
-          syncMode: "align_start",
-          overlapSec: 0,
-          cuts: [],
-          videoTransform: { speed: 1, speedMode: "video_audio", reframe: "center|face|subject?", fitMode: "pillarbox|pillarbox_blur|fill?" },
-          sourceVolumeDb: 0,
-          intent: "string?",
-        },
-      ],
-    },
-  ],
-  excluded: [
-    {
-      exclusionType: "whole_clip|scene|time_range",
-      clipId: "string?",
-      sceneId: "string?",
-      usableAsBroll: false,
-      reason: "string",
-    },
-  ],
-  sceneUsageRegistry: [],
-};
 
 function resolveDirectorTechniquePack({
   contextProfile,
@@ -594,7 +492,38 @@ function buildL1SceneSummaries(abstraction, scenes) {
   });
 }
 
-export { buildL1SceneSummaries };
+function selectL1SummaryScenes({
+  abstraction,
+  timelineIndex,
+  sceneMap,
+  audioIndex,
+  clipRegistry,
+  sceneCount,
+}) {
+  if (sceneCount <= DIRECTOR_BRIEF_CAPS.L1_SCENE_SUMMARIES_THRESHOLD) {
+    return timelineIndex.scenes ?? [];
+  }
+
+  const sceneMapIds = new Set(sceneMap.map((entry) => entry.sceneId));
+  const scenesInMap = (timelineIndex.scenes ?? []).filter(
+    (scene) => sceneMapIds.has(scene.sceneId),
+  );
+  const topRanked = buildTopSceneRanks(
+    abstraction,
+    { ...timelineIndex, scenes: scenesInMap },
+    audioIndex,
+    {
+      limit: DIRECTOR_BRIEF_CAPS.L1_SCENE_SUMMARIES_THRESHOLD,
+      clipRegistry,
+    },
+  );
+  const rankOrder = new Map(topRanked.map((entry, index) => [entry.sceneId, index]));
+  return scenesInMap
+    .filter((scene) => rankOrder.has(scene.sceneId))
+    .sort((a, b) => rankOrder.get(a.sceneId) - rankOrder.get(b.sceneId));
+}
+
+export { buildL1SceneSummaries, selectL1SummaryScenes };
 
 function buildVisionCaptionBySceneId(visionCaptions = []) {
   const latestByScene = new Map();
@@ -609,7 +538,7 @@ function buildVisionCaptionBySceneId(visionCaptions = []) {
   }
   const bySceneId = {};
   for (const [sceneId, entry] of latestByScene) {
-    bySceneId[sceneId] = truncateSummary(entry.caption, VISION_CAPTION_MAX_CHARS);
+    bySceneId[sceneId] = truncateSummary(entry.caption, DIRECTOR_BRIEF_CAPS.VISION_CAPTION_MAX_CHARS);
   }
   return bySceneId;
 }
@@ -644,9 +573,15 @@ function buildSceneMapOmittedSummary(sceneEntries, selectedIds) {
     .map((entry) => ({
       sceneId: entry.sceneId,
       clipId: entry.clipId,
+      startSec: entry.startSec,
+      endSec: entry.endSec,
       hasSpeech: entry.hasSpeech,
       brollPotential: entry.brollPotential,
       visualQuality: entry.visualQuality,
+      ...(entry.summary
+        ? { summary: truncateSummary(entry.summary, DIRECTOR_BRIEF_CAPS.OMITTED_SUMMARY_MAX_CHARS) }
+        : {}),
+      ...(entry.mood ? { mood: entry.mood } : {}),
       ...(entry.topics?.length ? { topics: entry.topics.slice(0, 4) } : {}),
     }));
 }
@@ -851,10 +786,18 @@ const SCENE_MAP_COMPACT_DEFAULTS = {
 
 export function resolveSceneMapCompactThreshold(timelineIndex, inputMode) {
   const clipCount = timelineIndex.clips?.length ?? 1;
+  const sceneCount = timelineIndex.scenes?.length ?? 0;
   const base = inputMode === "multi_clip_day"
     ? SCENE_MAP_COMPACT_DEFAULTS.multi_clip_day
     : SCENE_MAP_COMPACT_DEFAULTS.single_clip;
-  return base + clipCount * SCENE_MAP_COMPACT_DEFAULTS.perClipBonus;
+  let threshold = Math.max(
+    30,
+    base + clipCount * SCENE_MAP_COMPACT_DEFAULTS.perClipBonus,
+  );
+  if (sceneCount > DIRECTOR_BRIEF_CAPS.SCENE_MAP_LARGE_BATCH_SCENE_COUNT) {
+    threshold = Math.ceil(threshold * 1.25);
+  }
+  return threshold;
 }
 
 const SCENE_MAP_RANK_SELECTION_LIMIT = 20;
@@ -975,9 +918,9 @@ export function selectScenesForDirectorMap(
   for (const clipId of clipIds) {
     if (includedClipIds.has(clipId)) {
       const clipScenes = allScenes.filter((scene) => scene.clipId === clipId);
-      if (clipScenes.length > MIN_SCENES_PER_CLIP_COMPACT) {
+      if (clipScenes.length > DIRECTOR_BRIEF_CAPS.MIN_SCENES_PER_CLIP_COMPACT) {
         const selectedFromClip = selected.filter((scene) => scene.clipId === clipId);
-        if (selectedFromClip.length < MIN_SCENES_PER_CLIP_COMPACT) {
+        if (selectedFromClip.length < DIRECTOR_BRIEF_CAPS.MIN_SCENES_PER_CLIP_COMPACT) {
           const extras = clipScenes
             .filter((scene) => !selected.some((s) => s.sceneId === scene.sceneId))
             .sort((a, b) => {
@@ -986,7 +929,7 @@ export function selectScenesForDirectorMap(
               return (l1b.brollPotential ?? 0) - (l1a.brollPotential ?? 0)
                 || (l1b.visualQuality ?? 0) - (l1a.visualQuality ?? 0);
             })
-            .slice(0, MIN_SCENES_PER_CLIP_COMPACT - selectedFromClip.length);
+            .slice(0, DIRECTOR_BRIEF_CAPS.MIN_SCENES_PER_CLIP_COMPACT - selectedFromClip.length);
           for (const scene of extras) {
             selected.push(scene);
           }
@@ -1036,7 +979,7 @@ export function buildDirectorMultiClipEnrichmentFields({
       timelineIndex,
       keyframesByClip: keyframesByClip ?? buildKeyframesByClip(timelineIndex),
       abstractL1: abstraction.L1,
-    }).slice(0, BROLL_SYNC_HINTS_LIMIT);
+    }).slice(0, DIRECTOR_BRIEF_CAPS.BROLL_SYNC_HINTS_LIMIT);
   }
 
   const coldOpenSegmentHint = buildColdOpenSegmentHint(
@@ -1049,6 +992,21 @@ export function buildDirectorMultiClipEnrichmentFields({
   }
 
   return fields;
+}
+
+export function buildTwelveLabsBriefFields(workDir, clipRegistry = []) {
+  if (!workDir) {
+    return {};
+  }
+  const byClip = {};
+  for (const clip of clipRegistry) {
+    const payload = loadTwelveLabsByClip(workDir, clip.clipId);
+    if (payload) {
+      byClip[clip.clipId] = payload;
+    }
+  }
+  const summary = summarizeTwelveLabsForBrief(byClip);
+  return summary ? { twelveLabsMoments: summary } : {};
 }
 
 export function buildDirectorBrief({
@@ -1071,6 +1029,7 @@ export function buildDirectorBrief({
   recipe = null,
   outputs = null,
   narrativeProfile = null,
+  workDir = null,
 }) {
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
   const sortedClipRegistry = [...clipRegistry].sort(
@@ -1190,10 +1149,10 @@ export function buildDirectorBrief({
     topicIndex,
     spatialIndex,
     audioIndex,
-    includeFullTopicIndex: true,
-    spatialAnchorLimit: 3,
-    maxWordsPerScene: 120,
-    audioCaps: DIRECTOR_AUDIO_CAPS,
+    includeFullTopicIndex: DIRECTOR_BRIEF_CAPS.includeFullTopicIndex,
+    spatialAnchorLimit: DIRECTOR_BRIEF_CAPS.spatialAnchorLimit,
+    maxWordsPerScene: DIRECTOR_BRIEF_CAPS.maxWordsPerScene,
+    audioCaps: DIRECTOR_BRIEF_CAPS.audioCaps,
     perClipAnalysis,
     wordIndexes,
     recipe: (() => {
@@ -1302,6 +1261,8 @@ export function buildDirectorBrief({
     keyframesByClip,
   }));
 
+  Object.assign(brief, buildTwelveLabsBriefFields(workDir, sortedClipRegistry));
+
   if (audioIndex?.clips?.length) {
     brief.sfxPlanDefaults = buildSfxPlanFromAudio(audioIndex, {
       maxEntries: 15,
@@ -1370,6 +1331,28 @@ export function buildDirectorBrief({
     if (Object.keys(creativityBudgetByL2Segment).length > 0) {
       brief.creativityBudgetByL2Segment = creativityBudgetByL2Segment;
     }
+
+    const actTransitionHints = buildActTransitionHints(
+      abstraction,
+      effectiveNarrativeProfile,
+      {
+        recipe: {
+          ...(recipe ?? {}),
+          outputs: outputs ?? recipe?.outputs ?? (requiredFormats.includes("16:9")
+            ? [{
+              outputId: "main_16x9",
+              outputKind: "main",
+              format: "16:9",
+              timeline: [],
+            }]
+            : []),
+        },
+        wordIndexes,
+      },
+    );
+    if (actTransitionHints.length > 0) {
+      brief.actTransitionHints = actTransitionHints;
+    }
   }
 
   if (brief.sfxPlanDefaults?.length && effectiveNarrativeProfile?.sfxNarrativeOnly) {
@@ -1387,8 +1370,16 @@ export function buildDirectorBrief({
     });
   }
 
-  if (sceneCount <= L1_SCENE_SUMMARIES_THRESHOLD) {
-    brief.l1SceneSummaries = buildL1SceneSummaries(abstraction, timelineIndex.scenes);
+  const l1SummaryScenes = selectL1SummaryScenes({
+    abstraction,
+    timelineIndex,
+    sceneMap,
+    audioIndex,
+    clipRegistry: sortedClipRegistry,
+    sceneCount,
+  });
+  if (l1SummaryScenes.length > 0) {
+    brief.l1SceneSummaries = buildL1SceneSummaries(abstraction, l1SummaryScenes);
   }
 
   if (includeL1) {
@@ -1396,6 +1387,93 @@ export function buildDirectorBrief({
   }
 
   return brief;
+}
+
+/**
+ * Persist structured retentionBeatTargets on recipe from director brief numbers.
+ */
+export function persistRetentionBeatTargetsFromBrief(recipe, brief) {
+  if (recipe.retentionBeatTargets?.length) {
+    return recipe;
+  }
+
+  const mainOutput = recipe.outputs?.find(
+    (output) => output.outputKind === "main" || output.format === "16:9",
+  );
+  const shortOutput = recipe.outputs?.find(
+    (output) => output.outputKind === "short" || output.format === "9:16",
+  );
+  const mainOutputId = mainOutput?.outputId ?? "main_16x9";
+  const shortOutputId = shortOutput?.outputId ?? "short_9x16";
+  const structured = [];
+
+  const pushTargets = (targets, outputId, prefix) => {
+    for (let i = 0; i < targets.length; i += 1) {
+      structured.push({
+        outputId,
+        targetSec: targets[i],
+        label: `${prefix}_${i + 1}`,
+      });
+    }
+  };
+
+  if (brief.retentionBeatTargetsMain?.length) {
+    pushTargets(brief.retentionBeatTargetsMain, mainOutputId, "main_beat");
+  }
+  if (brief.retentionBeatTargetsShort?.length) {
+    pushTargets(brief.retentionBeatTargetsShort, shortOutputId, "short_beat");
+  }
+  if (!brief.retentionBeatTargetsMain?.length
+    && !brief.retentionBeatTargetsShort?.length
+    && brief.retentionBeatTargets?.length) {
+    const outputId = brief.vlogRetentionProfile?.enabled !== false
+      ? mainOutputId
+      : shortOutputId;
+    pushTargets(brief.retentionBeatTargets, outputId, "beat");
+  }
+
+  if (structured.length) {
+    recipe.retentionBeatTargets = structured;
+  }
+
+  return recipe;
+}
+
+/**
+ * Attach structured retentionBeatTargets when super-director merge omits brief persistence.
+ */
+export function attachRetentionBeatTargets(recipe, {
+  requiredFormats = ["16:9", "9:16"],
+  batchContext = {},
+  targetDurationSec,
+  timelineIndex = { clips: [] },
+} = {}) {
+  if (recipe.retentionBeatTargets?.length) {
+    return recipe;
+  }
+
+  const {
+    retentionBeatTargetsMain,
+    retentionBeatTargetsShort,
+    vlogRetention,
+    shortsRetention,
+  } = buildCreativityContext({
+    creativityProfile: recipe.creativityProfile,
+    batchContext: { ...batchContext, ...recipe.batchContext },
+    outputs: recipe.outputs,
+    requiredFormats,
+    targetDurationSec,
+    timelineIndex,
+    shortsRetentionProfile: recipe.shortsRetentionProfile,
+    vlogRetentionProfile: recipe.vlogRetentionProfile,
+  });
+
+  return persistRetentionBeatTargetsFromBrief(recipe, {
+    retentionBeatTargetsMain,
+    retentionBeatTargetsShort,
+    vlogRetentionProfile: vlogRetention,
+    shortsRetentionProfile: shortsRetention,
+  });
 }
 
 export async function runDirector(client, {
@@ -1411,6 +1489,7 @@ export async function runDirector(client, {
   userContext,
   requiredFormats = ["16:9", "9:16"],
   batchContext = {},
+  workDir = null,
 }) {
   const system = loadPrompt("director", { version: "v2" });
   const brief = buildDirectorBrief({
@@ -1427,6 +1506,7 @@ export async function runDirector(client, {
     requiredFormats,
     batchContext,
     includeL1: false,
+    workDir,
   });
 
   const user = JSON.stringify({
@@ -1443,7 +1523,7 @@ export async function runDirector(client, {
   });
 
   raw.batchId = timelineIndex.batchId;
-  raw.version = raw.version ?? "2.2";
+  raw.version = raw.version ?? "2.4";
   if (!raw.batchContext) {
     raw.batchContext = brief.batchContext;
   }
@@ -1468,7 +1548,9 @@ export async function runDirector(client, {
     raw.clipRegistry = clipRegistry;
   }
 
-  return EditRecipeV2Schema.parse(raw);
+  const recipe = EditRecipeV2Schema.parse(raw);
+  persistRetentionBeatTargetsFromBrief(recipe, brief);
+  return recipe;
 }
 
 export function filterL1ForScenes(abstraction, sceneIds) {
@@ -1536,7 +1618,10 @@ export async function directorDrillDown(client, {
     topicIndex,
     spatialIndex,
     audioIndex,
-    includeFullTopicIndex: false,
+    includeFullTopicIndex: DRILL_DOWN_CAPS.includeFullTopicIndex,
+    spatialAnchorLimit: DRILL_DOWN_CAPS.spatialAnchorLimit,
+    maxWordsPerScene: DRILL_DOWN_CAPS.maxWordsPerScene,
+    audioCaps: DRILL_DOWN_CAPS.audioCaps,
     perClipAnalysis,
     wordIndexes,
   });
@@ -1572,6 +1657,16 @@ export async function directorDrillDown(client, {
   const creativityBudgetByL2Segment = effectiveNarrativeProfile
     ? buildCreativityBudgetByL2Segment(creativityBudget, effectiveNarrativeProfile)
     : {};
+
+  const actTransitionHints = buildActTransitionHints(
+    abstraction,
+    effectiveNarrativeProfile,
+    { recipe, wordIndexes },
+  );
+  const chapterCardHints = buildChapterCardHints(abstraction, recipe);
+  const narrativeOpenLoops = buildNarrativeOpenLoops(abstraction);
+  const emotionalBeatHints = buildEmotionalBeatHints(abstraction, timelineIndex);
+  const deadAirMontageHints = buildDeadAirMontageHints(editorialContext.audioIndex);
 
   const user = JSON.stringify({
     task: "drill_down_refine",
@@ -1625,6 +1720,11 @@ export async function directorDrillDown(client, {
       ? { creativityBudgetByL2Segment }
       : {}),
     ...(effectiveNarrativeProfile ? { narrativeProfile: effectiveNarrativeProfile } : {}),
+    ...(actTransitionHints.length > 0 ? { actTransitionHints } : {}),
+    ...(chapterCardHints.length > 0 ? { chapterCardHints } : {}),
+    ...(emotionalBeatHints.length > 0 ? { emotionalBeatHints } : {}),
+    ...(narrativeOpenLoops.length > 0 ? { narrativeOpenLoops } : {}),
+    ...(deadAirMontageHints.length > 0 ? { deadAirMontageHints } : {}),
     outputSchema: EDIT_RECIPE_V2_OUTPUT_SCHEMA,
   });
 
@@ -1636,7 +1736,7 @@ export async function directorDrillDown(client, {
   });
 
   raw.batchId = timelineIndex.batchId;
-  raw.version = raw.version ?? "2.2";
+  raw.version = raw.version ?? "2.4";
   if (!raw.creativeMoments) {
     raw.creativeMoments = recipe.creativeMoments ?? [];
   }

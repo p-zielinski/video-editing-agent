@@ -39,6 +39,25 @@ describe("abstraction chunking", () => {
     assert.match(input.visual, /pokoju/);
   });
 
+  it("caps transcript words in scene summary input", () => {
+    const scene = {
+      sceneId: "clip01_scene001",
+      startSec: 0,
+      endSec: 120,
+      durationSec: 120,
+    };
+    const words = Array.from({ length: 200 }, (_, i) => ({
+      word: `w${i}`,
+      start: i * 0.5,
+      end: i * 0.5 + 0.4,
+      isFiller: false,
+    }));
+
+    const input = sceneSummaryInput(scene, words, []);
+    const wordCount = input.transcript.split(/\s+/).filter(Boolean).length;
+    assert.equal(wordCount, 120);
+  });
+
   it("includes objectLabels in scene summary input", () => {
     const scene = {
       sceneId: "clip01_scene001",

@@ -1,3 +1,5 @@
+import { DIRECTOR_BRIEF_CAPS } from "../editorial/brief-caps.js";
+
 /**
  * Sort scenes by clip ingest order (sortIndex) then in-clip time.
  */
@@ -114,9 +116,9 @@ export function chunkTimelineForL2(scenes, { targetSegmentSec = 600, minSegmentS
 }
 
 export function sceneSummaryInput(scene, words, captions, objectDetections = []) {
-  const sceneWords = words.filter(
-    (w) => w.start >= scene.startSec && w.start < scene.endSec,
-  );
+  const sceneWords = words
+    .filter((w) => w.start >= scene.startSec && w.start < scene.endSec)
+    .slice(0, DIRECTOR_BRIEF_CAPS.maxWordsPerScene);
   const sceneCaptions = captions.filter((c) => c.sceneId === scene.sceneId);
   const sceneObjects = objectDetections.filter((d) => d.sceneId === scene.sceneId);
   const objectLabels = [...new Set(

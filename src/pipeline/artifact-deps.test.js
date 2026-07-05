@@ -10,6 +10,8 @@ import {
   getStaleDownstream,
   shouldRebuildArtifact,
   shouldUseCachedArtifact,
+  shouldUseCachedClipArtifact,
+  shouldUseCachedClipArtifactWithContext,
   listObjectArtifactPaths,
   SPATIAL_INDEX_INPUTS,
 } from "./artifact-deps.js";
@@ -381,5 +383,188 @@ describe("artifact-deps", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  describe("shouldUseCachedClipArtifact extended checks", () => {
+    function setupFreshTwelvelabsArtifact(dir, artifactData) {
+      const manifest = {
+        clips: [{ clipId: "clip01", contentHash: "manifest-hash" }],
+      };
+      const sceneCatalogPath = path.join(dir, ARTIFACTS.sceneCatalog);
+      const manifestPath = path.join(dir, ARTIFACTS.manifest);
+      const outPath = path.join(dir, ARTIFACTS.twelvelabs("clip01"));
+
+      writeJson(manifestPath, manifest);
+      writeJson(sceneCatalogPath, { batchId: "b1", clips: [{ clipId: "clip01" }], scenes: [] });
+      writeJson(outPath, artifactData);
+      touch(manifestPath, 0);
+      touch(sceneCatalogPath, 0);
+      touch(outPath, 5000);
+
+      return { manifest, outPath };
+    }
+
+    it("returns false when manifest contentHash differs from artifact sourceContentHash", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-clip-hash-stale-"));
+      try {
+        const { manifest, outPath } = setupFreshTwelvelabsArtifact(dir, {
+          version: "1.1",
+          clipId: "clip01",
+          indexingStatus: "indexed",
+          sourceContentHash: "old-hash",
+          chapters: [],
+          moments: [],
+        });
+
+        assert.equal(
+          shouldUseCachedClipArtifactWithContext({
+            workDir: dir,
+            outPath,
+            force: false,
+            manifest,
+            clipId: "clip01",
+          }),
+          false,
+        );
+
+        assert.equal(
+          shouldUseCachedClipArtifact(dir, outPath, false, { manifest, clipId: "clip01" }),
+          false,
+        );
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns false when twelvelabs artifact version is 1.0 but expected 1.1", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-clip-version-stale-"));
+      try {
+        const { manifest, outPath } = setupFreshTwelvelabsArtifact(dir, {
+          version: "1.0",
+          clipId: "clip01",
+          indexingStatus: "indexed",
+          sourceContentHash: "manifest-hash",
+          chapters: [],
+          moments: [],
+        });
+
+        assert.equal(
+          shouldUseCachedClipArtifactWithContext({
+            workDir: dir,
+            outPath,
+            force: false,
+            manifest,
+            clipId: "clip01",
+          }),
+          false,
+        );
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns false when twelvelabsLive is true and artifact indexingStatus is stub", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-clip-stub-stale-"));
+      try {
+        const { manifest, outPath } = setupFreshTwelvelabsArtifact(dir, {
+          version: "1.1",
+          clipId: "clip01",
+          indexingStatus: "stub",
+          sourceContentHash: "manifest-hash",
+          chapters: [],
+          moments: [],
+        });
+
+        assert.equal(
+          shouldUseCachedClipArtifactWithContext({
+            workDir: dir,
+            outPath,
+            force: false,
+            manifest,
+            clipId: "clip01",
+            liveModeHints: { twelvelabsLive: true },
+          }),
+          false,
+        );
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("reads manifest from workDir for hash checks when options omit manifest", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-clip-manifest-read-"));
+      try {
+        const { outPath } = setupFreshTwelvelabsArtifact(dir, {
+          version: "1.1",
+          clipId: "clip01",
+          indexingStatus: "indexed",
+          sourceContentHash: "old-hash",
+          chapters: [],
+          moments: [],
+        });
+
+        assert.equal(shouldUseCachedClipArtifact(dir, outPath, false), false);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    function setupFreshWordsArtifact(dir, artifactData) {
+      const manifest = {
+        clips: [{ clipId: "clip01", contentHash: "manifest-hash" }],
+      };
+      const sceneCatalogPath = path.join(dir, ARTIFACTS.sceneCatalog);
+      const manifestPath = path.join(dir, ARTIFACTS.manifest);
+      const outPath = path.join(dir, ARTIFACTS.words("clip01"));
+
+      writeJson(manifestPath, manifest);
+      writeJson(sceneCatalogPath, { batchId: "b1", clips: [{ clipId: "clip01" }], scenes: [] });
+      writeJson(outPath, artifactData);
+      touch(manifestPath, 0);
+      touch(sceneCatalogPath, 0);
+      touch(outPath, 5000);
+
+      return { manifest, outPath };
+    }
+
+    it("returns false for words artifact when manifest contentHash differs", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-words-hash-stale-"));
+      try {
+        const { manifest, outPath } = setupFreshWordsArtifact(dir, {
+          version: "1.0",
+          clipId: "clip01",
+          sourceContentHash: "old-hash",
+          words: [],
+          durationSec: 10,
+        });
+
+        assert.equal(
+          shouldUseCachedClipArtifact(dir, outPath, false, { manifest, clipId: "clip01" }),
+          false,
+        );
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns true for words artifact when hash matches and mtime graph is fresh", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-words-hash-fresh-"));
+      try {
+        const { manifest, outPath } = setupFreshWordsArtifact(dir, {
+          version: "1.0",
+          clipId: "clip01",
+          sourceContentHash: "manifest-hash",
+          words: [],
+          durationSec: 10,
+        });
+
+        assert.equal(
+          shouldUseCachedClipArtifact(dir, outPath, false, { manifest, clipId: "clip01" }),
+          true,
+        );
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 });

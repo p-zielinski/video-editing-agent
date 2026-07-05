@@ -4,20 +4,36 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runTwelveLabsStep } from "./twelvelabs.js";
+import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
+import {
+  getGlobalCachePath,
+  buildAnalysisCacheKey,
+} from "../../lib/global-analysis-cache.js";
+import { publishGlobalClipArtifact } from "../../lib/global-cache-step.js";
 import { ARTIFACTS, writeJson, readJson } from "../work-paths.js";
+
+function touch(filePath, offsetMs = 0) {
+  const mtime = (Date.now() - 10_000 + offsetMs) / 1000;
+  fs.utimesSync(filePath, mtime, mtime);
+}
 
 describe("twelvelabs step", () => {
   let workDir;
+  let cacheRoot;
   const originalApiKey = process.env.TWELVELABS_API_KEY;
+  let previousDisableEnv;
 
   before(() => {
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-twelvelabs-"));
+    cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "vea-twelvelabs-global-"));
+    previousDisableEnv = process.env.DISABLE_GLOBAL_ANALYSIS_CACHE;
+    delete process.env.DISABLE_GLOBAL_ANALYSIS_CACHE;
     writeJson(path.join(workDir, ARTIFACTS.manifest), {
       version: "1.0",
       batchId: "test01",
       clips: [
-        { clipId: "clip01", sourcePath: "/in/clip01.mp4", fileName: "clip01.mp4" },
-        { clipId: "clip02", sourcePath: "/in/clip02.mp4", fileName: "clip02.mp4" },
+        { clipId: "clip01", sourcePath: "/in/clip01.mp4", fileName: "clip01.mp4", contentHash: "hash-tl-01" },
+        { clipId: "clip02", sourcePath: "/in/clip02.mp4", fileName: "clip02.mp4", contentHash: "hash-tl-02" },
       ],
     });
     writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
@@ -36,7 +52,13 @@ describe("twelvelabs step", () => {
     } else {
       process.env.TWELVELABS_API_KEY = originalApiKey;
     }
+    if (previousDisableEnv === undefined) {
+      delete process.env.DISABLE_GLOBAL_ANALYSIS_CACHE;
+    } else {
+      process.env.DISABLE_GLOBAL_ANALYSIS_CACHE = previousDisableEnv;
+    }
     fs.rmSync(workDir, { recursive: true, force: true });
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
   });
 
   it("stub mode writes per-clip artifacts with empty chapters and moments", async () => {
@@ -76,12 +98,11 @@ describe("twelvelabs step", () => {
     assert.equal(results[0].indexingStatus, "stub");
   });
 
-  it("falls back to stub when live mode requested but API is unimplemented", async () => {
+  it("attempts live when TWELVELABS_API_KEY is set (falls back to stub on API error)", async () => {
     process.env.TWELVELABS_API_KEY = "test-key-live-fallback";
 
     const results = await runTwelveLabsStep({
       workDir,
-      stub: false,
       force: true,
       apiKey: "test-key-live-fallback",
     });
@@ -92,5 +113,132 @@ describe("twelvelabs step", () => {
       assert.deepEqual(result.chapters, []);
       assert.deepEqual(result.moments, []);
     }
+  });
+
+  it("rebuilds stub artifacts when switching from stub to live mode", async () => {
+    delete process.env.TWELVELABS_API_KEY;
+    await runTwelveLabsStep({ workDir, stub: true, force: true });
+
+    const artifactPath = path.join(workDir, ARTIFACTS.twelvelabs("clip01"));
+    const beforeMtime = fs.statSync(artifactPath).mtimeMs;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    process.env.TWELVELABS_API_KEY = "test-key-stub-to-live";
+    await runTwelveLabsStep({
+      workDir,
+      force: false,
+      apiKey: "test-key-stub-to-live",
+    });
+
+    const afterMtime = fs.statSync(artifactPath).mtimeMs;
+    assert.ok(afterMtime > beforeMtime, "expected stub artifact to be rebuilt in live mode");
+  });
+
+  it("rebuilds version 1.0 twelvelabs artifacts", async () => {
+    delete process.env.TWELVELABS_API_KEY;
+
+    const manifestPath = path.join(workDir, ARTIFACTS.manifest);
+    const sceneCatalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
+    const artifactPath = path.join(workDir, ARTIFACTS.twelvelabs("clip01"));
+
+    writeJson(artifactPath, {
+      version: "1.0",
+      clipId: "clip01",
+      indexingStatus: "indexed",
+      sourceContentHash: "legacy-hash",
+      chapters: [{ startSec: 0, endSec: 10, title: "Stale chapter" }],
+      moments: [{ startSec: 1, endSec: 5, description: "Stale moment" }],
+    });
+    touch(manifestPath, 0);
+    touch(sceneCatalogPath, 0);
+    touch(artifactPath, 5000);
+
+    await runTwelveLabsStep({ workDir, stub: true, force: false });
+
+    const payload = readJson(artifactPath);
+    assert.equal(payload.version, "1.0");
+    assert.equal(payload.indexingStatus, "stub");
+    assert.deepEqual(payload.chapters, []);
+    assert.deepEqual(payload.moments, []);
+  });
+
+  it("does not publish stub artifacts to global cache", async () => {
+    delete process.env.TWELVELABS_API_KEY;
+
+    const configFingerprint = buildStepConfigFingerprint("twelvelabs", {
+      useStub: true,
+      twelvelabsLive: false,
+    });
+    const cacheKey = buildAnalysisCacheKey({
+      step: "twelvelabs",
+      contentHash: "hash-tl-01",
+      configFingerprint,
+    });
+    const cachePath = getGlobalCachePath("twelvelabs", cacheKey, cacheRoot);
+    if (fs.existsSync(cachePath)) {
+      fs.unlinkSync(cachePath);
+    }
+
+    await runTwelveLabsStep({ workDir, stub: true, force: true, globalCacheRoot: cacheRoot });
+
+    assert.ok(!fs.existsSync(cachePath), "stub run should not write global cache");
+  });
+
+  it("restores indexed twelvelabs artifacts from global cache", async () => {
+    const contentHash = "hash-tl-restore";
+    const configFingerprint = buildStepConfigFingerprint("twelvelabs", {
+      useStub: false,
+      twelvelabsLive: true,
+    });
+
+    publishGlobalClipArtifact({
+      step: "twelvelabs",
+      contentHash,
+      configFingerprint,
+      artifact: {
+        version: "1.1",
+        clipId: "clip01",
+        sourceContentHash: contentHash,
+        indexingStatus: "indexed",
+        twelveLabsAssetId: "asset-global-1",
+        chapters: [{ startSec: 0, endSec: 10, title: "Intro" }],
+        moments: [{ startSec: 2, endSec: 8, description: "Chef plating" }],
+      },
+      cacheRoot,
+    });
+
+    writeJson(path.join(workDir, ARTIFACTS.manifest), {
+      version: "1.0",
+      batchId: "test01",
+      clips: [
+        { clipId: "clip09", sourcePath: "/in/clip09.mp4", fileName: "clip09.mp4", contentHash },
+      ],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+      version: "1.0",
+      batchId: "test01",
+      clips: [
+        { clipId: "clip09", sourcePath: "/in/clip09.mp4", fileName: "clip09.mp4", durationSec: 30 },
+      ],
+    });
+
+    process.env.TWELVELABS_API_KEY = "test-key-should-not-call";
+
+    const results = await runTwelveLabsStep({
+      workDir,
+      force: true,
+      apiKey: "test-key-should-not-call",
+      globalCacheRoot: cacheRoot,
+    });
+
+    assert.equal(results.length, 1);
+    assert.equal(results[0].clipId, "clip09");
+    assert.equal(results[0].indexingStatus, "indexed");
+    assert.equal(results[0].twelveLabsAssetId, "asset-global-1");
+    assert.equal(results[0].moments[0].description, "Chef plating");
+
+    const artifactPath = path.join(workDir, ARTIFACTS.twelvelabs("clip09"));
+    const written = readJson(artifactPath);
+    assert.equal(written.sourceContentHash, contentHash);
   });
 });

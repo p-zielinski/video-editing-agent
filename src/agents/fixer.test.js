@@ -377,6 +377,21 @@ describe("fixer agent", () => {
     ]), false);
   });
 
+  it("shouldInvokeFixer returns true for V26 coverage warnings", () => {
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V26-FILLER-01", message: "filler" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V26-DEADAIR-01", message: "dead air" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V26-CTA-01", message: "cta" },
+    ]), true);
+    assert.equal(shouldInvokeFixer([
+      { severity: "warning", code: "V26-CHAPTER-01", message: "chapter" },
+    ]), true);
+  });
+
   it("runFixer includes brollSyncHints in payload when provided", async () => {
     const recipe = {
       ...loadFixture("recipe-draft.json"),

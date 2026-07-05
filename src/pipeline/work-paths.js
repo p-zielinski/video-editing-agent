@@ -48,6 +48,7 @@ export const ARTIFACTS = {
   thumbnailPlan: "11-thumbnail-plan.json",
   thumbnailReview: "12-thumbnail-review.json",
   renderManifest: "13-render-manifest.json",
+  recipeProvenance: "14-recipe-provenance.json",
 };
 
 export function formatToRenderSuffix(format) {

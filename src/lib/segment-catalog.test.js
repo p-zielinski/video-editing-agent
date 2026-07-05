@@ -44,6 +44,9 @@ describe("segment-catalog", () => {
     assert.deepEqual(catalog[0].clipIds, ["clip01"]);
     assert.equal(catalog[0].durationSec, 120);
     assert.match(catalog[0].summary, /intro/i);
+    assert.equal(catalog[0].topSceneRanks.length, 2);
+    assert.equal(catalog[0].speechSceneCount, 2);
+    assert.equal(catalog[0].brollSceneCount, 0);
   });
 
   it("rankSegmentsByUserContext boosts keyword matches", () => {

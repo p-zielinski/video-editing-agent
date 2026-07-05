@@ -37,4 +37,16 @@ describe("formatCatalogForPrompt", () => {
     assert.ok(!ids.includes("jump_cut"));
     assert.ok(formatted.techniqueCount < catalog.techniques.length);
   });
+
+  it("includes renderSupport for stub and partial techniques only", () => {
+    const catalog = loadTechniqueCatalog();
+    const budget = computeCreativityBudget(600, { level: "balanced" });
+    const formatted = formatCatalogForPrompt(catalog, budget);
+    const matchCut = formatted.techniques.find((t) => t.id === "match_cut");
+    const jumpCut = formatted.techniques.find((t) => t.id === "jump_cut");
+    const zoom = formatted.techniques.find((t) => t.id === "zoom_punch_in");
+    assert.equal(matchCut?.renderSupport, "stub");
+    assert.equal(jumpCut?.renderSupport, "partial");
+    assert.equal(zoom?.renderSupport, undefined);
+  });
 });

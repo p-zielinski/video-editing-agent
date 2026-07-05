@@ -1,6 +1,6 @@
 # SFX license registry
 
-Record the source and license for every file in `assets/sfx/`. See [REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md](../../docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md) for approved sources and workflow.
+Record the source and license for every file in `assets/sfx/`. Use CC0 or other commercial-friendly licenses; note source URL and download date in the table below.
 
 | file | sfxId | source URL | license | date |
 |------|-------|------------|---------|------|

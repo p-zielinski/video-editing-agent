@@ -4,6 +4,7 @@ import {
   isSlowBreathNarrativeSegment,
   resolveL2SegmentProfile,
   resolveRecipeNarrativeProfile,
+  shouldAllowPacingTrimForL2,
   shouldPreserveSilenceForSegment,
 } from "../lib/narrative-profile.js";
 import { enrichRecipeDeadAirCuts } from "./dead-air-enrich.js";
@@ -169,6 +170,9 @@ export function isProtectedPacingSegment(
 
   const segmentProfile = resolveL2SegmentProfile(narrativeProfile, l2SegmentId);
   if (isSlowBreathNarrativeSegment(segmentProfile, l2Segment)) {
+    return true;
+  }
+  if (!shouldAllowPacingTrimForL2(narrativeProfile, l2SegmentId)) {
     return true;
   }
   return shouldPreserveSilenceForSegment(narrativeProfile, l2SegmentId);

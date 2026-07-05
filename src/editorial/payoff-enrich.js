@@ -107,7 +107,7 @@ function shouldSkipPayoffAtOutputSec(recipe, abstraction, timelineIndex, outputS
   return shouldPreserveSilenceForSegment(narrativeProfile, l2SegmentId);
 }
 
-function collectPayoffCandidates(recipe, abstraction, timelineIndex, wordIndexes) {
+function collectPayoffCandidates(recipe, abstraction, timelineIndex, wordIndexes, emotionalBeatHints = []) {
   const mainOutput = findMainOutput(recipe.outputs ?? []);
   if (!mainOutput) {
     return [];
@@ -139,6 +139,29 @@ function collectPayoffCandidates(recipe, abstraction, timelineIndex, wordIndexes
       sceneId: loop.payoffSceneId,
       l2SegmentId: l2Segment?.segmentId ?? null,
       source: `openLoop:${loop.loopId ?? loop.kind}`,
+    });
+  }
+
+  for (const hint of emotionalBeatHints ?? []) {
+    if (!hint.sceneId) {
+      continue;
+    }
+    let resolvedSec = mapSceneToOutputSec(recipe, hint.sceneId, timelineIndex, wordIndexes);
+    if (resolvedSec == null && hint.anchorTimeSec != null) {
+      const clipId = hint.clipId
+        ?? hint.sceneId.match(/^(.+)_scene\d+$/)?.[1]
+        ?? hint.sceneId.split("_")[0];
+      resolvedSec = mapSourceTimeToOutputSec(recipe, clipId, hint.anchorTimeSec, {
+        outputKind: "main",
+        wordIndexes,
+      });
+    }
+    const l2Segment = resolveL2SegmentForScene(abstraction, hint.sceneId);
+    pushCandidate({
+      outputSec: resolvedSec,
+      sceneId: hint.sceneId,
+      l2SegmentId: l2Segment?.segmentId ?? null,
+      source: `emotionalBeat:${hint.mood ?? hint.retentionRole ?? "payoff"}`,
     });
   }
 
@@ -177,7 +200,7 @@ function resolvePayoffTechniqueId(recipe) {
  * lack a retentionRole: payoff creativeMoment near the mapped scene time.
  *
  * @param {object} recipe - EditRecipe v2 draft (mutated in place)
- * @param {{ abstraction?: object, timelineIndex?: object, wordIndexes?: object[], audioIndex?: object }} [options]
+ * @param {{ abstraction?: object, timelineIndex?: object, wordIndexes?: object[], audioIndex?: object, emotionalBeatHints?: object[] }} [options]
  * @returns {object[]} merged creativeMoments
  */
 export function enrichRecipePayoffMoments(recipe, {
@@ -185,6 +208,7 @@ export function enrichRecipePayoffMoments(recipe, {
   timelineIndex,
   wordIndexes = null,
   audioIndex: _audioIndex = null,
+  emotionalBeatHints = null,
 } = {}) {
   void _audioIndex;
 
@@ -199,7 +223,13 @@ export function enrichRecipePayoffMoments(recipe, {
   }
 
   const toleranceSec = NAR_PAYOFF_TOLERANCE_SEC;
-  const candidates = collectPayoffCandidates(recipe, abstraction, timelineIndex, wordIndexes);
+  const candidates = collectPayoffCandidates(
+    recipe,
+    abstraction,
+    timelineIndex,
+    wordIndexes,
+    emotionalBeatHints,
+  );
   if (!candidates.length) {
     return moments;
   }

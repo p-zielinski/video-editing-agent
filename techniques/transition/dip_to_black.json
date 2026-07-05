@@ -4,11 +4,25 @@
   "category": "transition",
   "label": "Dip to black",
   "description": "Przejście przez czerń — rozdział sekcji.",
-  "platforms": ["youtube"],
-  "trendTags": ["chapter_break"],
+  "platforms": [
+    "youtube"
+  ],
+  "trendTags": [
+    "chapter_break"
+  ],
   "params": {
-    "durationSec": { "type": "number", "min": 0.3, "max": 1.5, "default": 0.6 },
-    "holdBlackSec": { "type": "number", "min": 0, "max": 1, "default": 0.2 }
+    "durationSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 1.5,
+      "default": 0.6
+    },
+    "holdBlackSec": {
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "default": 0.2
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 60,
@@ -19,5 +33,8 @@
   },
   "whenToUse": "Rozdział rozdziałów, zmiana dnia/tematu.",
   "whenToAvoid": "Częste użycie — max 2–3 na długi film.",
-  "syncHints": ["chapter_marker"]
+  "syncHints": [
+    "chapter_marker"
+  ],
+  "renderSupport": "full"
 }

@@ -22,6 +22,8 @@ const CRITICAL_PATHS = [
   "batchContext.maxBrollSegmentsPerOutput",
   "batchContext.shortsStrategy",
   "batchContext.shortsMaxDurationSec",
+  "batchContext.targetPlatforms",
+  "batchContext.notes",
   "creativityProfile.level",
   "creativityProfile.allowMidSentenceCuts",
   "creativityProfile.techniquePack",
@@ -32,6 +34,9 @@ const CRITICAL_PATHS = [
   "shortsRetentionProfile.requireHookMoment",
   "shortsRetentionProfile.requireHookOverlay",
   "shortsRetentionProfile.techniquePack",
+  "vlogRetentionProfile.enabled",
+  "narrativeProfile.mode",
+  "narrativeProfile.segments",
   "audioMixPlan.voiceTargetLufs",
   "audioMixPlan.musicBed",
   "audioMixPlan.preWhisperNormalizeLufs",
@@ -41,12 +46,18 @@ const CRITICAL_PATHS = [
   "audioMixPlan.segments[].duckUnderVoice",
   "audioMixPlan.segments[].duckingDb",
   "audioMixPlan.segments[].duckingWindows",
+  "sfxPlan[].sfxId",
+  "sfxPlan[].outputStartSec",
+  "colorGrade.mode",
   "creativeMoments[].momentId",
   "creativeMoments[].techniqueId",
   "creativeMoments[].outputId",
   "creativeMoments[].outputStartSec",
   "creativeMoments[].outputEndSec",
   "creativeMoments[].params",
+  "creativeMoments[].anchorWordId",
+  "creativeMoments[].segmentId",
+  "creativeMoments[].spatialRef",
   "creativeMoments[].retentionRole",
   "creativeMoments[].reason",
   "creativeMoments[].confidence",
@@ -66,6 +77,11 @@ const CRITICAL_PATHS = [
   "outputs[].timeline[].audioPolicy",
   "outputs[].timeline[].syncMode",
   "outputs[].timeline[].cuts",
+  "outputs[].timeline[].timeCuts",
+  "outputs[].timeline[].pictureInPicture",
+  "outputs[].timeline[].subtitles",
+  "outputs[].timeline[].textOverlays",
+  "outputs[].timeline[].retentionRole",
   "outputs[].timeline[].intent",
   "excluded[].exclusionType",
   "excluded[].clipId",
@@ -83,8 +99,8 @@ describe("prompt-schema contract: director output vs EditRecipeV2", () => {
     assert.equal(EditRecipeV2Schema._def.typeName, "ZodObject");
   });
 
-  it("director prompt schema defines version 2.3", () => {
-    assert.equal(EDIT_RECIPE_V2_OUTPUT_SCHEMA.version, "2.3");
+  it("director prompt schema defines version 2.4", () => {
+    assert.equal(EDIT_RECIPE_V2_OUTPUT_SCHEMA.version, "2.4");
   });
 
   for (const criticalPath of CRITICAL_PATHS) {

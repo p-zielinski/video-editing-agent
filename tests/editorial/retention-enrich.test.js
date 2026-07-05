@@ -6,6 +6,8 @@ import {
   buildNarrativeOpenLoops,
   enrichRecipeChapterCards,
   enrichRecipeColdOpenSegment,
+  applyColdOpenAudioBridge,
+  COLD_OPEN_SEGMENT_ID,
   deriveTeaseSceneIdFromRecipe,
   REWIND_INTRO_SEGMENT_ID,
   REWIND_MOMENT_ID,
@@ -18,6 +20,7 @@ import {
   resolveBestHookScene,
   resolveSpatialRefForBeat,
   SHORT_HOOK_SEGMENT_ID,
+  wouldHookSpoilColdOpenLoops,
 } from "../../src/editorial/shorts-retention.js";
 import { applyDeterministicRecipeEnrichers } from "../../src/pipeline/steps/agents.js";
 
@@ -820,7 +823,7 @@ describe("enrichRecipeRetentionBeats — shorts", () => {
     assert.ok(hook.outputStartSec < shortsProfile.hookWindowSec);
   });
 
-  it("prepends best hook scene from L3 cold_open openLoop when not at timeline start", () => {
+  it("resolves cold_open hook scene but skips prepend when it would spoil open loop", () => {
     const recipe = {
       outputs: [{
         outputId: "short_9x16",
@@ -874,10 +877,69 @@ describe("enrichRecipeRetentionBeats — shorts", () => {
     assert.match(hook.reason, /cold_open_loop/);
 
     const shortTimeline = recipe.outputs[0].timeline;
-    assert.equal(shortTimeline[0].segmentId, SHORT_HOOK_SEGMENT_ID);
-    assert.equal(shortTimeline[0].videoRef.sceneId, "clip01_scene002");
-    assert.equal(shortTimeline[1].segmentId, "seg_body");
-    assert.equal(shortTimeline[1].videoRef.sceneId, "clip01_scene001");
+    assert.equal(shortTimeline.length, 1);
+    assert.equal(shortTimeline[0].segmentId, "seg_body");
+    assert.equal(shortTimeline[0].videoRef.sceneId, "clip01_scene001");
+  });
+
+  it("skips hook prepend when cold_open loop would spoil but still adds hook moment", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "short_9x16",
+        outputKind: "short",
+        format: "9:16",
+        targetDurationSec: 60,
+        timeline: [{
+          segmentId: "seg_body",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 60,
+          audioInSec: 0,
+          audioOutSec: 60,
+          audioPolicy: "from_video_ref",
+        }],
+      }],
+      shortsRetentionProfile: shortsProfile,
+      creativeMoments: [],
+    };
+
+    const hookAbstraction = {
+      L1: [
+        { sceneId: "clip01_scene001", brollPotential: 0.2 },
+        { sceneId: "clip01_scene002", brollPotential: 0.85 },
+      ],
+      L2: abstraction.L2,
+      L3: {
+        openLoops: [{
+          loopId: "loop_01",
+          kind: "cold_open",
+          setupSceneId: "clip01_scene001",
+          payoffSceneId: "clip01_scene002",
+          teaseText: "Spoiler guard",
+        }],
+      },
+    };
+
+    const { sceneId: hookSceneId } = resolveBestHookScene(hookAbstraction, timelineIndex, audioIndex);
+    assert.equal(hookSceneId, "clip01_scene002");
+    assert.equal(wouldHookSpoilColdOpenLoops(hookSceneId, hookAbstraction), true);
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction: hookAbstraction,
+      timelineIndex,
+    });
+
+    const hook = moments.find((m) => m.momentId === "enrich_hook_001");
+    assert.ok(hook);
+    assert.equal(hook.outputStartSec, 0);
+    assert.match(hook.reason, /cold_open_loop/);
+
+    const shortTimeline = recipe.outputs[0].timeline;
+    assert.equal(shortTimeline.length, 1);
+    assert.equal(shortTimeline[0].segmentId, "seg_body");
   });
 
   it("prepends top sceneRank hook when no openLoop and scene not at timeline start", () => {
@@ -1213,6 +1275,20 @@ describe("chapter-hints", () => {
     assert.equal(recipe.outputs[0].timeline[1].segmentId, "seg_body");
     assert.equal(recipe.outputs[0].timeline[1].videoRef.sceneId, "clip01_scene001");
     assert.ok(recipe.creativeMoments.some((moment) => moment.momentId === REWIND_MOMENT_ID));
+  });
+
+  it("applyColdOpenAudioBridge sets from_prev overlap on rewind intro", () => {
+    const mainOutput = {
+      timeline: [
+        { segmentId: COLD_OPEN_SEGMENT_ID, audioPolicy: "from_video_ref", overlapSec: 0 },
+        { segmentId: REWIND_INTRO_SEGMENT_ID, audioPolicy: "from_video_ref", overlapSec: 0 },
+        { segmentId: "seg_body" },
+      ],
+    };
+
+    assert.equal(applyColdOpenAudioBridge(mainOutput), true);
+    assert.equal(mainOutput.timeline[1].audioPolicy, "from_prev");
+    assert.equal(mainOutput.timeline[1].overlapSec, 0.4);
   });
 
   it("deriveTeaseSceneIdFromRecipe returns cold open scene for chronology exempt", () => {

@@ -100,5 +100,6 @@ export function buildExecuteRenderOptions(args) {
     skipColorGrade: mergeSkipFlag(args.skipColorGrade, profile.skipColorGrade),
     keepTmp: args.keepTmp === true || profile.keepTmp === true,
     fromPass: args.fromPass,
+    allowRenderWarnings: args.allowRenderWarnings === true,
   };
 }

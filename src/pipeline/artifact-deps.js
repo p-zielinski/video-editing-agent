@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { shouldUseCachedClipArtifactExtended } from "../lib/clip-artifact-cache.js";
 import { ARTIFACTS } from "./work-paths.js";
 
 export const CLIP_ARTIFACT_PATTERNS = {
@@ -269,7 +270,60 @@ export function shouldUseCachedArtifact(workDir, artifactName, force = false) {
   return !isArtifactStale(workDir, artifactName);
 }
 
-export function shouldUseCachedClipArtifact(workDir, outPath, force = false) {
+function readManifestFromWorkDir(workDir) {
+  const manifestPath = path.join(workDir, ARTIFACTS.manifest);
+  if (!fs.existsSync(manifestPath)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+}
+
+function clipIdFromOutPath(outPath) {
+  const base = path.basename(outPath);
+  for (const prefix of Object.values(CLIP_ARTIFACT_PREFIXES)) {
+    if (base.startsWith(prefix) && base.endsWith(".json")) {
+      return base.slice(prefix.length, -".json".length);
+    }
+  }
+  return null;
+}
+
+/**
+ * Extended clip cache check with explicit manifest, clipId, and live-mode hints.
+ */
+export function shouldUseCachedClipArtifactWithContext({
+  workDir,
+  outPath,
+  force = false,
+  manifest,
+  clipId,
+  liveModeHints,
+}) {
+  return shouldUseCachedClipArtifactExtended({
+    workDir,
+    outPath,
+    force,
+    manifest,
+    clipId,
+    liveModeHints,
+  });
+}
+
+export function shouldUseCachedClipArtifact(workDir, outPath, force = false, options = {}) {
+  const manifest = options.manifest ?? readManifestFromWorkDir(workDir);
+  const clipId = options.clipId ?? clipIdFromOutPath(outPath);
+
+  if (manifest && clipId) {
+    return shouldUseCachedClipArtifactWithContext({
+      workDir,
+      outPath,
+      force,
+      manifest,
+      clipId,
+      liveModeHints: options.liveModeHints,
+    });
+  }
+
   return shouldUseCachedArtifact(workDir, path.basename(outPath), force);
 }
 

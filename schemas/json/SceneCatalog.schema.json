@@ -73,6 +73,9 @@
                   "audio_only",
                   "video"
                 ]
+              },
+              "contentHash": {
+                "type": "string"
               }
             },
             "required": [

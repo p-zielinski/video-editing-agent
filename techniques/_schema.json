@@ -79,6 +79,10 @@
     "syncHints": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "renderSupport": {
+      "type": "string",
+      "enum": ["full", "partial", "stub", "audio_only", "graphics_only", "segment_only"]
     }
   }
 }

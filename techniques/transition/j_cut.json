@@ -4,10 +4,20 @@
   "category": "transition",
   "label": "J-cut",
   "description": "Audio z poprzedniego segmentu pod nowym B-roll.",
-  "platforms": ["youtube", "shorts"],
-  "trendTags": ["professional"],
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "professional"
+  ],
   "params": {
-    "overlapSec": { "type": "number", "min": 0.3, "max": 3, "default": 1.0 }
+    "overlapSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 3,
+      "default": 1
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 15,
@@ -18,5 +28,8 @@
   },
   "whenToUse": "Płynne wejście B-roll pod kontynuacją mowy.",
   "whenToAvoid": "Brak pasującego B-roll w topicIndex.",
-  "syncHints": ["broll_intro"]
+  "syncHints": [
+    "broll_intro"
+  ],
+  "renderSupport": "segment_only"
 }

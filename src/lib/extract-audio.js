@@ -92,7 +92,15 @@ export async function extractAudioForAnalysis(videoPath, outputPath) {
  * Dzieli długie nagranie na chunki audio dla Whisper (limit 25 MB).
  * Zwraca listę { path, startSec, endSec }.
  */
-export async function extractAudioChunksForWhisper(videoPath, workDir, { chunkDurationSec = 600 } = {}) {
+export async function extractAudioChunksForWhisper(
+  videoPath,
+  workDir,
+  { clipId, chunkDurationSec = 600 } = {},
+) {
+  if (!clipId) {
+    throw new Error("extractAudioChunksForWhisper requires clipId for clip-scoped chunk paths");
+  }
+
   const durationSec = await probeDuration(videoPath);
   const chunks = [];
   const chunkCount = Math.ceil(durationSec / chunkDurationSec);
@@ -102,7 +110,7 @@ export async function extractAudioChunksForWhisper(videoPath, workDir, { chunkDu
   for (let i = 0; i < chunkCount; i += 1) {
     const startSec = i * chunkDurationSec;
     const endSec = Math.min(durationSec, (i + 1) * chunkDurationSec);
-    const chunkPath = path.join(whisperDir, `chunk-${String(i).padStart(3, "0")}.mp3`);
+    const chunkPath = path.join(whisperDir, `chunk-${clipId}-${String(i).padStart(3, "0")}.mp3`);
 
     await runFfmpeg(
       [

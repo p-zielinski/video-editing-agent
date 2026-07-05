@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { runFfmpeg, probeDuration } from "../lib/ffmpeg.js";
 import { applyJlCutAudio, hasJlCutOverlap } from "./audio-jlcut.js";
+import {
+  buildAcrossfadeAudioFilter,
+  buildXfadeVideoFilter,
+  isBoundaryTransitionTechnique,
+  resolveXfadeTransitionType,
+} from "./xfade-transitions.js";
 
 const BOUNDARY_TOLERANCE_SEC = 0.1;
 const DEFAULT_CROSSFADE_SEC = 0.3;
@@ -281,7 +287,7 @@ export function collectCrossfadesAtBoundaries(creativeMoments, segments) {
   for (let i = 1; i < segments.length; i += 1) {
     const joinSec = segments[i].outputStartSec;
     const moment = (creativeMoments ?? []).find(
-      (m) => m.techniqueId === "crossfade"
+      (m) => isBoundaryTransitionTechnique(m.techniqueId)
         && Math.abs(m.outputStartSec - joinSec) <= BOUNDARY_TOLERANCE_SEC,
     );
     if (moment) {
@@ -289,6 +295,8 @@ export function collectCrossfadesAtBoundaries(creativeMoments, segments) {
         boundaryIndex: i,
         joinSec,
         durationSec: moment.params?.durationSec ?? DEFAULT_CROSSFADE_SEC,
+        transitionType: resolveXfadeTransitionType(moment.techniqueId) ?? "fade",
+        techniqueId: moment.techniqueId,
         moment,
       };
     }
@@ -406,8 +414,13 @@ export function buildMultiSegmentXfadeFilterComplex({ segmentDurations, crossfad
     if (cf) {
       const d = Math.max(0.05, cf.durationSec);
       const offset = Math.max(0, curDur - d);
-      filters.push(`[${curV}][s${nextIdx}v]xfade=transition=fade:duration=${d}:offset=${offset}[${outV}]`);
-      filters.push(`[${curA}][s${nextIdx}a]acrossfade=d=${d}:c1=tri:c2=tri[${outA}]`);
+      const transitionType = cf.transitionType ?? "fade";
+      filters.push(buildXfadeVideoFilter(curV, `s${nextIdx}v`, outV, {
+        durationSec: d,
+        offsetSec: offset,
+        transitionType,
+      }));
+      filters.push(buildAcrossfadeAudioFilter(curA, `s${nextIdx}a`, outA, d));
       curDur += (segmentDurations[nextIdx] ?? 0) - d;
     } else {
       filters.push(`[${curV}][s${nextIdx}v]concat=n=2:v=1:a=0[${outV}]`);
@@ -430,7 +443,7 @@ export function buildMultiSegmentXfadeFilterComplex({ segmentDurations, crossfad
 /**
  * Build filter_complex for 2-segment video xfade + audio acrossfade.
  */
-export function buildTwoSegmentXfadeFilterComplex({ durationSec, offsetSec }) {
+export function buildTwoSegmentXfadeFilterComplex({ durationSec, offsetSec, transitionType = "fade" }) {
   const d = Math.max(0.05, durationSec);
   const offset = Math.max(0, offsetSec);
 
@@ -438,10 +451,14 @@ export function buildTwoSegmentXfadeFilterComplex({ durationSec, offsetSec }) {
     filterComplex: [
       "[0:v]setpts=PTS-STARTPTS[v0]",
       "[1:v]setpts=PTS-STARTPTS[v1]",
-      `[v0][v1]xfade=transition=fade:duration=${d}:offset=${offset}[outv]`,
+      buildXfadeVideoFilter("v0", "v1", "outv", {
+        durationSec: d,
+        offsetSec: offset,
+        transitionType,
+      }),
       "[0:a]asetpts=PTS-STARTPTS[a0]",
       "[1:a]asetpts=PTS-STARTPTS[a1]",
-      `[a0][a1]acrossfade=d=${d}:c1=tri:c2=tri[outa]`,
+      buildAcrossfadeAudioFilter("a0", "a1", "outa", d),
     ].join(";"),
     videoMap: "[outv]",
     audioMap: "[outa]",
@@ -480,7 +497,11 @@ async function applyTwoSegmentXfade(segmentPaths, segments, outputPath, {
   const seg0Dur = (segments[0].outputEndSec ?? 0) - (segments[0].outputStartSec ?? 0);
   const durationSec = crossfade.durationSec;
   const offsetSec = Math.max(0, seg0Dur - durationSec);
-  const built = buildTwoSegmentXfadeFilterComplex({ durationSec, offsetSec });
+  const built = buildTwoSegmentXfadeFilterComplex({
+    durationSec,
+    offsetSec,
+    transitionType: crossfade.transitionType ?? "fade",
+  });
 
   await runXfadeFilterComplex(segmentPaths, built, outputPath, {
     encodeProfile,
@@ -521,7 +542,7 @@ export function isTwoSegmentCrossfadeEligible(segmentPaths, segments, creativeMo
 }
 
 /**
- * True when 3+ segments can use chained xfade (one crossfade join or crossfade at every join).
+ * True when 3+ segments can use chained xfade (partial crossfade: xfade at some joins, hard concat at others).
  */
 export function isMultiSegmentCrossfadeEligible(segmentPaths, segments, creativeMoments) {
   if (!segmentPaths || segmentPaths.length < 3) {
@@ -532,13 +553,7 @@ export function isMultiSegmentCrossfadeEligible(segmentPaths, segments, creative
   }
 
   const boundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
-  const crossfadeCount = boundaries.filter(Boolean).length;
-  if (crossfadeCount === 0) {
-    return false;
-  }
-
-  const numBoundaries = segmentPaths.length - 1;
-  return crossfadeCount === 1 || crossfadeCount === numBoundaries;
+  return boundaries.some(Boolean);
 }
 
 export function isCrossfadeEligible(segmentPaths, segments, creativeMoments) {
@@ -548,8 +563,6 @@ export function isCrossfadeEligible(segmentPaths, segments, creativeMoments) {
 
 const CROSSFADE_JL_INELIGIBLE_JOIN_MESSAGE =
   "J/L overlap: join not eligible for video crossfade (requires aroll→aroll same clip, or broll→aroll with both segments >0.5s)";
-const CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE =
-  "partial crossfade pattern: requires crossfade at every internal join or exactly one join";
 
 /**
  * True when a boundary crossfade exists but concat did not apply xfade (defer to warning, not creative).
@@ -569,10 +582,8 @@ export function getCrossfadeNotAppliedReason(segmentPaths, segments, creativeMom
     return null;
   }
 
-  const boundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
-  const crossfadeCount = boundaries.filter(Boolean).length;
-
   if (hasJlCutOverlap(segments)) {
+    const boundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
     const hasEligibleJlJoin = boundaries.some(
       (cf, boundaryIndex) => cf
         && isJoinCrossfadeEligible(segments[boundaryIndex], segments[boundaryIndex + 1]),
@@ -587,16 +598,7 @@ export function getCrossfadeNotAppliedReason(segmentPaths, segments, creativeMom
     return null;
   }
 
-  const numBoundaries = (segmentPaths?.length ?? 0) - 1;
-  if (numBoundaries >= 2 && crossfadeCount > 1 && crossfadeCount < numBoundaries) {
-    return `${CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE} (${crossfadeCount}/${numBoundaries} joins)`;
-  }
-
-  if (numBoundaries >= 2 && crossfadeCount > 0 && crossfadeCount < numBoundaries) {
-    return CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE;
-  }
-
-  return CROSSFADE_PARTIAL_BOUNDARIES_MESSAGE;
+  return null;
 }
 
 /**
@@ -616,15 +618,16 @@ export function resolvePostConcatCreativeMoments({
   if (shouldDeferCrossfadeToCreative(creativeMoments, segments, appliedCrossfade)) {
     const reason = getCrossfadeNotAppliedReason(segmentPaths, segments, creativeMoments);
     if (reason) {
+      const deferred = findCrossfadeAtBoundary(creativeMoments, segments);
       warnings.push({
         code: "CROSSFADE_NOT_APPLIED",
-        techniqueId: "crossfade",
+        techniqueId: deferred?.techniqueId ?? "crossfade",
         message: reason,
       });
     }
-    moments = moments.filter((m) => m.techniqueId !== "crossfade");
+    moments = moments.filter((m) => !isBoundaryTransitionTechnique(m.techniqueId));
   } else if (appliedCrossfade) {
-    moments = moments.filter((m) => m.techniqueId !== "crossfade");
+    moments = moments.filter((m) => !isBoundaryTransitionTechnique(m.techniqueId));
   }
 
   for (const snap of appliedBeatSnaps) {
@@ -681,123 +684,16 @@ export function resolvePostConcatCreativeMoments({
  * Concat segment MP4s into one timeline file.
  * @returns {{ outputPath: string, appliedCrossfade: boolean, appliedBeatSnaps: object[], alreadyAlignedBeatSnaps: object[] }}
  */
-export async function concatSegmentFiles(segmentPaths, outputPath, {
-  encodeProfile,
-  segments,
-  creativeMoments,
-  audioIndex,
-  tmpDir,
-  runFfmpegFn = runFfmpeg,
-} = {}) {
-  if (segmentPaths.length === 0) {
-    throw new Error("concatSegmentFiles: brak segmentów");
-  }
+export { planBoundaryConcat, executeBoundaryConcat } from "./boundary-compositor.js";
 
-  if (segmentPaths.length === 1) {
-    fs.copyFileSync(segmentPaths[0], outputPath);
-    return { outputPath, appliedCrossfade: false, appliedBeatSnaps: [], alreadyAlignedBeatSnaps: [] };
-  }
-
-  const { beatSnaps, alreadyAligned } = collectBeatSnapsAtBoundaries(creativeMoments, segments, audioIndex);
-  let pathsToConcat = segmentPaths;
-  if (beatSnaps.length > 0 && encodeProfile && tmpDir) {
-    pathsToConcat = await applyBeatSnapTrims(segmentPaths, beatSnaps, tmpDir, {
-      encodeProfile,
-      runFfmpegFn,
-    });
-  }
-
-  const crossfadeAtBoundaries = collectCrossfadesAtBoundaries(creativeMoments, segments);
-  const crossfade = crossfadeAtBoundaries.find(Boolean);
-  const hasJlCut = hasJlCutOverlap(segments);
-  const jlVideoCrossfadeAtBoundaries = hasJlCut
-    ? resolveJlVideoCrossfadeBoundaries(creativeMoments, segments)
-    : null;
-  const hasJlVideoCrossfade = Boolean(jlVideoCrossfadeAtBoundaries?.some(Boolean));
-
-  // J/L + crossfade at the same join: keep J/L audio (acrossfade/overlap), video xfade when eligible.
-  if (hasJlVideoCrossfade) {
-    await applyJlCutAudio(pathsToConcat, segments, outputPath, {
-      encodeProfile,
-      crossfadeAtBoundaries: jlVideoCrossfadeAtBoundaries,
-      runFfmpegFn,
-    });
-    return {
-      outputPath,
-      appliedCrossfade: true,
-      appliedBeatSnaps: [],
-      alreadyAlignedBeatSnaps: [],
-    };
-  }
-
-  if (!hasJlCut && crossfade) {
-    if (pathsToConcat.length === 2) {
-      await applyTwoSegmentXfade(pathsToConcat, segments, outputPath, {
-        encodeProfile,
-        crossfade,
-        runFfmpegFn,
-      });
-      return {
-        outputPath,
-        appliedCrossfade: true,
-        appliedBeatSnaps: beatSnaps,
-        alreadyAlignedBeatSnaps: alreadyAligned,
-      };
-    }
-
-    if (isMultiSegmentCrossfadeEligible(pathsToConcat, segments, creativeMoments)) {
-      await applyMultiSegmentXfade(pathsToConcat, segments, outputPath, {
-        encodeProfile,
-        crossfadeAtBoundaries,
-        runFfmpegFn,
-      });
-      return {
-        outputPath,
-        appliedCrossfade: true,
-        appliedBeatSnaps: beatSnaps,
-        alreadyAlignedBeatSnaps: alreadyAligned,
-      };
-    }
-  }
-
-  const listPath = `${outputPath}.concat.txt`;
-  const listContent = pathsToConcat.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n");
-  fs.writeFileSync(listPath, listContent);
-
-  try {
-    if (hasJlCut) {
-      await applyJlCutAudio(pathsToConcat, segments, outputPath, { encodeProfile, runFfmpegFn });
-      return {
-        outputPath,
-        appliedCrossfade: false,
-        appliedBeatSnaps: [],
-        alreadyAlignedBeatSnaps: [],
-      };
-    }
-
-    await runFfmpegFn(
-      [
-        "-y",
-        "-f", "concat",
-        "-safe", "0",
-        "-i", listPath,
-        "-c", "copy",
-        outputPath,
-      ],
-      { label: "concat segments" },
-    );
-  } finally {
-    if (fs.existsSync(listPath)) {
-      fs.unlinkSync(listPath);
-    }
-  }
-
-  return {
-    outputPath,
-    appliedCrossfade: false,
-    appliedBeatSnaps: beatSnaps,
-    alreadyAlignedBeatSnaps: alreadyAligned,
-  };
+export async function concatSegmentFiles(segmentPaths, outputPath, options = {}) {
+  const { executeBoundaryConcat } = await import("./boundary-compositor.js");
+  const result = await executeBoundaryConcat(segmentPaths, outputPath, options);
+  const {
+    strategy: _strategy,
+    ...legacy
+  } = result;
+  return legacy;
 }
 
 export function cleanupTempDir(tmpDir) {

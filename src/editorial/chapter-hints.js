@@ -628,6 +628,25 @@ function roundSec(value) {
 }
 
 /**
+ * When cold open + rewind intro coexist, bridge tease audio into intro (J-cut).
+ * @returns {boolean} whether audio bridge was applied
+ */
+export function applyColdOpenAudioBridge(mainOutput) {
+  const timeline = mainOutput?.timeline ?? [];
+  const hasColdOpen = timeline[0]?.segmentId === COLD_OPEN_SEGMENT_ID;
+  const rewindSegment = timeline.find(
+    (segment) => segment.segmentId === REWIND_INTRO_SEGMENT_ID,
+  );
+  if (!hasColdOpen || !rewindSegment) {
+    return false;
+  }
+
+  rewindSegment.audioPolicy = "from_prev";
+  rewindSegment.overlapSec = 0.4;
+  return true;
+}
+
+/**
  * Prepends cold-open tease, rewind intro, and transition markers on main output.
  */
 export function enrichRecipeColdOpenSegment(recipe, hint, timelineIndex, options = {}) {
@@ -648,6 +667,7 @@ export function enrichRecipeColdOpenSegment(recipe, hint, timelineIndex, options
 
   prependColdOpenTease(mainOutput, hint, timelineIndex, { allowBrollReuse });
   ensureRewindIntroSegment(mainOutput, hint, timelineIndex, { allowBrollReuse });
+  applyColdOpenAudioBridge(mainOutput);
   addColdOpenRewindMarkers(recipe, mainOutput, hint, options);
 
   return recipe;

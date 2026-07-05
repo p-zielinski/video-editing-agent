@@ -126,7 +126,7 @@ describe("orchestrator", () => {
     }
   });
 
-  it("twelvelabs step uses stub by default even when TWELVELABS_API_KEY is set", async () => {
+  it("twelvelabs step attempts live when TWELVELABS_API_KEY is set", async () => {
     const originalApiKey = process.env.TWELVELABS_API_KEY;
     process.env.TWELVELABS_API_KEY = "test-key";
 

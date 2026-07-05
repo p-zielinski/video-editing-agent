@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { extractFrameAt } from "../../lib/ffmpeg.js";
+import { resolveClipContentHash } from "../../lib/clip-artifact-cache.js";
+import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
+import {
+  maybeUseGlobalClipCache,
+  publishGlobalClipArtifact,
+} from "../../lib/global-cache-step.js";
+import { getClipConcurrencyLimit, runWithConcurrency } from "../../lib/clip-concurrency.js";
 import { writeJson, readJson, ARTIFACTS, removeClipArtifact } from "../work-paths.js";
 import { shouldUseCachedClipArtifact } from "../artifact-deps.js";
 
@@ -153,40 +160,116 @@ export function resolveMaxFramesPerMin({ clipEntry, words = [] }) {
   return DEFAULT_MAX_FRAMES_PER_MIN;
 }
 
-export async function runKeyframesStep({ workDir, extractImages = true, force = false }) {
-  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
-  const clipRegistry = loadClipRegistryEntries(workDir);
-  const allKeyframes = [];
+/**
+ * Attach per-keyframe JPEG paths by extracting from source video.
+ *
+ * @param {{
+ *   keyframes: object[],
+ *   sourcePath: string,
+ *   workDir: string,
+ *   clipId: string,
+ *   extractImages?: boolean,
+ *   extractFrameAtFn?: typeof extractFrameAt,
+ * }} params
+ * @returns {Promise<object[]>}
+ */
+export async function attachKeyframeImagePaths({
+  keyframes,
+  sourcePath,
+  workDir,
+  clipId,
+  extractImages = true,
+  extractFrameAtFn = extractFrameAt,
+}) {
+  if (!extractImages) {
+    return keyframes.map((frame) => ({ ...frame, imagePath: undefined }));
+  }
 
-  for (const clip of catalog.clips) {
-    const outPath = path.join(workDir, ARTIFACTS.keyframes(clip.clipId));
-    if (force) {
-      removeClipArtifact(outPath);
-    }
-    if (shouldUseCachedClipArtifact(workDir, outPath, force)) {
-      allKeyframes.push(readJson(outPath));
-      continue;
-    }
+  const framesDir = path.join(workDir, "frames", clipId);
+  fs.mkdirSync(framesDir, { recursive: true });
 
-    if (clip.mediaType === "audio_only") {
-      const payload = {
-        version: "1.0",
-        clipId: clip.clipId,
-        keyframes: [],
-      };
-      writeJson(outPath, payload);
-      allKeyframes.push(payload);
-      continue;
-    }
-
-    const wordIndex = readJson(path.join(workDir, ARTIFACTS.words(clip.clipId)));
-    const scenes = catalog.scenes.filter((s) => s.clipId === clip.clipId);
-    const clipEntry = clipRegistry.find((entry) => entry.clipId === clip.clipId);
-    const maxFramesPerMin = resolveMaxFramesPerMin({
-      clipEntry,
-      words: wordIndex.words,
+  const withImages = [];
+  for (let i = 0; i < keyframes.length; i += 1) {
+    const frame = keyframes[i];
+    const imagePath = path.join(framesDir, `frame-${String(i).padStart(4, "0")}.jpg`);
+    await extractFrameAtFn(sourcePath, frame.timestampSec, imagePath);
+    withImages.push({
+      ...frame,
+      imagePath: path.relative(workDir, imagePath),
     });
+  }
+  return withImages;
+}
 
+export async function processClipKeyframes({
+  workDir,
+  clip,
+  catalog,
+  manifest = null,
+  clipRegistry = [],
+  extractImages = true,
+  force = false,
+  globalCacheDisabled = false,
+  globalCacheRoot,
+  extractFrameAtFn = extractFrameAt,
+}) {
+  const outPath = path.join(workDir, ARTIFACTS.keyframes(clip.clipId));
+  if (force) {
+    removeClipArtifact(outPath);
+  }
+  if (shouldUseCachedClipArtifact(workDir, outPath, force, {
+    manifest,
+    clipId: clip.clipId,
+  })) {
+    return readJson(outPath);
+  }
+
+  if (clip.mediaType === "audio_only") {
+    const sourceContentHash = await resolveClipContentHash(manifest, clip.clipId, clip.sourcePath);
+    const payload = {
+      version: "1.0",
+      clipId: clip.clipId,
+      ...(sourceContentHash ? { sourceContentHash } : {}),
+      keyframes: [],
+    };
+    writeJson(outPath, payload);
+    return payload;
+  }
+
+  const wordIndex = readJson(path.join(workDir, ARTIFACTS.words(clip.clipId)));
+  const scenes = catalog.scenes.filter((s) => s.clipId === clip.clipId);
+  const clipEntry = clipRegistry.find((entry) => entry.clipId === clip.clipId);
+  const maxFramesPerMin = resolveMaxFramesPerMin({
+    clipEntry,
+    words: wordIndex.words,
+  });
+  const configFingerprint = buildStepConfigFingerprint("keyframes", {
+    extractImages,
+    maxFramesPerMin,
+  });
+  const sourceContentHash = await resolveClipContentHash(manifest, clip.clipId, clip.sourcePath);
+
+  const cachedKeyframes = maybeUseGlobalClipCache({
+    enabled: !globalCacheDisabled,
+    step: "keyframes",
+    contentHash: sourceContentHash,
+    configFingerprint,
+    clipId: clip.clipId,
+    cacheRoot: globalCacheRoot,
+    disabled: globalCacheDisabled,
+  });
+
+  let keyframes;
+  if (cachedKeyframes) {
+    keyframes = await attachKeyframeImagePaths({
+      keyframes: cachedKeyframes.keyframes ?? [],
+      sourcePath: clip.sourcePath,
+      workDir,
+      clipId: clip.clipId,
+      extractImages,
+      extractFrameAtFn,
+    });
+  } else {
     const planned = planHybridKeyframes({
       scenes,
       words: wordIndex.words,
@@ -195,36 +278,70 @@ export async function runKeyframesStep({ workDir, extractImages = true, force = 
       maxFramesPerMin,
     });
 
-    const framesDir = path.join(workDir, "frames", clip.clipId);
-    if (extractImages) {
-      fs.mkdirSync(framesDir, { recursive: true });
-    }
-
-    const keyframes = [];
-    for (let i = 0; i < planned.length; i += 1) {
-      const frame = planned[i];
-      let imagePath;
-
-      if (extractImages) {
-        imagePath = path.join(framesDir, `frame-${String(i).padStart(4, "0")}.jpg`);
-        await extractFrameAt(clip.sourcePath, frame.timestampSec, imagePath);
-      }
-
-      keyframes.push({
-        ...frame,
-        imagePath: imagePath ? path.relative(workDir, imagePath) : undefined,
+    if (sourceContentHash) {
+      publishGlobalClipArtifact({
+        step: "keyframes",
+        contentHash: sourceContentHash,
+        configFingerprint,
+        artifact: {
+          version: "1.0",
+          clipId: clip.clipId,
+          sourceContentHash,
+          keyframes: planned,
+        },
+        cacheRoot: globalCacheRoot,
+        disabled: globalCacheDisabled,
       });
     }
 
-    const payload = {
-      version: "1.0",
+    keyframes = await attachKeyframeImagePaths({
+      keyframes: planned,
+      sourcePath: clip.sourcePath,
+      workDir,
       clipId: clip.clipId,
-      keyframes,
-    };
-
-    writeJson(outPath, payload);
-    allKeyframes.push(payload);
+      extractImages,
+      extractFrameAtFn,
+    });
   }
 
-  return allKeyframes;
+  const payload = {
+    version: "1.0",
+    clipId: clip.clipId,
+    ...(sourceContentHash ? { sourceContentHash } : {}),
+    keyframes,
+  };
+
+  writeJson(outPath, payload);
+  return payload;
+}
+
+export async function runKeyframesStep({
+  workDir,
+  extractImages = true,
+  force = false,
+  globalCacheDisabled = false,
+  globalCacheRoot,
+  extractFrameAtFn = extractFrameAt,
+}) {
+  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
+  const manifestPath = path.join(workDir, ARTIFACTS.manifest);
+  const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : null;
+  const clipRegistry = loadClipRegistryEntries(workDir);
+
+  return runWithConcurrency(
+    catalog.clips,
+    (clip) => processClipKeyframes({
+      workDir,
+      clip,
+      catalog,
+      manifest,
+      clipRegistry,
+      extractImages,
+      force,
+      globalCacheDisabled,
+      globalCacheRoot,
+      extractFrameAtFn,
+    }),
+    { limit: getClipConcurrencyLimit(), label: "keyframes" },
+  );
 }

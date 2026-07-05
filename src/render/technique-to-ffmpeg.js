@@ -2,6 +2,8 @@
  * Map techniqueId from creativeMoments to FFmpeg filter fragments.
  */
 
+import { findAnchorNearTimestamp } from "../editorial/spatial-ref.js";
+
 function bboxAnchorPx(spatialRef, dimensions) {
   if (!spatialRef?.bbox) {
     return null;
@@ -11,6 +13,47 @@ function bboxAnchorPx(spatialRef, dimensions) {
     x: Math.round((bx + bw / 2) * (dimensions.width ?? 1080)),
     y: Math.round((by + bh / 2) * (dimensions.height ?? 1920)),
   };
+}
+
+function buildFollowSubjectZoompan({
+  spatialRef,
+  spatialIndex,
+  outputStartSec,
+  outputEndSec,
+  dimensions,
+  enable,
+}) {
+  const sceneId = spatialRef?.sceneId;
+  const entry = spatialIndex?.scenes?.find((scene) => scene.sceneId === sceneId);
+  const faceAnchors = (entry?.anchors ?? [])
+    .filter((anchor) => anchor.type === "face" && anchor.timestampSec != null && anchor.bbox)
+    .sort((a, b) => a.timestampSec - b.timestampSec);
+
+  const width = dimensions.width ?? 1080;
+  const staticX = spatialRef?.bbox
+    ? Math.round(spatialRef.bbox[0] * width)
+    : Math.round(width / 2);
+
+  let xExpr = `if(${enable},${staticX}-(iw/zoom/2),iw/2-(iw/zoom/2))`;
+
+  if (faceAnchors.length >= 2) {
+    const pieces = faceAnchors.map((anchor) => {
+      const px = Math.round((anchor.bbox[0] + anchor.bbox[2] / 2) * width);
+      return { t: anchor.timestampSec, px };
+    });
+    const clauses = pieces.map((point, idx) => {
+      const next = pieces[idx + 1];
+      if (!next) {
+        return `${point.px}`;
+      }
+      const span = Math.max(0.01, next.t - point.t);
+      return `if(lt(t\\,${next.t})\\,${point.px}+(${next.px}-${point.px})*((t-${point.t})/${span.toFixed(3)})\\,${next.px})`;
+    });
+    xExpr = `if(${enable},${clauses[0]},iw/2-(iw/zoom/2))`;
+  }
+
+  const z = `zoompan=z='if(${enable},1.1,1)':d=1:x='${xExpr}':y='ih/2-(ih/zoom/2)':s=${dimensions.width}x${dimensions.height}`;
+  return z;
 }
 
 function zoompanCenterCoords(spatialRef, dimensions) {
@@ -186,16 +229,27 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
       return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
     }
     case "reframe_follow_subject": {
-      if (!spatialRef?.bbox) {
+      if (!spatialRef?.bbox && !spatialRef?.sceneId) {
         return {
           filter: null,
           outputLabel: inputLabel,
           warning: "reframe_follow_subject — brak spatialRef; pominięto refraim",
         };
       }
-      const [x] = spatialRef.bbox;
-      const px = Math.round(x * (dimensions.width ?? 1080));
-      const z = `zoompan=z='if(${enable},1.1,1)':d=1:x='if(${enable},${px}-(iw/zoom/2),iw/2-(iw/zoom/2))':y='ih/2-(ih/zoom/2)':s=${dimensions.width}x${dimensions.height}`;
+      const tracked = spatialRef?.timestampSec != null
+        ? findAnchorNearTimestamp(spatialIndex, spatialRef.sceneId, spatialRef.timestampSec, "face")
+        : null;
+      const effectiveRef = tracked
+        ? { ...spatialRef, bbox: tracked.bbox, anchorType: tracked.type }
+        : spatialRef;
+      const z = buildFollowSubjectZoompan({
+        spatialRef: effectiveRef,
+        spatialIndex,
+        outputStartSec,
+        outputEndSec,
+        dimensions,
+        enable,
+      });
       return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
     }
     case "hard_cut_energy":
@@ -245,6 +299,14 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
       return { filter, outputLabel };
     }
     case "crossfade":
+    case "wipe_left":
+    case "wipe_right":
+    case "wipe_up":
+    case "wipe_down":
+    case "slide_left":
+    case "slide_right":
+    case "slide_up":
+    case "slide_down":
     case "cut_on_beat":
       return { filter: null, outputLabel: inputLabel, deferred: "concat" };
     case "pattern_interrupt": {

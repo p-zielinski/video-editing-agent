@@ -4,12 +4,21 @@
   "category": "graphics",
   "label": "Hook visual punch",
   "description": "Najmocniejszy kadr lub zoom w oknie hooka (0–3 s).",
-  "platforms": ["shorts"],
-  "trendTags": ["shorts", "retention"],
+  "platforms": [
+    "shorts"
+  ],
+  "trendTags": [
+    "shorts",
+    "retention"
+  ],
   "params": {
     "intensity": {
       "type": "enum",
-      "values": ["subtle", "medium", "strong"],
+      "values": [
+        "subtle",
+        "medium",
+        "strong"
+      ],
       "default": "strong"
     }
   },
@@ -21,5 +30,9 @@
   },
   "whenToUse": "Hook wizualny — najciekawszy kadr, nie chronologia.",
   "whenToAvoid": "Spokojne wprowadzenie, długi vlog main.",
-  "syncHints": ["output_start", "word_emphasis"]
+  "syncHints": [
+    "output_start",
+    "word_emphasis"
+  ],
+  "renderSupport": "full"
 }

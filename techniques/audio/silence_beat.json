@@ -4,10 +4,20 @@
   "category": "audio",
   "label": "Silence beat",
   "description": "Krótka pauza dramatyczna przed lub po akcentie.",
-  "platforms": ["youtube", "shorts"],
-  "trendTags": ["dramatic"],
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "dramatic"
+  ],
   "params": {
-    "durationSec": { "type": "number", "min": 0.3, "max": 2, "default": 0.8 }
+    "durationSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 2,
+      "default": 0.8
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 45,
@@ -18,5 +28,9 @@
   },
   "whenToUse": "Punchline, reveal, kontrast przed ważnym zdaniem.",
   "whenToAvoid": "Szybki montaż bez pauz narracyjnych.",
-  "syncHints": ["pause", "punchline"]
+  "syncHints": [
+    "pause",
+    "punchline"
+  ],
+  "renderSupport": "audio_only"
 }

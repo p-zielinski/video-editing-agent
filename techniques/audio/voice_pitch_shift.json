@@ -4,20 +4,43 @@
   "category": "audio",
   "label": "Voice pitch shift",
   "description": "Modulacja wysokości głosu (pitch) na krótki fragment — humor, alter ego, punchline.",
-  "platforms": ["youtube", "shorts"],
-  "trendTags": ["comedy", "audio_mix"],
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "comedy",
+    "audio_mix"
+  ],
   "params": {
-    "semitones": { "type": "number", "min": -8, "max": 8, "default": 4 },
-    "durationSec": { "type": "number", "min": 0.3, "max": 6, "default": 1.5 }
+    "semitones": {
+      "type": "number",
+      "min": -8,
+      "max": 8,
+      "default": 4
+    },
+    "durationSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 6,
+      "default": 1.5
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 60,
     "maxPerOutputMinutes": 0.08,
     "requiresSpatialAnchor": false,
-    "forbiddenOnSegmentRole": ["broll"],
+    "forbiddenOnSegmentRole": [
+      "broll"
+    ],
     "requiresCreativityLevel": "bold"
   },
   "whenToUse": "Żart, cytat w innym głosie, krótki alter ego, komediowy akcent.",
   "whenToAvoid": "Poważna narracja, długie fragmenty mowy, więcej niż 2× na output.",
-  "syncHints": ["punchline", "joke", "reaction"]
+  "syncHints": [
+    "punchline",
+    "joke",
+    "reaction"
+  ],
+  "renderSupport": "audio_only"
 }

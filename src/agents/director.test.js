@@ -11,7 +11,9 @@ import {
   enrichClipRegistryForBrief,
   buildAudioEventAnchors,
   buildEmotionalBeatHints,
+  resolveSceneMapCompactThreshold,
 } from "./director.js";
+import { DIRECTOR_BRIEF_CAPS, DRILL_DOWN_CAPS } from "../editorial/brief-caps.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 
@@ -770,15 +772,21 @@ describe("director agent v2", () => {
     assert.equal(brief.spatialIndex.scenes[0].primaryAnchor.type, "face");
   });
 
-  it("omits l1SceneSummaries when batch has more than 30 scenes", () => {
+  it("includes top-ranked l1SceneSummaries for large batches", () => {
     const manyScenes = Array.from({ length: 31 }, (_, i) => ({
-      sceneId: `clip01_scene00${i + 1}`,
+      sceneId: `clip01_scene${String(i + 1).padStart(3, "0")}`,
       clipId: "clip01",
       startSec: i * 10,
       endSec: (i + 1) * 10,
       durationSec: 10,
       aspectRatio: "16:9",
-      hasSpeech: true,
+      hasSpeech: i % 2 === 0,
+    }));
+    const manyL1 = manyScenes.map((scene, i) => ({
+      sceneId: scene.sceneId,
+      summary: `scene ${i + 1}`,
+      brollPotential: i === 0 ? 0.95 : 0.2,
+      visualQuality: i === 0 ? "high" : "medium",
     }));
     const manyIndex = {
       ...timelineIndex,
@@ -786,14 +794,15 @@ describe("director agent v2", () => {
     };
 
     const brief = buildDirectorBrief({
-      abstraction,
+      abstraction: { ...abstraction, L1: manyL1 },
       timelineIndex: manyIndex,
       clipRegistry,
       topicIndex,
       requiredFormats: ["16:9"],
     });
 
-    assert.equal(brief.l1SceneSummaries, undefined);
+    assert.equal(brief.l1SceneSummaries.length, 30);
+    assert.ok(brief.l1SceneSummaries.some((entry) => entry.sceneId === "clip01_scene001"));
   });
 
   it("does not compact sceneMap for multi-clip batches below dynamic threshold", () => {
@@ -927,6 +936,15 @@ describe("director agent v2", () => {
     assert.ok(brief.sceneMap.length < 75);
     assert.ok(brief.sceneMapOmittedScenes?.length > 0);
     assert.ok(brief.sceneMapOmittedScenes.every((entry) => entry.sceneId && entry.clipId));
+    assert.ok(
+      brief.sceneMapOmittedScenes.every(
+        (entry) => entry.startSec != null && entry.endSec != null,
+      ),
+    );
+    const omittedWithSummary = brief.sceneMapOmittedScenes.find((entry) => entry.summary);
+    if (omittedWithSummary) {
+      assert.ok(omittedWithSummary.summary.length <= DIRECTOR_BRIEF_CAPS.OMITTED_SUMMARY_MAX_CHARS);
+    }
     assert.ok(brief.sceneMap.length > 0);
     assert.ok(brief.sceneRanks.length <= 10);
     assert.ok(brief.brollCandidates.length > brief.sceneMap.length);
@@ -1352,7 +1370,7 @@ describe("director agent v2", () => {
     const drillDownPayload = JSON.parse(drillDownRequest.messages[1].content);
     assert.equal(drillDownPayload.task, "drill_down_refine");
     assert.equal(drillDownPayload.sceneSummariesL1.length, 2);
-    assert.equal(drillDownPayload.topicIndex, undefined);
+    assert.deepEqual(drillDownPayload.topicIndex, topicIndex);
     assert.equal(drillDownPayload.drillDownSceneDetails.length, 2);
     assert.ok(drillDownPayload.techniqueCatalog);
     assert.ok(drillDownPayload.creativityProfile);
@@ -1362,5 +1380,34 @@ describe("director agent v2", () => {
     assert.ok(Array.isArray(drillDownPayload.spatialRefExamples));
     assert.equal(drillDownPayload.transcriptExcerpts.length, 2);
     assert.deepEqual(drillDownPayload.audioIndex.clips[0].beatTimestamps, [0.5, 1.0, 1.5]);
+  });
+
+  it("directorDrillDown uses DRILL_DOWN_CAPS aligned with DIRECTOR_BRIEF_CAPS", () => {
+    assert.deepEqual(DRILL_DOWN_CAPS, DIRECTOR_BRIEF_CAPS);
+    assert.equal(DRILL_DOWN_CAPS.maxWordsPerScene, 120);
+    assert.equal(DRILL_DOWN_CAPS.spatialAnchorLimit, 3);
+  });
+
+  it("resolveSceneMapCompactThreshold scales with clip and scene count", () => {
+    const singleClip = resolveSceneMapCompactThreshold(
+      { clips: [{ clipId: "clip01" }], scenes: Array.from({ length: 20 }) },
+      "single_clip",
+    );
+    assert.equal(singleClip, 40);
+
+    const largeBatch = resolveSceneMapCompactThreshold(
+      { clips: [{ clipId: "clip01" }], scenes: Array.from({ length: 90 }) },
+      "single_clip",
+    );
+    assert.equal(largeBatch, 50);
+
+    const multiClip = resolveSceneMapCompactThreshold(
+      {
+        clips: [{ clipId: "clip01" }, { clipId: "clip02" }],
+        scenes: Array.from({ length: 25 }),
+      },
+      "multi_clip_day",
+    );
+    assert.equal(multiClip, 70);
   });
 });

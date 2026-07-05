@@ -453,6 +453,75 @@
                       },
                       "default": []
                     },
+                    "timeCuts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "atOutputSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "gapSec": {
+                            "type": "number",
+                            "minimum": 0.02,
+                            "maximum": 0.5,
+                            "default": 0.04
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "jump_cut",
+                              "hard_cut_energy"
+                            ],
+                            "default": "jump_cut"
+                          },
+                          "momentId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "atOutputSec"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "pictureInPicture": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "default": true
+                        },
+                        "sceneId": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "string",
+                          "enum": [
+                            "top_right",
+                            "top_left",
+                            "bottom_right",
+                            "bottom_left"
+                          ],
+                          "default": "bottom_right"
+                        },
+                        "scale": {
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 0.5,
+                          "default": 0.28
+                        },
+                        "marginPx": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 200,
+                          "default": 24
+                        }
+                      },
+                      "additionalProperties": false
+                    },
                     "subtitles": {
                       "type": "object",
                       "properties": {
@@ -533,7 +602,11 @@
                             "type": "string",
                             "enum": [
                               "fade",
-                              "static"
+                              "static",
+                              "slide_up",
+                              "slide_down",
+                              "slide_left",
+                              "slide_right"
                             ]
                           }
                         },
@@ -1012,6 +1085,29 @@
           },
           "additionalProperties": false
         },
+        "retentionBeatTargets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "outputId": {
+                "type": "string"
+              },
+              "targetSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "outputId",
+              "targetSec"
+            ],
+            "additionalProperties": false
+          }
+        },
         "narrativeProfile": {
           "type": "object",
           "properties": {
@@ -1053,6 +1149,24 @@
                       "trim_dead_air",
                       "aggressive"
                     ]
+                  },
+                  "enrichPolicy": {
+                    "type": "object",
+                    "properties": {
+                      "allowRetentionEnrich": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "allowPacingTrim": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "allowFillerCuts": {
+                        "type": "boolean",
+                        "default": true
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [

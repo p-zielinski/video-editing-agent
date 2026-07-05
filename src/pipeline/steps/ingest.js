@@ -11,6 +11,7 @@ import {
 } from "../../schemas/scene-catalog.js";
 import { writeJson, readJson, ARTIFACTS } from "../work-paths.js";
 import { parseBatchContextFromUserContext, resolveDefaultSortBy } from "../../lib/input-mode.js";
+import { computeSourceContentHash } from "../../lib/source-hash.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 
 const VIDEO_EXTENSIONS = new Set([
@@ -113,6 +114,7 @@ export function buildSceneCatalogFromDetection(batchId, clips, sceneDetectionByC
     aspectRatio: clip.aspectRatio,
     resolution: clip.resolution,
     ...(clip.mediaType ? { mediaType: clip.mediaType } : {}),
+    ...(clip.contentHash ? { contentHash: clip.contentHash } : {}),
   }));
 
   const scenes = [];
@@ -160,15 +162,59 @@ export function buildSceneCatalogFromDetection(batchId, clips, sceneDetectionByC
   });
 }
 
+/**
+ * Returns true when every manifest clip still exists and contentHash matches the source file.
+ * Old manifests without contentHash are treated as stale (one-time migration rebuild).
+ */
+export async function isManifestSourceContentFresh(manifest) {
+  const clips = manifest?.clips ?? [];
+  if (clips.length === 0) {
+    return false;
+  }
+
+  for (const clip of clips) {
+    if (!clip.sourcePath) {
+      return false;
+    }
+
+    const currentHash = await computeSourceContentHash(clip.sourcePath);
+    if (!currentHash || !clip.contentHash || clip.contentHash !== currentHash) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/** Compares manifest clip file names with a fresh input scan (add/remove detection). */
+export function isManifestInputSetFresh(manifest, rawClips) {
+  const manifestNames = (manifest?.clips ?? []).map((clip) => clip.fileName).sort();
+  const scanNames = (rawClips ?? []).map((clip) => clip.fileName).sort();
+  if (manifestNames.length !== scanNames.length) {
+    return false;
+  }
+  return manifestNames.every((name, index) => name === scanNames[index]);
+}
+
 export async function runIngestStep({ inputDir, workDir, batchId, options = {}, force = false }) {
   const manifestPath = path.join(workDir, ARTIFACTS.manifest);
   const catalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
 
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.manifest, force)) {
-    return {
-      manifest: readJson(manifestPath),
-      catalog: readJson(catalogPath),
-    };
+    const manifest = readJson(manifestPath);
+    const rawClips = await scanInputFolder(inputDir, {
+      ...options,
+      sortBy: options.sortBy ?? undefined,
+    });
+    if (
+      await isManifestSourceContentFresh(manifest)
+      && isManifestInputSetFresh(manifest, rawClips)
+    ) {
+      return {
+        manifest,
+        catalog: readJson(catalogPath),
+      };
+    }
   }
 
   let rawClips = await scanInputFolder(inputDir, {
@@ -187,13 +233,17 @@ export async function runIngestStep({ inputDir, workDir, batchId, options = {}, 
 
   const clips = [];
   for (const raw of rawClips) {
-    const durationSec = await probeDuration(raw.sourcePath);
+    const [durationSec, contentHash] = await Promise.all([
+      probeDuration(raw.sourcePath),
+      computeSourceContentHash(raw.sourcePath),
+    ]);
     const mediaType = getMediaType(raw.fileName);
 
     if (mediaType === "audio_only") {
       clips.push({
         ...raw,
         durationSec,
+        contentHash,
         mediaType,
         aspectRatio: AUDIO_ONLY_PLACEHOLDER.aspectRatio,
         resolution: { ...AUDIO_ONLY_PLACEHOLDER.resolution },
@@ -205,6 +255,7 @@ export async function runIngestStep({ inputDir, workDir, batchId, options = {}, 
     clips.push({
       ...raw,
       durationSec,
+      contentHash,
       mediaType: "video",
       aspectRatio: computeAspectRatio(width, height),
       resolution: { w: width, h: height },
@@ -219,12 +270,14 @@ export async function runIngestStep({ inputDir, workDir, batchId, options = {}, 
     clipCount: clips.length,
     totalDurationSec: clips.reduce((sum, c) => sum + c.durationSec, 0),
     createdAt: new Date().toISOString(),
-    clips: clips.map((c) => ({
+    clips: clips.map((c, index) => ({
+      clipId: `clip${String(index + 1).padStart(2, "0")}`,
       fileName: c.fileName,
       sourcePath: c.sourcePath,
       durationSec: c.durationSec,
       creationTime: c.creationTime,
       ...(c.mediaType ? { mediaType: c.mediaType } : {}),
+      ...(c.contentHash ? { contentHash: c.contentHash } : {}),
     })),
   };
 

@@ -15,7 +15,7 @@ Bundled test asset: `whoosh.wav` (short sine burst, used by unit/E2E render test
 
 ## Adding a sound
 
-1. Download from an approved source (CC0 / commercial-friendly). See [REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md](../../docs/REQUIREMENTS_SFX_LIBRARY_AND_VOICEOVER.md#źródła-dźwięków-licencje-komercyjne).
+1. Download from an approved source (CC0 / commercial-friendly). Record source URL and license in [`LICENSES.md`](./LICENSES.md).
 2. Normalize to a short WAV or MP3 (mono, 44.1 or 48 kHz).
 3. Place the file in this folder.
 4. Add an entry to `catalog.json` (`sfxId`, `fileName`, `tags`, `license`).

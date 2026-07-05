@@ -236,6 +236,47 @@ function projectPatternInterruptTextOverlays(segments, creativeMoments, outputId
   });
 }
 
+function projectChapterCardOverlays(segments, creativeMoments, outputId) {
+  const chapterMoments = (creativeMoments ?? []).filter(
+    (m) => m.outputId === outputId && m.techniqueId === "chapter_card",
+  );
+
+  if (chapterMoments.length === 0) {
+    return segments;
+  }
+
+  return segments.map((seg) => {
+    const overlays = [...(seg.textOverlays ?? [])];
+
+    for (const moment of chapterMoments) {
+      const targetSeg = findSegmentForMoment(segments, moment.outputStartSec);
+      if (targetSeg?.segmentId !== seg.segmentId) {
+        continue;
+      }
+
+      const text = moment.params?.label ?? moment.params?.text ?? moment.reason;
+      if (!text) {
+        continue;
+      }
+
+      if (hasOverlayInWindow(overlays, moment.outputStartSec, moment.outputEndSec, { text })) {
+        continue;
+      }
+
+      overlays.push({
+        text,
+        outputStartSec: moment.outputStartSec,
+        outputEndSec: moment.outputEndSec,
+        style: "chapter_card",
+        role: "chapter",
+        position: "center",
+      });
+    }
+
+    return { ...seg, textOverlays: overlays };
+  });
+}
+
 function prioritizeHookWindow(segments, hookWindowSec) {
   if (!hookWindowSec || hookWindowSec <= 0) {
     return segments;
@@ -336,6 +377,12 @@ export function enrichRenderEdl(edl, { recipe, context, output, spatialIndex }) 
     edl.outputId,
   );
 
+  segments = projectChapterCardOverlays(
+    segments,
+    creativeMoments,
+    edl.outputId,
+  );
+
   const retention = recipe?.shortsRetentionProfile;
   const isShort = output?.outputKind === "short" || edl.outputKind === "short";
   if (retention?.enabled && isShort) {
@@ -354,6 +401,7 @@ export {
   projectHookTitleOverlays,
   projectPatternInterruptTextOverlays,
   projectEmphasisTextOverlays,
+  projectChapterCardOverlays,
   prioritizeHookWindow,
   isHookCreativeMoment,
 };

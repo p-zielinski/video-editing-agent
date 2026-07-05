@@ -15,6 +15,13 @@ const NARRATIVE_ROLE_PROFILE_DEFAULTS = {
   resolution: { rhythm: "slow", retentionIntensity: "low" },
 };
 
+/** Default per-L2 enrich toggles (overridable via segment enrichPolicy). */
+export const DEFAULT_ENRICH_POLICY = {
+  allowRetentionEnrich: true,
+  allowPacingTrim: true,
+  allowFillerCuts: true,
+};
+
 /** Default enrich caps keyed by L2 rhythm (overridable per segment in narrativeProfile). */
 export const RHYTHM_CAPS = {
   slow: {
@@ -111,6 +118,31 @@ export function resolveL2SegmentProfile(narrativeProfile, l2SegmentId) {
     return null;
   }
   return narrativeProfile.segments.find((entry) => entry.l2SegmentId === l2SegmentId) ?? null;
+}
+
+/**
+ * Merge segment enrichPolicy with global defaults.
+ */
+export function resolveSegmentEnrichPolicy(narrativeProfile, l2SegmentId) {
+  const segmentProfile = resolveL2SegmentProfile(narrativeProfile, l2SegmentId);
+  const policy = segmentProfile?.enrichPolicy ?? {};
+  return {
+    allowRetentionEnrich: policy.allowRetentionEnrich ?? DEFAULT_ENRICH_POLICY.allowRetentionEnrich,
+    allowPacingTrim: policy.allowPacingTrim ?? DEFAULT_ENRICH_POLICY.allowPacingTrim,
+    allowFillerCuts: policy.allowFillerCuts ?? DEFAULT_ENRICH_POLICY.allowFillerCuts,
+  };
+}
+
+export function shouldAllowRetentionEnrichForL2(narrativeProfile, l2SegmentId) {
+  return resolveSegmentEnrichPolicy(narrativeProfile, l2SegmentId).allowRetentionEnrich;
+}
+
+export function shouldAllowPacingTrimForL2(narrativeProfile, l2SegmentId) {
+  return resolveSegmentEnrichPolicy(narrativeProfile, l2SegmentId).allowPacingTrim;
+}
+
+export function shouldAllowFillerCutsForL2(narrativeProfile, l2SegmentId) {
+  return resolveSegmentEnrichPolicy(narrativeProfile, l2SegmentId).allowFillerCuts;
 }
 
 /**

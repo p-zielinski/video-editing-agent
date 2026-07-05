@@ -7,6 +7,7 @@ import {
   resolveL2SegmentProfile,
   resolveRecipeNarrativeProfile,
   resolveSegmentCaps,
+  shouldAllowRetentionEnrichForL2,
   shouldSkipRetentionBeatEnrich,
 } from "../lib/narrative-profile.js";
 import {
@@ -1047,6 +1048,26 @@ function resolveColdOpenHookSceneId(abstraction) {
   return coldOpen.payoffSceneId ?? coldOpen.setupSceneId ?? null;
 }
 
+/**
+ * True when prepending hook scene would spoil cold_open / payoff_tease open loops.
+ */
+export function wouldHookSpoilColdOpenLoops(hookSceneId, abstraction) {
+  if (!hookSceneId) {
+    return false;
+  }
+
+  for (const loop of abstraction?.L3?.openLoops ?? []) {
+    if (loop.kind !== "cold_open" && loop.kind !== "payoff_tease") {
+      continue;
+    }
+    if (hookSceneId === loop.payoffSceneId || hookSceneId === loop.setupSceneId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function resolveKeyMomentsHookSceneId(abstraction) {
   let bestSceneId = null;
   let bestBroll = -1;
@@ -1210,7 +1231,7 @@ function enrichShortHookMoment(shortOutput, profile, existingMoments, options = 
   );
 
   let prepended = false;
-  if (hookSceneId) {
+  if (hookSceneId && !wouldHookSpoilColdOpenLoops(hookSceneId, abstraction ?? {})) {
     prepended = prependShortHookSegment(
       shortOutput,
       hookSceneId,
@@ -1315,6 +1336,10 @@ function shouldSkipBeatEnrichForAnchor(
 ) {
   const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
   const l2SegmentId = resolveAnchorL2SegmentId(anchor, abstraction, timelineIndex, targetOutput);
+
+  if (l2SegmentId && !shouldAllowRetentionEnrichForL2(narrativeProfile, l2SegmentId)) {
+    return true;
+  }
 
   const caps = resolveSegmentCaps(narrativeProfile, l2SegmentId, abstraction);
   if (caps) {

@@ -1,0 +1,35 @@
+{
+  "id": "slide_left",
+  "version": "1.0",
+  "category": "transition",
+  "label": "Slide left",
+  "description": "Przejście slide w lewo między segmentami (0.3–0.8 s).",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "modern"
+  ],
+  "params": {
+    "durationSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 0.8,
+      "default": 0.5
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 10,
+    "maxPerOutputMinutes": 0.12,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": null
+  },
+  "whenToUse": "Dynamiczna zmiana lokacji, montaż internetowy.",
+  "whenToAvoid": "Spokojne segmenty slow rhythm.",
+  "syncHints": [
+    "scene_boundary"
+  ],
+  "renderSupport": "full"
+}

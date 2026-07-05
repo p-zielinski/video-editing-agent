@@ -7,6 +7,10 @@ import {
 } from "./ffmpeg-graphics.js";
 import { DEFAULT_RENDER_STYLE_PRESETS } from "./style-presets.js";
 
+function drawtextFilter(filters) {
+  return filters.find((entry) => entry.startsWith("drawtext=")) ?? filters[filters.length - 1];
+}
+
 describe("ffmpeg-graphics", () => {
   it("applies stroke border and uppercase transform from hook_large preset", () => {
     const [filter] = buildDrawtextFilters(
@@ -29,7 +33,7 @@ describe("ffmpeg-graphics", () => {
   });
 
   it("uses chapter_card documentary preset instead of hook_large fallback", () => {
-    const [filter] = buildDrawtextFilters(
+    const filters = buildDrawtextFilters(
       [{
         text: "Part 2 — The climb",
         style: "chapter_card",
@@ -42,6 +46,12 @@ describe("ffmpeg-graphics", () => {
       },
     );
 
+    const filter = filters.find((entry) => entry.startsWith("drawtext=")) ?? filters[filters.length - 1];
+    const drawbox = filters.find((entry) => entry.startsWith("drawbox="));
+
+    assert.ok(drawbox, "expected drawbox for chapter_card background");
+    assert.ok(drawbox.includes("drawbox="));
+    assert.ok(drawbox.includes("color=0x000000@0.55") || drawbox.includes("color=black@"));
     assert.ok(filter.includes("fontsize=44"));
     assert.ok(!filter.includes("fontsize=72"));
     assert.ok(filter.includes("Part 2"));
@@ -49,7 +59,7 @@ describe("ffmpeg-graphics", () => {
   });
 
   it("omits border when preset has no stroke", () => {
-    const [filter] = buildDrawtextFilters(
+    const filter = drawtextFilter(buildDrawtextFilters(
       [{
         text: "caption",
         style: "caption_bar",
@@ -60,7 +70,7 @@ describe("ffmpeg-graphics", () => {
         dimensions: { width: 1920, height: 1080 },
         stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
       },
-    );
+    ));
 
     assert.ok(!filter.includes("borderw="));
     assert.ok(!filter.includes("bordercolor="));
@@ -107,7 +117,7 @@ describe("ffmpeg-graphics", () => {
   });
 
   it("adds alpha fade expression for chapter_card preset (fade default)", () => {
-    const [filter] = buildDrawtextFilters(
+    const filter = drawtextFilter(buildDrawtextFilters(
       [{
         text: "Part 2",
         style: "chapter_card",
@@ -118,7 +128,7 @@ describe("ffmpeg-graphics", () => {
         dimensions: { width: 1920, height: 1080 },
         stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
       },
-    );
+    ));
 
     assert.ok(filter.includes("alpha='"));
     assert.ok(filter.includes("255*(t-10)/0.3"));
@@ -195,5 +205,25 @@ describe("ffmpeg-graphics", () => {
       "static",
     );
     assert.equal(resolveOverlayAnimation({}, {}), "fade");
+  });
+
+  it("adds slide_up position expression and alpha for slide animations", () => {
+    const filter = drawtextFilter(buildDrawtextFilters(
+      [{
+        text: "Part 2",
+        style: "chapter_card",
+        animation: "slide_up",
+        outputStartSec: 10,
+        outputEndSec: 14,
+      }],
+      {
+        dimensions: { width: 1920, height: 1080 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    ));
+
+    assert.ok(filter.includes("alpha='"));
+    assert.ok(filter.includes("if(lt(t\\,10)"));
+    assert.ok(filter.includes("1080"));
   });
 });

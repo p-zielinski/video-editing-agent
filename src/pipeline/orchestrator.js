@@ -20,11 +20,7 @@ import {
 } from "./work-paths.js";
 import { runIngestStep } from "./steps/ingest.js";
 import { detectScenesForCatalog, runSceneDetectionForClip } from "./steps/scene-detect.js";
-import { runTranscribeStep } from "./steps/transcribe.js";
-import { runAudioAnalysisStep } from "./steps/audio-analysis.js";
-import { runKeyframesStep } from "./steps/keyframes.js";
-import { runVisionStep, runObjectsStep } from "./steps/vision.js";
-import { runTwelveLabsStep } from "./steps/twelvelabs.js";
+import { runAnalysisPhase, shouldUseAnalysisPhase } from "./analysis-phase.js";
 import { runIndexStep } from "./steps/index.js";
 import { runClipProfileStep } from "./steps/clip-profile.js";
 import { runTopicIndexStep } from "./steps/topic-index.js";
@@ -158,9 +154,10 @@ export async function runPipeline(options) {
     renderThumbnails = true,
     maxReviewIterations = 3,
     topicIndexEmbedFn,
+    globalCacheDisabled = false,
   } = options;
 
-  const resolvedTwelvelabsStub = twelvelabsStub ?? !(twelvelabsLive && process.env.TWELVELABS_API_KEY);
+  const resolvedTwelvelabsStub = twelvelabsStub === true || !process.env.TWELVELABS_API_KEY;
 
   const workDir = resolveWorkDir(batchId);
   fs.mkdirSync(workDir, { recursive: true });
@@ -169,6 +166,9 @@ export async function runPipeline(options) {
   log.log(`Work dir: ${workDir}`);
   if (force) {
     log.log("Tryb --force: pomijanie cache artefaktów");
+  }
+  if (globalCacheDisabled || process.env.DISABLE_GLOBAL_ANALYSIS_CACHE === "1") {
+    log.log("Globalny cache analizy wyłączony (--no-global-cache lub DISABLE_GLOBAL_ANALYSIS_CACHE=1)");
   }
 
   const parsedContext = parseBatchContextFromUserContext(userContext);
@@ -187,6 +187,7 @@ export async function runPipeline(options) {
     faceStub,
     audioStub,
     topicIndexEmbedFn,
+    globalCacheDisabled,
   };
   let reviewResult = null;
 
@@ -250,80 +251,91 @@ export async function runPipeline(options) {
       }
     }
 
-    if (shouldRunStep("transcribe", fromStep, toStep)) {
-      log.step("transcribe", stepIndex("transcribe") + 1, TOTAL_STEPS);
-      const words = await runTranscribeStep(context);
-      log.stepDone(`${words.length} transkrypcji`);
-      recordManifestArtifactMtimes(
-        workDir,
-        words.map((w) => ARTIFACTS.words(w.clipId)),
-      );
-    }
+    if (shouldUseAnalysisPhase(fromStep, toStep, { twelvelabsEnabled })) {
+      const needsVisionPreflight = shouldRunStep("vision", fromStep, toStep) && !visionStub;
+      const needsObjectsPreflight = objectsEnabled
+        && shouldRunStep("objects", fromStep, toStep)
+        && !objectsStub;
+      if (needsVisionPreflight || needsObjectsPreflight) {
+        await ensurePythonPreflight({ visionStub, objectsStub, objectsEnabled });
+      }
 
-    if (shouldRunStep("audio_analysis", fromStep, toStep)) {
-      log.step("audio_analysis", stepIndex("audio_analysis") + 1, TOTAL_STEPS);
-      const audioIndex = await runAudioAnalysisStep({ ...context, stub: audioStub });
-      log.stepDone(`${audioIndex.clips?.length ?? 0} klipów`);
-      recordManifestArtifactMtimes(workDir, [
-        ARTIFACTS.audioIndex,
-        ...(audioIndex.clips ?? []).map((c) => ARTIFACTS.audioAnalysis(c.clipId)),
-      ]);
-    }
-
-    if (shouldRunStep("keyframes", fromStep, toStep)) {
-      log.step("keyframes", stepIndex("keyframes") + 1, TOTAL_STEPS);
-      const keyframes = await runKeyframesStep({ ...context, extractImages: extractKeyframes });
-      const total = keyframes.reduce((s, k) => s + (k.keyframes?.length ?? 0), 0);
-      log.stepDone(`${total} klatek`);
-      recordManifestArtifactMtimes(
+      const analysisResult = await runAnalysisPhase({
         workDir,
-        keyframes.map((k) => ARTIFACTS.keyframes(k.clipId)),
-      );
-    }
-
-    if (twelvelabsEnabled && shouldRunStep("twelvelabs", fromStep, toStep)) {
-      log.step("twelvelabs", stepIndex("twelvelabs") + 1, TOTAL_STEPS);
-      const twelvelabs = await runTwelveLabsStep({
-        workDir,
-        stub: resolvedTwelvelabsStub,
+        fromStep,
+        toStep,
+        twelvelabsEnabled,
+        apiKey,
+        audioStub,
+        visionStub,
+        objectsEnabled,
+        objectsStub,
+        twelvelabsStub: resolvedTwelvelabsStub,
+        extractKeyframes,
         force,
-        apiKey: process.env.TWELVELABS_API_KEY,
+        globalCacheDisabled,
       });
-      log.stepDone(resolvedTwelvelabsStub ? "stub" : "live");
-      recordManifestArtifactMtimes(
-        workDir,
-        twelvelabs.map((t) => ARTIFACTS.twelvelabs(t.clipId)),
-      );
-    }
 
-    if (shouldRunStep("vision", fromStep, toStep)) {
-      log.step("vision", stepIndex("vision") + 1, TOTAL_STEPS);
-      if (!visionStub) {
-        await ensurePythonPreflight({ visionStub, objectsStub, objectsEnabled });
+      if (shouldRunStep("transcribe", fromStep, toStep)) {
+        log.step("transcribe", stepIndex("transcribe") + 1, TOTAL_STEPS);
+        const words = analysisResult.words ?? [];
+        log.stepDone(`${words.length} transkrypcji`);
+        recordManifestArtifactMtimes(
+          workDir,
+          words.map((w) => ARTIFACTS.words(w.clipId)),
+        );
       }
-      const vision = await runVisionStep({ ...context, stub: visionStub });
-      log.stepDone();
-      recordManifestArtifactMtimes(
-        workDir,
-        vision.map((v) => ARTIFACTS.vision(v.clipId)),
-      );
-    }
 
-    if (shouldRunStep("objects", fromStep, toStep)) {
-      log.step("objects", stepIndex("objects") + 1, TOTAL_STEPS);
-      if (objectsEnabled && !objectsStub) {
-        await ensurePythonPreflight({ visionStub, objectsStub, objectsEnabled });
+      if (shouldRunStep("audio_analysis", fromStep, toStep)) {
+        log.step("audio_analysis", stepIndex("audio_analysis") + 1, TOTAL_STEPS);
+        const audioIndex = analysisResult.audioIndex ?? { clips: [] };
+        log.stepDone(`${audioIndex.clips?.length ?? 0} klipów`);
+        recordManifestArtifactMtimes(workDir, [
+          ARTIFACTS.audioIndex,
+          ...(audioIndex.clips ?? []).map((c) => ARTIFACTS.audioAnalysis(c.clipId)),
+        ]);
       }
-      const objects = await runObjectsStep({
-        ...context,
-        stub: objectsStub,
-        enabled: objectsEnabled,
-      });
-      log.stepDone();
-      recordManifestArtifactMtimes(
-        workDir,
-        objects.map((o) => ARTIFACTS.objects(o.clipId)),
-      );
+
+      if (shouldRunStep("keyframes", fromStep, toStep)) {
+        log.step("keyframes", stepIndex("keyframes") + 1, TOTAL_STEPS);
+        const keyframes = analysisResult.keyframes ?? [];
+        const total = keyframes.reduce((s, k) => s + (k.keyframes?.length ?? 0), 0);
+        log.stepDone(`${total} klatek`);
+        recordManifestArtifactMtimes(
+          workDir,
+          keyframes.map((k) => ARTIFACTS.keyframes(k.clipId)),
+        );
+      }
+
+      if (twelvelabsEnabled && shouldRunStep("twelvelabs", fromStep, toStep)) {
+        log.step("twelvelabs", stepIndex("twelvelabs") + 1, TOTAL_STEPS);
+        const twelvelabs = analysisResult.twelvelabs ?? [];
+        log.stepDone(resolvedTwelvelabsStub ? "stub" : "live");
+        recordManifestArtifactMtimes(
+          workDir,
+          twelvelabs.map((t) => ARTIFACTS.twelvelabs(t.clipId)),
+        );
+      }
+
+      if (shouldRunStep("vision", fromStep, toStep)) {
+        log.step("vision", stepIndex("vision") + 1, TOTAL_STEPS);
+        const vision = analysisResult.vision ?? [];
+        log.stepDone();
+        recordManifestArtifactMtimes(
+          workDir,
+          vision.map((v) => ARTIFACTS.vision(v.clipId)),
+        );
+      }
+
+      if (shouldRunStep("objects", fromStep, toStep)) {
+        log.step("objects", stepIndex("objects") + 1, TOTAL_STEPS);
+        const objects = analysisResult.objects ?? [];
+        log.stepDone();
+        recordManifestArtifactMtimes(
+          workDir,
+          objects.map((o) => ARTIFACTS.objects(o.clipId)),
+        );
+      }
     }
 
     if (shouldRunStep("index", fromStep, toStep)) {
@@ -371,7 +383,12 @@ export async function runPipeline(options) {
         await ensurePythonPreflight({ visionStub, faceStub, objectsStub, objectsEnabled, audioStub });
       }
       const spatialStale = isArtifactStale(workDir, ARTIFACTS.spatialIndex);
-      const spatialIndex = await runSpatialIndexStep({ workDir, force: force || spatialStale, faceStub });
+      const spatialIndex = await runSpatialIndexStep({
+        workDir,
+        force: force || spatialStale,
+        faceStub,
+        globalCacheDisabled,
+      });
       log.stepDone(`${spatialIndex.scenes?.filter((s) => s.anchors.length > 0).length ?? 0} scen z kotwicami${spatialStale && !force ? " (odświeżono — stale)" : ""}`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.spatialIndex]);
     }
@@ -389,7 +406,7 @@ export async function runPipeline(options) {
 
     if (shouldRunStep("direct", fromStep, toStep)) {
       log.step("direct", stepIndex("direct") + 1, TOTAL_STEPS);
-      await ensureSpatialIndex(workDir, { force, faceStub });
+      await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
       await runDirectStep({ ...context, requiredFormats: context.requiredFormats, faceStub });
       log.stepDone();
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.recipeDraft]);

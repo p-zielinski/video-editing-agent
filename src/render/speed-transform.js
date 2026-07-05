@@ -9,6 +9,23 @@ export function adjustDurationForSpeed(durationSec, speed) {
   return durationSec / speed;
 }
 
+/**
+ * Output durations after speed transform (video always; audio when atempo applies).
+ */
+export function resolveSpedMediaDurations(segment, videoDur, audioDur) {
+  const speed = resolveEffectiveSpeed(segment);
+  if (speed === 1) {
+    return { spedVideoDur: videoDur, spedAudioDur: audioDur };
+  }
+
+  const spedVideoDur = adjustDurationForSpeed(videoDur, speed);
+  const spedAudioDur = shouldApplyAudioSpeed(segment, speed)
+    ? adjustDurationForSpeed(audioDur, speed)
+    : audioDur;
+
+  return { spedVideoDur, spedAudioDur };
+}
+
 export function buildAtempoFilterChain(speed) {
   if (speed === 1) {
     return null;

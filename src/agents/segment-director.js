@@ -4,6 +4,7 @@ import {
   filterL1ForScenes,
   EDIT_RECIPE_V2_OUTPUT_SCHEMA,
 } from "./director.js";
+import { buildActTransitionHints } from "../editorial/act-transitions.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 
 function findNeighborL2Summaries(abstraction, segmentId) {
@@ -57,6 +58,29 @@ function filterTimelineForSegment(timelineIndex, sceneIds) {
   };
 }
 
+function buildSegmentRecipeSkeleton(context, superPlan) {
+  const { timelineIndex, batchContext, requiredFormats } = context;
+  const outputs = (requiredFormats ?? ["16:9", "9:16"]).map((format) => ({
+    outputId: format === "16:9" ? "main_16x9" : "short_9x16",
+    outputKind: format === "16:9" ? "main" : "short",
+    format,
+    timeline: [],
+  }));
+
+  return {
+    batchId: timelineIndex.batchId,
+    version: "2.2",
+    batchContext: {
+      ...batchContext,
+      requiredFormats,
+    },
+    outputs,
+    creativityProfile: superPlan.creativityProfile,
+    narrativeProfile: superPlan.narrativeProfile,
+    creativeMoments: [],
+  };
+}
+
 /**
  * Segment-scoped director brief: segment scenes + L3 global + neighbor L2 one-liners.
  */
@@ -80,6 +104,7 @@ export function buildSegmentDirectorBrief(context, {
     requiredFormats,
     batchContext,
     keyframesByClip,
+    workDir,
   } = context;
 
   const scopedAbstraction = filterAbstractionForSegment(abstraction, sceneIds);
@@ -100,6 +125,8 @@ export function buildSegmentDirectorBrief(context, {
     superPlan.globalTheme ? `theme:${superPlan.globalTheme}` : "",
   ].filter(Boolean).join("\n");
 
+  const recipeSkeleton = buildSegmentRecipeSkeleton(context, superPlan);
+
   const brief = buildDirectorBrief({
     abstraction: scopedAbstraction,
     timelineIndex: scopedTimeline,
@@ -117,10 +144,13 @@ export function buildSegmentDirectorBrief(context, {
     includeL1: false,
     creativityProfile: superPlan.creativityProfile,
     narrativeProfile: superPlan.narrativeProfile,
+    recipe: recipeSkeleton,
+    outputs: recipeSkeleton.outputs,
     targetDurationSec: segmentPick?.targetKeepRatio != null
       ? scopedTimeline.scenes?.reduce((sum, scene) => sum + (scene.durationSec ?? 0), 0)
         * segmentPick.targetKeepRatio
       : undefined,
+    workDir,
   });
 
   brief.sessionSummary = abstraction.L3;
@@ -143,6 +173,15 @@ export function buildSegmentDirectorBrief(context, {
   const segmentCreativityBudget = brief.creativityBudgetByL2Segment?.[segmentId];
   if (segmentCreativityBudget) {
     brief.creativityBudget = segmentCreativityBudget;
+  }
+
+  const actTransitionHints = buildActTransitionHints(
+    abstraction,
+    superPlan.narrativeProfile ?? brief.narrativeProfile,
+    { recipe: recipeSkeleton, wordIndexes: context.wordIndexes },
+  ).filter((hint) => hint.l2SegmentId === segmentId);
+  if (actTransitionHints.length > 0) {
+    brief.actTransitionHints = actTransitionHints;
   }
 
   return brief;

@@ -259,8 +259,23 @@ function validatePatternInterruptDensity(
   return issues;
 }
 
-function validateBeatTargetAlignment(output, profile, moments, durationSec, beatTargets) {
+function resolveBeatTargetSecs(beatTargets, outputId) {
   if (!beatTargets?.length) {
+    return [];
+  }
+
+  if (typeof beatTargets[0] === "number") {
+    return beatTargets;
+  }
+
+  return beatTargets
+    .filter((entry) => !entry.outputId || entry.outputId === outputId)
+    .map((entry) => entry.targetSec);
+}
+
+function validateBeatTargetAlignment(output, profile, moments, durationSec, beatTargets) {
+  const targetSecs = resolveBeatTargetSecs(beatTargets, output.outputId);
+  if (!targetSecs.length) {
     return [];
   }
 
@@ -268,7 +283,7 @@ function validateBeatTargetAlignment(output, profile, moments, durationSec, beat
   const beatMoments = moments.filter((moment) => isVlogRetentionBeatMoment(moment));
   const issues = [];
 
-  for (const targetSec of beatTargets) {
+  for (const targetSec of targetSecs) {
     const hasNearby = beatMoments.some((moment) => {
       const anchor = moment.outputStartSec ?? moment.anchorSec ?? 0;
       return Math.abs(anchor - targetSec) <= tolerance;

@@ -18,7 +18,7 @@ function momentOverlapsScene(moment, scene) {
   return start < sceneEnd && end > sceneStart;
 }
 
-export function mergeTwelveLabsIntoVisualText(qwenCaptions, tlMoments, scene) {
+export function mergeTwelveLabsIntoVisualText(qwenCaptions, tlMoments, scene, tlArtifact = null) {
   const captionParts = (qwenCaptions ?? []).flatMap((entry) => [
     entry.caption,
     ...(entry.tags ?? []),
@@ -28,8 +28,16 @@ export function mergeTwelveLabsIntoVisualText(qwenCaptions, tlMoments, scene) {
   const momentParts = relevantMoments.flatMap((moment) => [
     moment.description,
     moment.summary,
+    moment.editUse ? `edit:${moment.editUse}` : null,
     ...(moment.tags ?? []),
   ].filter(Boolean));
 
-  return [...captionParts, ...momentParts].filter(Boolean).join(" ");
+  const editorialParts = [
+    tlArtifact?.editorial?.summary,
+    tlArtifact?.editorial?.mood ? `mood:${tlArtifact.editorial.mood}` : null,
+    ...(tlArtifact?.editorial?.editingHints ?? []),
+    ...(tlArtifact?.gist?.topics ?? []),
+  ].filter(Boolean);
+
+  return [...captionParts, ...momentParts, ...editorialParts].filter(Boolean).join(" ");
 }

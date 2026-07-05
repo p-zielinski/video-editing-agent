@@ -4,22 +4,56 @@
   "category": "camera",
   "label": "Punch-in zoom",
   "description": "Krótkie zbliżenie na twarz lub temat w momencie akcentu.",
-  "platforms": ["youtube", "shorts"],
-  "trendTags": ["talking_head", "classic_youtube"],
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "talking_head",
+    "classic_youtube"
+  ],
   "params": {
-    "factor": { "type": "number", "min": 1.05, "max": 1.25, "default": 1.08 },
-    "durationSec": { "type": "number", "min": 0.5, "max": 4, "default": 2.5 },
-    "anchor": { "type": "enum", "values": ["face", "subject", "center"], "default": "face" },
-    "easeSec": { "type": "number", "default": 0.4 }
+    "factor": {
+      "type": "number",
+      "min": 1.05,
+      "max": 1.25,
+      "default": 1.08
+    },
+    "durationSec": {
+      "type": "number",
+      "min": 0.5,
+      "max": 4,
+      "default": 2.5
+    },
+    "anchor": {
+      "type": "enum",
+      "values": [
+        "face",
+        "subject",
+        "center"
+      ],
+      "default": "face"
+    },
+    "easeSec": {
+      "type": "number",
+      "default": 0.4
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 45,
     "maxPerOutputMinutes": 0.15,
     "requiresSpatialAnchor": true,
-    "forbiddenOnSegmentRole": ["broll"],
+    "forbiddenOnSegmentRole": [
+      "broll"
+    ],
     "requiresCreativityLevel": null
   },
   "whenToUse": "Punchline, ważne zdanie, emocja.",
   "whenToAvoid": "Słabe światło, shakecam, zoom w ostatnich 30 s.",
-  "syncHints": ["sentence_start", "word_emphasis", "beat_after_pause"]
+  "syncHints": [
+    "sentence_start",
+    "word_emphasis",
+    "beat_after_pause"
+  ],
+  "renderSupport": "full"
 }

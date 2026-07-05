@@ -1,8 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
-import { isRetentionBeatMoment } from "../editorial/shorts-retention.js";
+import {
+  computeScaledMinRetentionBeats,
+  isHookMoment,
+  isRetentionBeatMoment,
+  mergeShortsRetentionProfile,
+  resolveShortOutputDurationSec,
+} from "../editorial/shorts-retention.js";
 import { validateRecipeV2 } from "../validators/recipe-v2.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
+import { readRecipeProvenance } from "./recipe-provenance.js";
+import { evaluateQualityGates } from "./quality-gate-config.js";
 import { readJson, writeJson, ARTIFACTS } from "../pipeline/work-paths.js";
 
 function tryReadJson(workDir, artifactName) {
@@ -126,26 +134,185 @@ function resolveBrollMatchThreshold(recipe, manifest) {
     ?? 0.55;
 }
 
-function collectQualityGateFailures({
-  anchorCoveragePercent,
-  topicMatchRate,
-  l1FieldsPresentPercent,
-  validationErrorCount,
-}) {
-  const failures = [];
-  if (anchorCoveragePercent < 50) {
-    failures.push("anchor_coverage_below_50");
+function isVisionArtifactStub(artifact) {
+  const captions = artifact?.captions ?? [];
+  return captions.some((entry) => /\[stub\]/i.test(entry.caption ?? ""));
+}
+
+function isObjectsArtifactStub(artifact) {
+  const detections = artifact?.detections ?? [];
+  return detections.some((entry) => /\[stub\]/i.test(entry.label ?? ""));
+}
+
+function isAudioArtifactStub(artifact) {
+  return artifact?.analysisMode === "stub" || artifact?.eventDetectionMode === "stub";
+}
+
+function isTwelvelabsArtifactStub(artifact) {
+  return artifact?.indexingStatus === "stub";
+}
+
+function computeStubCoverage(workDir, catalog) {
+  const clips = catalog?.clips ?? [];
+  if (clips.length === 0) {
+    return {
+      vision: 0,
+      audio: 0,
+      objects: 0,
+      twelvelabs: 0,
+      perClip: [],
+    };
   }
-  if (topicMatchRate < 50) {
-    failures.push("topic_match_rate_below_50");
+
+  const perClip = clips.map((clip) => {
+    const vision = tryReadJson(workDir, ARTIFACTS.vision(clip.clipId));
+    const audio = tryReadJson(workDir, ARTIFACTS.audioAnalysis(clip.clipId));
+    const objects = tryReadJson(workDir, ARTIFACTS.objects(clip.clipId));
+    const twelvelabs = tryReadJson(workDir, ARTIFACTS.twelvelabs(clip.clipId));
+    return {
+      clipId: clip.clipId,
+      vision: isVisionArtifactStub(vision),
+      audio: isAudioArtifactStub(audio),
+      objects: isObjectsArtifactStub(objects),
+      twelvelabs: isTwelvelabsArtifactStub(twelvelabs),
+    };
+  });
+
+  const countFlag = (flag) => perClip.filter((entry) => entry[flag]).length;
+
+  return {
+    vision: percent(countFlag("vision"), clips.length),
+    audio: percent(countFlag("audio"), clips.length),
+    objects: percent(countFlag("objects"), clips.length),
+    twelvelabs: percent(countFlag("twelvelabs"), clips.length),
+    perClip,
+  };
+}
+
+function summarizeEnricherContribution(provenance) {
+  const enricherLog = provenance?.enricherLog ?? [];
+  if (enricherLog.length === 0) {
+    return null;
   }
-  if (l1FieldsPresentPercent < 80) {
-    failures.push("l1_fields_present_below_80");
+
+  const totals = {
+    segmentsAdded: 0,
+    segmentsRemoved: 0,
+    cutsAdded: 0,
+    creativeMomentsAdded: 0,
+    sfxPlanAdded: 0,
+  };
+
+  for (const entry of enricherLog) {
+    const delta = entry.delta ?? {};
+    totals.segmentsAdded += delta.segmentsAdded ?? 0;
+    totals.segmentsRemoved += delta.segmentsRemoved ?? 0;
+    totals.cutsAdded += delta.cutsAdded ?? 0;
+    totals.creativeMomentsAdded += delta.creativeMomentsAdded ?? 0;
+    totals.sfxPlanAdded += delta.sfxPlanAdded ?? 0;
   }
-  if (validationErrorCount > 0) {
-    failures.push("recipe_validation_errors");
+
+  return {
+    enrichers: enricherLog.map((entry) => ({
+      enricher: entry.enricher,
+      delta: entry.delta ?? {},
+    })),
+    totals,
+  };
+}
+
+function buildNarrativeValidatorBreakdown(issues) {
+  const narByCode = {};
+  const v22ByCode = {};
+
+  for (const issue of issues ?? []) {
+    const code = issue.code ?? "";
+    if (code.startsWith("NAR-")) {
+      narByCode[code] = (narByCode[code] ?? 0) + 1;
+    } else if (code.startsWith("V22")) {
+      v22ByCode[code] = (v22ByCode[code] ?? 0) + 1;
+    }
   }
-  return failures;
+
+  const sum = (byCode) => Object.values(byCode).reduce((total, count) => total + count, 0);
+
+  return {
+    nar: { byCode: narByCode, total: sum(narByCode) },
+    v22: { byCode: v22ByCode, total: sum(v22ByCode) },
+  };
+}
+
+function countRenderFidelityIssues(issues) {
+  const fidelityIssues = (issues ?? []).filter((issue) => issue.code?.startsWith("V27"));
+  return {
+    renderFidelityErrorCount: fidelityIssues.filter((issue) => issue.severity === "error").length,
+    renderFidelityWarningCount: fidelityIssues.filter((issue) => issue.severity === "warning").length,
+  };
+}
+
+function getShortOutputs(recipe) {
+  return (recipe?.outputs ?? []).filter((output) => output.outputKind === "short");
+}
+
+function countShortRetentionBeats(recipe) {
+  const shortOutputIds = new Set(getShortOutputs(recipe).map((output) => output.outputId));
+  if (shortOutputIds.size === 0) {
+    return 0;
+  }
+  return (recipe.creativeMoments ?? []).filter(
+    (moment) => shortOutputIds.has(moment.outputId) && isRetentionBeatMoment(moment),
+  ).length;
+}
+
+function computeHookInFirst3s(recipe, hookWindowSec = 3) {
+  const shortOutputs = getShortOutputs(recipe);
+  if (shortOutputs.length === 0) {
+    return false;
+  }
+
+  for (const output of shortOutputs) {
+    const moments = (recipe.creativeMoments ?? []).filter(
+      (moment) => moment.outputId === output.outputId,
+    );
+    const hasHookMoment = moments.some(
+      (moment) => (moment.outputStartSec ?? 0) < hookWindowSec && isHookMoment(moment),
+    );
+    if (hasHookMoment) {
+      return true;
+    }
+
+    for (const segment of output.timeline ?? []) {
+      const segStart = segment.outputStartSec ?? 0;
+      for (const overlay of segment.textOverlays ?? []) {
+        const start = overlay.outputStartSec ?? segStart;
+        if (overlay.role === "hook" && start < hookWindowSec) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function computeMinRetentionBeatsRequired(recipe) {
+  const shortOutputs = getShortOutputs(recipe);
+  if (shortOutputs.length === 0) {
+    return 0;
+  }
+
+  const profile = mergeShortsRetentionProfile(recipe.shortsRetentionProfile ?? {}, {
+    outputs: recipe.outputs,
+    requiredFormats: recipe.batchContext?.requiredFormats ?? ["16:9", "9:16"],
+    creativityProfile: recipe.creativityProfile ?? {},
+  });
+  const durationSec = resolveShortOutputDurationSec({
+    outputs: recipe.outputs,
+    batchContext: recipe.batchContext,
+    targetDurationSec: recipe.targetDurationSec,
+  });
+
+  return computeScaledMinRetentionBeats(durationSec, profile);
 }
 
 function computeAudioMetrics(audioIndex) {
@@ -213,7 +380,7 @@ function detectTopicIndexWarnings(topicIndex) {
   return [];
 }
 
-export function buildBatchQualityReport(workDir) {
+export function buildBatchQualityReport(workDir, { qualityProfile = "lenient" } = {}) {
   const timelineIndex = tryReadJson(workDir, ARTIFACTS.timelineIndex);
   const spatialIndex = tryReadJson(workDir, ARTIFACTS.spatialIndex);
   const abstraction = tryReadJson(workDir, ARTIFACTS.abstraction);
@@ -224,7 +391,12 @@ export function buildBatchQualityReport(workDir) {
   const manifest = tryReadJson(workDir, ARTIFACTS.manifest);
   const recipe = loadRecipe(workDir);
   const audioIndex = tryReadJson(workDir, ARTIFACTS.audioIndex);
+  const provenance = readRecipeProvenance(workDir);
   const audioMetrics = computeAudioMetrics(audioIndex);
+  const stubCoverage = computeStubCoverage(workDir, catalog);
+  const enricherContribution = summarizeEnricherContribution(provenance);
+  const stitchIssues = provenance?.stitchValidation?.issues ?? null;
+  const reviewIterations = review?.iteration ?? provenance?.reviewIterations ?? null;
 
   const anchorMetrics = computeAnchorMetrics(spatialIndex ?? { scenes: [] });
 
@@ -251,6 +423,10 @@ export function buildBatchQualityReport(workDir) {
   const brollPoolSize = countBrollPool(clipRegistry);
   const creativeMomentCount = recipe?.creativeMoments?.length ?? 0;
   const retentionBeatCount = countRetentionBeats(recipe);
+  const shortOutputs = getShortOutputs(recipe);
+  const shortRetentionBeatCount = countShortRetentionBeats(recipe);
+  const minRetentionBeatsRequired = computeMinRetentionBeatsRequired(recipe);
+  const hookInFirst3s = computeHookInFirst3s(recipe);
   const l1FieldsPresentPercent = computeL1FieldsPresentPercent(abstraction, timelineIndex);
   const dataQualityWarnings = [
     ...detectStubDataWarnings(timelineIndex, catalog, workDir),
@@ -259,6 +435,9 @@ export function buildBatchQualityReport(workDir) {
 
   let validationErrorCount = 0;
   let validationWarningCount = 0;
+  let renderFidelityErrorCount = 0;
+  let renderFidelityWarningCount = 0;
+  let narrativeValidatorBreakdown = { nar: { byCode: {}, total: 0 }, v22: { byCode: {}, total: 0 } };
   let validation = null;
 
   if (recipe) {
@@ -272,20 +451,34 @@ export function buildBatchQualityReport(workDir) {
         spatialIndex: spatialIndex ?? { scenes: [] },
         wordIndexes,
         audioIndex,
+        qualityProfile,
       });
       validationErrorCount = validation.issues.filter((i) => i.severity === "error").length;
       validationWarningCount = validation.issues.filter((i) => i.severity === "warning").length;
+      ({ renderFidelityErrorCount, renderFidelityWarningCount } = countRenderFidelityIssues(validation.issues));
+      narrativeValidatorBreakdown = buildNarrativeValidatorBreakdown(validation.issues);
     } catch {
       validationErrorCount = 1;
     }
   }
 
-  const qualityGateFailures = collectQualityGateFailures({
-    anchorCoveragePercent: anchorMetrics.anchorCoveragePercent,
+  const gateMetrics = {
+    ...anchorMetrics,
     topicMatchRate: topicMatchMetrics.topicMatchRate,
     l1FieldsPresentPercent,
     validationErrorCount,
-  });
+    stubCoverage,
+    renderFidelityErrorCount,
+    faceAnchorPercent: anchorMetrics.faceAnchorPercent,
+    reviewApproved: review?.approved ?? null,
+    retentionBeatCount,
+    shortRetentionBeatCount,
+    minRetentionBeatsRequired,
+    hookInFirst3s,
+    hasShortOutputs: shortOutputs.length > 0,
+  };
+
+  const qualityGateFailures = evaluateQualityGates(gateMetrics, qualityProfile);
 
   const needsHumanReview = Boolean(
     recipe?.needsHumanReview
@@ -297,6 +490,7 @@ export function buildBatchQualityReport(workDir) {
     version: "1.0",
     batchId: timelineIndex?.batchId ?? catalog?.batchId ?? null,
     generatedAt: new Date().toISOString(),
+    qualityProfile,
     metrics: {
       ...anchorMetrics,
       ...audioMetrics,
@@ -307,9 +501,21 @@ export function buildBatchQualityReport(workDir) {
       brollPoolSize,
       creativeMomentCount,
       retentionBeatCount,
+      shortRetentionBeatCount,
+      minRetentionBeatsRequired,
+      hookInFirst3s,
+      hasShortOutputs: shortOutputs.length > 0,
       validationErrorCount,
       validationWarningCount,
+      renderFidelityErrorCount,
+      renderFidelityWarningCount,
+      narrativeValidatorBreakdown,
       l1FieldsPresentPercent,
+      stubCoverage,
+      enricherContribution,
+      stitchIssues,
+      reviewIterations,
+      reviewApproved: review?.approved ?? null,
       dataQualityWarnings,
       qualityGateFailures,
       needsHumanReview,
@@ -354,6 +560,23 @@ export function formatBatchQualitySummary(report) {
     lines.push(`  Data quality warnings: ${m.dataQualityWarnings.join(", ")}`);
   }
 
+  if (m.renderFidelityWarningCount > 0 || m.renderFidelityErrorCount > 0) {
+    lines.push(
+      `  Render fidelity (V27): ${m.renderFidelityErrorCount} errors, ${m.renderFidelityWarningCount} warnings`,
+    );
+  }
+
+  if (m.stubCoverage) {
+    lines.push(
+      `  Stub coverage: vision ${m.stubCoverage.vision}%, audio ${m.stubCoverage.audio}%, `
+      + `objects ${m.stubCoverage.objects}%, twelvelabs ${m.stubCoverage.twelvelabs}%`,
+    );
+  }
+
+  if (m.reviewIterations != null) {
+    lines.push(`  Review iterations: ${m.reviewIterations}`);
+  }
+
   if (m.qualityGateFailures?.length > 0) {
     lines.push(`  Quality gate failures: ${m.qualityGateFailures.join(", ")}`);
   }
@@ -362,8 +585,8 @@ export function formatBatchQualitySummary(report) {
   return lines.join("\n");
 }
 
-export function writeBatchQualityReport(workDir) {
-  const report = buildBatchQualityReport(workDir);
+export function writeBatchQualityReport(workDir, options = {}) {
+  const report = buildBatchQualityReport(workDir, options);
   const outPath = path.join(workDir, ARTIFACTS.batchQualityReport);
   writeJson(outPath, report);
   return { report, outPath, summary: formatBatchQualitySummary(report) };

@@ -8,7 +8,6 @@ import {
   findL2SegmentIdForSourceTime,
   isSlowBreathNarrativeSegment,
   resolveL2OutputRangeSec,
-  resolveL2SegmentProfile,
   resolveRecipeNarrativeProfile,
   shouldPreserveSilenceForSegment,
 } from "../lib/narrative-profile.js";
@@ -22,6 +21,38 @@ export const NAR_SLOW_SEGMENT_MAX_BEATS = 1;
 export const NAR_SLOW_SEGMENT_MAX_ENRICH_BEATS = 0;
 export const NAR_CLOSURE_MAX_BEATS = 1;
 export const NAR_CLOSURE_MAX_ENRICH_BEATS = 0;
+
+/** Narrative codes promoted to error in internet_documentary hard mode. */
+export const NAR_HARD_MODE_CODES = new Set([
+  "NAR-BREATH-BEAT",
+  "NAR-BEAT-SPAM",
+  "NAR-CLOSURE-SPAM",
+  "NAR-PAYOFF-UNDELIVERED",
+  "NAR-PAYOFF-MISSING",
+  "NAR-CALLBACK-UNDELIVERED",
+  "NAR-DRAMATIC-PAUSE-CUT",
+]);
+
+/**
+ * Resolve issue severity — internet_documentary promotes NAR_HARD_MODE_CODES to error.
+ */
+export function resolveNarrativeIssueSeverity(code, narrativeProfile, defaultSeverity = "warning") {
+  if (narrativeProfile?.mode !== "internet_documentary") {
+    return defaultSeverity;
+  }
+  if (!NAR_HARD_MODE_CODES.has(code)) {
+    return defaultSeverity;
+  }
+  return "error";
+}
+
+function pushNarrativeIssue(issues, narrativeProfile, code, defaultSeverity, fields) {
+  issues.push({
+    severity: resolveNarrativeIssueSeverity(code, narrativeProfile, defaultSeverity),
+    code,
+    ...fields,
+  });
+}
 
 const BREATH_BEAT_TECHNIQUE_IDS = new Set(["pattern_interrupt", "snap_zoom"]);
 
@@ -152,6 +183,7 @@ export function validateNarrativePayoff(recipe, {
     return [];
   }
 
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
   const issues = [];
   for (const loop of teaseLoops) {
     if (!loop.payoffSceneId) {
@@ -162,9 +194,7 @@ export function validateNarrativePayoff(recipe, {
       continue;
     }
 
-    issues.push({
-      severity: "warning",
-      code: "NAR-PAYOFF-UNDELIVERED",
+    pushNarrativeIssue(issues, narrativeProfile, "NAR-PAYOFF-UNDELIVERED", "warning", {
       message: `Open loop ${loop.loopId} (${loop.kind}): brak momentu payoff przy scenie ${loop.payoffSceneId}`,
       outputId: mainOutput.outputId,
       sceneId: loop.payoffSceneId,
@@ -230,7 +260,7 @@ export function validateNarrativePayoffMissing(recipe, {
   }
 
   return [{
-    severity: "warning",
+    severity: resolveNarrativeIssueSeverity("NAR-PAYOFF-MISSING", narrativeProfile, "warning"),
     code: "NAR-PAYOFF-MISSING",
     message: `Segment L2 ${climaxSegment.segmentId} (kulminacja): brak creativeMoment retentionRole: payoff ani overlay role: payoff w zakresie outputu`,
     outputId: mainOutput.outputId,
@@ -339,9 +369,7 @@ export function validateNarrativeBeatSpam(recipe, {
     const enrichBeats = beatsInRange.filter((moment) => moment.momentId?.startsWith("enrich_beat_"));
 
     if (enrichBeats.length > maxEnrichBeats) {
-      issues.push({
-        severity: "warning",
-        code: "NAR-BEAT-SPAM",
+      pushNarrativeIssue(issues, narrativeProfile, "NAR-BEAT-SPAM", "warning", {
         message: `Segment L2 ${segmentProfile.l2SegmentId} (slow/low): ${enrichBeats.length} enrich_beat_* — max ${maxEnrichBeats} w wolnej sekcji narracji`,
         outputId: mainOutput.outputId,
       });
@@ -349,9 +377,7 @@ export function validateNarrativeBeatSpam(recipe, {
     }
 
     if (beatsInRange.length > maxBeats) {
-      issues.push({
-        severity: "warning",
-        code: "NAR-BEAT-SPAM",
+      pushNarrativeIssue(issues, narrativeProfile, "NAR-BEAT-SPAM", "warning", {
         message: `Segment L2 ${segmentProfile.l2SegmentId} (slow/low): ${beatsInRange.length} beatów retencji — max ${maxBeats} w wolnej sekcji narracji`,
         outputId: mainOutput.outputId,
       });
@@ -470,9 +496,7 @@ export function validateNarrativeDramaticPauseCuts(recipe, {
       const cutMidSec = resolveCutSourceMidSec(cut, segment, wordIndex);
 
       if (cutOverlapsDramaticPause(cutMidSec, clipId, audioIndex, taggedClipsById)) {
-        issues.push({
-          severity: "warning",
-          code: "NAR-DRAMATIC-PAUSE-CUT",
+        pushNarrativeIssue(issues, narrativeProfile, "NAR-DRAMATIC-PAUSE-CUT", "warning", {
           message: `Segment ${segment.segmentId}: cięcie dead_air w regionie dramatic_pause (${clipId})`,
           outputId: mainOutput.outputId,
           sceneId: segment.videoRef?.sceneId,
@@ -495,10 +519,7 @@ export function validateNarrativeDramaticPauseCuts(recipe, {
       }
 
       if (shouldPreserveSilenceForSegment(narrativeProfile, l2SegmentId)) {
-        const segmentProfile = resolveL2SegmentProfile(narrativeProfile, l2SegmentId);
-        issues.push({
-          severity: "error",
-          code: "NAR-DRAMATIC-PAUSE-CUT",
+        pushNarrativeIssue(issues, narrativeProfile, "NAR-DRAMATIC-PAUSE-CUT", "error", {
           message: `Segment ${segment.segmentId}: cięcie dead_air w L2 ${l2SegmentId} z silencePolicy preserve`,
           outputId: mainOutput.outputId,
           sceneId: segment.videoRef?.sceneId,
@@ -567,9 +588,7 @@ export function validateNarrativeBreathBeat(recipe, {
 
     const l2Segment = l2ById.get(l2SegmentId);
     const label = l2Segment?.narrativeRole === "breath" ? "breath" : "slow";
-    issues.push({
-      severity: "warning",
-      code: "NAR-BREATH-BEAT",
+    pushNarrativeIssue(issues, narrativeProfile, "NAR-BREATH-BEAT", "warning", {
       message: `Segment L2 ${l2SegmentId} (${label}): beat/pattern_interrupt/snap_zoom w sekcji oddechu — usuń lub przenieś`,
       outputId: mainOutput.outputId,
     });
@@ -627,9 +646,7 @@ export function validateNarrativeClosureSpam(recipe, {
   const issues = [];
 
   if (enrichBeats.length > maxEnrichBeats) {
-    issues.push({
-      severity: "warning",
-      code: "NAR-CLOSURE-SPAM",
+    pushNarrativeIssue(issues, resolveRecipeNarrativeProfile(recipe), "NAR-CLOSURE-SPAM", "warning", {
       message: `Segment L2 ${resolutionSegment.segmentId} (resolution): ${enrichBeats.length} enrich_beat_* — max ${maxEnrichBeats} w zamknięciu`,
       outputId: mainOutput.outputId,
     });
@@ -637,9 +654,7 @@ export function validateNarrativeClosureSpam(recipe, {
   }
 
   if (beatsInRange.length > maxBeats) {
-    issues.push({
-      severity: "warning",
-      code: "NAR-CLOSURE-SPAM",
+    pushNarrativeIssue(issues, resolveRecipeNarrativeProfile(recipe), "NAR-CLOSURE-SPAM", "warning", {
       message: `Segment L2 ${resolutionSegment.segmentId} (resolution): ${beatsInRange.length} beatów retencji — max ${maxBeats} w zamknięciu`,
       outputId: mainOutput.outputId,
     });
@@ -671,6 +686,7 @@ export function validateNarrativeCallbackUndelivered(recipe, {
     return [];
   }
 
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
   const issues = [];
   for (const loop of callbackLoops) {
     if (!loop.payoffSceneId) {
@@ -688,9 +704,7 @@ export function validateNarrativeCallbackUndelivered(recipe, {
       continue;
     }
 
-    issues.push({
-      severity: "warning",
-      code: "NAR-CALLBACK-UNDELIVERED",
+    pushNarrativeIssue(issues, narrativeProfile, "NAR-CALLBACK-UNDELIVERED", "warning", {
       message: `Open loop ${loop.loopId} (callback): brak match_cut ani overlay role: payoff przy scenie ${loop.payoffSceneId}`,
       outputId: mainOutput.outputId,
       sceneId: loop.payoffSceneId,

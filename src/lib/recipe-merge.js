@@ -125,7 +125,7 @@ function computePartialTimelineOffsets(
   return offsets;
 }
 
-function resolveOrderedPartials(superPlan, partials) {
+export function resolveOrderedPartials(superPlan, partials) {
   const partialBySegmentId = new Map();
   for (const partial of partials) {
     if (partial.segmentId) {

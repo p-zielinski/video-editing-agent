@@ -211,6 +211,7 @@ describe("super-director direct path", () => {
       buildMiniDaySuperDirectorPlan(),
       buildMiniDaySegmentPartial("seg001"),
       buildMiniDaySegmentPartial("seg002"),
+      { approved: true, issues: [], summary: "ok", crossSegmentNotes: [] },
     ]);
 
     const recipe = await runSuperDirectorDirectPath(client, {

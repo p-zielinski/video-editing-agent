@@ -101,14 +101,15 @@ export function buildSceneVisualText(scene, l1, timelineIndex, workDir = null) {
 
   let tlMoments = [];
   let clipSummary = null;
+  let tlArtifact = null;
   if (workDir) {
-    const tlArtifact = loadTwelveLabsByClip(workDir, scene.clipId);
+    tlArtifact = loadTwelveLabsByClip(workDir, scene.clipId);
     tlMoments = tlArtifact?.moments ?? [];
-    clipSummary = tlArtifact?.clipSummary ?? null;
+    clipSummary = tlArtifact?.clipSummary ?? tlArtifact?.editorial?.summary ?? null;
   }
 
   const visualText = [
-    mergeTwelveLabsIntoVisualText(captions, tlMoments, scene),
+    mergeTwelveLabsIntoVisualText(captions, tlMoments, scene, tlArtifact),
     clipSummary,
   ].filter(Boolean).join(" ");
 

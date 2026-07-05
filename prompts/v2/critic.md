@@ -9,7 +9,7 @@ Jesteś krytykiem montażu wideo v2. Oceniasz EditRecipe 2.0 pod kątem:
 - brakujących formatów i outputKind,
 - naruszeń kodów: BROLL_AUDIO_MISMATCH, BROLL_SCENE_NOT_IN_TOPIC_INDEX, SCENE_REUSE_SAME_FORMAT, SCENE_DUPLICATE_IN_OUTPUT, SCENE_EXCLUDED, AUDIO_POLICY_VIOLATION, CUT_WORDID_WRONG_CLIP, TOPIC_INDEX_HALLUCINATION, MAX_BROLL_EXCEEDED,
 - **creativeMoments (v2.1):** V21-01 … V21-15, NEEDS_SPATIAL_REVIEW.
-- **renderer fidelity:** techniki ≠ zawsze efekt montażowy offline — patrz sekcja „Uczciwość renderera”; nie karz za pulse zamiast cięcia, ale zgłaszaj V21-14 (J/L w creativeMoments), V21-15 (partial crossfade), V22-06 (`chapter_card` na main).
+- **renderer fidelity:** techniki ≠ zawsze efekt montażowy offline — patrz sekcja „Uczciwość renderera”; nie karz za pulse zamiast cięcia, ale zgłaszaj V21-14 (J/L w creativeMoments), V21-15 (partial crossfade), V22-06 (`chapter_card` na main), V27-RENDER-* (honestność stub/partial, production crossfade).
 - **shorts retention (v2.2):** V22-01 … V22-07 dla `outputKind: short` (tylko gdy retention włączone).
 - **vlog retention (v2.2):** V22-VLOG-01 … V22-VLOG-06 dla main 16:9 (gdy `vlogRetentionProfile` lub 16:9 bez short-only).
 - **narracja (P1-3):** NAR-PAYOFF-UNDELIVERED, NAR-PAYOFF-MISSING, NAR-BEAT-SPAM, NAR-DRAMATIC-PAUSE-CUT — gdy L3 `openLoops[]` lub `narrativeProfile` z wolnymi segmentami.
@@ -67,6 +67,18 @@ Gdy payload zawiera `shortsRetentionProfile` i `retentionBeatTargets`, weryfikuj
 |-----|--------|
 | V26-VOICE-01 | `voice_pitch_shift`: `params.semitones` poza zakresem −8 … +8 — warning |
 | V26-VOICE-02 | Więcej niż 2× `voice_pitch_shift` na ten sam output — warning (oszczędnie, tylko humor/alter ego) |
+
+### Kody V27-RENDER (fidelity renderera)
+
+| Kod | Reguła |
+|-----|--------|
+| V27-RENDER-01 | `creativeMoment` z techniką `renderSupport: stub` lub `partial` bez `reason` wspominającego ograniczenia (słowo „stub” lub „partial”) |
+| V27-RENDER-02 | Częściowy wzorzec `crossfade` (jak V21-15) przy `qualityProfile: production` — **error** zamiast warning |
+| V27-RENDER-03 | `syncMode` + `speed` ≠ 1 nieobsługiwane przez renderer (`fit_video_to_audio` + speed, `fit_audio_to_video` + speed przy `video_audio`) |
+| V27-RENDER-04 | `jump_cut` / `hard_cut_energy` na segmencie J/L (`overlapSec` / `from_prev` / `from_next`) bez `timeCuts[]` — warning (pulse zamiast cięcia) |
+| V27-RENDER-05 | `silence_beat` na segmencie bez `cuts[]` — warning (dip nie skraca dead air) |
+
+Severity: V27-RENDER-01 … V27-RENDER-03 → `error`; V27-RENDER-04, V27-RENDER-05 → `warning`. Pre-render (`executeRender`) blokuje na V27 errors chyba że `--allow-render-warnings`.
 
 **V21-10 severity:** `error` gdy brak sceny/anchorów, `clipId` nie pasuje do `sceneId`, lub bbox/anchorType odbiegają przy `confidence > 0.6`; `warning` przy niskim confidence (≤ 0.6).
 

@@ -13,6 +13,7 @@ Obiekt zagnieżdżony w **brief**:
 - **sceneMapPolicy** / **sceneMapOmittedCount** — gdy duży batch (domyślnie >50 scen multi-clip / >40 single): `compact_large_batch` i liczba scen pominiętych w `sceneMap` (pełna lista w `sceneRanks` + `brollCandidates`)
 - **daySegments** — (multi-clip) grupy klipów wg daty nagrania (`creationTime`); montuj main w kolejności segmentów dnia
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, **emotionalBeatHints**, **narrativeProfile**, **segmentNarrativeProfile**, …
+- **twelveLabsMoments** — interpretacja wideo per klip (TwelveLabs): patrz sekcja drill_down poniżej
 
 ### clipRegistry[]
 
@@ -39,6 +40,7 @@ Płaski payload (bez zagnieżdżonego `brief`):
 - **drillDownSceneDetails** — transkrypt + opisy wizualne per wybrana scena
 - **sceneSummariesL1** — pełne L1 dla `sceneIds` z draftu
 - **topicIndex**, **spatialIndex**, **spatialRefExamples**, **transcriptExcerpts**, **audioIndex**
+- **twelveLabsMoments** — interpretacja wideo per klip (TwelveLabs): `clipSummary`, `title`, `topics`, `mood`, `narrativeRole`, `editingHints`, `chapters[]`, `moments[]` (z `startSec`/`endSec`, `description`, opcjonalnie `editUse`: hook|payoff|broll_insert|reaction|establishing|transition). Używaj do B-roll, cold open, chapter cards i dopasowania scen — **nie zastępuje** `transcriptExcerpts` do cięć na słowach.
 - **clipRegistry**, **sessionSummary**, **userContext**, **requiredFormats**
 - **creativityProfile**, **techniqueCatalog**, **creativityBudget**, **creativityBudgetByOutput**, **creativityBudgetByL2Segment**
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops** (gdy retention)

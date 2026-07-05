@@ -6,6 +6,7 @@ import {
   buildSourceVolumeFilter,
   buildVideoOnlyPadFilter,
   resolveEffectiveSpeed,
+  resolveSpedMediaDurations,
   shouldApplyAudioSpeed,
   shouldOmitShortestForVideoOnlySpeed,
 } from "./speed-transform.js";
@@ -35,6 +36,13 @@ describe("speed-transform", () => {
 
   it("buildAtempoFilterChain chains atempo for speed < 0.5", () => {
     assert.equal(buildAtempoFilterChain(0.25), "atempo=0.5,atempo=0.5");
+  });
+
+  it("resolveSpedMediaDurations adjusts video and audio after speed", () => {
+    const segment = { audioPolicy: "from_video_ref", videoTransform: { speed: 2 } };
+    const { spedVideoDur, spedAudioDur } = resolveSpedMediaDurations(segment, 10, 8);
+    assert.equal(spedVideoDur, 5);
+    assert.equal(spedAudioDur, 4);
   });
 
   it("shouldApplyAudioSpeed respects audioPolicy and speedMode", () => {

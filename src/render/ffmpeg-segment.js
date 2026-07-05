@@ -3,11 +3,13 @@ import { runFfmpeg } from "../lib/ffmpeg.js";
 import { resolveSegmentOutputDuration } from "../lib/build-output-timeline.js";
 import { buildSegmentVideoFilter, composeSegmentVideoFilter } from "./ffmpeg-reframe.js";
 import { applyAudioCutsToRange, applyVideoCutsToRange } from "./audio-cuts.js";
+import { applyAudioTimeCutsToRange, applyVideoTimeCutsToRange } from "./time-cuts.js";
 import {
   buildAtempoFilterChain,
   buildSourceVolumeFilter,
   buildVideoOnlyPadFilter,
   resolveEffectiveSpeed,
+  resolveSpedMediaDurations,
   shouldApplyAudioSpeed,
   shouldOmitShortestForVideoOnlySpeed,
 } from "./speed-transform.js";
@@ -37,6 +39,32 @@ export function collectBrollDesyncWarning(segment, videoDur, audioDur) {
       `B-roll ${segment.segmentId}: różnica video/audio ${delta.toFixed(2)}s `
       + `(video=${videoDur.toFixed(2)}s, audio=${audioDur.toFixed(2)}s)`,
     deltaSec: delta,
+  };
+}
+
+const BROLL_DESYNC_AUTO_REPAIR_THRESHOLD_SEC = 0.5;
+
+/**
+ * Auto-repair B-roll A/V desync by choosing fit_video_to_audio when syncMode unset/default.
+ */
+export function resolveBrollAutoSyncRepair(segment, videoDur, audioDur) {
+  if ((segment.segmentRole ?? "aroll") !== "broll") {
+    return null;
+  }
+  const syncMode = segment.syncMode ?? "align_start";
+  if (syncMode !== "align_start") {
+    return null;
+  }
+  const delta = Math.abs(videoDur - audioDur);
+  if (delta <= BROLL_DESYNC_AUTO_REPAIR_THRESHOLD_SEC) {
+    return null;
+  }
+  return {
+    syncMode: "fit_video_to_audio",
+    deltaSec: delta,
+    code: "broll_av_desync_repaired",
+    message:
+      `B-roll ${segment.segmentId}: auto fit_video_to_audio (Δ=${delta.toFixed(2)}s)`,
   };
 }
 
@@ -102,17 +130,48 @@ export function buildAudioSyncFilter(segment, videoDur, audioDur, options = {}) 
 export function buildCombinedAudioFilter(segment, videoDur, audioDur, options = {}) {
   const speed = resolveEffectiveSpeed(segment);
   const applyAudioSpeed = shouldApplyAudioSpeed(segment, speed);
-  const syncMode = segment.syncMode ?? "align_start";
-  const skipAudioFitSync = speed !== 1 && applyAudioSpeed && syncMode === "fit_audio_to_video";
+  const { spedVideoDur, spedAudioDur } = resolveSpedMediaDurations(segment, videoDur, audioDur);
 
-  const audioSyncFilter = skipAudioFitSync
-    ? null
-    : buildAudioSyncFilter(segment, videoDur, audioDur, options);
   const audioSpeedFilter = applyAudioSpeed ? buildAtempoFilterChain(speed) : null;
+  const audioSyncFilter = buildAudioSyncFilter(segment, spedVideoDur, spedAudioDur, options);
   const audioVolumeFilter = buildSourceVolumeFilter(segment.sourceVolumeDb);
 
-  const parts = [audioSyncFilter, audioSpeedFilter, audioVolumeFilter].filter(Boolean);
+  const parts = [audioSpeedFilter, audioSyncFilter, audioVolumeFilter].filter(Boolean);
   return parts.length > 0 ? parts.join(",") : null;
+}
+
+function pipOverlayPosition(position, marginPx, dimensions) {
+  const w = dimensions?.width ?? 1920;
+  const h = dimensions?.height ?? 1080;
+  switch (position) {
+    case "top_left":
+      return { x: marginPx, y: marginPx };
+    case "bottom_left":
+      return { x: marginPx, y: `main_h-overlay_h-${marginPx}` };
+    case "bottom_right":
+      return { x: `main_w-overlay_w-${marginPx}`, y: `main_h-overlay_h-${marginPx}` };
+    case "top_right":
+    default:
+      return { x: `main_w-overlay_w-${marginPx}`, y: marginPx };
+  }
+}
+
+/**
+ * Build PiP overlay filter fragment (second input [1:v] over main [0:v]).
+ */
+export function buildPictureInPictureFilter(segment, dimensions = {}) {
+  const pip = segment.pictureInPicture;
+  if (!pip?.enabled) {
+    return null;
+  }
+  const scale = Math.min(0.5, Math.max(0.1, pip.scale ?? 0.28));
+  const marginPx = pip.marginPx ?? 24;
+  const { x, y } = pipOverlayPosition(pip.position ?? "bottom_right", marginPx, dimensions);
+  const w = dimensions.width ?? 1920;
+  const h = dimensions.height ?? 1080;
+  const pipW = Math.round(w * scale);
+  const pipH = Math.round(h * scale);
+  return `[1:v]scale=${pipW}:${pipH}[pip];[0:v][pip]overlay=${x}:${y}[vout]`;
 }
 
 function isJlCutBorrowedAudio(segment) {
@@ -159,13 +218,27 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     ? audioDur
     : Math.max(0.01, segment.videoOutSec - segment.videoInSec);
 
-  const desyncWarning = collectBrollDesyncWarning(segment, videoDur, audioDur);
-  if (desyncWarning) {
-    warnings.push(desyncWarning);
+  const autoRepair = resolveBrollAutoSyncRepair(segment, videoDur, audioDur);
+  const effectiveSegment = autoRepair
+    ? { ...segment, syncMode: autoRepair.syncMode }
+    : segment;
+
+  if (autoRepair) {
+    warnings.push({
+      code: autoRepair.code,
+      segmentId: segment.segmentId,
+      message: autoRepair.message,
+      deltaSec: autoRepair.deltaSec,
+    });
+  } else {
+    const desyncWarning = collectBrollDesyncWarning(segment, videoDur, audioDur);
+    if (desyncWarning) {
+      warnings.push(desyncWarning);
+    }
   }
 
   const baseVideoFilter = buildSegmentVideoFilter({
-    segment,
+    segment: effectiveSegment,
     format,
     dimensions,
     recipe,
@@ -173,14 +246,14 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     context,
   });
 
-  const speed = resolveEffectiveSpeed(segment);
-  const syncMode = segment.syncMode ?? "align_start";
-  const skipVideoFitSync = speed !== 1 && syncMode === "fit_video_to_audio";
-  const syncFilter = skipVideoFitSync
-    ? null
-    : buildVideoSyncFilter(segment, videoDur, audioDur);
-  const combinedAudioFilter = buildCombinedAudioFilter(segment, videoDur, audioDur, options);
-  const videoOnlyPadFilter = buildVideoOnlyPadFilter(segment, videoDur, audioDur);
+  const { spedVideoDur, spedAudioDur } = resolveSpedMediaDurations(
+    effectiveSegment,
+    videoDur,
+    audioDur,
+  );
+  const syncFilter = buildVideoSyncFilter(effectiveSegment, spedVideoDur, spedAudioDur);
+  const combinedAudioFilter = buildCombinedAudioFilter(effectiveSegment, videoDur, audioDur, options);
+  const videoOnlyPadFilter = buildVideoOnlyPadFilter(effectiveSegment, videoDur, audioDur);
   const videoFilter = composeSegmentVideoFilter(
     baseVideoFilter,
     [syncFilter, videoOnlyPadFilter],
@@ -201,8 +274,15 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
   const audioCutRangeStart = segment.audioInSec ?? segment.videoInSec;
   const audioCutRangeEnd = segment.audioOutSec ?? segment.videoOutSec;
   const hasAudioCuts = !omitEmbeddedAudio
-    && (segment.cuts?.length ?? 0) > 0
+    && (effectiveSegment.cuts?.length ?? 0) > 0
     && wordIndex?.words?.length;
+  const hasTimeCuts = (effectiveSegment.timeCuts?.length ?? 0) > 0;
+  const pipFilter = buildPictureInPictureFilter(effectiveSegment, dimensions);
+  const pipScenePath = pipFilter && effectiveSegment.pictureInPicture?.sceneId
+    ? context?.sceneSources?.[effectiveSegment.pictureInPicture.sceneId]
+    : null;
+  const outputStartSec = effectiveSegment.outputStartSec ?? 0;
+  const outputEndSec = effectiveSegment.outputEndSec ?? outputStartSec + durationSec;
 
   const targetDur = durationSec;
   const args = ["-y"];
@@ -223,45 +303,79 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
 
     args.push("-ss", String(segment.videoInSec), "-i", videoPath);
 
+    if (pipScenePath) {
+      args.push("-ss", "0", "-i", pipScenePath);
+    }
+
     if (useSeparateAudio && audioPath) {
       args.push("-ss", String(segment.audioInSec), "-i", audioPath);
     }
   }
 
-  if (hasAudioCuts) {
+  if (hasAudioCuts || hasTimeCuts) {
     const videoPre = videoFilter
       ? (videoFilter.mode === "filter_complex"
         ? `${videoFilter.graph}[vcutin]`
         : `[0:v]${videoFilter.chain}[vcutin]`)
       : "[0:v]setpts=PTS-STARTPTS[vcutin]";
 
-    const videoCutsFilter = applyVideoCutsToRange({
-      videoLabel: "[vcutin]",
-      cuts: segment.cuts,
-      wordIndex,
-      rangeStartSec: videoCutRangeStart,
-      rangeEndSec: videoCutRangeEnd,
-    });
+    let videoCutsFilter;
+    if (hasAudioCuts) {
+      videoCutsFilter = applyVideoCutsToRange({
+        videoLabel: "[vcutin]",
+        cuts: effectiveSegment.cuts,
+        wordIndex,
+        rangeStartSec: videoCutRangeStart,
+        rangeEndSec: videoCutRangeEnd,
+      });
+    }
+    if (hasTimeCuts) {
+      videoCutsFilter = applyVideoTimeCutsToRange({
+        videoLabel: hasAudioCuts ? "[vout]" : "[vcutin]",
+        timeCuts: effectiveSegment.timeCuts,
+        rangeStartSec: outputStartSec,
+        rangeEndSec: outputEndSec,
+      });
+    }
+
+    const audioInputLabel = useSeparateAudio && audioPath
+      ? `[${pipScenePath ? 2 : 1}:a]`
+      : "[0:a]";
 
     let audioGraph = "";
     if (combinedAudioFilter) {
-      const audioIn = useSeparateAudio ? "[1:a]" : "[0:a]";
-      audioGraph = `${audioIn}${combinedAudioFilter}[async];`;
+      audioGraph = `${audioInputLabel}${combinedAudioFilter}[async];`;
     }
 
-    const audioCutsFilter = applyAudioCutsToRange({
-      audioFilter: combinedAudioFilter ? "[async]" : (useSeparateAudio ? "[1:a]" : "[0:a]"),
-      cuts: segment.cuts,
-      wordIndex,
-      rangeStartSec: audioCutRangeStart,
-      rangeEndSec: audioCutRangeEnd,
-      singleInput: !(useSeparateAudio && audioPath),
-    });
+    let audioCutsFilter;
+    if (hasAudioCuts) {
+      audioCutsFilter = applyAudioCutsToRange({
+        audioFilter: combinedAudioFilter ? "[async]" : audioInputLabel,
+        cuts: effectiveSegment.cuts,
+        wordIndex,
+        rangeStartSec: audioCutRangeStart,
+        rangeEndSec: audioCutRangeEnd,
+        singleInput: !(useSeparateAudio && audioPath),
+      });
+    } else {
+      audioCutsFilter = applyAudioTimeCutsToRange({
+        audioFilter: combinedAudioFilter ? "[async]" : audioInputLabel,
+        timeCuts: effectiveSegment.timeCuts,
+        rangeStartSec: outputStartSec,
+        rangeEndSec: outputEndSec,
+        singleInput: !(useSeparateAudio && audioPath),
+      });
+    }
 
-    args.push("-filter_complex", `${videoPre};${videoCutsFilter};${audioGraph}${audioCutsFilter}`);
+    let filterTail = `${videoPre};${videoCutsFilter};${audioGraph}${audioCutsFilter}`;
+    if (pipFilter && pipScenePath) {
+      filterTail = `${filterTail};[vout][1:v]${pipFilter.replace(/^\[1:v\]/, "").replace(/\[0:v\]/, "[vout]")}`;
+    }
+
+    args.push("-filter_complex", filterTail);
     args.push("-map", "[vout]", "-map", "[aout]");
-    pushShortestIfNeeded(args, segment);
-  } else if (videoFilter || combinedAudioFilter) {
+    pushShortestIfNeeded(args, effectiveSegment);
+  } else if (videoFilter || combinedAudioFilter || (pipFilter && pipScenePath)) {
     if (videoFilter && combinedAudioFilter && useSeparateAudio && audioPath) {
       const videoOut = videoFilter.mode === "filter_complex"
         ? `${videoFilter.graph}[vout]`

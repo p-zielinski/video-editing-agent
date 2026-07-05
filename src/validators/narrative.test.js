@@ -187,7 +187,7 @@ describe("validateNarrativePayoffMissing", () => {
 
     assert.equal(issues.length, 1);
     assert.equal(issues[0].code, "NAR-PAYOFF-MISSING");
-    assert.equal(issues[0].severity, "warning");
+    assert.equal(issues[0].severity, "error");
     assert.equal(issues[0].outputId, "main_16x9");
     assert.match(issues[0].message, /seg002/);
   });

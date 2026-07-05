@@ -228,7 +228,7 @@ describe("executeRender", () => {
     assert.equal(typeof isLibassAvailable(), "boolean");
   });
 
-  it("resolvePostConcatCreativeMoments warns when crossfade cannot be applied at concat", () => {
+  it("resolvePostConcatCreativeMoments drops crossfade without warning when partial pattern is eligible", () => {
     const segments = [
       { outputStartSec: 0, outputEndSec: 10 },
       { outputStartSec: 10, outputEndSec: 20 },
@@ -248,11 +248,6 @@ describe("executeRender", () => {
     });
 
     assert.equal(moments.length, 0);
-    assert.equal(warnings.length, 1);
-    assert.deepEqual(warnings[0], {
-      code: "CROSSFADE_NOT_APPLIED",
-      techniqueId: "crossfade",
-      message: "partial crossfade pattern: requires crossfade at every internal join or exactly one join (2/3 joins)",
-    });
+    assert.equal(warnings.length, 0);
   });
 });

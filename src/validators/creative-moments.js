@@ -1,9 +1,14 @@
 import {
+  buildCreativityBudgetByL2Segment,
   countsTowardZoomBudget,
   meetsCreativityLevel,
   SAFE_ALLOWED_TECHNIQUE_IDS,
 } from "../editorial/technique-budget.js";
 import { isRetentionBeatMoment } from "../editorial/shorts-retention.js";
+import {
+  findL2SegmentIdForSourceTime,
+  resolveRecipeNarrativeProfile,
+} from "../lib/narrative-profile.js";
 import { collectCrossfadesAtBoundaries } from "../render/ffmpeg-concat.js";
 import { hasJlCutOverlap } from "../render/audio-jlcut.js";
 
@@ -347,8 +352,8 @@ function hasNearbySilenceAnchor(sourceTimeSec, analysis, toleranceSec) {
   return false;
 }
 
-function validateMusicSwell(moment, recipe) {
-  if (moment.techniqueId !== "music_swell") {
+function validateMusicBedTechniques(moment, recipe) {
+  if (moment.techniqueId !== "music_swell" && moment.techniqueId !== "music_drop") {
     return [];
   }
 
@@ -359,7 +364,7 @@ function validateMusicSwell(moment, recipe) {
   return [{
     severity: "warning",
     code: "V21-12",
-    message: `Moment ${moment.momentId}: music_swell wymaga audioMixPlan.musicBed`,
+    message: `Moment ${moment.momentId}: ${moment.techniqueId} wymaga audioMixPlan.musicBed`,
     momentId: moment.momentId,
   }];
 }
@@ -429,7 +434,7 @@ function validateBeatSync(moment, recipe, audioIndexByClip, toleranceSec = 0.5) 
   }];
 }
 
-function validatePartialCrossfadePattern(recipe, creativeMoments) {
+export function validatePartialCrossfadePattern(recipe, creativeMoments) {
   const issues = [];
 
   for (const output of recipe.outputs ?? []) {
@@ -595,12 +600,111 @@ function validateGlobalBudgetLimits(moments, budget, catalog) {
   return issues;
 }
 
+function resolveL2SegmentIdForMoment(recipe, moment, abstraction, timelineIndex) {
+  const { segment } = findSegmentForMoment(recipe, moment);
+  if (!segment) {
+    return null;
+  }
+
+  const clipId = segment.videoRef?.clipId ?? segment.audioRef?.clipId;
+  if (!clipId) {
+    return null;
+  }
+
+  const outputStart = moment.outputStartSec ?? 0;
+  const segOutputStart = segment.outputStartSec ?? 0;
+  const sourceIn = segment.audioInSec ?? segment.videoInSec ?? 0;
+  const sourceTimeSec = sourceIn + (outputStart - segOutputStart);
+
+  return findL2SegmentIdForSourceTime(abstraction, timelineIndex, clipId, sourceTimeSec);
+}
+
+/**
+ * V21-L2-04/05 — per-L2 zoom gap and count limits from narrativeProfile rhythm budgets.
+ */
+export function validateL2SegmentBudgetLimits(
+  moments,
+  recipe,
+  catalog,
+  budget,
+  abstraction,
+  timelineIndex,
+) {
+  const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
+  if (!narrativeProfile?.segments?.length || !budget || !abstraction || !timelineIndex) {
+    return [];
+  }
+
+  const budgetByL2 = buildCreativityBudgetByL2Segment(budget, narrativeProfile);
+  if (!Object.keys(budgetByL2).length) {
+    return [];
+  }
+
+  const mainOutput = (recipe.outputs ?? []).find(
+    (output) => output.outputKind === "main" || output.format === "16:9",
+  );
+  if (!mainOutput) {
+    return [];
+  }
+
+  const mainMoments = moments.filter(
+    (moment) => !moment.outputId || moment.outputId === mainOutput.outputId,
+  );
+  const zoomByL2 = new Map();
+
+  for (const moment of mainMoments) {
+    if (!countsTowardZoomBudget(moment.techniqueId, catalog)) {
+      continue;
+    }
+    const l2SegmentId = resolveL2SegmentIdForMoment(recipe, moment, abstraction, timelineIndex);
+    if (!l2SegmentId || !budgetByL2[l2SegmentId]) {
+      continue;
+    }
+    if (!zoomByL2.has(l2SegmentId)) {
+      zoomByL2.set(l2SegmentId, []);
+    }
+    zoomByL2.get(l2SegmentId).push(moment);
+  }
+
+  const issues = [];
+  for (const [l2SegmentId, zoomMoments] of zoomByL2) {
+    const l2Budget = budgetByL2[l2SegmentId];
+    if (zoomMoments.length > l2Budget.maxZoomMoments) {
+      issues.push({
+        severity: "error",
+        code: "V21-L2-05",
+        message: `L2 ${l2SegmentId}: ${zoomMoments.length} camera moments > maxZoomMoments=${l2Budget.maxZoomMoments}`,
+      });
+    }
+
+    const sortedZoom = [...zoomMoments].sort((a, b) => a.outputStartSec - b.outputStartSec);
+    for (let i = 1; i < sortedZoom.length; i++) {
+      const gap = sortedZoom[i].outputStartSec - sortedZoom[i - 1].outputEndSec;
+      if (gap < l2Budget.minZoomGapSec) {
+        issues.push({
+          severity: "error",
+          code: "V21-L2-04",
+          message: `L2 ${l2SegmentId}: camera gap ${gap.toFixed(1)}s < minZoomGapSec=${l2Budget.minZoomGapSec} (end→start)`,
+          momentId: sortedZoom[i].momentId,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
 /**
  * Walidacja creativeMoments vs katalog i budżet (V21-01 … V21-15).
  * Graphics output-kind gating (V22-06) lives in shorts-retention.js and applies only to
  * creativeMoments — main chapter_card / emphasis via textOverlays[] is not checked here.
  */
-export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spatialIndex, audioIndexByClip } = {}) {
+export function validateCreativeMoments(
+  recipe,
+  catalog,
+  budget,
+  { wordIds, spatialIndex, audioIndexByClip, abstraction, timelineIndex } = {},
+) {
   const moments = recipe.creativeMoments ?? [];
   if (!moments.length) {
     return [];
@@ -640,7 +744,7 @@ export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spat
     issues.push(...validateAnchorWordId(moment, wordIds));
     issues.push(...validateSpatialRef(moment, spatialIndex));
     issues.push(...validateBeatSync(moment, recipe, audioIndexByClip));
-    issues.push(...validateMusicSwell(moment, recipe));
+    issues.push(...validateMusicBedTechniques(moment, recipe));
     issues.push(...validateSilenceBeat(moment, recipe, audioIndexByClip));
 
     // V21-01
@@ -797,6 +901,15 @@ export function validateCreativeMoments(recipe, catalog, budget, { wordIds, spat
   }
 
   issues.push(...validatePartialCrossfadePattern(recipe, moments));
+
+  issues.push(...validateL2SegmentBudgetLimits(
+    moments,
+    recipe,
+    catalog,
+    budget?.default ?? budget,
+    abstraction,
+    timelineIndex,
+  ));
 
   return issues;
 }

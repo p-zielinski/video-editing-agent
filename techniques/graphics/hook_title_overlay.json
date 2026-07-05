@@ -4,17 +4,30 @@
   "category": "graphics",
   "label": "Hook title overlay",
   "description": "Duży napis na starcie shorta — obietnica wartości, pytanie lub liczba.",
-  "platforms": ["shorts"],
-  "trendTags": ["shorts", "retention"],
+  "platforms": [
+    "shorts"
+  ],
+  "trendTags": [
+    "shorts",
+    "retention"
+  ],
   "params": {
     "style": {
       "type": "enum",
-      "values": ["hook_large", "hook_question", "hook_number"],
+      "values": [
+        "hook_large",
+        "hook_question",
+        "hook_number"
+      ],
       "default": "hook_large"
     },
     "position": {
       "type": "enum",
-      "values": ["center", "top", "bottom_third"],
+      "values": [
+        "center",
+        "top",
+        "bottom_third"
+      ],
       "default": "center"
     }
   },
@@ -26,5 +39,8 @@
   },
   "whenToUse": "Pierwsze 3 s shorta — obietnica wartości, pytanie, szok.",
   "whenToAvoid": "Długi vlog 16:9, spokojna narracja bez hooka.",
-  "syncHints": ["output_start"]
+  "syncHints": [
+    "output_start"
+  ],
+  "renderSupport": "graphics_only"
 }

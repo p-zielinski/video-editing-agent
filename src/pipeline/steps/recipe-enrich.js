@@ -91,6 +91,7 @@ export async function runRecipeEnrichStep({
   target = "draft",
   force = false,
   faceStub = false,
+  globalCacheDisabled = false,
   batchContext = {},
 }) {
   const sourceArtifact = resolveRecipeArtifact(source);
@@ -104,7 +105,7 @@ export async function runRecipeEnrichStep({
   const abstraction = readJson(path.join(workDir, ARTIFACTS.abstraction));
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const topicIndex = loadTopicIndex(workDir);
-  const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub });
+  const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);

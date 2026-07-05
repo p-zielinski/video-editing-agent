@@ -7,6 +7,7 @@ import {
 } from "../editorial/technique-budget.js";
 import { mergeShortsRetentionProfile, mergeVlogRetentionProfile, shouldRunShortsRetentionValidation } from "../editorial/shorts-retention.js";
 import { validateCreativeMoments, validateVoicePitchMoments } from "./creative-moments.js";
+import { validateRenderFidelity } from "./render-fidelity.js";
 import { validateShortsRetention } from "./shorts-retention.js";
 import { validateVlogRetention, shouldRunVlogRetentionValidation } from "./vlog-retention.js";
 import {
@@ -907,6 +908,7 @@ export function validateRecipeV2(recipe, {
   abstraction = null,
   timelineIndex = null,
   perClipAnalysis = null,
+  qualityProfile = "lenient",
 } = {}) {
   const parsed = EditRecipeV2Schema.parse(recipe);
   const formats = requiredFormats ?? getRequiredFormats(parsed);
@@ -979,8 +981,12 @@ export function validateRecipeV2(recipe, {
       wordIds: allWordIds.size > 0 ? allWordIds : null,
       spatialIndex,
       audioIndexByClip: audioIndexByClip.size > 0 ? audioIndexByClip : null,
+      abstraction,
+      timelineIndex,
+      wordIndexes,
     }),
     ...validateVoicePitchMoments(parsed),
+    ...validateRenderFidelity(parsed, { qualityProfile }),
     ...validateShortsRetention(parsed, catalog, { creativityLevel: profile.level }),
     ...validateVlogRetention(parsed, catalog, {
       creativityLevel: profile.level,

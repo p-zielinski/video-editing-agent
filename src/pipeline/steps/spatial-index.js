@@ -222,6 +222,7 @@ export async function runSpatialIndexStep({
   workDir,
   force = false,
   faceStub = false,
+  globalCacheDisabled = false,
   runFaceDetect = runFaceDetectStep,
 } = {}) {
   const outPath = path.join(workDir, ARTIFACTS.spatialIndex);
@@ -232,7 +233,14 @@ export async function runSpatialIndexStep({
   const timelinePath = path.join(workDir, ARTIFACTS.timelineIndex);
   const timelineIndex = readJson(timelinePath);
   const catalog = loadCatalogForFaceDetect(workDir, null, timelineIndex);
-  await runFaceDetect({ workDir, catalog, timelineIndex, stub: faceStub, force });
+  await runFaceDetect({
+    workDir,
+    catalog,
+    timelineIndex,
+    stub: faceStub,
+    force,
+    globalCacheDisabled,
+  });
   const faceDetections = collectFaceDetections(workDir, catalog, timelineIndex);
   const objectDetections = collectObjectDetections(workDir, catalog);
   const timelineWithObjects = {

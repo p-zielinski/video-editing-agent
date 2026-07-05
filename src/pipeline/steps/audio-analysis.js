@@ -13,6 +13,13 @@ import {
   rollupEditorialTags,
   topEditorialTagNames,
 } from "../../editorial/audio-event-tags.js";
+import { resolveClipContentHash } from "../../lib/clip-artifact-cache.js";
+import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
+import {
+  maybeUseGlobalClipCache,
+  publishGlobalClipArtifact,
+} from "../../lib/global-cache-step.js";
+import { getClipConcurrencyLimit, runWithConcurrency } from "../../lib/clip-concurrency.js";
 import { readJson, writeJson, ARTIFACTS, removeClipArtifact } from "../work-paths.js";
 import { shouldUseCachedClipArtifact, shouldUseCachedArtifact } from "../artifact-deps.js";
 
@@ -99,15 +106,39 @@ function buildBatchSummary(clips, perClipAnalysis) {
 export async function analyzeClipAudio({
   workDir,
   clip,
+  manifest = null,
   stub = false,
   force = false,
+  globalCacheDisabled = false,
 }) {
   const outPath = path.join(workDir, ARTIFACTS.audioAnalysis(clip.clipId));
+  const configFingerprint = buildStepConfigFingerprint("audioAnalysis", { stub });
   if (force) {
     removeClipArtifact(outPath);
   }
-  if (shouldUseCachedClipArtifact(workDir, outPath, force)) {
+  if (shouldUseCachedClipArtifact(workDir, outPath, force, {
+    manifest,
+    clipId: clip.clipId,
+  })) {
     return readJson(outPath);
+  }
+
+  const sourceContentHash = await resolveClipContentHash(manifest, clip.clipId, clip.sourcePath);
+  const cachedAnalysis = maybeUseGlobalClipCache({
+    enabled: !globalCacheDisabled,
+    step: "audioAnalysis",
+    contentHash: sourceContentHash,
+    configFingerprint,
+    clipId: clip.clipId,
+    disabled: globalCacheDisabled,
+  });
+
+  if (cachedAnalysis) {
+    const analysis = ClipAudioAnalysisSchema.parse(
+      sourceContentHash ? { ...cachedAnalysis, sourceContentHash } : cachedAnalysis,
+    );
+    writeJson(outPath, analysis);
+    return analysis;
   }
 
   const audioPath = analysisAudioPath(workDir, clip.clipId);
@@ -171,23 +202,23 @@ export async function analyzeClipAudio({
     eventDetectionMode: eventResult.eventDetectionMode ?? (useStub ? "stub" : "none"),
   });
 
-  writeJson(outPath, analysis);
-  return analysis;
-}
+  const artifact = sourceContentHash ? { ...analysis, sourceContentHash } : analysis;
+  writeJson(outPath, artifact);
 
-export async function runAudioAnalysisStep({
-  workDir,
-  stub = false,
-  force = false,
-}) {
-  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
-  const perClipAnalysis = [];
-
-  for (const clip of catalog.clips) {
-    const analysis = await analyzeClipAudio({ workDir, clip, stub, force });
-    perClipAnalysis.push(analysis);
+  if (sourceContentHash) {
+    publishGlobalClipArtifact({
+      step: "audioAnalysis",
+      contentHash: sourceContentHash,
+      configFingerprint,
+      artifact,
+      disabled: globalCacheDisabled,
+    });
   }
 
+  return artifact;
+}
+
+export function buildAudioIndexFromAnalyses(workDir, catalog, perClipAnalysis, { force = false } = {}) {
   const clipSummaries = perClipAnalysis.map((analysis) =>
     buildClipSummary(analysis.clipId, analysis),
   );
@@ -212,6 +243,32 @@ export async function runAudioAnalysisStep({
 
   writeJson(indexPath, audioIndex);
   return audioIndex;
+}
+
+export async function runAudioAnalysisStep({
+  workDir,
+  stub = false,
+  force = false,
+  globalCacheDisabled = false,
+}) {
+  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
+  const manifestPath = path.join(workDir, ARTIFACTS.manifest);
+  const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : null;
+
+  const perClipAnalysis = await runWithConcurrency(
+    catalog.clips,
+    (clip) => analyzeClipAudio({
+      workDir,
+      clip,
+      manifest,
+      stub,
+      force,
+      globalCacheDisabled,
+    }),
+    { limit: getClipConcurrencyLimit(), label: "audio_analysis" },
+  );
+
+  return buildAudioIndexFromAnalyses(workDir, catalog, perClipAnalysis, { force });
 }
 
 export function loadPerClipAudioAnalysis(workDir, clipId) {

@@ -4,19 +4,36 @@
   "category": "edit",
   "label": "Jump cut",
   "description": "Skok w tej samej scenie — klasyczny styl vlog.",
-  "platforms": ["youtube", "shorts"],
-  "trendTags": ["talking_head", "classic_youtube"],
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "talking_head",
+    "classic_youtube"
+  ],
   "params": {
-    "trimSec": { "type": "number", "min": 0.3, "max": 3, "default": 1.0 }
+    "trimSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 3,
+      "default": 1
+    }
   },
   "constraints": {
     "minGapFromSameTechniqueSec": 3,
-    "maxPerOutputMinutes": 1.0,
+    "maxPerOutputMinutes": 1,
     "requiresSpatialAnchor": false,
-    "forbiddenOnSegmentRole": ["broll"],
+    "forbiddenOnSegmentRole": [
+      "broll"
+    ],
     "requiresCreativityLevel": null
   },
   "whenToUse": "Usunięcie pauzy, przyspieszenie tempa w A-roll.",
   "whenToAvoid": "B-roll, sceny z ruchem kamery.",
-  "syncHints": ["pause", "filler_removal"]
+  "syncHints": [
+    "pause",
+    "filler_removal"
+  ],
+  "renderSupport": "partial"
 }

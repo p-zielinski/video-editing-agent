@@ -5,10 +5,16 @@ import { fileURLToPath } from "node:url";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { checkPythonPreflight } from "./lib/python-bridge.js";
 import { writeBatchQualityReport } from "./lib/batch-quality-report.js";
+import { QUALITY_PROFILES } from "./lib/quality-gate-config.js";
 import { executeRender } from "./render/execute-render.js";
 import { buildExecuteRenderOptions } from "./render/render-config.js";
 import { runRecipeEnrichStep } from "./pipeline/steps/recipe-enrich.js";
 import { PIPELINE_STEPS, validatePipelineStep, resolveWorkDir } from "./pipeline/work-paths.js";
+import {
+  PROFILES,
+  resolveAnalysisProfile,
+  listEnabledAnalysisStubs,
+} from "./lib/analysis-profiles.js";
 
 const COMMAND_DEFAULTS = {
   analyze: { fromStep: "ingest", toStep: "index" },
@@ -36,6 +42,37 @@ function printRenderResults(manifest, { dryRun = false } = {}) {
       console.log(`  - ${w.code ?? "warn"}: ${w.message ?? JSON.stringify(w)}`);
     }
   }
+}
+
+function applyAnalysisProfile(args) {
+  const resolved = resolveAnalysisProfile(args.analysisProfile, {
+    visionStub: args.visionStub,
+    faceStub: args.faceStub,
+    audioStub: args.audioStub,
+    objectsStub: args.objectsStub,
+    twelvelabsStub: args.twelvelabsStub,
+    globalCacheDisabled: args.noGlobalCache === true ? true : undefined,
+  });
+
+  args.visionStub = resolved.visionStub === true;
+  args.faceStub = resolved.faceStub === true;
+  args.audioStub = resolved.audioStub === true;
+  args.objectsStub = resolved.objectsStub === true;
+  args.twelvelabsStub = resolved.twelvelabsStub === true;
+  args.noGlobalCache = resolved.globalCacheDisabled === true;
+
+  const enabledStubs = listEnabledAnalysisStubs(resolved);
+  if (args.analysisProfile) {
+    console.log(`Profil analizy: ${args.analysisProfile}`);
+  }
+  if (enabledStubs.length > 0) {
+    console.log(`Stuby analizy włączone: ${enabledStubs.join(", ")}`);
+  }
+  if (resolved.globalCacheDisabled) {
+    console.log("Globalny cache analizy: wyłączony");
+  }
+
+  return resolved;
 }
 
 function resolveAnalysisStubFlags(args) {
@@ -126,6 +163,8 @@ function parseArgs(argv) {
       args.twelvelabsLive = true;
     } else if (arg === "--force") {
       args.force = true;
+    } else if (arg === "--no-global-cache") {
+      args.noGlobalCache = true;
     } else if (arg === "--thumbnail-stub") {
       args.thumbnailStub = true;
     } else if (arg === "--no-thumbnail-render") {
@@ -164,6 +203,8 @@ function parseArgs(argv) {
     } else if (arg === "--render-profile" && next) {
       args.renderProfile = next;
       i += 1;
+    } else if (arg === "--allow-render-warnings") {
+      args.allowRenderWarnings = true;
     } else if (arg === "--source" && next) {
       args.recipeSource = next;
       i += 1;
@@ -172,6 +213,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === "--max-review-iterations" && next) {
       args.maxReviewIterations = next;
+      i += 1;
+    } else if (arg === "--quality-profile" && next) {
+      args.qualityProfile = next;
+      i += 1;
+    } else if (arg === "--analysis-profile" && next) {
+      args.analysisProfile = next;
       i += 1;
     }
   }
@@ -286,6 +333,7 @@ Opcje:
   --date-to <iso>          Filtruj klipy do daty
   --sort-by <field>        mtime|creation_time|name (domyślnie: creation_time przy ≥2 klipach, inaczej mtime)
   --force                  Przelicz kroki mimo istniejących artefaktów
+  --no-global-cache        Wyłącz globalny cache analizy (output/.cache/analysis)
   --vision-stub            Qwen2.5-VL stub zamiast live (tylko testy CI / dev)
   --face-stub              OpenCV face detect stub w spatial_index
   --audio-stub             Analiza audio stub (bez librosa)
@@ -296,8 +344,8 @@ Opcje:
   --no-objects             Escape hatch: pomiń etap detekcji obiektów (dev)
   --no-keyframes           Nie ekstrahuj klatek (szybszy dry-run)
   --no-twelvelabs          Pomiń krok TwelveLabs (suplement wizji)
-  --twelvelabs-stub        TwelveLabs stub (domyślnie; live wymaga --twelvelabs-live)
-  --twelvelabs-live        TwelveLabs live API (wymaga TWELVELABS_API_KEY; jeszcze niezaimplementowane)
+  --twelvelabs-stub        TwelveLabs stub (CI/testy; domyślnie live gdy TWELVELABS_API_KEY)
+  --twelvelabs-live        [deprecated] live jest domyślne przy ustawionym TWELVELABS_API_KEY
   --thumbnail-stub         Miniatury: plan deterministyczny bez GPT/renderu
   --no-thumbnail-render    Miniatury: plan + krytyk, bez PNG
   --dry-run                Render: tylko EDL JSON (bez FFmpeg)
@@ -313,10 +361,13 @@ Opcje:
   --keep-tmp               Render: zachowaj pliki tymczasowe w renders/.tmp/
   --from-pass <pass>       Render: wznów od passu (concat|creative|subs|overlays|audio_mix|color_grade)
                            Wymaga --keep-tmp z pierwszego runu; przy istniejącym MP4 dodaj --force
+  --allow-render-warnings  Render: kontynuuj mimo błędów V27-RENDER-* (fidelity)
   --render                 Po run/full: uruchom render z gotowej receptury
   --source <draft|final>   enrich: źródłowa receptura (domyślnie draft)
   --target <draft|final>   enrich: docelowa receptura (domyślnie draft)
   --max-review-iterations <n>  Pętla critic/fixer: 1–10 (domyślnie 3; produkcja: 5)
+  --quality-profile <name>     report: lenient|production|shorts (domyślnie lenient)
+  --analysis-profile <name>    preview|production|ci — preset stubów analizy (jawne flagi wygrywają)
 
 Wymaga OPENAI_API_KEY w .env (komendy analyze/direct/full/run)
 Render wymaga FFmpeg (+ libass dla napisów ASS)
@@ -342,7 +393,12 @@ async function main() {
 
   if (reportOnly) {
     const workDir = resolveWorkDir(args.batchId);
-    const { summary, outPath } = writeBatchQualityReport(workDir);
+    const qualityProfile = args.qualityProfile ?? "lenient";
+    if (!QUALITY_PROFILES.includes(qualityProfile)) {
+      console.error(`--quality-profile musi być jednym z: ${QUALITY_PROFILES.join("|")}`);
+      process.exit(1);
+    }
+    const { summary, outPath } = writeBatchQualityReport(workDir, { qualityProfile });
     console.log(summary);
     console.log(`\nRaport: ${outPath}`);
     return;
@@ -363,6 +419,7 @@ async function main() {
       target,
       force: args.force === true,
       faceStub: args.faceStub === true,
+      globalCacheDisabled: args.noGlobalCache === true,
     });
 
     console.log(`Enrich zapisany: ${written}`);
@@ -433,6 +490,13 @@ async function main() {
 
   await runPythonStartupCheck(args);
 
+  try {
+    applyAnalysisProfile(args);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   const needsApiKey =
     !args.fromStep
@@ -473,6 +537,7 @@ async function main() {
     dateTo: args.dateTo,
     sortBy: args.sortBy,
     maxReviewIterations,
+    globalCacheDisabled: args.noGlobalCache === true,
   });
 
   if (result.validationFailed) {
@@ -508,5 +573,5 @@ if (isMainModule) {
   });
 }
 
-export { parseArgs, COMMAND_DEFAULTS, resolveAnalysisStubFlags, resolveLivePythonFlags };
+export { parseArgs, COMMAND_DEFAULTS, resolveAnalysisStubFlags, resolveLivePythonFlags, applyAnalysisProfile };
 export { buildExecuteRenderOptions } from "./render/render-config.js";

@@ -30,6 +30,7 @@ import { burnAssSubtitles } from "./ass-subtitles.js";
 import { applyTextOverlays } from "./ffmpeg-graphics.js";
 import { applyAudioMix } from "./audio-mix.js";
 import { applyColorGrade, shouldApplyColorGrade } from "./color-grade.js";
+import { validateRenderFidelity } from "../validators/render-fidelity.js";
 import {
   normalizeFromPass,
   shouldRunPass,
@@ -39,6 +40,16 @@ import {
 } from "./render-resume.js";
 
 const SPATIAL_INDEX_FILE = "05c-spatial-index.json";
+
+function assertRenderFidelity(recipe, options = {}) {
+  const issues = validateRenderFidelity(recipe, { qualityProfile: "production" });
+  const errors = issues.filter((issue) => issue.severity === "error");
+  if (errors.length > 0 && !options.allowRenderWarnings) {
+    const summary = errors.map((issue) => `${issue.code}: ${issue.message}`).join("; ");
+    throw new Error(`Render fidelity check failed: ${summary}`);
+  }
+  return issues;
+}
 
 export function isFfmpegAvailable() {
   const { ffmpeg } = resolveFfmpegBins();
@@ -370,6 +381,7 @@ export async function renderOutput({
  */
 export async function executeRender(workDir, options = {}) {
   const recipe = options.recipe ?? loadRecipe(workDir);
+  assertRenderFidelity(recipe, options);
   const context = options.context ?? resolveRenderContext(workDir, recipe);
   const outputs = selectOutputs(recipe, options);
 
