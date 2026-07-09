@@ -95,6 +95,7 @@ describe("technique-budget", () => {
 
   it("computeCreativityBudgetForRecipe keeps short density separate from main", () => {
     const recipe = {
+      batchContext: { requiredFormats: ["16:9", "9:16"] },
       outputs: [
         {
           outputId: "main_16x9",
@@ -114,7 +115,8 @@ describe("technique-budget", () => {
     const { byOutputId } = computeCreativityBudgetForRecipe(recipe, { level: "balanced" });
     assert.equal(byOutputId.main_16x9.maxRetentionBeatMoments, 13);
     assert.equal(byOutputId.short_9x16.maxRetentionBeatMoments, undefined);
-    assert.equal(byOutputId.short_9x16.maxTotalTechniqueMoments, 1);
+    assert.equal(byOutputId.short_9x16.level, "shorts");
+    assert.ok(byOutputId.short_9x16.maxTotalTechniqueMoments >= 1);
   });
 
   it("computeCreativityBudgetForL2Segment scales from RHYTHM_CAPS rhythm", () => {

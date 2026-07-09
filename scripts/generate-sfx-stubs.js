@@ -20,6 +20,7 @@ const STUB_RECIPES = {
   thunder_rumble_01: { lavfi: "anoisesrc=d=1.2:c=brown:a=0.2", sampleRate: 8000 },
   laughter_short_01: { lavfi: "sine=frequency=880:duration=0.08", sampleRate: 8000 },
   click_short_01: { lavfi: "sine=frequency=2000:duration=0.05", sampleRate: 8000 },
+  bleep_censor_01: { lavfi: "sine=frequency=1000:duration=0.12", sampleRate: 8000 },
   riser_short_01: { lavfi: "sine=frequency=200:duration=0.6", sampleRate: 8000 },
   swoosh_fast_01: { lavfi: "sine=frequency=660:duration=0.18", sampleRate: 8000 },
   swoosh_soft_01: { lavfi: "sine=frequency=330:duration=0.35", sampleRate: 8000 },

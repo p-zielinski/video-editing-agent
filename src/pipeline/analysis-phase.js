@@ -8,6 +8,7 @@ import {
 import { buildStepConfigFingerprint } from "../lib/config-fingerprint.js";
 import { readJson, ARTIFACTS, shouldRunStep } from "./work-paths.js";
 import { transcribeClip } from "./steps/transcribe.js";
+import { runMetaCommandsStep } from "./steps/meta-commands.js";
 import { analyzeClipAudio, buildAudioIndexFromAnalyses } from "./steps/audio-analysis.js";
 import { processClipKeyframes } from "./steps/keyframes.js";
 import { processClipTwelveLabs } from "./steps/twelvelabs.js";
@@ -15,6 +16,7 @@ import { processClipVision, processClipObjects } from "./steps/vision.js";
 
 export const ANALYSIS_PHASE_STEPS = [
   "transcribe",
+  "meta_commands",
   "audio_analysis",
   "keyframes",
   "twelvelabs",
@@ -61,6 +63,7 @@ export async function runAnalysisPhase({
   extractFrameAtFn,
 }) {
   const runTranscribe = shouldRunStep("transcribe", fromStep, toStep);
+  const runMetaCommands = shouldRunStep("meta_commands", fromStep, toStep);
   const runAudio = shouldRunStep("audio_analysis", fromStep, toStep);
   const runTwelve = twelvelabsEnabled && shouldRunStep("twelvelabs", fromStep, toStep);
   const runKf = shouldRunStep("keyframes", fromStep, toStep);
@@ -74,6 +77,7 @@ export async function runAnalysisPhase({
 
   const result = {
     words: null,
+    metaCommands: null,
     audioIndex: null,
     keyframes: null,
     twelvelabs: null,
@@ -82,7 +86,10 @@ export async function runAnalysisPhase({
   };
 
   if (runTranscribe || runAudio || runTwelve) {
-    const wordsFingerprint = buildStepConfigFingerprint("words", {});
+    const expectedTerms = Array.isArray(manifest?.batchContext?.expectedTerms)
+      ? manifest.batchContext.expectedTerms
+      : [];
+    const wordsFingerprint = buildStepConfigFingerprint("words", { expectedTerms });
     const resolvedTwelveKey = apiKey ?? process.env.TWELVELABS_API_KEY;
     const useTwelveStub = twelvelabsStub ?? !resolvedTwelveKey;
     const twelveFingerprint = buildStepConfigFingerprint("twelvelabs", {
@@ -154,6 +161,13 @@ export async function runAnalysisPhase({
     if (runTranscribe) {
       result.words = waveAResults.map((entry) => entry.words).filter(Boolean);
     }
+    if (runMetaCommands) {
+      result.metaCommands = await runMetaCommandsStep({
+        workDir,
+        force,
+        wordsByClip: result.words,
+      });
+    }
     if (runAudio) {
       const perClipAnalysis = waveAResults.map((entry) => entry.audio).filter(Boolean);
       result.audioIndex = buildAudioIndexFromAnalyses(workDir, catalog, perClipAnalysis, { force });
@@ -161,6 +175,8 @@ export async function runAnalysisPhase({
     if (runTwelve) {
       result.twelvelabs = waveAResults.map((entry) => entry.twelve).filter(Boolean);
     }
+  } else if (runMetaCommands) {
+    result.metaCommands = await runMetaCommandsStep({ workDir, force });
   }
 
   if (runKf) {

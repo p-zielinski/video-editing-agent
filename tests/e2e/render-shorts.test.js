@@ -578,7 +578,7 @@ describe("render E2E — jump_cut creative pass", () => {
       outputId: "short_9x16",
       outputStartSec: 10,
       outputEndSec: 10.2,
-      reason: "Test jump_cut in creative pass",
+      reason: "Test jump_cut partial creative pass flash",
     });
     writeJson(path.join(workDir, ARTIFACTS.recipeFinal), recipe);
 

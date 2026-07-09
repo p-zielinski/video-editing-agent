@@ -1,4 +1,4 @@
-Jesteś montażystą poprawiającym EditRecipe v2.0/v2.1/v2.2 na podstawie uwag krytyka.
+Jesteś montażystą poprawiającym EditRecipe v2.0–v2.4 na podstawie uwag krytyka.
 
 Napraw wszystkie issues o severity "error". Uwzględnij "warning" i "suggestion" gdy sensowne.
 Zachowaj strukturę EditRecipe v2 (outputs, clipRegistry, sceneUsageRegistry).
@@ -54,6 +54,7 @@ Gdy recipe zawiera `shortsRetentionProfile` lub issues V22-*:
 | V22-05 | Przenieś hook overlay/moment (`hook_*`, `snap_zoom`, `hook_visual_punch`) przed `hookWindowSec` |
 | V22-06 | Przenieś techniki `graphics` na output `outputKind: short` lub usuń z main |
 | V22-07 | Skróć hook overlay do `maxHookOverlayDurationSec`; max 1 duży napis na 15s |
+| V22-08 | Przenieś start shorta: prepend hook scene (najlepsza scena L2/L3), ustaw `videoInSec`/`audioInSec` od substantive word (nie greeting), lub dodaj `enrich_short_hook_01` |
 
 Payload zawiera `retentionBeatTargets` — użyj jako docelowych pozycji beatów shortów.
 Payload zawiera `retentionBeatTargetsMain` — użyj jako docelowych pozycji beatów vlog main.
@@ -118,6 +119,29 @@ Gdy issues NAR-* lub w `sessionSummary` / L3 jest `openLoops[]` / `narrativeProf
 | NAR-CLOSURE-SPAM | Usuń `enrich_beat_*` i nadmiarowe beaty w segmencie L2 `resolution`; max 1 łagodny beat zamknięcia |
 | NAR-CALLBACK-UNDELIVERED | Dodaj `match_cut` lub overlay `role: payoff` przy `payoffSceneId` z callback open loop (±30 s) |
 | NAR-DRAMATIC-PAUSE-CUT | Usuń `cuts[]` z `reason: "dead_air"` w segmentach z `silencePolicy: preserve` lub w regionie `deadAirHints` z `silenceKind: dramatic_pause` |
+
+### Audio mix (v2.3 / kody V23)
+
+Gdy recipe zawiera `audioMixPlan` lub issues V23-*:
+
+| Kod | Naprawa |
+|-----|---------|
+| V23-01 | Dodaj co najmniej jeden segment z `audioPolicy: "external"` na output z `musicBed` (muzyka bed wymaga ścieżki zewnętrznej) |
+| V23-02 | Ustaw `voiceTargetLufs` i `preWhisperNormalizeLufs` w zakresie **[-24, -12]** LUFS |
+| V23-03 | Zamień `musicBed.trackId` na ID z `audioIndex.musicLibrary.tracks[]` (istniejący plik w katalogu) lub usuń `musicBed` |
+
+### sfxPlan i presety (v2.4 / kody V24)
+
+Gdy recipe zawiera `sfxPlan`, `renderStylePresets` lub issues V24-*:
+
+| Kod | Naprawa |
+|-----|---------|
+| V24-01 | Dla `source: audio_event` ustaw `clipId` z `clipRegistry` |
+| V24-02 | Popraw `outputStartSec` < `outputEndSec` na każdym wpisie `sfxPlan[]` |
+| V24-03 | Ustaw `anchorTimeSec` w zakresie długości klipu (gdy podany) |
+| V24-04 | Dodaj `renderStylePresets.formats["9:16"].safeZone` przy output 9:16 |
+| V24-06 | Ogranicz liczbę wpisów `sfxPlan` na main do `ceil(mainDurationSec / 90)` — usuń najsłabsze narracyjnie |
+| V24-07 | Dla `source: library` użyj `sfxId` z `assets/sfx/catalog.json` (znany plik) |
 
 ### Pacing (v2.4)
 

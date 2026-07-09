@@ -1,32 +1,28 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveRenderProfile, RENDER_PROFILES, buildExecuteRenderOptions } from "./render-config.js";
+import { resolveOutputDimensions, DEFAULT_FORMAT_DIMENSIONS } from "./render-config.js";
 
-describe("render-config profiles", () => {
-  it("resolveRenderProfile returns preview bundle", () => {
-    const profile = resolveRenderProfile("preview");
-    assert.equal(profile.encodeProfile, "draft");
-    assert.equal(profile.skipCreative, true);
-    assert.equal(profile.skipSubtitles, true);
-  });
-
-  it("resolveRenderProfile returns empty for unknown name", () => {
-    assert.deepEqual(resolveRenderProfile("unknown_xyz"), {});
-  });
-
-  it("buildExecuteRenderOptions merges profile with explicit CLI flags", () => {
-    const options = buildExecuteRenderOptions({
-      renderProfile: "preview",
-      skipCreative: false,
-      outputId: "horizontal_main",
+describe("resolveOutputDimensions", () => {
+  it("returns 1920x1080 for 16:9 regardless of recipe override", () => {
+    const dims = resolveOutputDimensions("16:9", {
+      renderStylePresets: {
+        formats: { "16:9": { width: 3840, height: 2160 } },
+      },
     });
-    assert.equal(options.encodeProfile, "draft");
-    assert.equal(options.skipCreative, false);
-    assert.equal(options.skipSubtitles, true);
-    assert.equal(options.outputId, "horizontal_main");
+    assert.deepEqual(dims, DEFAULT_FORMAT_DIMENSIONS["16:9"]);
   });
 
-  it("RENDER_PROFILES includes iterate with keepTmp", () => {
-    assert.equal(RENDER_PROFILES.iterate.keepTmp, true);
+  it("returns 1080x1920 for 9:16 regardless of recipe override", () => {
+    const dims = resolveOutputDimensions("9:16", {
+      renderStylePresets: {
+        formats: { "9:16": { width: 2160, height: 3840 } },
+      },
+    });
+    assert.deepEqual(dims, DEFAULT_FORMAT_DIMENSIONS["9:16"]);
+  });
+
+  it("defaults unknown format to 16:9", () => {
+    const dims = resolveOutputDimensions("unknown", {});
+    assert.deepEqual(dims, DEFAULT_FORMAT_DIMENSIONS["16:9"]);
   });
 });

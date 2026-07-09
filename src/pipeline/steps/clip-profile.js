@@ -334,6 +334,14 @@ export function buildClipRegistry(timelineIndex, catalog, { userContext = "", wo
   return clipRegistry;
 }
 
+export async function ensureClipRegistry(workDir, { force = false, userContext = "" } = {}) {
+  const registryPath = path.join(workDir, ARTIFACTS.clipRegistry);
+  if (!fs.existsSync(registryPath) || force) {
+    return runClipProfileStep({ workDir, userContext, force });
+  }
+  return readJson(registryPath);
+}
+
 export async function runClipProfileStep({ workDir, userContext = "", force = false }) {
   const outPath = path.join(workDir, ARTIFACTS.clipRegistry);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.clipRegistry, force)) {

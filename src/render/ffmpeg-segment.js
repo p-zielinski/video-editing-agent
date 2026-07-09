@@ -13,6 +13,19 @@ import {
   shouldApplyAudioSpeed,
   shouldOmitShortestForVideoOnlySpeed,
 } from "./speed-transform.js";
+import {
+  applyPlaybackToVideoFilter,
+  shouldMutePlaybackAudio,
+} from "./playback-transform.js";
+
+export {
+  applyPlaybackToVideoFilter,
+  buildPlaybackVideoFilter,
+  resolveBoomerangHalfSec,
+  resolvePlaybackMode,
+  resolvePlaybackOutputDuration,
+  shouldMutePlaybackAudio,
+} from "./playback-transform.js";
 
 function segmentDurationSec(segment, context) {
   const wordIndex = resolveWordIndexForSegment(segment, context);
@@ -254,13 +267,14 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
   const syncFilter = buildVideoSyncFilter(effectiveSegment, spedVideoDur, spedAudioDur);
   const combinedAudioFilter = buildCombinedAudioFilter(effectiveSegment, videoDur, audioDur, options);
   const videoOnlyPadFilter = buildVideoOnlyPadFilter(effectiveSegment, videoDur, audioDur);
-  const videoFilter = composeSegmentVideoFilter(
+  let videoFilter = composeSegmentVideoFilter(
     baseVideoFilter,
     [syncFilter, videoOnlyPadFilter],
   );
+  videoFilter = applyPlaybackToVideoFilter(videoFilter, effectiveSegment, spedVideoDur);
 
   const isJlCutVideoOnly = isJlCutBorrowedAudio(segment);
-  const isMuted = segment.audioPolicy === "mute";
+  const isMuted = segment.audioPolicy === "mute" || shouldMutePlaybackAudio(effectiveSegment);
   const omitEmbeddedAudio = isMuted || isJlCutVideoOnly;
   const sameSource = audioPath === videoPath;
   const useSeparateAudio = !omitEmbeddedAudio

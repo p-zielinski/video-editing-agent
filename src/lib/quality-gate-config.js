@@ -44,6 +44,17 @@ function evaluateProductionGates(metrics, failures) {
   if (metrics.reviewApproved !== true) {
     failures.push("review_not_approved");
   }
+  if (metrics.superPath === true && metrics.superCriticApproved === false) {
+    failures.push("super_critic_not_approved");
+  }
+  if (
+    metrics.superPath !== true
+    && metrics.briefSceneMapCoverage != null
+    && metrics.briefSceneMapCoverage < 0.5
+    && (metrics.timelineSceneCount ?? metrics.sceneCount ?? 0) > 30
+  ) {
+    failures.push("brief_scene_map_coverage_low");
+  }
 }
 
 function evaluateShortsGates(metrics, failures) {

@@ -19,7 +19,7 @@ export const ENCODE_PROFILES = {
   },
 };
 
-const DEFAULT_FORMAT_DIMENSIONS = {
+export const DEFAULT_FORMAT_DIMENSIONS = {
   "16:9": { width: 1920, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
 };
@@ -28,11 +28,8 @@ export function resolveEncodeProfile(profileName = "production") {
   return ENCODE_PROFILES[profileName] ?? ENCODE_PROFILES.production;
 }
 
-export function resolveOutputDimensions(format, recipe) {
-  const presets = recipe?.renderStylePresets?.formats?.[format];
-  if (presets?.width && presets?.height) {
-    return { width: presets.width, height: presets.height };
-  }
+/** Output resolution is fixed per aspect ratio; recipe cannot override (no 4K path). */
+export function resolveOutputDimensions(format, _recipe) {
   return DEFAULT_FORMAT_DIMENSIONS[format] ?? DEFAULT_FORMAT_DIMENSIONS["16:9"];
 }
 

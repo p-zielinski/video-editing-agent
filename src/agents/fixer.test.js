@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   runFixer,
   shouldInvokeFixer,
+  resolveFixerPromptVersion,
+  recipeHasCreativeLayer,
   FIXABLE_NAR_WARNING_CODES,
 } from "./fixer.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
@@ -33,6 +35,60 @@ const audioIndex = {
 };
 
 describe("fixer agent", () => {
+  it("resolveFixerPromptVersion uses v2 for all 2.x recipe versions", () => {
+    assert.equal(resolveFixerPromptVersion({ version: "2.0" }), "v2");
+    assert.equal(resolveFixerPromptVersion({ version: "2.3" }), "v2");
+    assert.equal(resolveFixerPromptVersion({ version: "2.4" }), "v2");
+    assert.equal(resolveFixerPromptVersion({ version: "2.10" }), "v2");
+    assert.equal(resolveFixerPromptVersion({ version: "1.0" }), "v1");
+    assert.equal(resolveFixerPromptVersion({ version: "3.0" }), "v1");
+  });
+
+  it("recipeHasCreativeLayer is true for version 2.4", () => {
+    assert.equal(recipeHasCreativeLayer({ version: "2.4" }), true);
+    assert.equal(recipeHasCreativeLayer({ version: "2.0" }), false);
+    assert.equal(recipeHasCreativeLayer({ version: "2.0", creativeMoments: [{}] }), true);
+  });
+
+  it("includes spatialIndex in repair payload when version is 2.4", async () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.4",
+      creativeMoments: [],
+    };
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    const spatialIndex = {
+      scenes: [{
+        sceneId: "clip01_scene001",
+        anchors: [{ anchorId: "face_center", x: 0.5, y: 0.4 }],
+      }],
+    };
+    const fixerResponse = loadFixture("fixer-response.json");
+    const review = {
+      version: "1.0",
+      batchId: "testbatch",
+      iteration: 1,
+      approved: false,
+      issues: [{ severity: "error", code: "CUT_WORDID_WRONG_CLIP", message: "bad wordId" }],
+      summary: "needs fix",
+    };
+
+    const client = createMockOpenAIClient([fixerResponse], { captureRequests: true });
+    await runFixer(client, {
+      recipe,
+      review,
+      abstraction,
+      timelineIndex,
+      audioIndex,
+      spatialIndex,
+    });
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.ok(payload.spatialIndex);
+    assert.equal(payload.spatialIndex.scenes[0].sceneId, "clip01_scene001");
+  });
+
   it("includes transcriptExcerpts and audioIndex in repair payload", async () => {
     const recipe = {
       ...loadFixture("recipe-draft.json"),

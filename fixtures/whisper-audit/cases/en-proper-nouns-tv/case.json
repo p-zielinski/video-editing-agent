@@ -1,0 +1,11 @@
+{
+  "caseId": "en-proper-nouns-tv",
+  "category": "en-proper-nouns",
+  "title": "English TV show title",
+  "spokenTranscript": "Wczoraj oglądałem Breaking Bad",
+  "language": "pl",
+  "tags": ["tv", "english-title"],
+  "notes": "English TV title inside Polish sentence",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

@@ -1,3 +1,9 @@
+import {
+  isChronologicalFirstScene,
+  isGreetingWord,
+  isSetupNarrativeScene,
+} from "./shorts-greeting.js";
+
 const HIGHLIGHT_AUDIO_TAGS = new Set([
   "laughter",
   "applause",
@@ -6,6 +12,8 @@ const HIGHLIGHT_AUDIO_TAGS = new Set([
   "crowd",
   "music",
 ]);
+
+const TENSION_NARRATIVE_ROLES = new Set(["tension", "climax", "payoff"]);
 
 function visualQualityScore(quality) {
   if (quality === "high") {
@@ -45,14 +53,76 @@ function computeSpeechDensity(scene, timelineIndex) {
   return Math.min(1, wordsPerSec / 2.5);
 }
 
+function sceneOpensWithGreeting(scene, timelineIndex) {
+  const words = (timelineIndex.words ?? []).filter(
+    (w) => !w.isFiller && w.start >= scene.startSec && w.start < scene.endSec,
+  );
+  const first = words[0];
+  return first ? isGreetingWord(first.word) : false;
+}
+
+function narrativeRoleBoost(sceneId, abstraction) {
+  for (const segment of abstraction?.L2 ?? []) {
+    if (!(segment.sceneIds ?? []).includes(sceneId)) {
+      continue;
+    }
+    if (TENSION_NARRATIVE_ROLES.has(segment.narrativeRole)) {
+      return 0.2;
+    }
+    if (segment.narrativeRole === "setup") {
+      return -0.25;
+    }
+  }
+  return 0;
+}
+
+function energyPeakBoost(scene, audioIndex) {
+  const clip = audioIndex?.clips?.find((entry) => entry.clipId === scene.clipId);
+  const peaks = clip?.energyPeaks ?? [];
+  if (!peaks.length) {
+    return 0;
+  }
+
+  const sceneStart = scene.startSec ?? 0;
+  const sceneEnd = scene.endSec ?? sceneStart + (scene.durationSec ?? 0);
+  const inScene = peaks.filter(
+    (peak) => peak.timeSec >= sceneStart && peak.timeSec < sceneEnd,
+  );
+  if (!inScene.length) {
+    return 0;
+  }
+
+  const maxRms = Math.max(...inScene.map((peak) => peak.rmsDb ?? -60));
+  return maxRms > -18 ? 0.15 : 0.05;
+}
+
+function introPenalty(scene, timelineIndex, abstraction) {
+  let penalty = 0;
+  if (isChronologicalFirstScene(scene.sceneId, timelineIndex)) {
+    penalty += 0.15;
+  }
+  if (isSetupNarrativeScene(scene.sceneId, abstraction)) {
+    penalty += 0.2;
+  }
+  if (sceneOpensWithGreeting(scene, timelineIndex)) {
+    penalty += 0.2;
+  }
+  return penalty;
+}
+
 /**
  * Lightweight 0–1 highlight score for a scene.
  * @param {object} scene — timeline index scene entry
  * @param {object} l1 — L1 abstraction entry for the scene
  * @param {object} timelineIndex
- * @param {{ audioTags?: string[] | object[] }} [options]
+ * @param {{ audioTags?: string[] | object[], audioIndex?: object, abstraction?: object }} [options]
  */
-export function computeSceneRank(scene, l1 = {}, timelineIndex = {}, { audioTags = [] } = {}) {
+export function computeSceneRank(
+  scene,
+  l1 = {},
+  timelineIndex = {},
+  { audioTags = [], audioIndex = null, abstraction = null } = {},
+) {
   const brollPotential = l1.brollPotential ?? (scene.hasSpeech ? 0.15 : 0.75);
   const visual = visualQualityScore(l1.visualQuality);
   const speech = computeSpeechDensity(scene, timelineIndex);
@@ -61,12 +131,16 @@ export function computeSceneRank(scene, l1 = {}, timelineIndex = {}, { audioTags
   const brollWeight = scene.hasSpeech ? 0.25 : 0.4;
   const speechWeight = scene.hasSpeech ? 0.25 : 0.05;
 
-  const score = brollWeight * brollPotential
+  let score = brollWeight * brollPotential
     + 0.25 * visual
     + speechWeight * speech
     + 0.15 * audio;
 
-  return Math.min(1, Math.round(score * 1000) / 1000);
+  score += narrativeRoleBoost(scene.sceneId, abstraction);
+  score += energyPeakBoost(scene, audioIndex);
+  score -= introPenalty(scene, timelineIndex, abstraction);
+
+  return Math.min(1, Math.max(0, Math.round(score * 1000) / 1000));
 }
 
 function audioTagsForClip(audioIndex, clipId) {
@@ -102,7 +176,11 @@ export function buildTopSceneRanks(
     return {
       sceneId: scene.sceneId,
       clipId: scene.clipId,
-      rank: computeSceneRank(scene, l1, timelineIndex, { audioTags }),
+      rank: computeSceneRank(scene, l1, timelineIndex, {
+        audioTags,
+        audioIndex,
+        abstraction,
+      }),
       brollPotential: l1.brollPotential,
       visualQuality: l1.visualQuality,
       hasSpeech: scene.hasSpeech,

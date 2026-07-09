@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "mustIncludeTokens": ["boomerang"],
+  "minTokenRecall": 0.8,
+  "orderedSubsequence": ["zrób", "boomerang", "skoku"],
+  "allowEmptyWords": false
+}

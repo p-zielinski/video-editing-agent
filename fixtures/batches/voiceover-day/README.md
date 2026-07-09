@@ -25,6 +25,10 @@ The golden recipe pairs B-roll video with narration audio via `audioPolicy: from
 | `05a-clip-registry.json` | clip_profile | `broll_pool` × 2 + `narration_track` |
 | `golden-recipe-v2.json` | review | EditRecipe v2.4 with `from_audio_ref` B-roll segments |
 
+### Artefakty nieobecne (minimalny fixture render)
+
+Brak m.in.: `01b-audio-analysis-*`, `01c-meta-commands-*`, `02-keyframes-*`, `03-vision-*`, `03b-twelvelabs-*`, `04-objects-*`, `04a-faces-*`, `05b-topic-index.json`, `05c-spatial-index.json`, `05d-audio-index.json`, `06-abstract.json`. Render E2E generuje lavfi wideo i sine WAV zamiast pełnej analizy.
+
 ## Usage
 
 ```bash

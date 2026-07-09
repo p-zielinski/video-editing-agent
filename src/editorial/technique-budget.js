@@ -1,6 +1,7 @@
 import {
   computeScaledMinRetentionBeats,
   DEFAULT_VLOG_RETENTION_PROFILE,
+  shouldEnableShortsRetention,
 } from "./shorts-retention.js";
 import { RHYTHM_CAPS } from "../lib/narrative-profile.js";
 
@@ -300,6 +301,38 @@ export function summarizeCreativityBudgetForBrief(budget) {
   return summary;
 }
 
+const SHORT_OUTPUT_CREATIVITY_PROFILE = {
+  level: "shorts",
+  allowMidSentenceCuts: true,
+  maxTechniqueDensityPerMin: 0.8,
+};
+
+function resolveCreativityProfileForOutput(outputKind, baseProfile, recipe) {
+  if (outputKind !== "short") {
+    return baseProfile;
+  }
+
+  const shortsRetentionEnabled = shouldEnableShortsRetention({
+    outputs: recipe?.outputs ?? [],
+    requiredFormats: recipe?.batchContext?.requiredFormats ?? [],
+    creativityProfile: baseProfile,
+    shortsRetentionProfile: recipe?.shortsRetentionProfile ?? {},
+  });
+
+  if (!shortsRetentionEnabled && baseProfile.level !== "shorts") {
+    return baseProfile;
+  }
+
+  return mergeCreativityProfile(
+    {
+      ...baseProfile,
+      ...SHORT_OUTPUT_CREATIVITY_PROFILE,
+      techniquePack: baseProfile.techniquePack ?? SHORT_OUTPUT_CREATIVITY_PROFILE.techniquePack,
+    },
+    {},
+  );
+}
+
 function resolveOutputKind(output) {
   if (output.outputKind) {
     return output.outputKind;
@@ -360,8 +393,13 @@ export function computeCreativityBudgetForRecipe(
   for (const output of outputs) {
     const durationSec = estimateOutputDurationSec(output) || 600;
     const outputKind = resolveOutputKind(output);
+    const outputCreativityProfile = resolveCreativityProfileForOutput(
+      outputKind,
+      creativityProfile,
+      recipe,
+    );
     const budget = {
-      ...computeCreativityBudget(durationSec, creativityProfile),
+      ...computeCreativityBudget(durationSec, outputCreativityProfile),
       outputId: output.outputId,
       outputKind,
       durationSec,

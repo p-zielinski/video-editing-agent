@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { shouldRunDirectorDrillDown } from "../agents/director.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const MINI_DAY_FIXTURES = path.join(REPO_ROOT, "fixtures", "batches", "mini-day");
@@ -142,19 +143,25 @@ export function buildMiniDaySegmentPartial(segmentId) {
 /**
  * Queued LLM responses for abstract → direct → review on mini-day.
  * Summarizer chunkTimelineForL2 yields a single L2 segment for mini-day (~225s),
- * so the legacy director + drill-down path is used (not super-director).
- * @param {{ criticApproves?: boolean }} [options]
+ * so the legacy director path is used (not super-director).
+ * Drill-down slot is included only when shouldRunDirectorDrillDown applies to the golden recipe.
+ * @param {{ criticApproves?: boolean, includeDrillDown?: boolean }} [options]
  */
-export function buildMiniDayAgentLoopResponses({ criticApproves = true } = {}) {
+export function buildMiniDayAgentLoopResponses({
+  criticApproves = true,
+  includeDrillDown,
+} = {}) {
   const summarizer = buildMiniDaySummarizerResponses();
   const validRecipe = buildMiniDayRecipeDraft();
   const invalidRecipe = buildMiniDayInvalidRecipeDraft();
+  const runDrillDown = includeDrillDown
+    ?? shouldRunDirectorDrillDown(validRecipe, {});
 
   if (criticApproves) {
     return [
       ...summarizer,
       validRecipe,
-      validRecipe,
+      ...(runDrillDown ? [validRecipe] : []),
       { approved: true, issues: [], summary: "Receptura spełnia wymagania formatów i rejestru scen." },
       validRecipe,
     ];
@@ -163,7 +170,7 @@ export function buildMiniDayAgentLoopResponses({ criticApproves = true } = {}) {
   return [
     ...summarizer,
     invalidRecipe,
-    invalidRecipe,
+    ...(runDrillDown ? [invalidRecipe] : []),
     {
       approved: false,
       issues: [{ severity: "error", code: "MISSING_REQUIRED_FORMAT", message: "Brak wyjścia 9:16" }],

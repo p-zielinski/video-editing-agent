@@ -1,5 +1,6 @@
 import { computeCutsRemovedSec } from "../render/audio-cuts.js";
 import { adjustDurationForSpeed, resolveEffectiveSpeed } from "../render/speed-transform.js";
+import { resolvePlaybackOutputDuration } from "../render/playback-transform.js";
 
 function resolveWordIndexForSegment(seg, wordIndexes) {
   if (!wordIndexes) {
@@ -48,34 +49,37 @@ export function resolveSegmentOutputDuration(seg, options = {}) {
     duration = Math.max(0.01, base - removed);
   }
 
-  const speed = resolveEffectiveSpeed(seg);
-  if (speed === 1) {
-    return duration;
-  }
-
-  const speedMode = seg.videoTransform?.speedMode ?? "video_audio";
-  if (speedMode !== "video_only") {
-    return adjustDurationForSpeed(duration, speed);
-  }
-
   const videoDur = seg.videoOutSec - seg.videoInSec;
-  const audioDur = (seg.audioOutSec ?? seg.videoOutSec) - (seg.audioInSec ?? seg.videoInSec);
-  const spedVideo = adjustDurationForSpeed(videoDur, speed);
+  const speed = resolveEffectiveSpeed(seg);
+  const spedVideo = speed === 1 ? videoDur : adjustDurationForSpeed(videoDur, speed);
 
-  if (seg.audioPolicy === "from_prev" || seg.audioPolicy === "from_next") {
-    return spedVideo;
+  let resolved = duration;
+  if (speed === 1) {
+    resolved = duration;
+  } else {
+    const speedMode = seg.videoTransform?.speedMode ?? "video_audio";
+    if (speedMode !== "video_only") {
+      resolved = adjustDurationForSpeed(duration, speed);
+    } else if (seg.audioPolicy === "from_prev" || seg.audioPolicy === "from_next") {
+      resolved = spedVideo;
+    } else {
+      switch (seg.syncMode ?? "align_start") {
+        case "fit_video_to_audio":
+          resolved = duration;
+          break;
+        case "fit_audio_to_video":
+          resolved = spedVideo;
+          break;
+        case "loop_video":
+          resolved = duration;
+          break;
+        default:
+          resolved = Math.max(spedVideo, duration);
+      }
+    }
   }
 
-  switch (seg.syncMode ?? "align_start") {
-    case "fit_video_to_audio":
-      return duration;
-    case "fit_audio_to_video":
-      return spedVideo;
-    case "loop_video":
-      return duration;
-    default:
-      return Math.max(spedVideo, duration);
-  }
+  return resolvePlaybackOutputDuration(seg, spedVideo, resolved);
 }
 
 export function buildOutputTimeline(output, options = {}) {

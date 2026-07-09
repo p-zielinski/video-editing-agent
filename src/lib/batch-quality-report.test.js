@@ -464,4 +464,44 @@ describe("batch_quality_report", () => {
     assert.ok(report.metrics.qualityGateFailures.includes("stub_coverage_nonzero"));
     assert.ok(report.metrics.qualityGateFailures.includes("review_not_approved"));
   });
+
+  it("reads provenance director and super-critic metrics", () => {
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+      batchId: "batch_prov_metrics",
+      scenes: Array.from({ length: 35 }, (_, i) => ({ sceneId: `clip01_scene${String(i + 1).padStart(3, "0")}` })),
+      stats: { totalWords: 0, fillerWordCount: 0 },
+    });
+    writeJson(path.join(workDir, ARTIFACTS.spatialIndex), {
+      version: "1.0",
+      batchId: "batch_prov_metrics",
+      scenes: [{ sceneId: "clip01_scene001", anchors: [{ type: "face" }] }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.abstraction), {
+      L1: [{ sceneId: "clip01_scene001", brollPotential: 0.2 }],
+      L2: [{ segmentId: "seg1" }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.topicIndex), {
+      topics: [{ topicId: "t1", matchingScenes: [{ sceneId: "clip02_scene001", score: 0.9 }] }],
+    });
+    writeJson(path.join(workDir, ARTIFACTS.review), {
+      version: "1.0",
+      batchId: "batch_prov_metrics",
+      iteration: 1,
+      approved: true,
+      issues: [],
+      summary: "ok",
+    });
+    writeJson(path.join(workDir, ARTIFACTS.recipeProvenance), buildProvenanceDocument({
+      batchId: "batch_prov_metrics",
+      directorMetrics: { briefSceneMapCoverage: 0.4 },
+      superCriticReview: { approved: false, issues: [], summary: "arc gap" },
+    }));
+
+    const report = buildBatchQualityReport(workDir, { qualityProfile: "production" });
+    assert.equal(report.metrics.briefSceneMapCoverage, 0.4);
+    assert.equal(report.metrics.superPath, false);
+    assert.equal(report.metrics.superCriticApproved, false);
+    assert.ok(report.metrics.qualityGateFailures.includes("brief_scene_map_coverage_low"));
+    assert.ok(!report.metrics.qualityGateFailures.includes("super_critic_not_approved"));
+  });
 });

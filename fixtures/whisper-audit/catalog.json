@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "description": "Whisper audit cases for PL vlog speech",
+  "cases": [
+    { "caseId": "profanity-literal", "category": "profanity", "dir": "cases/profanity-literal" },
+    { "caseId": "profanity-extended-vowel", "category": "profanity", "dir": "cases/profanity-extended-vowel" },
+    { "caseId": "profanity-phrase", "category": "profanity", "dir": "cases/profanity-phrase" },
+    { "caseId": "en-proper-nouns-gaming", "category": "en-proper-nouns", "dir": "cases/en-proper-nouns-gaming" },
+    { "caseId": "en-proper-nouns-tv", "category": "en-proper-nouns", "dir": "cases/en-proper-nouns-tv" },
+    { "caseId": "meta-command-date-overlay", "category": "meta-commands", "dir": "cases/meta-command-date-overlay" },
+    { "caseId": "meta-command-boomerang-phrase", "category": "meta-commands", "dir": "cases/meta-command-boomerang-phrase" }
+  ]
+}

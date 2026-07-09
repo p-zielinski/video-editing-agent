@@ -25,8 +25,10 @@ import { runIndexStep } from "./steps/index.js";
 import { runClipProfileStep } from "./steps/clip-profile.js";
 import { runTopicIndexStep } from "./steps/topic-index.js";
 import { runSpatialIndexStep } from "./steps/spatial-index.js";
+import { runAiVideoStep } from "./steps/ai-video.js";
 import { runAbstractStep, runDirectStep, runReviewStep, ensureSpatialIndex } from "./steps/agents.js";
 import { runThumbnailsStep } from "./steps/thumbnails.js";
+import { runPublishStep } from "./steps/publish.js";
 import {
   shouldUseCachedArtifact,
   isArtifactStale,
@@ -34,6 +36,7 @@ import {
 } from "./artifact-deps.js";
 import { buildSceneCatalogFromDetection } from "./steps/ingest.js";
 import { writeBatchQualityReport } from "../lib/batch-quality-report.js";
+import { createGptUsageTracker, writeGptUsage } from "../lib/gpt-usage-log.js";
 
 const log = createLogger("pipeline");
 const TOTAL_STEPS = PIPELINE_STEP_COUNT;
@@ -67,6 +70,16 @@ function ensureManifestBatchContext(workDir, batchContext) {
   writeJson(manifestPath, manifest);
 }
 
+function applyAiVideoCliOverrides(batchContext, { aiVideo = false, noAiVideo = false } = {}) {
+  if (aiVideo === true) {
+    batchContext.aiVideoEnabled = true;
+  }
+  if (noAiVideo === true) {
+    batchContext.aiVideoEnabled = false;
+  }
+  return batchContext;
+}
+
 function resolveBatchContext(userContext, clipCount, requiredFormats, { contextExplicit = false } = {}) {
   const parsed = parseBatchContextFromUserContext(userContext);
   const hasContextFormats = Array.isArray(parsed.requiredFormats) && parsed.requiredFormats.length > 0;
@@ -84,6 +97,12 @@ function resolveBatchContext(userContext, clipCount, requiredFormats, { contextE
     allowWholeClipExclusion: parsed.allowWholeClipExclusion ?? true,
     notes: parsed.notes ?? (userContext && !userContext.trim().startsWith("{") ? userContext : parsed.notes),
     publishVoice: resolvePublishVoice({ batchContext: parsed, userContext }),
+    aiVideoEnabled: parsed.aiVideoEnabled ?? false,
+    aiVideoMaxPerBatch: parsed.aiVideoMaxPerBatch ?? 1,
+    aiVideoMaxDurationSec: parsed.aiVideoMaxDurationSec ?? 5,
+    aiVideoGenerateAudio: parsed.aiVideoGenerateAudio ?? false,
+    aiVideoTargetOutputs: parsed.aiVideoTargetOutputs ?? ["9:16"],
+    colorGradePolicy: parsed.colorGradePolicy ?? "off",
   };
 }
 
@@ -153,8 +172,12 @@ export async function runPipeline(options) {
     thumbnailStub = false,
     renderThumbnails = true,
     maxReviewIterations = 3,
+    strictReview = false,
     topicIndexEmbedFn,
     globalCacheDisabled = false,
+    aiVideo = false,
+    aiVideoStub = false,
+    noAiVideo = false,
   } = options;
 
   const resolvedTwelvelabsStub = twelvelabsStub === true || !process.env.TWELVELABS_API_KEY;
@@ -173,7 +196,12 @@ export async function runPipeline(options) {
 
   const parsedContext = parseBatchContextFromUserContext(userContext);
   const contextExplicit = Array.isArray(parsedContext.requiredFormats) && parsedContext.requiredFormats.length > 0;
-  const batchContext = resolveBatchContext(userContext, 0, requiredFormats, { contextExplicit });
+  const batchContext = applyAiVideoCliOverrides(
+    resolveBatchContext(userContext, 0, requiredFormats, { contextExplicit }),
+    { aiVideo, noAiVideo },
+  );
+  const resolvedAiVideoStub = aiVideoStub === true || process.env.AI_VIDEO_STUB === "1";
+  const gptUsageTracker = createGptUsageTracker();
   const context = {
     workDir,
     batchId,
@@ -188,6 +216,9 @@ export async function runPipeline(options) {
     audioStub,
     topicIndexEmbedFn,
     globalCacheDisabled,
+    aiVideoStub: resolvedAiVideoStub,
+    strictReview,
+    gptUsageTracker,
   };
   let reviewResult = null;
 
@@ -199,7 +230,10 @@ export async function runPipeline(options) {
         const clipCount = fs.existsSync(catalogPath)
           ? (readJson(catalogPath).clips?.length ?? 0)
           : 0;
-        context.batchContext = resolveBatchContext(userContext, clipCount, requiredFormats);
+        context.batchContext = applyAiVideoCliOverrides(
+          resolveBatchContext(userContext, clipCount, requiredFormats),
+          { aiVideo, noAiVideo },
+        );
         ensureManifestBatchContext(workDir, context.batchContext);
         log.stepDone("pominięto (istnieje manifest)");
       } else {
@@ -240,10 +274,13 @@ export async function runPipeline(options) {
           ingestResult = { ...ingestResult, catalog: updatedCatalog };
         }
 
-        context.batchContext = resolveBatchContext(
-          userContext,
-          ingestResult.catalog.clips.length,
-          requiredFormats,
+        context.batchContext = applyAiVideoCliOverrides(
+          resolveBatchContext(
+            userContext,
+            ingestResult.catalog.clips.length,
+            requiredFormats,
+          ),
+          { aiVideo, noAiVideo },
         );
         ensureManifestBatchContext(workDir, context.batchContext);
         log.stepDone(`${ingestResult.catalog.clips.length} klipów (inputMode: ${context.batchContext.inputMode})`);
@@ -283,6 +320,17 @@ export async function runPipeline(options) {
         recordManifestArtifactMtimes(
           workDir,
           words.map((w) => ARTIFACTS.words(w.clipId)),
+        );
+      }
+
+      if (shouldRunStep("meta_commands", fromStep, toStep)) {
+        log.step("meta_commands", stepIndex("meta_commands") + 1, TOTAL_STEPS);
+        const metaCommands = analysisResult.metaCommands ?? [];
+        const total = metaCommands.reduce((sum, entry) => sum + (entry.commands?.length ?? 0), 0);
+        log.stepDone(`${total} meta-komend`);
+        recordManifestArtifactMtimes(
+          workDir,
+          metaCommands.map((entry) => ARTIFACTS.metaCommands(entry.clipId)),
         );
       }
 
@@ -393,6 +441,19 @@ export async function runPipeline(options) {
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.spatialIndex]);
     }
 
+    if (shouldRunStep("ai_video", fromStep, toStep)) {
+      log.step("ai_video", stepIndex("ai_video") + 1, TOTAL_STEPS);
+      const aiVideoResult = await runAiVideoStep({
+        workDir,
+        batchContext: context.batchContext,
+        force,
+        useStub: resolvedAiVideoStub,
+      });
+      const statusLabel = aiVideoResult.status ?? "unknown";
+      log.stepDone(statusLabel);
+      recordManifestArtifactMtimes(workDir, [ARTIFACTS.aiVideo, ARTIFACTS.sceneCatalog, ARTIFACTS.clipRegistry]);
+    }
+
     if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
       const effectiveFormats = applyEffectiveRequiredFormats(context, {
         requiredFormatsExplicit,
@@ -419,9 +480,15 @@ export async function runPipeline(options) {
         requiredFormats: context.requiredFormats,
         faceStub,
         maxIterations: maxReviewIterations,
+        strictReview,
       });
       log.stepDone(reviewResult.review?.approved ? "zatwierdzono" : "wymaga przeglądu");
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.review, ARTIFACTS.recipeFinal]);
+      if (gptUsageTracker.summary().totals.calls > 0) {
+        const { outPath } = writeGptUsage(workDir, gptUsageTracker, { batchId });
+        log.detail(`GPT usage: ${outPath}`);
+        recordManifestArtifactMtimes(workDir, [ARTIFACTS.gptUsage]);
+      }
     }
 
     if (shouldRunStep("thumbnails", fromStep, toStep)) {
@@ -437,6 +504,19 @@ export async function runPipeline(options) {
       );
       log.stepDone(`${variantCount} wariantów${thumbnailResult.review.approved ? "" : " (wymaga przeglądu)"}`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.thumbnailPlan, ARTIFACTS.thumbnailReview]);
+    }
+
+    if (shouldRunStep("publish", fromStep, toStep)) {
+      log.step("publish", stepIndex("publish") + 1, TOTAL_STEPS);
+      const publishResult = await runPublishStep({ workDir, force });
+      const packageCount = Object.keys(publishResult.packages ?? {}).length;
+      log.stepDone(`${packageCount} pakietów`);
+      recordManifestArtifactMtimes(
+        workDir,
+        (readJson(path.join(workDir, ARTIFACTS.recipeFinal)).outputs ?? []).map(
+          (output) => ARTIFACTS.publishPackage(output.outputId),
+        ),
+      );
     }
 
     if (shouldRunStep("review", fromStep, toStep) || toStep === "review" || !toStep) {

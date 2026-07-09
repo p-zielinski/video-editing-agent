@@ -103,4 +103,55 @@ describe("segment-catalog", () => {
     assert.equal(picks[0].segmentId, "seg003");
     assert.ok(picks.length <= SUPER_DIRECTOR_MAX_SEGMENT_PICKS);
   });
+
+  it("shouldUseSuperDirector respects batchContext duration threshold override", () => {
+    const longTimeline = {
+      ...timelineIndex,
+      stats: { totalDurationSec: 700 },
+    };
+    assert.equal(
+      shouldUseSuperDirector(longTimeline, abstraction, { superDirectorDurationThresholdSec: 800 }),
+      false,
+    );
+    assert.equal(
+      shouldUseSuperDirector(longTimeline, abstraction, { superDirectorDurationThresholdSec: 600 }),
+      true,
+    );
+  });
+
+  it("resolveSegmentPicks respects batchContext superDirectorMaxSegments", () => {
+    const catalog = Array.from({ length: 5 }, (_, i) => ({
+      segmentId: `seg00${i + 1}`,
+      summary: `segment ${i + 1}`,
+    }));
+    const superPlan = {
+      segmentOrder: catalog.map((card) => card.segmentId),
+      segmentPicks: catalog.map((card, index) => ({
+        segmentId: card.segmentId,
+        priority: index + 1,
+      })),
+    };
+
+    const picks = resolveSegmentPicks(superPlan, catalog, { superDirectorMaxSegments: 2 });
+    assert.equal(picks.length, 2);
+  });
+
+  it("shouldUseSuperDirector is false when forceClassicDirector is set", () => {
+    const longTimeline = {
+      ...timelineIndex,
+      stats: { totalDurationSec: SUPER_DIRECTOR_DURATION_THRESHOLD_SEC + 120 },
+    };
+    const multiSegment = {
+      ...abstraction,
+      L2: [
+        abstraction.L2[0],
+        { ...abstraction.L2[0], segmentId: "seg002", summary: "Druga część" },
+      ],
+    };
+
+    assert.equal(
+      shouldUseSuperDirector(longTimeline, multiSegment, { forceClassicDirector: true }),
+      false,
+    );
+  });
 });

@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   RENDER_SUPPORT_LEVELS,
+  SEGMENT_RENDER_FEATURES,
+  getSegmentRenderFeatureSupport,
   getTechniqueRenderSupport,
   isSyncSpeedSupported,
   TECHNIQUE_RENDER_SUPPORT,
@@ -57,6 +59,17 @@ describe("render-capabilities", () => {
     assert.equal(isSyncSpeedSupported("fit_audio_to_video", 2, "video_audio"), false);
     assert.equal(isSyncSpeedSupported("fit_audio_to_video", 2, "video_only"), true);
     assert.equal(isSyncSpeedSupported("loop_video", 2, "video_audio"), true);
+  });
+
+  it("documents reverse and boomerang as segment-only features", () => {
+    assert.equal(
+      SEGMENT_RENDER_FEATURES["videoTransform.playbackMode:reverse"],
+      "segment_only",
+    );
+    assert.equal(
+      getSegmentRenderFeatureSupport("videoTransform.playbackMode:boomerang"),
+      "segment_only",
+    );
   });
 
   it("every technique JSON has renderSupport matching the mapping", () => {

@@ -14,13 +14,16 @@ import {
 } from "./ingest.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const WHOOSH = path.join(ROOT, "assets/sfx/whoosh.wav");
+
+function writeTempWav(filePath) {
+  fs.writeFileSync(filePath, "");
+}
 
 describe("ingest", () => {
   it("scanInputFolder picks up .wav files", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-ingest-"));
     const wavName = "03_narration.wav";
-    fs.copyFileSync(WHOOSH, path.join(dir, wavName));
+    writeTempWav(path.join(dir, wavName));
 
     const clips = await scanInputFolder(dir);
     assert.equal(clips.length, 1);

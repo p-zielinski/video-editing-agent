@@ -11,7 +11,27 @@ const WHISPER_MAX_ATTEMPTS = 4;
 const WHISPER_TIMEOUT_MS = 15 * 60 * 1000;
 
 export const WHISPER_EDIT_PROMPT =
-  "Transkrybuj dosłownie wszystko co zostało powiedziane po polsku. Zapisz każde słowo, włącznie z zająknięciami: yyy, eee, ooo, mmm, um, aha, ach, hm. Nie poprawiaj tekstu, nie skracaj powtórek.";
+  "Transkrybuj dosłownie wszystko co zostało powiedziane po polsku. Zapisz każde słowo, włącznie z zająknięciami: yyy, eee, ooo, mmm, um, aha, ach, hm. Nie poprawiaj tekstu, nie skracaj powtórek. Zachowaj angielskie nazwy własne i marki w oryginalnej pisowni, gdy są wypowiadane w zdaniach po polsku. Zapisuj wulgaryzmy dosłownie, bez eufemizmów ani cenzury.";
+
+export const OPENAI_WHISPER_MODEL_DEFAULT = "whisper-1";
+
+export function resolveOpenAIWhisperModel() {
+  return process.env.OPENAI_WHISPER_MODEL ?? OPENAI_WHISPER_MODEL_DEFAULT;
+}
+
+export function buildWhisperPrompt({ expectedTerms = [] } = {}) {
+  const terms = [...new Set(
+    expectedTerms
+      .map((term) => String(term).trim())
+      .filter(Boolean),
+  )];
+
+  if (terms.length === 0) {
+    return WHISPER_EDIT_PROMPT;
+  }
+
+  return `${WHISPER_EDIT_PROMPT} Oczekiwane terminy (zachowaj pisownię): ${terms.join(", ")}.`;
+}
 
 function isRetryableWhisperError(error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -38,7 +58,7 @@ async function callWhisperTranscription(audioPath, apiKey, prompt, { wordTimesta
 
   const request = {
     file: await audioFileForUpload(audioPath),
-    model: "whisper-1",
+    model: resolveOpenAIWhisperModel(),
     language: "pl",
     response_format: "verbose_json",
     prompt,
@@ -117,7 +137,7 @@ function segmentsToWords(segments) {
   return words;
 }
 
-function normalizeTranscriptionWords(transcription) {
+export function wordsFromWhisperResponse(transcription) {
   if (Array.isArray(transcription.words) && transcription.words.length > 0) {
     return cleanWhisperWords(transcription.words, transcription.segments ?? []);
   }
@@ -129,34 +149,49 @@ function normalizeTranscriptionWords(transcription) {
   return [];
 }
 
-export async function transcribeForEdit(audioPath, apiKey, { timeOffsetSec = 0 } = {}) {
+export async function transcribeForEdit(
+  audioPath,
+  apiKey,
+  { timeOffsetSec = 0, prompt = WHISPER_EDIT_PROMPT, returnRaw = false } = {},
+) {
   const fileSize = fs.statSync(audioPath).size;
   whisperLog.detail(`plik audio: ${formatFileSize(fileSize)}`);
 
   const transcription = await whisperLog.track(
     "whisper edycja (dosłowna transkrypcja)",
-    () => transcribeWithRetry(audioPath, apiKey, WHISPER_EDIT_PROMPT),
+    () => transcribeWithRetry(audioPath, apiKey, prompt),
     { heartbeatSec: 15 },
   );
 
-  const words = normalizeTranscriptionWords(transcription);
+  const words = wordsFromWhisperResponse(transcription);
   if (words.length === 0) {
     throw new Error("Whisper (edycja) nie zwrócił znaczników słów.");
   }
 
+  const offsetWordsResult = timeOffsetSec > 0 ? offsetWords(words, timeOffsetSec) : words;
+
+  if (returnRaw) {
+    return {
+      words: offsetWordsResult,
+      duration: transcription.duration,
+      raw: transcription,
+    };
+  }
+
   return {
-    words: timeOffsetSec > 0 ? offsetWords(words, timeOffsetSec) : words,
+    words: offsetWordsResult,
     duration: transcription.duration,
   };
 }
 
-export async function transcribeChunksForEdit(chunks, apiKey) {
+export async function transcribeChunksForEdit(chunks, apiKey, { prompt = WHISPER_EDIT_PROMPT } = {}) {
   const allWords = [];
   let maxDuration = 0;
 
   for (const chunk of chunks) {
     const result = await transcribeForEdit(chunk.path, apiKey, {
       timeOffsetSec: chunk.startSec,
+      prompt,
     });
     allWords.push(...result.words);
     maxDuration = Math.max(maxDuration, chunk.endSec);

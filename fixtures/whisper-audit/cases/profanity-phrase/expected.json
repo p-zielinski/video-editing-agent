@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "mustIncludeTokens": ["pierdole"],
+  "minTokenRecall": 0.75,
+  "orderedSubsequence": ["ja", "pierdole", "co", "tu", "się", "dzieje"],
+  "allowEmptyWords": false
+}

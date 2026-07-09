@@ -33,6 +33,15 @@
               "isFiller": {
                 "type": "boolean"
               },
+              "normalizedWord": {
+                "type": "string"
+              },
+              "isProfanity": {
+                "type": "boolean"
+              },
+              "displayWord": {
+                "type": "string"
+              },
               "confidence": {
                 "type": "number",
                 "minimum": 0,

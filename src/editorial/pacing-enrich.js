@@ -28,6 +28,13 @@ function findMainOutput(recipe) {
   );
 }
 
+function findShortOutput(recipe) {
+  return recipe.outputs?.find((output) => output.outputKind === "short");
+}
+
+export const SHORT_MIN_KEEP_RATIO = 0.25;
+export const SHORT_MAX_SEGMENT_REMOVALS = 2;
+
 function sumSourceDurationSec(clipRegistry = []) {
   return clipRegistry.reduce((sum, clip) => sum + (clip.durationSec ?? 0), 0);
 }
@@ -387,6 +394,87 @@ export function enrichRecipePacingTrim(recipe, {
     ...meta,
     exhausted: isOverPacingBudget(recipe, { estimatedKeepRatio, wordIndexes }),
     applied: true,
+  };
+
+  enrichShortOutputPacingTrim(recipe, {
+    abstraction,
+    timelineIndex,
+    wordIndexes,
+    audioIndex,
+    perClipAnalysis,
+    batchContext: recipe.batchContext ?? {},
+  });
+
+  return recipe;
+}
+
+function enrichShortOutputPacingTrim(recipe, {
+  abstraction,
+  timelineIndex,
+  wordIndexes,
+  audioIndex,
+  perClipAnalysis,
+  batchContext = {},
+} = {}) {
+  const shortOutput = findShortOutput(recipe);
+  if (!shortOutput?.timeline?.length) {
+    return recipe;
+  }
+
+  const maxDurationSec = batchContext.shortsMaxDurationSec ?? 60;
+  const enriched = buildOutputTimeline(shortOutput, { wordIndexes });
+  const durationSec = enriched.at(-1)?.outputEndSec ?? 0;
+  const budgetSec = maxDurationSec * PACING_TOLERANCE;
+
+  const deadAirResult = enrichRecipeDeadAirCuts(recipe, {
+    audioIndex,
+    timelineIndex,
+    wordIndexes,
+    perClipAnalysis,
+    abstraction,
+    maxCuts: 8,
+  });
+
+  if (durationSec <= budgetSec) {
+    if (deadAirResult.appliedCuts > 0) {
+      recipe.shortPacingTrimMeta = { deadAirCuts: deadAirResult.appliedCuts };
+    }
+    return recipe;
+  }
+
+  const sceneRanks = buildTopSceneRanks(abstraction, timelineIndex, audioIndex, {
+    clipRegistry: recipe.clipRegistry,
+  });
+  const sceneRankById = new Map(sceneRanks.map((entry) => [entry.sceneId, entry.rank]));
+  let segmentsRemoved = 0;
+
+  while (segmentsRemoved < SHORT_MAX_SEGMENT_REMOVALS && shortOutput.timeline.length > 1) {
+    const currentDuration = buildOutputTimeline(shortOutput, { wordIndexes }).at(-1)?.outputEndSec ?? 0;
+    if (currentDuration <= budgetSec) {
+      break;
+    }
+
+    const candidates = buildRemovalCandidates(
+      shortOutput,
+      recipe,
+      abstraction,
+      timelineIndex,
+      wordIndexes,
+      sceneRankById,
+    );
+    const toRemove = pickRemovalCandidate(candidates, shortOutput.timeline.length);
+    if (!toRemove || toRemove.index === 0) {
+      break;
+    }
+
+    shortOutput.timeline.splice(toRemove.index, 1);
+    segmentsRemoved += 1;
+  }
+
+  recipe.shortPacingTrimMeta = {
+    deadAirCuts: deadAirResult.appliedCuts,
+    segmentsRemoved,
+    budgetSec,
   };
   return recipe;
 }

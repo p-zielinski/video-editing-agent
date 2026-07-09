@@ -17,7 +17,10 @@
     "cut_mid_sentence",
     "whip_pan",
     "reframe_follow_subject",
-    "voice_pitch_shift"
+    "voice_pitch_shift",
+    "music_swell",
+    "music_drop",
+    "cut_on_beat"
   ],
   "defaultCreativityLevel": "shorts",
   "retentionDefaults": {

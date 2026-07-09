@@ -1,0 +1,11 @@
+{
+  "caseId": "profanity-extended-vowel",
+  "category": "profanity",
+  "title": "Extended vowel profanity",
+  "spokenTranscript": "Yyy kuuuurwa to jest niemożliwe",
+  "language": "pl",
+  "tags": ["extended-vowel", "filler-adjacent"],
+  "notes": "Baseline: does Whisper preserve repeated vowels?",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

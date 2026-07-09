@@ -1,5 +1,5 @@
 {
-  "version": "2.0",
+  "version": "2.4",
   "batchId": "miniday1",
   "batchContext": {
     "inputMode": "multi_clip_day",
@@ -119,5 +119,22 @@
   ],
   "excluded": [],
   "sceneUsageRegistry": [],
+  "vlogRetentionProfile": {
+    "enabled": false
+  },
+  "renderStylePresets": {
+    "formats": {
+      "9:16": {
+        "width": 1080,
+        "height": 1920,
+        "safeZone": {
+          "top": 0.1,
+          "bottom": 0.15,
+          "left": 0.05,
+          "right": 0.05
+        }
+      }
+    }
+  },
   "needsHumanReview": false
 }

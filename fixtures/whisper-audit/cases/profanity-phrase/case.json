@@ -1,0 +1,11 @@
+{
+  "caseId": "profanity-phrase",
+  "category": "profanity",
+  "title": "Profanity phrase",
+  "spokenTranscript": "Ja pierdole, co tu się dzieje",
+  "language": "pl",
+  "tags": ["phrase"],
+  "notes": "Common Polish expletive phrase",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

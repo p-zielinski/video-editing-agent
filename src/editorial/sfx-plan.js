@@ -1,6 +1,7 @@
 import { enrichAudioEvents, mapLabelToEditorialTag } from "./audio-event-tags.js";
 import { mapSourceTimeToOutputSec } from "./shorts-retention.js";
 import { resolveSfxByTag } from "./sfx-library.js";
+import { suggestSfxVolumeDb } from "./sfx-catalog-summary.js";
 import { resolveSfxDensityMaxEntries } from "../validators/recipe-v2.js";
 import { COLD_OPEN_SEGMENT_ID } from "./chapter-hints.js";
 import {
@@ -19,6 +20,8 @@ const SFX_WORTHY_TAGS = new Set([
   "squeak",
   "door",
   "alert",
+  "whoosh",
+  "notification",
   "crowd",
   "breath",
   "footsteps",
@@ -31,19 +34,8 @@ const DEFAULT_MIN_EVENT_SCORE = 0.45;
 const DEFAULT_MAX_ENTRIES = 20;
 const ENRICH_MIN_EVENT_SCORE = 0.55;
 const ENRICH_MAX_ENTRIES_PER_OUTPUT = 6;
+const SHORT_ENRICH_MAX_ENTRIES_PER_OUTPUT = 10;
 const NARRATIVE_SFX_ANCHOR_TOLERANCE_SEC = 4;
-
-/** @type {Record<string, string>} */
-const LIBRARY_SFX_BY_TAG = {
-  laughter: "laughter_short_01",
-  scream: "impact_heavy_01",
-  applause: "applause_short_01",
-  impact: "impact_heavy_01",
-  squeak: "click_short_01",
-  door: "click_short_01",
-  alert: "riser_short_01",
-  crowd: "applause_short_01",
-};
 
 function lookupPerClipAnalysis(clipId, perClipAnalysis) {
   if (!perClipAnalysis) {
@@ -96,10 +88,11 @@ function makeAudioEventEntry(clipId, event, tag) {
 
 function makeLibraryEntry(tag, clipId, anchorTimeSec = 0) {
   const catalogMatch = resolveSfxByTag(tag);
-  const sfxId = catalogMatch.sound?.sfxId
-    ?? LIBRARY_SFX_BY_TAG[tag]
-    ?? `library/sfx/${tag}`;
+  const sfxId = catalogMatch.sound?.sfxId ?? tag;
   const durationSec = catalogMatch.sound?.durationSec ?? 0.8;
+  const volumeDb = catalogMatch.sound
+    ? suggestSfxVolumeDb(catalogMatch.sound)
+    : -6;
 
   return {
     sfxId,
@@ -108,7 +101,7 @@ function makeLibraryEntry(tag, clipId, anchorTimeSec = 0) {
     ...(anchorTimeSec != null ? { anchorTimeSec } : {}),
     outputStartSec: anchorTimeSec,
     outputEndSec: anchorTimeSec + durationSec,
-    volumeDb: -6,
+    volumeDb,
     label: tag,
     reason: `Editorial tag suggestion: ${tag}`,
   };
@@ -464,7 +457,11 @@ export function enrichRecipeSfxPlan(recipe, {
 } = {}) {
   const existing = recipe?.sfxPlan ?? [];
   const registry = resolveClipRegistry(clipRegistry, recipe);
-  const maxEntries = enrichMaxEntries(recipe, maxEntriesPerOutput);
+  const hasShort = recipe.outputs?.some((output) => output.outputKind === "short");
+  const effectiveMaxPerOutput = hasShort
+    ? SHORT_ENRICH_MAX_ENTRIES_PER_OUTPUT
+    : maxEntriesPerOutput;
+  const maxEntries = enrichMaxEntries(recipe, effectiveMaxPerOutput);
   const slots = Math.max(0, maxEntries - existing.length);
 
   if (!audioIndex?.clips?.length || slots === 0) {

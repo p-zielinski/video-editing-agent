@@ -6,7 +6,7 @@ import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { loadCatalogForFaceDetect } from "./face-detect.js";
 import { collectObjectDetections } from "./spatial-index.js";
 import { loadTwelveLabsByClip, mergeTwelveLabsIntoVisualText } from "../../lib/twelvelabs-merge.js";
-import { runClipRegistryRefineStep } from "./clip-profile.js";
+import { ensureClipRegistry, runClipRegistryRefineStep } from "./clip-profile.js";
 
 const STOP_WORDS = new Set([
   "i", "a", "w", "z", "na", "do", "to", "że", "się", "nie", "jak", "co", "ten", "ta",
@@ -416,6 +416,7 @@ export async function runTopicIndexStep({
     return readJson(outPath);
   }
 
+  await ensureClipRegistry(workDir);
   await runClipRegistryRefineStep({ workDir });
 
   const timelinePath = path.join(workDir, ARTIFACTS.timelineIndex);

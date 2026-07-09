@@ -5,6 +5,7 @@ import {
   SUPER_DIRECTOR_MAX_SEGMENT_PICKS,
 } from "../lib/segment-catalog.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
+import { measureBriefPayload } from "../lib/brief-metrics.js";
 
 const SUPER_DIRECTOR_OUTPUT_SCHEMA = {
   segmentOrder: ["seg001"],
@@ -56,6 +57,7 @@ export async function runSuperDirector(client, {
   userContext = "",
   batchContext = {},
   requiredFormats = ["16:9", "9:16"],
+  onUsage,
 }) {
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
   const rankedSegmentHints = rankSegmentsByUserContext(userContext, catalog);
@@ -76,12 +78,22 @@ export async function runSuperDirector(client, {
     outputSchema: SUPER_DIRECTOR_OUTPUT_SCHEMA,
   });
 
+  const briefMetric = measureBriefPayload({
+    task: "super_director_route",
+    userJson: user,
+    meta: { segmentCatalogCount: catalog.length },
+  });
+
   const raw = await chatJson(client, {
     model: MODELS.director,
     system,
     user,
     temperature: 0.35,
+    onUsage,
   });
 
-  return SuperDirectorPlanSchema.parse(raw);
+  return {
+    plan: SuperDirectorPlanSchema.parse(raw),
+    briefMetric,
+  };
 }

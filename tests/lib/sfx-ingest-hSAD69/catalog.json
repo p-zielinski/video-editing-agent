@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "sounds": [
+    {
+      "sfxId": "pixabay_sfx_123456",
+      "fileName": "creator-fast-whoosh-123456.wav",
+      "title": "Fast Whoosh Transition",
+      "tags": [
+        "whoosh",
+        "transition",
+        "swoosh"
+      ],
+      "category": "transition",
+      "durationSec": 0.42,
+      "license": "pixabay-content-license",
+      "integratedLufs": -18.2,
+      "pixabay": {
+        "tags": [
+          "Whoosh",
+          "Transition",
+          "Swoosh"
+        ],
+        "category": "Sound effects"
+      },
+      "sourceUrl": "https://pixabay.com/sound-effects/fast-whoosh-transition-123456/"
+    }
+  ]
+}

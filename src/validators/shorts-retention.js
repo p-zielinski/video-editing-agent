@@ -8,7 +8,11 @@ import {
   LARGE_HOOK_OVERLAY_BUDGET_WINDOW_SEC,
   mergeShortsRetentionProfile,
   shouldRunShortsRetentionValidation,
+  SHORT_HOOK_SEGMENT_ID,
 } from "../editorial/shorts-retention.js";
+import {
+  shortSegmentStartsWithIntro,
+} from "../editorial/shorts-greeting.js";
 
 function estimateOutputDurationSec(output) {
   if (output.targetDurationSec) {
@@ -50,7 +54,7 @@ function collectTextOverlays(output) {
 }
 
 function retentionSeverity(creativityLevel, code) {
-  const strictCodes = new Set(["V22-01", "V22-02", "V22-04"]);
+  const strictCodes = new Set(["V22-01", "V22-02", "V22-04", "V22-08"]);
   if (creativityLevel === "shorts" && strictCodes.has(code)) {
     return "error";
   }
@@ -257,6 +261,63 @@ function validateLargeHookOverlayBudget(output, overlays, durationSec) {
   return issues;
 }
 
+function isSetupNarrativeScene(sceneId, abstraction) {
+  for (const segment of abstraction?.L2 ?? []) {
+    if (segment.narrativeRole !== "setup") {
+      continue;
+    }
+    if ((segment.sceneIds ?? []).includes(sceneId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function validateNoIntroStart(output, moments, options = {}) {
+  const timeline = output.timeline ?? [];
+  if (!timeline.length) {
+    return [];
+  }
+
+  const first = timeline[0];
+  if (first.segmentId === SHORT_HOOK_SEGMENT_ID) {
+    return [];
+  }
+
+  const hasHookInWindow = moments.some(
+    (moment) => moment.outputStartSec < 3 && isHookMoment(moment),
+  );
+  if (hasHookInWindow) {
+    return [];
+  }
+
+  const wordIndexes = options.wordIndexes ?? [];
+  const timelineIndex = options.timelineIndex ?? null;
+  const abstraction = options.abstraction ?? null;
+  const creativityLevel = options.creativityLevel ?? "balanced";
+
+  const sceneId = first.videoRef?.sceneId ?? first.audioRef?.sceneId;
+  if (sceneId && abstraction && isSetupNarrativeScene(sceneId, abstraction)) {
+    return [{
+      severity: retentionSeverity(creativityLevel, "V22-08"),
+      code: "V22-08",
+      message: `Output ${output.outputId}: short zaczyna od segmentu setup — wymagany hook lub mid-sentence start`,
+      outputId: output.outputId,
+    }];
+  }
+
+  if (shortSegmentStartsWithIntro(first, wordIndexes, timelineIndex)) {
+    return [{
+      severity: retentionSeverity(creativityLevel, "V22-08"),
+      code: "V22-08",
+      message: `Output ${output.outputId}: short zaczyna od powitania/intro — wymagany hook lub wejście w środku zdania`,
+      outputId: output.outputId,
+    }];
+  }
+
+  return [];
+}
+
 /**
  * V22-06 — graphics creativeMoments with requiresOutputKind: short only on short outputs.
  * textOverlays (e.g. main chapter_card style) are not creativeMoments and are exempt.
@@ -287,7 +348,7 @@ function validateGraphicsOutputKind(output, catalog, moments) {
 }
 
 /**
- * Walidacja gramatyki retencji shortów (V22-01 … V22-07).
+ * Walidacja gramatyki retencji shortów (V22-01 … V22-08).
  * Dla outputów main profil jest ignorowany.
  */
 export function validateShortsRetention(recipe, catalog, options = {}) {
@@ -345,6 +406,12 @@ export function validateShortsRetention(recipe, catalog, options = {}) {
       ...validateHookOverlayDuration(output, profile, overlays),
       ...validateLargeHookOverlayBudget(output, overlays, durationSec),
       ...validateGraphicsOutputKind(output, catalog, moments),
+      ...validateNoIntroStart(output, moments, {
+        wordIndexes: options.wordIndexes,
+        timelineIndex: options.timelineIndex,
+        abstraction: options.abstraction,
+        creativityLevel,
+      }),
     );
   }
 

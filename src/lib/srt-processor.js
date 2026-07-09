@@ -199,3 +199,5 @@ export function tagFillerWords(words) {
     return { ...entry, isFiller };
   });
 }
+
+export { tagProfanityWords } from "./profanity-censor.js";

@@ -9,13 +9,19 @@ import {
 } from "../lib/narrative-profile.js";
 
 export const MAX_FAST_RHYTHM_SPEED_SEGMENTS = 3;
+export const MAX_SHORT_FAST_RHYTHM_SPEED_SEGMENTS = 4;
 const DEFAULT_SPEED = 1.5;
+const SHORT_BROLL_SPEED = 1.35;
 const SPEECH_BOUNDARY_TOLERANCE_SEC = 0.05;
 
 function findMainOutput(outputs = []) {
   return outputs.find(
     (output) => output.outputKind === "main" || output.format === "16:9",
   );
+}
+
+function findShortOutput(outputs = []) {
+  return outputs.find((output) => output.outputKind === "short");
 }
 
 function isBrollPoolClip(clipId, clipRegistry = []) {
@@ -227,6 +233,46 @@ export function enrichRecipeFastRhythmSpeed(recipe, {
       speedMode: "video_only",
     };
     modified += 1;
+  }
+
+  enrichShortOutputFastRhythmSpeed(recipe, { wordIndexes });
+
+  return recipe;
+}
+
+function enrichShortOutputFastRhythmSpeed(recipe, { wordIndexes = null } = {}) {
+  const shortOutput = findShortOutput(recipe?.outputs ?? []);
+  if (!shortOutput?.timeline?.length) {
+    return recipe;
+  }
+
+  const clipRegistry = recipe?.clipRegistry ?? [];
+  let modified = 0;
+
+  for (const segment of shortOutput.timeline) {
+    if (modified >= MAX_SHORT_FAST_RHYTHM_SPEED_SEGMENTS) {
+      break;
+    }
+    if (!isBrollSegment(segment, clipRegistry)) {
+      continue;
+    }
+    if (hasSpeedAlreadySet(segment)) {
+      continue;
+    }
+    if (hasSpeechWordsInVideoRange(segment, wordIndexes)) {
+      continue;
+    }
+
+    segment.videoTransform = {
+      ...(segment.videoTransform ?? {}),
+      speed: SHORT_BROLL_SPEED,
+      speedMode: "video_only",
+    };
+    modified += 1;
+  }
+
+  if (modified > 0) {
+    recipe.shortSpeedEnrichMeta = { segmentsSpedUp: modified, speed: SHORT_BROLL_SPEED };
   }
 
   return recipe;

@@ -1,0 +1,11 @@
+{
+  "caseId": "meta-command-boomerang-phrase",
+  "category": "meta-commands",
+  "title": "Boomerang effect meta-command",
+  "spokenTranscript": "Zrób tu boomerang na tym skoku",
+  "language": "pl",
+  "tags": ["boomerang", "effect"],
+  "notes": "Voice director instruction for boomerang effect",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

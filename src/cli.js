@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { checkPythonPreflight } from "./lib/python-bridge.js";
 import { writeBatchQualityReport } from "./lib/batch-quality-report.js";
+import { runBatchDoctor } from "./lib/batch-doctor.js";
 import { QUALITY_PROFILES } from "./lib/quality-gate-config.js";
 import { executeRender } from "./render/execute-render.js";
 import { buildExecuteRenderOptions } from "./render/render-config.js";
@@ -17,7 +18,7 @@ import {
 } from "./lib/analysis-profiles.js";
 
 const COMMAND_DEFAULTS = {
-  analyze: { fromStep: "ingest", toStep: "index" },
+  analyze: { fromStep: "ingest", toStep: "clip_profile" },
   direct: { fromStep: "abstract", toStep: "review" },
   full: {},
   run: {},
@@ -159,6 +160,12 @@ function parseArgs(argv) {
       args.twelvelabsEnabled = false;
     } else if (arg === "--twelvelabs-stub") {
       args.twelvelabsStub = true;
+    } else if (arg === "--ai-video") {
+      args.aiVideo = true;
+    } else if (arg === "--ai-video-stub") {
+      args.aiVideoStub = true;
+    } else if (arg === "--no-ai-video") {
+      args.noAiVideo = true;
     } else if (arg === "--twelvelabs-live") {
       args.twelvelabsLive = true;
     } else if (arg === "--force") {
@@ -214,6 +221,8 @@ function parseArgs(argv) {
     } else if (arg === "--max-review-iterations" && next) {
       args.maxReviewIterations = next;
       i += 1;
+    } else if (arg === "--strict-review") {
+      args.strictReview = true;
     } else if (arg === "--quality-profile" && next) {
       args.qualityProfile = next;
       i += 1;
@@ -227,6 +236,14 @@ function parseArgs(argv) {
   if (defaults) {
     args.fromStep = args.fromStep ?? defaults.fromStep;
     args.toStep = args.toStep ?? defaults.toStep;
+  }
+
+  if (
+    (args.command === "full" || args.command === "run")
+    && process.env.PIPELINE_STRICT_REVIEW === "1"
+    && args.strictReview !== true
+  ) {
+    args.strictReview = true;
   }
 
   return args;
@@ -308,6 +325,7 @@ Użycie:
   node src/cli.js analyze --input ./inbox/day-11
   node src/cli.js direct --batch-id abc12345 --context "vlog dzień 66/100"
   node src/cli.js report --batch-id abc12345
+  node src/cli.js doctor --batch-id abc12345
   node src/cli.js render --batch-id abc12345
   node src/cli.js enrich --batch-id abc12345 --source draft --target final --force
   node src/cli.js run --input ./inbox/day-11 --context "vlog" --render --render-profile preview
@@ -315,17 +333,18 @@ Użycie:
   node src/cli.js run --batch-id abc12345 --from-step abstract
 
 Komendy:
-  analyze   ingest → index (analiza wstępna)
+  analyze   ingest → clip_profile (analiza wstępna)
   direct    abstract → review (reżyseria + pętla krytyka)
   full|run  pełny pipeline
   report    raport jakości batcha (pre-render)
+  doctor    diagnostyka work dir i artefaktów batcha
   render    montaż FFmpeg z 09-edit-recipe-final.json → MP4
   enrich    ponowny pass enricherów deterministycznych (bez GPT)
 
 Opcje:
   --input <folder>         Folder z plikami wideo
   --batch-id <id>          Id batcha (domyślnie: nowy UUID)
-  --from-step <step>       ingest|transcribe|audio_analysis|keyframes|twelvelabs|vision|objects|index|clip_profile|abstract|topic_index|spatial_index|direct|review|thumbnails
+  --from-step <step>         ingest|…|spatial_index|ai_video|direct|review|thumbnails|publish
   --to-step <step>         Zatrzymaj po wskazanym kroku
   --context <text>         Kontekst narracyjny dla reżysera
   --min-outputs <formats>  Domyślnie: 16:9,9:16
@@ -345,6 +364,9 @@ Opcje:
   --no-keyframes           Nie ekstrahuj klatek (szybszy dry-run)
   --no-twelvelabs          Pomiń krok TwelveLabs (suplement wizji)
   --twelvelabs-stub        TwelveLabs stub (CI/testy; domyślnie live gdy TWELVELABS_API_KEY)
+  --ai-video               Włącz generowanie hooków AI (Kling 3.0) dla shortów
+  --ai-video-stub          AI video: lavfi stub zamiast Kling API
+  --no-ai-video            Wyłącz AI video mimo flag w --context
   --twelvelabs-live        [deprecated] live jest domyślne przy ustawionym TWELVELABS_API_KEY
   --thumbnail-stub         Miniatury: plan deterministyczny bez GPT/renderu
   --no-thumbnail-render    Miniatury: plan + krytyk, bez PNG
@@ -366,7 +388,9 @@ Opcje:
   --source <draft|final>   enrich: źródłowa receptura (domyślnie draft)
   --target <draft|final>   enrich: docelowa receptura (domyślnie draft)
   --max-review-iterations <n>  Pętla critic/fixer: 1–10 (domyślnie 3; produkcja: 5)
+  --strict-review            Review: wymagaj zatwierdzenia krytyka przed zapisem final
   --quality-profile <name>     report: lenient|production|shorts (domyślnie lenient)
+                               production/shorts: wymagają reviewApproved=true oraz braku stubów
   --analysis-profile <name>    preview|production|ci — preset stubów analizy (jawne flagi wygrywają)
 
 Wymaga OPENAI_API_KEY w .env (komendy analyze/direct/full/run)
@@ -378,17 +402,24 @@ async function main() {
   const args = parseArgs(process.argv);
   const runnable = new Set(["run", "full", "analyze", "direct"]);
   const reportOnly = args.command === "report";
+  const doctorOnly = args.command === "doctor";
   const renderOnly = args.command === "render";
   const enrichOnly = args.command === "enrich";
 
-  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !renderOnly && !enrichOnly)) {
+  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !doctorOnly && !renderOnly && !enrichOnly)) {
     printHelp();
     process.exit(args.command === "help" ? 0 : 1);
   }
 
-  if (!args.batchId && (reportOnly || renderOnly || enrichOnly || !args.input)) {
+  if (!args.batchId && (reportOnly || doctorOnly || renderOnly || enrichOnly || !args.input)) {
     console.error("Podaj --batch-id");
     process.exit(1);
+  }
+
+  if (doctorOnly) {
+    const { report, exitCode } = runBatchDoctor({ batchId: args.batchId });
+    console.log(report);
+    process.exit(exitCode);
   }
 
   if (reportOnly) {
@@ -400,6 +431,12 @@ async function main() {
     }
     const { summary, outPath } = writeBatchQualityReport(workDir, { qualityProfile });
     console.log(summary);
+    if (qualityProfile === "production" || qualityProfile === "shorts") {
+      console.log(
+        "\nUwaga: profil production/shorts wymaga reviewApproved=true "
+        + "(oraz spełnienia pozostałych bramek jakości).",
+      );
+    }
     console.log(`\nRaport: ${outPath}`);
     return;
   }
@@ -537,7 +574,11 @@ async function main() {
     dateTo: args.dateTo,
     sortBy: args.sortBy,
     maxReviewIterations,
+    strictReview: args.strictReview === true,
     globalCacheDisabled: args.noGlobalCache === true,
+    aiVideo: args.aiVideo === true,
+    aiVideoStub: args.aiVideoStub === true,
+    noAiVideo: args.noAiVideo === true,
   });
 
   if (result.validationFailed) {

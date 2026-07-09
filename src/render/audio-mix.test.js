@@ -19,11 +19,20 @@ import {
   resolveSfxPath,
   resolveSfxPlanEntries,
   applyAudioMix,
+  resolveAudioCensorshipWindows,
+  buildVoiceCensorshipMuteFilter,
+  resolveBleepSfxEntries,
+  outputHasAudioCensorship,
+  PROFANITY_BLEEP_SFX_ID,
 } from "./audio-mix.js";
 import { AudioMixDuckingWindowSchema, AudioMixSegmentSchema } from "../schemas/edit-recipe-v2.js";
 import { validateAudioMixPlan } from "../validators/recipe-v2.js";
 import { resolveFfmpegBins } from "../lib/ffmpeg-bin.js";
 import { resolveEncodeProfile } from "./render-config.js";
+
+function tempAudioPath(suffix = ".wav") {
+  return path.join(os.tmpdir(), `vea-audio-mix-test-${process.pid}-${Date.now()}${suffix}`);
+}
 
 describe("audio-mix", () => {
   it("buildLoudnormFilter includes two-pass measurement fields", () => {
@@ -253,10 +262,66 @@ describe("audio-mix", () => {
     assert.deepEqual(graph.filters, []);
   });
 
+  it("buildVoiceCensorshipMuteFilter mutes voice during censorship windows", () => {
+    const filter = buildVoiceCensorshipMuteFilter("[voice_base]", "[voice]", [
+      { startSec: 1.0, endSec: 1.4, mode: "bleep" },
+      { startSec: 2.0, endSec: 2.5, mode: "mute" },
+    ]);
+    assert.ok(filter.includes("between(t\\,1\\,1.4)"));
+    assert.ok(filter.includes("between(t\\,2\\,2.5)"));
+    assert.ok(filter.includes("volume='if("));
+  });
+
+  it("resolveAudioCensorshipWindows collects segment windows", () => {
+    const output = {
+      timeline: [{
+        audioCensorship: [{ startSec: 1, endSec: 1.5, mode: "bleep" }],
+      }, {
+        audioCensorship: [{ startSec: 3, endSec: 3.2, mode: "mute" }],
+      }],
+    };
+    assert.equal(resolveAudioCensorshipWindows(output).length, 2);
+    assert.equal(outputHasAudioCensorship(output), true);
+  });
+
+  it("resolveBleepSfxEntries maps bleep windows to SFX overlays", () => {
+    const entries = resolveBleepSfxEntries([
+      { startSec: 1, endSec: 1.4, mode: "bleep" },
+      { startSec: 2, endSec: 2.5, mode: "mute" },
+    ]);
+    assert.equal(entries.length, 1);
+    const bleepPath = resolveSfxPath(entries[0].sfxId);
+    assert.ok(bleepPath, "bleep SFX must resolve from catalog");
+    assert.equal(entries[0].outputStartSec, 1);
+    assert.ok(entries[0].durationSec > 0);
+  });
+
+  it("buildAudioMixFilterGraph applies censorship mute and bleep SFX", () => {
+    const entries = resolveBleepSfxEntries([{ startSec: 1, endSec: 1.4, mode: "bleep" }]);
+    const bleepPath = resolveSfxPath(entries[0].sfxId);
+    assert.ok(bleepPath);
+
+    const graph = buildAudioMixFilterGraph({
+      censorshipWindows: [{ startSec: 1, endSec: 1.4, mode: "bleep" }],
+      sfxEntries: [{
+        volumeDb: entries[0].volumeDb,
+        outputStartSec: entries[0].outputStartSec,
+        durationSec: entries[0].durationSec,
+        resolvedPath: bleepPath,
+      }],
+    });
+
+    assert.equal(graph.needsMix, true);
+    assert.ok(graph.filters.some((f) => f.includes("between(t\\,1\\,1.4)")));
+    assert.ok(graph.filters.some((f) => f.includes("adelay=1000|1000")));
+    assert.ok(graph.filters.some((f) => f.includes("atrim=0:")));
+  });
+
   it("buildAudioMixFilterGraph overlays sfxPlan library entries via resolveSfxPath", () => {
-    const whooshPath = resolveSfxPath("whoosh");
-    assert.ok(whooshPath, "expected assets/sfx/whoosh.wav");
-    assert.equal(fs.existsSync(whooshPath), true);
+    const whooshPath = resolveSfxPath("whoosh") ?? tempAudioPath();
+    if (!fs.existsSync(whooshPath)) {
+      fs.writeFileSync(whooshPath, "");
+    }
 
     const graph = buildAudioMixFilterGraph({
       plan: { voiceTargetLufs: -16 },

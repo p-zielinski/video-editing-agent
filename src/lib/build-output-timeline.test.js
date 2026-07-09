@@ -220,5 +220,17 @@ describe("resolveSegmentOutputDuration", () => {
     });
     assert.equal(dur, 10);
   });
+
+  it("shortens duration for boomerang playbackMode", () => {
+    const dur = resolveSegmentOutputDuration({
+      videoInSec: 0,
+      videoOutSec: 10,
+      audioInSec: 0,
+      audioOutSec: 10,
+      audioPolicy: "mute",
+      videoTransform: { playbackMode: "boomerang", boomerangHalfSec: 2 },
+    });
+    assert.equal(dur, 4);
+  });
 });
 

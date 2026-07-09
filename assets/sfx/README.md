@@ -2,24 +2,66 @@
 
 Short audio clips for `sfxPlan` entries with `source: "library"`.
 
+Katalog startuje **pusty** — dodawaj pliki z Pixabay skryptem ingest (jak muzyka).
+
+## Workflow: Pixabay SFX
+
+**Setup (raz, jeśli jeszcze nie):**
+
+```bash
+npm install
+npm run setup:playwright
+```
+
+1. **Pobierz WAV/MP3 ręcznie** z Pixabay → `assets/sfx/`
+2. **Uruchom ingest** (interaktywnie — tylko URL):
+
+   ```bash
+   node scripts/ingest-pixabay-sfx.js
+   ```
+
+   Skrypt szuka `{slug}.wav/.mp3` albo `*-{pixabayId}.*`, otwiera **widoczne Chromium**, parsuje Tags → `catalog.json`.
+
+   ```bash
+   node scripts/ingest-pixabay-sfx.js --url https://pixabay.com/sound-effects/fast-whoosh-123456/
+   ```
+
+3. Skrypt dopisuje też wiersz do [`LICENSES.md`](./LICENSES.md).
+
+Skrót npm:
+
+```bash
+npm run ingest:pixabay-sfx
+```
+
+Opcje: `--headless`, `--dry-run`, `--force`, `--html`, `--tags-json`, `--captcha-wait-sec 300` (domyślnie **180s** na captcha — okno Chromium zostaje otwarte i polling co 2s).
+
 ## Catalog
 
-Sounds are listed in [`catalog.json`](./catalog.json) (same pattern as [`assets/music/catalog.json`](../music/catalog.json)). Each entry has:
+Each entry in [`catalog.json`](./catalog.json):
 
-- `sfxId` — stable ID for Director / EditRecipe
+- `sfxId` — stable ID (domyślnie `pixabay_sfx_<id>`)
 - `fileName` — audio file in this folder
 - `tags` — editorial tags (aligned with `src/editorial/audio-event-tags.js`)
-- `license` — see [`LICENSES.md`](./LICENSES.md)
+- `category` — `transition` | `foley` | `reaction` | `ambience`
+- `license` — `pixabay-content-license` (+ wpis w LICENSES.md)
+- `pixabay.tags` — raw tags 1:1 ze strony
 
-Bundled test asset: `whoosh.wav` (short sine burst, used by unit/E2E render tests).
+Resolution at render: `src/editorial/sfx-library.js` + `resolveSfxPath()` in `src/render/audio-mix.js`.
 
-## Adding a sound
+## AI opisy i tagi
 
-1. Download from an approved source (CC0 / commercial-friendly). Record source URL and license in [`LICENSES.md`](./LICENSES.md).
-2. Normalize to a short WAV or MP3 (mono, 44.1 or 48 kHz).
-3. Place the file in this folder.
-4. Add an entry to `catalog.json` (`sfxId`, `fileName`, `tags`, `license`).
-5. Fill in [`LICENSES.md`](./LICENSES.md) (source URL, license, download date).
-6. Run `npm test -- tests/editorial/sfx-library.test.js`.
+Po ingeście uruchom (wymaga `OPENAI_API_KEY`):
 
-Resolution at render time: `src/editorial/sfx-library.js` + `resolveSfxPath()` in `src/render/audio-mix.js` (by `sfxId`, tag, or legacy `label` filename).
+```bash
+npm run enrich:sfx-catalog
+```
+
+Domyślnie **text-only** (`gpt-5.4-nano`) — z tytułu, tagów Pixabay, LUFS. Odsłuch wymaga `--with-audio` i modelu `*-audio-preview` na koncie OpenAI.
+- `description` — co słychać
+- `tags` — tagi editorialne
+- `useCases` — kiedy użyć w montażu
+- `loudnessCharacter` — quiet | medium | loud
+
+Opcje: `--sfx-id <id>`, `--force`, `--dry-run`, `--text-only` (bez audio, tańsze).
+Model: `OPENAI_MODEL_SFX_ENRICH` (domyślnie `gpt-4o-mini-audio-preview`). Fallback tekstowy: `OPENAI_MODEL_SFX_ENRICH_TEXT` / `OPENAI_MODEL_NANO`.

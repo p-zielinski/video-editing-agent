@@ -6,6 +6,7 @@ import {
 } from "./director.js";
 import { buildActTransitionHints } from "../editorial/act-transitions.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
+import { measureBriefPayload } from "../lib/brief-metrics.js";
 
 function findNeighborL2Summaries(abstraction, segmentId) {
   const l2 = abstraction?.L2 ?? [];
@@ -98,6 +99,8 @@ export function buildSegmentDirectorBrief(context, {
     spatialIndex,
     audioIndex,
     audioMixDefaults,
+    musicSelection,
+    musicBeatGrid,
     perClipAnalysis,
     wordIndexes,
     userContext,
@@ -109,6 +112,10 @@ export function buildSegmentDirectorBrief(context, {
 
   const scopedAbstraction = filterAbstractionForSegment(abstraction, sceneIds);
   const scopedTimeline = filterTimelineForSegment(timelineIndex, sceneIds);
+  const scopedClipIds = new Set((scopedTimeline.clips ?? []).map((clip) => clip.clipId));
+  const scopedWordIndexes = (wordIndexes ?? []).filter(
+    (entry) => scopedClipIds.has(entry.clipId),
+  );
   const segmentPick = superPlan.segmentPicks?.find((pick) => pick.segmentId === segmentId);
   const notes = [
     ...superNotes,
@@ -135,8 +142,10 @@ export function buildSegmentDirectorBrief(context, {
     spatialIndex,
     audioIndex,
     audioMixDefaults,
+    musicSelection,
+    musicBeatGrid,
     perClipAnalysis,
-    wordIndexes,
+    wordIndexes: scopedWordIndexes,
     userContext: segmentUserContext,
     requiredFormats,
     batchContext,
@@ -178,7 +187,7 @@ export function buildSegmentDirectorBrief(context, {
   const actTransitionHints = buildActTransitionHints(
     abstraction,
     superPlan.narrativeProfile ?? brief.narrativeProfile,
-    { recipe: recipeSkeleton, wordIndexes: context.wordIndexes },
+    { recipe: recipeSkeleton, wordIndexes: scopedWordIndexes },
   ).filter((hint) => hint.l2SegmentId === segmentId);
   if (actTransitionHints.length > 0) {
     brief.actTransitionHints = actTransitionHints;
@@ -192,6 +201,7 @@ export async function runSegmentDirector(client, context, {
   sceneIds,
   superPlan,
   superNotes = [],
+  onUsage,
 }) {
   const {
     timelineIndex,
@@ -214,15 +224,23 @@ export async function runSegmentDirector(client, context, {
     outputSchema: EDIT_RECIPE_V2_OUTPUT_SCHEMA,
   });
 
+  const briefMetric = measureBriefPayload({
+    task: "segment_director_draft",
+    userJson: user,
+    brief,
+    segmentId,
+  });
+
   const raw = await chatJson(client, {
     model: MODELS.director,
     system,
     user,
     temperature: 0.45,
+    onUsage,
   });
 
   raw.batchId = timelineIndex.batchId;
-  raw.version = raw.version ?? "2.2";
+  raw.version = raw.version ?? "2.4";
   if (!raw.batchContext) {
     raw.batchContext = brief.batchContext;
   }
@@ -230,6 +248,12 @@ export async function runSegmentDirector(client, context, {
   raw.batchContext.inputMode = brief.inputMode;
   if (!raw.creativityProfile) {
     raw.creativityProfile = brief.creativityProfile;
+  }
+  if (!raw.shortsRetentionProfile && brief.shortsRetentionProfile) {
+    raw.shortsRetentionProfile = brief.shortsRetentionProfile;
+  }
+  if (!raw.vlogRetentionProfile && brief.vlogRetentionProfile) {
+    raw.vlogRetentionProfile = brief.vlogRetentionProfile;
   }
   if (!raw.narrativeProfile && brief.narrativeProfile) {
     raw.narrativeProfile = brief.narrativeProfile;
@@ -242,5 +266,5 @@ export async function runSegmentDirector(client, context, {
   }
 
   const recipe = EditRecipeV2Schema.parse(raw);
-  return { ...recipe, segmentId };
+  return { recipe: { ...recipe, segmentId }, briefMetric };
 }

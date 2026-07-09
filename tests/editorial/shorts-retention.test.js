@@ -146,8 +146,8 @@ describe("shorts-retention editorial", () => {
   it("computeScaledMinRetentionBeats scales for >30s", () => {
     const profile = { minRetentionBeats: 2, retentionBeatIntervalSec: 25 };
     assert.equal(computeScaledMinRetentionBeats(25, profile), 2);
-    assert.equal(computeScaledMinRetentionBeats(45, profile), 2);
-    assert.equal(computeScaledMinRetentionBeats(60, profile), 2);
+    assert.equal(computeScaledMinRetentionBeats(45, profile), 4);
+    assert.equal(computeScaledMinRetentionBeats(60, profile), 4);
     assert.equal(computeScaledMinRetentionBeats(75, profile), 3);
   });
 
@@ -158,7 +158,7 @@ describe("shorts-retention editorial", () => {
       minRetentionBeats: 2,
     };
     const targets = computeRetentionBeatTargets(45, profile);
-    assert.equal(targets.length, 2);
+    assert.equal(targets.length, 4);
     assert.ok(targets.every((t) => t > 3 && t < 45));
   });
 
@@ -169,7 +169,7 @@ describe("shorts-retention editorial", () => {
       minRetentionBeats: 2,
     };
     const targets = computeRetentionBeatTargets(60, profile);
-    assert.deepEqual(targets, [28, 53]);
+    assert.deepEqual(targets, [18, 33, 48, 48.6]);
   });
 
   it("resolveShortOutputDurationSec prefers short output timeline over source", () => {
@@ -268,9 +268,9 @@ describe("shorts-retention editorial", () => {
       assert.deepEqual(targets.slice(0, 3), [48, 93, 138]);
     });
 
-    it("computeRetentionBeatTargets shorts mode keeps 25s interval", () => {
+    it("computeRetentionBeatTargets shorts mode uses denser interval for reels", () => {
       const targets = computeRetentionBeatTargets(60, {}, { mode: "shorts" });
-      assert.deepEqual(targets, [28, 53]);
+      assert.deepEqual(targets, [18, 33, 48, 48.6]);
     });
 
     it("buildRetentionTechniqueRotation cycles vlog techniques", () => {

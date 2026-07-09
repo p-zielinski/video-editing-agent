@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "mustIncludeTokens": ["dodaj", "datę"],
+  "metaPhrases": [{ "type": "date", "value": "6 lipca 2020" }],
+  "minTokenRecall": 0.7,
+  "allowEmptyWords": false
+}

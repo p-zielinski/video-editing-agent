@@ -7,6 +7,9 @@ export const WordEntrySchema = z.object({
   end: z.number().positive(),
   isFiller: z.boolean().optional(),
   confidence: z.number().min(0).max(1).optional(),
+  normalizedWord: z.string().optional(),
+  isProfanity: z.boolean().optional(),
+  displayWord: z.string().optional(),
 });
 
 export const WordIndexSchema = z.object({
@@ -22,7 +25,10 @@ export function assignWordIds(words, clipId) {
     word: entry.word,
     start: entry.start,
     end: entry.end,
-    isFiller: entry.isFiller,
-    confidence: entry.confidence,
+    ...(entry.isFiller !== undefined && { isFiller: entry.isFiller }),
+    ...(entry.confidence !== undefined && { confidence: entry.confidence }),
+    ...(entry.normalizedWord !== undefined && { normalizedWord: entry.normalizedWord }),
+    ...(entry.isProfanity !== undefined && { isProfanity: entry.isProfanity }),
+    ...(entry.displayWord !== undefined && { displayWord: entry.displayWord }),
   }));
 }

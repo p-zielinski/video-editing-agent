@@ -2,31 +2,2799 @@
   "version": "1.0",
   "tracks": [
     {
-      "trackId": "upbeat_vlog_01",
-      "fileName": "upbeat_vlog_01.mp3",
-      "title": "Upbeat Vlog Bed 01",
-      "mood": ["upbeat", "vlog", "energetic"],
-      "bpm": 120,
-      "durationSec": 180,
-      "integratedLufs": -14
+      "trackId": "pixabay_537751",
+      "fileName": "sigmamusicart-no-copyright-music-537751.mp3",
+      "title": "No Copyright Music",
+      "mood": [
+        "energetic",
+        "uplifting",
+        "restless",
+        "bright",
+        "futuristic",
+        "driving"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 123.24,
+      "integratedLufs": -9.5,
+      "pixabay": {
+        "genre": [
+          "Future",
+          "Bass",
+          "Beats",
+          "Electronic",
+          "Pop"
+        ],
+        "mood": [
+          "Uplifting",
+          "Restless",
+          "Bright",
+          "Laid",
+          "Back",
+          "Energetic"
+        ],
+        "movement": [
+          "Smooth",
+          "Medium",
+          "Heavy &",
+          "Ponderous"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/future-bass-no-copyright-music-537751/",
+      "description": "Dynamiczny future-bass/electro-pop bed z wyraźnym, sprężystym basem i rytmicznymi beatami. Tempo i energia są wysokie, a brzmienie pozostaje jasne i „smooth”, z cięższymi akcentami w tle, które dodają napędu i nowoczesnego klimatu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro do vloga",
+        "tło pod szybkie ujęcia i przejścia",
+        "podkład do technologicznych/nowoczesnych tematów"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:13.221Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     },
     {
-      "trackId": "calm_reflective_01",
-      "fileName": "calm_reflective_01.mp3",
-      "title": "Calm Reflective Bed 01",
-      "mood": ["calm", "reflective", "soft"],
-      "bpm": 85,
-      "durationSec": 240,
-      "integratedLufs": -16
+      "trackId": "pixabay_541097",
+      "fileName": "alexguz-funk-amp-breakbeat-541097.mp3",
+      "title": "Funk &amp; Breakbeat",
+      "mood": [
+        "energetyczny",
+        "jasny",
+        "funkowy",
+        "rytmiczny",
+        "wesoły",
+        "dynamiczny"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 124.839,
+      "integratedLufs": -8.5,
+      "pixabay": {
+        "genre": [
+          "Funk"
+        ],
+        "mood": [
+          "Bright",
+          "Energetic"
+        ],
+        "movement": [
+          "Medium",
+          "Fast"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Background",
+          "Music",
+          "Film",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/funk-funk-amp-breakbeat-541097/",
+      "description": "Dynamiczny funkowy breakbeat z wyraźnym, sprężystym groove’em i rytmicznymi perkusjonaliami, utrzymany w średnio-szybkim tempie. Brzmienie jest jasne i energetyczne, idealne jako tło pod szybkie cięcia i dynamiczne ujęcia.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "szybkie intro i dynamiczne przejścia w vlogu",
+        "tło do montażu z energicznymi ujęciami (street, eventy, sport)",
+        "podkład pod krótkie formaty YouTube Shorts"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:15.345Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     },
     {
-      "trackId": "shorts_energy_01",
-      "fileName": "shorts_energy_01.mp3",
-      "title": "Shorts Energy Hook 01",
-      "mood": ["shorts", "energetic", "hook"],
-      "bpm": 128,
-      "durationSec": 60,
-      "integratedLufs": -13
+      "trackId": "pixabay_445661",
+      "fileName": "kontraa-water-afro-pop-music-445661.mp3",
+      "title": "Water",
+      "mood": [
+        "bright",
+        "happy",
+        "sentimental",
+        "energetic",
+        "uplifting",
+        "danceable"
+      ],
+      "useCase": [
+        "vlog",
+        "shorts",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 69.878,
+      "integratedLufs": -11.6,
+      "pixabay": {
+        "genre": [
+          "Afrobeat",
+          "Beats",
+          "Pop"
+        ],
+        "mood": [
+          "Bright",
+          "Happy",
+          "Sentimental"
+        ],
+        "movement": [
+          "Medium",
+          "Medium",
+          "Fast"
+        ],
+        "theme": [
+          "Free for use under the Pixabay",
+          "Content",
+          "License",
+          "Free download 1.2K",
+          "Save",
+          "Plays 932,657",
+          "Downloads 75,200",
+          "Saves 997"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/afrobeat-water-afro-pop-music-445661/",
+      "description": "Radosny, afropopowy bed z lekką, taneczną perkusją i rytmicznymi groove’ami, utrzymany w średnio-szybkim tempie. Brzmienie jest jasne i „promienne”, z melodyjnymi akcentami, które budują sentymentalny, ale wciąż optymistyczny nastrój. Idealny pod dynamiczne ujęcia i szybkie przejścia w montażu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro do vloga",
+        "tło pod podróże i codzienne momenty",
+        "montaż z ujęciami tanecznymi/energetycznymi"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:17.432Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_320427",
+      "fileName": "ikoliks_aj-background-music-320427.mp3",
+      "title": "Background Music",
+      "mood": [
+        "uplifting",
+        "dreamy",
+        "bright",
+        "smooth",
+        "elegant",
+        "relaxed"
+      ],
+      "useCase": [
+        "vlog",
+        "shorts",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 143.438,
+      "integratedLufs": -9.5,
+      "pixabay": {
+        "genre": [
+          "Acoustic",
+          "Group",
+          "Folk"
+        ],
+        "mood": [
+          "Laid",
+          "Back",
+          "Dreamy",
+          "Bright",
+          "Uplifting"
+        ],
+        "movement": [
+          "Medium",
+          "Fast",
+          "Elegant",
+          "Smooth"
+        ],
+        "theme": [
+          "Free for use under the Pixabay",
+          "Content",
+          "License",
+          "Free download 642",
+          "Save",
+          "Plays 649,907",
+          "Downloads 62,221",
+          "Saves 549"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/acoustic-group-background-music-320427/",
+      "description": "Lekki, akustyczny bed w stylu folk z grupowym brzmieniem i eleganckim, płynnym groove’em. Tempo jest dynamiczne, a całość ma jasny, marzycielski i podnoszący na duchu charakter, idealna pod szybkie ujęcia i montaż. Bez ciężkich uderzeń — raczej miękka energia i „smooth” flow w tle.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vlogów z podróży i lifestyle",
+        "montaż dynamicznych ujęć z pozytywnym vibe’em",
+        "intro/outro do filmów na YouTube i shorts"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:19.547Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_513936",
+      "fileName": "lightbeatsmusic-joyful-rhythm-walk-funk-513936.mp3",
+      "title": "Joyful Rhythm Walk Funk",
+      "mood": [
+        "wesoły",
+        "groovy",
+        "jasny",
+        "energetyczny",
+        "taneczny",
+        "optymistyczny"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 138.292,
+      "integratedLufs": -9.5,
+      "pixabay": {
+        "genre": [
+          "Funk",
+          "Old",
+          "School",
+          "Funk",
+          "Solo",
+          "Guitar",
+          "Dance"
+        ],
+        "mood": [
+          "Bright",
+          "Groovy",
+          "Happy"
+        ],
+        "movement": [
+          "Medium",
+          "Medium",
+          "Fast",
+          "Running"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/funk-joyful-rhythm-walk-funk-513936/",
+      "description": "Radosny, funkowy groove z wyraźną linią gitary i sprężystym rytmem, który naturalnie napędza ujęcia w ruchu. Tempo jest dynamiczne (szybkie, „running”), a całość brzmi jasno i lekko, idealnie pod energiczne vlogi i montaż.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne ujęcia w biegu i na mieście",
+        "montaż z uśmiechem: intro i przejścia",
+        "tło do vlogów z muzycznym vibe'em funk"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:21.467Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_513744",
+      "fileName": "energysound-stomp-drum-percussion-513744.mp3",
+      "title": "Stomp Drum Percussion",
+      "mood": [
+        "energetyczne",
+        "pobudzone",
+        "wzmacniające",
+        "ekscytujące",
+        "napięcie",
+        "radosne",
+        "dynamiczne"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 82.86,
+      "integratedLufs": -9.5,
+      "pixabay": {
+        "genre": [
+          "Beats",
+          "Build",
+          "Up",
+          "Scenes",
+          "Action",
+          "Adventure",
+          "Percussion"
+        ],
+        "mood": [
+          "Bright",
+          "Restless",
+          "Uplifting",
+          "Suspense",
+          "Celebration",
+          "Energetic"
+        ],
+        "movement": [
+          "Chasing",
+          "Running",
+          "Medium",
+          "Fast",
+          "Heavy &",
+          "Ponderous",
+          "Marching",
+          "Busy &",
+          "Frantic"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Background",
+          "Music",
+          "Vlog",
+          "Music",
+          "Cinematic",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/beats-stomp-drum-percussion-513744/",
+      "description": "Dynamiczny, perkusyjny bed z mocnym stompem i marszowym rytmem, który szybko buduje napięcie i energię. Brzmienie jest gęste i „busy”, z wyraźnym drive’em do scen akcji, biegania i pościgów — idealne do montażu z mocnymi cięciami.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "pościgi i bieganie w montażu",
+        "sceny akcji i dynamiczne przejścia",
+        "intro/outro do vlogów i shortów"
+      ],
+      "suggestedBedVolumeDb": -12,
+      "aiEnrichedAt": "2026-07-09T22:00:23.884Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_525840",
+      "fileName": "sigmamusicart-background-music-inspiring-525840.mp3",
+      "title": "Background Music Inspiring",
+      "mood": [
+        "energetyczne",
+        "podnoszące",
+        "pełne nadziei",
+        "niespokojne",
+        "epickie",
+        "optymistyczne"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 126.696,
+      "integratedLufs": -9.2,
+      "pixabay": {
+        "genre": [
+          "Adventure",
+          "Build",
+          "Up",
+          "Scenes",
+          "Epic",
+          "Classical",
+          "Orchestral",
+          "Main",
+          "Title"
+        ],
+        "mood": [
+          "Bright",
+          "Restless",
+          "Hopeful",
+          "Uplifting",
+          "Energetic"
+        ],
+        "movement": [
+          "Marching",
+          "Medium",
+          "Running"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Cinematic",
+          "Music",
+          "Background",
+          "Music",
+          "Vlog",
+          "Music",
+          "Music For Youtube",
+          "Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/adventure-background-music-inspiring-525840/",
+      "description": "Orkiestrowe, filmowe brzmienie z wyraźnym rytmem marszowym i energicznym narastaniem. Tempo i dynamika są wysokie, a całość niesie jasny, niespokojny i pełen nadziei vibe — idealne pod sceny biegu, przejścia i „build” do kulminacji. Bez wokalu, z dominacją instrumentów smyczkowych i blachy w stylu epic/adventure.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro do vloga/shortsa",
+        "tło pod sceny biegu, marszu i przejazdów",
+        "montaż z narastaniem do kulminacji (build-up)"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:26.250Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_537739",
+      "fileName": "sigmamusicart-jazz-lounge-relaxing-background-music-537739.mp3",
+      "title": "Jazz Lounge Relaxing Background Music",
+      "mood": [
+        "bright",
+        "glamorous",
+        "relaxing",
+        "smooth",
+        "elegant",
+        "traditional"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 112.2,
+      "integratedLufs": -10.1,
+      "pixabay": {
+        "genre": [
+          "Traditional",
+          "Jazz",
+          "Cafe",
+          "Elevator",
+          "Music"
+        ],
+        "mood": [
+          "Bright",
+          "Laid",
+          "Back",
+          "Glamorous",
+          "Relaxing"
+        ],
+        "movement": [
+          "Smooth",
+          "Medium",
+          "Elegant"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Film",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/traditional-jazz-jazz-lounge-relaxing-background-music-537739/",
+      "description": "Gładki, tradycyjny jazz lounge z klimatem eleganckiej kawiarni i lekkim, „elevatorowym” flow. Brzmienie jest ciepłe i błyszczące, z płynną dynamiką i wyraźnym, ale nieagresywnym groove’em, idealne jako tło pod narrację. Nastrój jest jednocześnie relaksujący i efektowny — bardziej „glamorous” niż melancholijny.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vlogów z kawiarni i miejskich spacerów",
+        "podkład do intro/outro o eleganckim, jazzowym klimacie",
+        "music bed do filmów i podcastów o kulturze/rozrywce"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:28.654Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_486996",
+      "fileName": "nastelbom-background-music-486996.mp3",
+      "title": "Background Music",
+      "mood": [
+        "dreamy",
+        "floating",
+        "upbeat",
+        "ambient",
+        "electronic",
+        "light"
+      ],
+      "useCase": [
+        "vlog",
+        "shorts",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 136.046,
+      "integratedLufs": -8.9,
+      "pixabay": {
+        "genre": [
+          "Ambient",
+          "Electronic",
+          "Upbeat"
+        ],
+        "mood": [
+          "Dreamy"
+        ],
+        "movement": [
+          "Floating",
+          "Medium",
+          "Fast"
+        ],
+        "theme": [
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/ambient-background-music-486996/",
+      "description": "Lekki, ambientowo-elektroniczny bed z szybkim, unoszącym pulsem i „floating” charakterem. Brzmienie jest marzycielskie i nowoczesne, z syntezatorowymi teksturami oraz dynamicznym, ale nieagresywnym drive’em, idealne jako tło pod montaż.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do dynamicznych ujęć podróży i lifestyle",
+        "montaż z przejściami i szybkim tempem bez wokalu",
+        "intro/outro do vlogów o lekkim, marzycielskim klimacie"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:30.731Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_496933",
+      "fileName": "vibehorn-background-music-496933.mp3",
+      "title": "Background Music",
+      "mood": [
+        "bright",
+        "laidback",
+        "cozy",
+        "groovy",
+        "upbeat",
+        "lofi"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 194.09,
+      "integratedLufs": -14.2,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Beats",
+          "Cafe"
+        ],
+        "mood": [
+          "Bright",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-background-music-496933/",
+      "description": "Lo-fi beat w klimacie kawiarni: ciepłe, miękkie brzmienia z lekką perkusją i „vibe’owym” groove’em w średnim tempie. Nastrój jest jasny i swobodny, dobrze pod vlogi i narrację, bez dominowania melodii.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło pod vlog z kawiarni i codziennymi ujęciami",
+        "bed do YouTube z narracją i montażem w rytmie",
+        "akompaniament do podcastu lub intro/outro"
+      ],
+      "suggestedBedVolumeDb": -16.5,
+      "aiEnrichedAt": "2026-07-09T22:00:33.262Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_473154",
+      "fileName": "sonican-lo-fi-music-loop-sentimental-jazzy-love-473154.mp3",
+      "title": "Lo-fi Music Loop - Sentimental Jazzy Love",
+      "mood": [
+        "sentimental",
+        "chill",
+        "bright",
+        "smooth",
+        "elegant",
+        "modern"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 100.493,
+      "integratedLufs": -9.9,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Modern",
+          "Jazz",
+          "Alternative",
+          "Hip",
+          "Hop"
+        ],
+        "mood": [
+          "Bright",
+          "Chill",
+          "Sentimental",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Smooth",
+          "Medium",
+          "Elegant"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-lo-fi-music-loop-sentimental-jazzy-love-473154/",
+      "description": "Jazzy lo-fi w stylu smooth: ciepłe, miękkie akordy, delikatne sample i swingujący groove utrzymują lekki, sentymentalny nastrój. Tempo jest płynne i nowoczesne, a całość brzmi elegancko i „chillowo” w tle, bez nachalnej dynamiki mimo wysokiej energii.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vlogów i codziennych ujęć",
+        "montaż z ujęciami miasta i podróży",
+        "intro/outro do kanału na YouTube"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:35.241Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_492540",
+      "fileName": "starostin-comedy-cartoon-funny-background-music-492540.mp3",
+      "title": "Comedy Cartoon Funny Background Music",
+      "mood": [
+        "funny",
+        "bright",
+        "groovy",
+        "playful",
+        "upbeat",
+        "cartoony"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 148.036,
+      "integratedLufs": -8.7,
+      "pixabay": {
+        "genre": [
+          "Comedy",
+          "Big",
+          "Band",
+          "Modern",
+          "Jazz",
+          "Cartoons",
+          "Cha",
+          "Cha (Latin)",
+          "Latin"
+        ],
+        "mood": [
+          "Funny",
+          "Bright",
+          "Groovy"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Film",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/comedy-comedy-cartoon-funny-background-music-492540/",
+      "description": "Radosny, komediowy bed w stylu big band/jazz z wyraźnym, tanecznym cha-cha (latin) i sprężystym, „groovy” pulsem. Brzmienie jest jasne i nowoczesne, z lekką orkiestracją i energią typową dla kreskówkowych intro oraz dynamicznych ujęć. Idealnie podbija tempo montażu i dodaje humorystycznego, beztroskiego nastroju.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "kreskówkowe intro i szybkie przejścia",
+        "montaż z humorem i dynamicznym tempem",
+        "tło do vlogów z lekką, taneczną energią"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:37.532Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_540571",
+      "fileName": "apalonbeats-background-music-540571.mp3",
+      "title": "Background Music",
+      "mood": [
+        "hopeful",
+        "uplifting",
+        "happy",
+        "bright",
+        "dreamy",
+        "smooth",
+        "upbeat"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 128.026,
+      "integratedLufs": -13.3,
+      "pixabay": {
+        "genre": [
+          "Corporate",
+          "Upbeat",
+          "Electronic",
+          "Instrumental"
+        ],
+        "mood": [
+          "Dreamy",
+          "Bright",
+          "Laid",
+          "Back",
+          "Hopeful",
+          "Uplifting",
+          "Happy"
+        ],
+        "movement": [
+          "Smooth",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/corporate-background-music-540571/",
+      "description": "Gładkie, elektroniczne brzmienie z jasnymi syntezatorami i lekkim, „dreamy” charakterem, utrzymane w średnio-szybkim, upbeatowym tempie. Utwór jest instrumentalny, ma przyjazny, korporacyjny vibe i buduje nadzieję oraz pozytywny nastrój bez nachalności.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do dynamicznych intro i przejść w vlogu",
+        "podkład pod prezentacje, case study i materiały firmowe",
+        "montaż z ujęciami lifestyle/technologia w stylu upbeat"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:39.766Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_545512",
+      "fileName": "alex-morgan-horror-thriller-545512.mp3",
+      "title": "Horror Thriller",
+      "mood": [
+        "scary",
+        "dark",
+        "restless",
+        "suspense",
+        "mysterious",
+        "epic"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog"
+      ],
+      "energy": "high",
+      "durationSec": 138.792,
+      "integratedLufs": -14.8,
+      "pixabay": {
+        "genre": [
+          "Horror",
+          "Scene",
+          "Build",
+          "Up",
+          "Scenes",
+          "Electronic",
+          "Main",
+          "Title",
+          "Suspense",
+          "Supernatural"
+        ],
+        "mood": [
+          "Scary",
+          "Dark",
+          "Restless",
+          "Epic",
+          "Suspense",
+          "Mysterious"
+        ],
+        "movement": [
+          "Heavy &",
+          "Ponderous",
+          "Marching",
+          "Medium",
+          "Running"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Cinematic",
+          "Music",
+          "Background",
+          "Music",
+          "Vlog",
+          "Music",
+          "Music For Youtube",
+          "Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/horror-scene-horror-thriller-545512/",
+      "description": "Gęsty, elektroniczny bed o ciężkim, marszowym rytmie i narastającym napięciu, z mrocznymi akcentami budującymi sceny grozy. Tempo i energia są wysokie, a brzmienie ma charakter filmowy: pulsujące basy, dynamiczne perkusjonalia i niepokojące tekstury tworzą suspense i poczucie zagrożenia.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "montaż scen grozy i napięcia",
+        "wstęp/intro do vloga o thrillerowym klimacie",
+        "podkład do ujęć akcji i budowania kulminacji"
+      ],
+      "suggestedBedVolumeDb": -16.5,
+      "aiEnrichedAt": "2026-07-09T22:00:41.777Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_520373",
+      "fileName": "leberch-psychological-horror-520373.mp3",
+      "title": "Psychological Horror",
+      "mood": [
+        "dark",
+        "suspense",
+        "dreamy",
+        "scary",
+        "mysterious",
+        "ambient"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube"
+      ],
+      "energy": "low",
+      "durationSec": 114.051,
+      "integratedLufs": -14.2,
+      "pixabay": {
+        "genre": [
+          "Ambient",
+          "Electronic",
+          "Low",
+          "Drones",
+          "High",
+          "Drones",
+          "Suspense",
+          "Mystery",
+          "Horror",
+          "Scene"
+        ],
+        "mood": [
+          "Dark",
+          "Suspense",
+          "Dreamy",
+          "Scary"
+        ],
+        "movement": [
+          "Floating",
+          "Slow"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Vlog",
+          "Music",
+          "Music For Youtube",
+          "Videos",
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Cinematic",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/ambient-psychological-horror-520373/",
+      "description": "Niskie, przeciągłe drony i mroczne tło ambientowe budują napięcie w wolnym, „pływającym” tempie. Brzmienie jest elektroniczne, sennie-dreamy, z filmowym klimatem psychologicznego horroru i tajemnicy.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do scen grozy i napięcia",
+        "pod intro/outro vloga w klimacie tajemnicy",
+        "bed do ujęć nocnych, miejskich i „floating”"
+      ],
+      "suggestedBedVolumeDb": -18.5,
+      "aiEnrichedAt": "2026-07-09T22:00:43.681Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_518088",
+      "fileName": "atlasaudio-motivation-518088.mp3",
+      "title": "Motivation",
+      "mood": [
+        "uplifting",
+        "hopeful",
+        "bright",
+        "dreamy",
+        "energetic",
+        "smooth",
+        "restless"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 86.047,
+      "integratedLufs": -9.8,
+      "pixabay": {
+        "genre": [
+          "Corporate",
+          "Upbeat",
+          "Electronic"
+        ],
+        "mood": [
+          "Dreamy",
+          "Bright",
+          "Laid",
+          "Back",
+          "Hopeful",
+          "Uplifting",
+          "Restless"
+        ],
+        "movement": [
+          "Elegant",
+          "Smooth",
+          "Running",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/corporate-motivation-518088/",
+      "description": "Nowoczesne, elektroniczne brzmienie z eleganckimi syntezatorami i gładkimi, sprężystymi beatami w tempie pod vlogowe tempo „running”. Utwór jest jasny i marzycielski, z motywem budującym energię—idealny do dynamicznych ujęć i pozytywnego przekazu. Nastrój pozostaje nadziei i lekkości, bez agresji, bardziej „corporate uplifting” niż klubowy drive.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro do vloga i YouTube",
+        "tło pod motywacyjne ujęcia i montaż „running”",
+        "bed do korporacyjnych prezentacji i case study"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:45.829Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_487018",
+      "fileName": "the_mountain-motivation-487018.mp3",
+      "title": "Motivation",
+      "mood": [
+        "epic",
+        "bright",
+        "restless",
+        "hopeful",
+        "uplifting",
+        "suspense",
+        "energetic",
+        "adventurous"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "gaming"
+      ],
+      "energy": "high",
+      "durationSec": 116.48,
+      "integratedLufs": -10.8,
+      "pixabay": {
+        "genre": [
+          "Adventure",
+          "Build",
+          "Up",
+          "Scenes",
+          "Epic",
+          "Classical"
+        ],
+        "mood": [
+          "Epic",
+          "Bright",
+          "Restless",
+          "Hopeful",
+          "Uplifting",
+          "Suspense",
+          "Energetic"
+        ],
+        "movement": [
+          "Chasing",
+          "Medium",
+          "Fast",
+          "Heavy &",
+          "Ponderous",
+          "Marching"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Cinematic",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/adventure-motivation-487018/",
+      "description": "Cinematiczny, epicki bed z klasycznym zabarwieniem: dynamiczne smyczki i mocne uderzenia budują marszowy, „chasing” charakter. Tempo jest szybkie i napędzające, a brzmienie ma jasny, pełen napięcia i nadziei vibe, idealny do narastających scen i przejść. Utwór ma wyraźny ruch do przodu i energię pod montaż.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "montaż z wyścigiem/pościgią i dynamicznymi cięciami",
+        "intro lub przejście do sceny „wznoszenia” i motywacji",
+        "tło pod gameplay/roadtrip z marszowym drive"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:48.428Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_478796",
+      "fileName": "alexgrohl-motivation-sport-rock-trailer-478796.mp3",
+      "title": "Motivation Sport Rock Trailer",
+      "mood": [
+        "energetic",
+        "epic",
+        "uplifting",
+        "restless",
+        "suspense",
+        "bright",
+        "action"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 128.261,
+      "integratedLufs": -6.6,
+      "pixabay": {
+        "genre": [
+          "Rock",
+          "Hard",
+          "Rock",
+          "Upbeat",
+          "Action",
+          "Chase",
+          "Scene",
+          "Corporate"
+        ],
+        "mood": [
+          "Restless",
+          "Suspense",
+          "Energetic",
+          "Epic",
+          "Bright",
+          "Uplifting"
+        ],
+        "movement": [
+          "Chasing",
+          "Running",
+          "Heavy &",
+          "Ponderous",
+          "Medium",
+          "Fast"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/rock-motivation-sport-rock-trailer-478796/",
+      "description": "Dynamiczny, rockowo-hardowy bed z napędzającym rytmem i agresywnymi akcentami gitar oraz perkusyjnych uderzeń. Tempo jest szybkie, a brzmienie ma epicki, jasny i podnoszący na duchu charakter — idealne do scen pościgu, biegu i sportowej energii.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "pościg i dynamiczne ujęcia sportowe",
+        "montaż z motywacją i „power-up” dla widza",
+        "intro/outro do vlogów o treningu i wyzwaniach"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:00:50.404Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_517463",
+      "fileName": "leberch-motivation-517463.mp3",
+      "title": "Motivation",
+      "mood": [
+        "emotional",
+        "sentimental",
+        "dramatic",
+        "cinematic",
+        "reflective",
+        "uplifting"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "main"
+      ],
+      "energy": "medium",
+      "durationSec": 156.029,
+      "integratedLufs": -11.4,
+      "pixabay": {
+        "genre": [
+          "Dramatic",
+          "Classical",
+          "Modern",
+          "Classical",
+          "Solo",
+          "Piano"
+        ],
+        "mood": [
+          "Emotional",
+          "Sentimental"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Film",
+          "Music",
+          "Cinematic",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/dramatic-classical-motivation-517463/",
+      "description": "Cinematiczny, współczesno-klasyczny bed oparty na solo fortepianie z emocjonalnym, dramatycznym prowadzeniem melodii. Tempo jest umiarkowane, a dynamika buduje sentymentalny nastrój bez nadmiaru instrumentów. Brzmienie dobrze niesie narrację w tle i podkreśla momenty refleksji lub kulminacji w montażu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło pod narrację i retrospekcje",
+        "podkład pod dramatyczne ujęcia i kulminacje",
+        "intro/outro do vlogów i filmów YouTube"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:00:52.734Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_558236",
+      "fileName": "solarflex-motivation-558236.mp3",
+      "title": "Motivation",
+      "mood": [
+        "restless",
+        "energetic",
+        "dark",
+        "intense",
+        "driving",
+        "upbeat"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 41.326,
+      "integratedLufs": -6.9,
+      "pixabay": {
+        "genre": [
+          "Phonk",
+          "Electro",
+          "Upbeat",
+          "Electronic",
+          "Edm"
+        ],
+        "mood": [
+          "Restless",
+          "Energetic",
+          "Dark"
+        ],
+        "movement": [
+          "Running",
+          "Heavy &",
+          "Ponderous"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/phonk-motivation-558236/",
+      "description": "Dynamiczny phonkowo-elektroniczny bed z ciężkim, pulsującym basem i agresywnymi syntezatorami, utrzymany w szybkim, napędzającym tempie. Brzmienie jest mroczne i niespokojne, z wyraźnym drive’em idealnym pod sceny biegu, treningu i szybkiego montażu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło pod dynamiczny bieg i trening",
+        "montaż z mocnym, agresywnym drive’em",
+        "intro/outro do vlogów o wyzwaniach i motywacji"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:54.638Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_560135",
+      "fileName": "mondamusic-intro-560135.mp3",
+      "title": "Intro",
+      "mood": [
+        "bright",
+        "uplifting",
+        "energetic",
+        "optimistic",
+        "intro"
+      ],
+      "useCase": [
+        "vlog",
+        "shorts",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 35.448,
+      "integratedLufs": -6.5,
+      "pixabay": {
+        "genre": [
+          "Intro/Outro",
+          "Electronic"
+        ],
+        "mood": [
+          "Bright",
+          "Uplifting"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Free for use under the Pixabay",
+          "Content",
+          "License",
+          "Free download 1.9K",
+          "Save",
+          "Plays 1,608",
+          "Downloads 196",
+          "Saves 3"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/introoutro-intro-560135/",
+      "description": "Krótki, dynamiczny bed intro/outro w stylistyce elektronicznej: lekkie syntezatory i rytmiczne impulsy budują szybkie wejście. Brzmienie jest jasne i podnoszące na duchu, z wyraźnym, średnio-mocnym pulsem idealnym do startu materiału.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "muzyka do wejścia w vlogu/shorts (hook)",
+        "bed do zapowiedzi i zakończenia odcinka",
+        "tło pod szybkie intro z napisami"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-09T22:00:56.554Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_495235",
+      "fileName": "prettyjohn1-youtube-intro-495235.mp3",
+      "title": "Youtube Intro",
+      "mood": [
+        "dreamy",
+        "laid-back",
+        "hip-hop",
+        "arabic vibe",
+        "cool",
+        "groovy"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "medium",
+      "durationSec": 87.171,
+      "integratedLufs": -8.9,
+      "pixabay": {
+        "genre": [
+          "Beats",
+          "Arabic",
+          "Alternative",
+          "Hip",
+          "Hop"
+        ],
+        "mood": [
+          "Laid",
+          "Back",
+          "Dreamy"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Free for use under the Pixabay",
+          "Content",
+          "License",
+          "Free download 3.4K",
+          "Save",
+          "Plays 51,358",
+          "Downloads 7,361",
+          "Saves 80"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/beats-youtube-intro-495235/",
+      "description": "To beatowy, alternatywny hip-hop z arabskimi naleciałościami: ciepłe, rytmiczne frazy i lekko hipnotyczny groove prowadzą przez całą intro. Tempo jest umiarkowane, a brzmienie ma senny, „dreamy” charakter z wyraźnym pulsem perkusyjnym i nowoczesną, vlogową energią.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "intro do vlogów i kanałów",
+        "otwarcie shortów z vibe’em hip-hop/arabic",
+        "tło pod dynamiczne ujęcia i montaż beat-synch"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:00.190Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_516351",
+      "fileName": "leberch-sad-516351.mp3",
+      "title": "Sad",
+      "mood": [
+        "dreamy",
+        "relaxing",
+        "hopeful",
+        "sad",
+        "elegant",
+        "floating"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube"
+      ],
+      "energy": "low",
+      "durationSec": 122.044,
+      "integratedLufs": -12.5,
+      "pixabay": {
+        "genre": [
+          "Modern",
+          "Classical",
+          "Solo",
+          "Piano",
+          "Beautiful",
+          "Plays"
+        ],
+        "mood": [
+          "Dreamy",
+          "Relaxing",
+          "Hopeful",
+          "Sad"
+        ],
+        "movement": [
+          "Elegant",
+          "Floating",
+          "Slow"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Background",
+          "Music",
+          "Vlog",
+          "Music",
+          "Music For Youtube",
+          "Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/modern-classical-sad-516351/",
+      "description": "Nastrojowy, nowoczesno-klasyczny bed na solo fortepianie z delikatnymi, „pływającymi” frazami i wolnym tempem. Brzmienie jest eleganckie i marzycielskie, z emocją smutku przechodzącą w spokojną nadzieję — idealne tło do ujęć z narracją.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "wspomnienia i refleksyjny montaż",
+        "tło do narracji w vlogu",
+        "emocjonalne intro/outro do YouTube"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:02.314Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_510083",
+      "fileName": "leberch-sad-510083.mp3",
+      "title": "Sad",
+      "mood": [
+        "smutny",
+        "emocjonalny",
+        "dramatyczny",
+        "refleksyjny",
+        "filmowy"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog"
+      ],
+      "energy": "medium",
+      "durationSec": 122.044,
+      "integratedLufs": -13.5,
+      "pixabay": {
+        "genre": [
+          "Dramatic",
+          "Classical",
+          "Classical",
+          "Piano"
+        ],
+        "mood": [
+          "Sad",
+          "Emotional"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/dramatic-classical-sad-510083/",
+      "description": "Dramatyczny, klasyczny bed fortepianowy z wyraźną, emocjonalną narracją i spokojnym, średnim tempem. Brzmienie jest miękkie i filmowe, z budującym napięciem w tle — idealne pod momenty refleksji lub podsumowania. Bez intensywnych perkusji, bardziej „piano-led” i nastrojowe.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "podkład pod retrospekcję i wspomnienia",
+        "tło do dramatycznych ujęć w vlogu",
+        "muzyka do narracji i podsumowań w YouTube"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:04.392Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_512361",
+      "fileName": "the_mountain-sad-512361.mp3",
+      "title": "Sad",
+      "mood": [
+        "sentimental",
+        "emotional",
+        "hopeful",
+        "sad",
+        "reflective"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog"
+      ],
+      "energy": "medium",
+      "durationSec": 90.044,
+      "integratedLufs": -15.2,
+      "pixabay": {
+        "genre": [
+          "Solo",
+          "Piano"
+        ],
+        "mood": [
+          "Sentimental",
+          "Emotional",
+          "Hopeful",
+          "Sad"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/solo-piano-sad-512361/",
+      "description": "Uspokojone, solowe brzmienie fortepianu z miękką, melodyjną narracją i emocjonalnym, ale nadziejnym zabarwieniem. Tempo jest umiarkowane, a dynamika utrzymuje stały, refleksyjny nastrój przez cały utwór. Idealne jako tło do historii, które mają w sobie smutek i jednocześnie promyk nadziei.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "refleksyjny vlog i podsumowania",
+        "tło do scen z emocjami i wspomnieniami",
+        "montaż z narracją: smutek z nadzieją"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:07.312Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_509537",
+      "fileName": "leberch-sad-emotional-509537.mp3",
+      "title": "Sad Emotional",
+      "mood": [
+        "sad",
+        "sentimental",
+        "elegant",
+        "reflective",
+        "emotional",
+        "calm"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog"
+      ],
+      "energy": "medium",
+      "durationSec": 110.028,
+      "integratedLufs": -15,
+      "pixabay": {
+        "genre": [
+          "Modern",
+          "Classical",
+          "Solo",
+          "Piano",
+          "Beautiful",
+          "Plays"
+        ],
+        "mood": [
+          "Sad",
+          "Sentimental"
+        ],
+        "movement": [
+          "Elegant",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/modern-classical-sad-emotional-509537/",
+      "description": "Nastrojowy, współczesno-klasyczny bed na solo fortepianie z delikatnym, eleganckim prowadzeniem melodii. Tempo jest umiarkowane, a brzmienie pozostaje ciepłe i emocjonalne, idealne jako tło pod refleksyjne ujęcia. Całość buduje sentymentalny, filmowy klimat bez dominowania narracji.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "refleksyjne ujęcia i podsumowania w vlogu",
+        "tło do scen filmowych o stracie, tęsknocie lub wspomnieniach",
+        "montaż z napisami i narracją bez wokalu"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:09.529Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_519649",
+      "fileName": "atlasaudio-sad-dramatic-519649.mp3",
+      "title": "Sad Dramatic",
+      "mood": [
+        "sad",
+        "dreamy",
+        "hopeful",
+        "melancholic",
+        "emotional",
+        "calm",
+        "floating"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube"
+      ],
+      "energy": "low",
+      "durationSec": 140.042,
+      "integratedLufs": -17.8,
+      "pixabay": {
+        "genre": [
+          "Modern",
+          "Classical",
+          "Ambient",
+          "Solo",
+          "Piano",
+          "Beautiful",
+          "Plays"
+        ],
+        "mood": [
+          "Dreamy",
+          "Hopeful",
+          "Sad"
+        ],
+        "movement": [
+          "Floating",
+          "Slow"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Background",
+          "Music",
+          "Vlog",
+          "Music",
+          "Music For Youtube",
+          "Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/modern-classical-sad-dramatic-519649/",
+      "description": "Nastrojowy, współczesno-klasyczny ambient z solo fortepianem prowadzącym melodię w wolnym, płynnym tempie. Brzmienie jest delikatne i przestrzenne, z „unoszącym” charakterem, który buduje jednocześnie nadzieję i melancholię. Idealne jako tło do emocjonalnych ujęć i refleksyjnych momentów w materiale wideo.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "emocjonalne intro i podsumowania vloga",
+        "tło do ujęć refleksyjnych i wspomnień",
+        "montaż z napisami/voice-over w spokojnym tempie"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:11.423Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_489883",
+      "fileName": "prettyjohn1-sad-background-music_48sec-489883.mp3",
+      "title": "Sad Background Music_48Sec",
+      "mood": [
+        "smutny",
+        "emocjonalny",
+        "nostalgiczny",
+        "refleksyjny",
+        "wzruszający"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube",
+        "shorts"
+      ],
+      "energy": "medium",
+      "durationSec": 48.039,
+      "integratedLufs": -9.7,
+      "pixabay": {
+        "genre": [
+          "Beats",
+          "Nostalgia"
+        ],
+        "mood": [
+          "Sad",
+          "Emotional"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Free for use under the Pixabay",
+          "Content",
+          "License",
+          "Free download 3.5K",
+          "Save",
+          "Plays 130,661",
+          "Downloads 14,272",
+          "Saves 46"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/beats-sad-background-music-48sec-489883/",
+      "description": "Utwór ma nostalgiczny, emocjonalny charakter z wyraźnym beatem i miękkim, „filmowym” tłem. Tempo jest umiarkowane, a brzmienie opiera się na rytmicznych warstwach perkusyjnych oraz podkładzie budującym nastrój smutku i refleksji. Całość dobrze trzyma dynamikę przez cały czas, bez nagłych zwrotów.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "montaż wspomnień i retrospekcji",
+        "podkład pod emocjonalny moment w vlogu",
+        "tło do narracji z refleksją"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:14.015Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_549431",
+      "fileName": "apalonbeats-sad-emotional-549431.mp3",
+      "title": "Sad Emotional",
+      "mood": [
+        "sad",
+        "emotional",
+        "dreamy",
+        "chill",
+        "elegant",
+        "smooth"
+      ],
+      "useCase": [
+        "vlog",
+        "youtube"
+      ],
+      "energy": "medium",
+      "durationSec": 130.403,
+      "integratedLufs": -13.5,
+      "pixabay": {
+        "genre": [
+          "Beats",
+          "Electronic"
+        ],
+        "mood": [
+          "Sad",
+          "Emotional",
+          "Laid",
+          "Back",
+          "Dreamy",
+          "Chill"
+        ],
+        "movement": [
+          "Elegant",
+          "Floating",
+          "Smooth",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/beats-sad-emotional-549431/",
+      "description": "Elektroniczny, emocjonalny beat z delikatnymi syntezatorami i płynną, „floating” linią melodyczną. Tempo jest umiarkowane, a całość brzmi elegancko i sennie—idealnie jako tło pod narrację. Nastrój pozostaje melancholijny, ale gładki i nowoczesny, bez agresywnych akcentów.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do melancholijnego vlogu",
+        "podkład pod retrospekcje i wspomnienia",
+        "music bed do spokojnej narracji w YouTube"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:16.083Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_496553",
+      "fileName": "the_mountain-lofi-lofi-music-496553.mp3",
+      "title": "LoFi - LoFi Music",
+      "mood": [
+        "energetyczny",
+        "jasny",
+        "wyluzowany",
+        "lofi",
+        "rytmiczny",
+        "pozytywny"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 102.243,
+      "integratedLufs": -10.9,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Beats",
+          "House"
+        ],
+        "mood": [
+          "Bright",
+          "Laid",
+          "Back",
+          "Energetic"
+        ],
+        "movement": [
+          "Medium",
+          "Medium",
+          "Fast"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-lofi-lofi-music-496553/",
+      "description": "Dynamiczny lo-fi beat z domieszką house: sprężyste perkusjonalia, ciepłe sample i lekko „bright” brzmienie w średnio-szybkim tempie. Nastrój jest energetyczny, ale nadal tło-friendly — idealne pod montaż i narrację bez dominowania.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do szybkiego montażu i przejść w vlogu",
+        "podkład pod intro/outro na YouTube",
+        "beat do materiałów gamingowych i podcastowych"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:18.018Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_560158",
+      "fileName": "mondamusic-lofi-beats-560158.mp3",
+      "title": "Lofi Beats",
+      "mood": [
+        "chill",
+        "relaxed",
+        "nostalgic",
+        "smooth",
+        "lofi",
+        "warm"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "medium",
+      "durationSec": 109.061,
+      "integratedLufs": -13.5,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Electronic"
+        ],
+        "mood": [
+          "Chill",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Music For Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-lofi-beats-560158/",
+      "description": "Ciepły, lo-fi elektroniczny beat z miękkim groove’em i spokojnym, średnim tempem. Brzmienie jest tła-wspierające: delikatne tekstury, subtelna perkusja i klimat „chill” bez dominowania nad narracją. Idealne jako muzyka w tle do montażu vlogów i krótkich materiałów.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vloga i codziennych ujęć",
+        "montaż z napisami i przejściami (shorts)",
+        "podkład do intro/outro i scen lifestyle"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:20.057Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_560155",
+      "fileName": "mondamusic-lofi-lofi-music-lofi-chill-560155.mp3",
+      "title": "LoFi - LoFi Music - Lofi Chill",
+      "mood": [
+        "chill",
+        "nostalgic",
+        "relaxed",
+        "smooth",
+        "lofi",
+        "warm"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "medium",
+      "durationSec": 104.098,
+      "integratedLufs": -17,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Electronic"
+        ],
+        "mood": [
+          "Chill",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Music For Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-lofi-lofi-music-lofi-chill-560155/",
+      "description": "Ciepły, lo-fi elektroniczny bed z miękkim groove’em i spokojnym, średnim tempem. Brzmienie jest „chill” i lekko nostalgiczne, z delikatnymi teksturami w tle, idealne pod narrację i montaż. Całość utrzymuje równy, nieinwazyjny ruch przez cały utwór.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vlogów i codziennych ujęć",
+        "montaż z napisami i B-roll w stylu studyjnego chilloutu",
+        "intro/outro do kanału na YouTube"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:22.069Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_560285",
+      "fileName": "mirostar-lofi-lofi-girl-lofi-chill-2-560285.mp3",
+      "title": "Lofi - Lofi Girl - Lofi Chill 2",
+      "mood": [
+        "chill",
+        "relaxed",
+        "nostalgic",
+        "lofi",
+        "smooth",
+        "low-key"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "medium",
+      "durationSec": 82.338,
+      "integratedLufs": -16.7,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Electronic"
+        ],
+        "mood": [
+          "Chill",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Music For Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-lofi-lofi-girl-lofi-chill-2-560285/",
+      "description": "Ciepły, lo-fi elektroniczny podkład z miękkim groove’em i spokojnym tempem, zbudowanym na subtelnych bitach oraz klimatycznych teksturach. Nastrój jest wyluzowany i „backstage” — idealny jako tło pod narrację, bez dominowania kadru.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vlogu i codziennych ujęć",
+        "podkład pod intro/outro i narrację",
+        "lofi bed do shortów z montażem"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:23.948Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_160166",
+      "fileName": "fassounds-good-night-lofi-cozy-chill-music-160166.mp3",
+      "title": "Good Night - Lofi Cozy Chill Music",
+      "mood": [
+        "glamorous",
+        "dreamy",
+        "relaxing",
+        "romantic",
+        "uplifting",
+        "smooth",
+        "bright"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 147.122,
+      "integratedLufs": -8.3,
+      "pixabay": {
+        "genre": [
+          "Beats",
+          "Electronic",
+          "Alternative",
+          "Hip",
+          "Hop",
+          "Rnb",
+          "Cafe"
+        ],
+        "mood": [
+          "Glamorous",
+          "Dreamy",
+          "Laid",
+          "Back",
+          "Bright",
+          "Relaxing",
+          "Romantic",
+          "Uplifting"
+        ],
+        "movement": [
+          "Floating",
+          "Smooth",
+          "Elegant",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/beats-good-night-lofi-cozy-chill-music-160166/",
+      "description": "Lofi/cafe’owy beat z elektronicznym, gładkim groove’em i lekką, „floating” fakturą. Brzmienie jest jasne i eleganckie, z romantycznym, marzycielskim nastrojem oraz energią utrzymaną na wysokim poziomie. Idealne jako tło do vlogów, gdy chcesz dodać ciepły, uplifting klimat bez dominowania obrazu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do wieczornego vlogu i kadrów w kawiarni",
+        "montaż z romantycznym, marzycielskim klimatem",
+        "intro/outro do kanału na YouTube z lofi beatem"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:26.174Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_560303",
+      "fileName": "mirostar-sad-lofi-560303.mp3",
+      "title": "Sad LoFi",
+      "mood": [
+        "melancholic",
+        "chill",
+        "reflective",
+        "lofi",
+        "calm",
+        "moody"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog"
+      ],
+      "energy": "medium",
+      "durationSec": 109.767,
+      "integratedLufs": -17.3,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Electronic"
+        ],
+        "mood": [
+          "Chill",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Music For Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-sad-lofi-560303/",
+      "description": "Melancholijny lo-fi elektroniczny bed z ciepłym, ziarnistym brzmieniem, delikatnymi beatami i subtelnymi akcentami syntezatorów. Tempo jest umiarkowane, a całość utrzymuje spokojny, refleksyjny nastrój w tle — idealna do montażu bez dominowania narracji.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do smutnych/nostalgicznych ujęć",
+        "montaż vlogowy z refleksyjnym vibe",
+        "intro lub podkład pod narrację w YouTube"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:28.369Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_560422",
+      "fileName": "apalonbeats-sad-lofi-560422.mp3",
+      "title": "Sad LoFi",
+      "mood": [
+        "melancholic",
+        "chill",
+        "lofi",
+        "nostalgic",
+        "relaxed",
+        "moody"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "medium",
+      "durationSec": 128.026,
+      "integratedLufs": -23.7,
+      "pixabay": {
+        "genre": [
+          "Lofi",
+          "Electronic"
+        ],
+        "mood": [
+          "Chill",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Music For Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-sad-lofi-560422/",
+      "description": "Melancholijny lo-fi elektroniczny podkład z ciepłym, ziarnistym brzmieniem i delikatnym groove’em w średnim tempie. Nastrojowe akordy, subtelne sample i spokojny rytm tworzą tło idealne pod refleksyjny montaż.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "refleksyjny vlog i podsumowania dnia",
+        "tło do montażu z napisami i B-roll",
+        "intro/outro w stylu lo-fi dla kanału"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:30.150Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_519408",
+      "fileName": "leberch-lofi-hip-hop-519408.mp3",
+      "title": "Lofi Hip-Hop",
+      "mood": [
+        "relaxed",
+        "chill",
+        "nostalgic",
+        "smooth",
+        "cozy"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "low",
+      "durationSec": 78.028,
+      "integratedLufs": -12,
+      "pixabay": {
+        "genre": [
+          "Lofi"
+        ],
+        "mood": [
+          "Laid",
+          "Back",
+          "Relaxing"
+        ],
+        "movement": [
+          "Medium"
+        ],
+        "theme": [
+          "Background",
+          "Music",
+          "Music For Youtube",
+          "Videos"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/lofi-lofi-hip-hop-519408/",
+      "description": "Ciepły, lo-fi beat z miękkim swingiem i spokojnym tempem, zbudowany na subtelnych samplerach oraz delikatnych perkusjonaliach. Brzmienie jest tła- i montażowe: nie wybija się, tylko podbija klimat relaksu i codziennego vlogowania.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do vlogów i codziennych ujęć",
+        "spokojne intro/outro do shortów",
+        "podkład pod montaż z muzyką w tle"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:31.870Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_260010",
+      "fileName": "denys_brodovskyi-tell-me-the-truth-260010.mp3",
+      "title": "Tell Me The Truth",
+      "mood": [
+        "energetic",
+        "uplifting",
+        "restless",
+        "dreamy",
+        "bright",
+        "smooth",
+        "futuristic"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 188.343,
+      "integratedLufs": -6.5,
+      "pixabay": {
+        "genre": [
+          "Future",
+          "Bass",
+          "Beats",
+          "Electronic"
+        ],
+        "mood": [
+          "Dreamy",
+          "Laid",
+          "Back",
+          "Bright",
+          "Restless",
+          "Energetic",
+          "Uplifting"
+        ],
+        "movement": [
+          "Smooth",
+          "Medium",
+          "Chasing",
+          "Heavy &",
+          "Ponderous"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/future-bass-tell-me-the-truth-260010/",
+      "description": "Przyszłościowy future-bass z wyraźnym, kołyszącym groove’em i dynamicznym basem, który prowadzi całość przez „chasing” rytm. Brzmienie jest jasne i gładkie, z lekką, niepokojącą energią—idealne do szybkich ujęć i budowania napięcia bez przytłaczania narracji.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro do vloga/shortsa",
+        "montaż z szybkimi cięciami i przejściami",
+        "tło pod narrację w futurystycznym klimacie"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:33.872Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_252499",
+      "fileName": "itswatr-soulsweeper-252499.mp3",
+      "title": "Soulsweeper",
+      "mood": [
+        "mysterious",
+        "dark",
+        "tense",
+        "restless",
+        "epic",
+        "scary",
+        "energetic"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 211.513,
+      "integratedLufs": -7.7,
+      "pixabay": {
+        "genre": [
+          "Dubstep",
+          "Beats",
+          "Electronic"
+        ],
+        "mood": [
+          "Restless",
+          "Energetic",
+          "Laid",
+          "Back",
+          "Mysterious",
+          "Epic",
+          "Dark",
+          "Scary",
+          "Suspense"
+        ],
+        "movement": [
+          "Chasing",
+          "Medium",
+          "Heavy &",
+          "Ponderous"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/dubstep-soulsweeper-252499/",
+      "description": "Mroczny, elektroniczny dubstep z ciężkimi, pulsującymi beatami i narastającym napięciem. Tempo i energia są wysokie, a brzmienie ma charakter „chasing” — dynamiczne, agresywne i filmowe, idealne do scen pełnych pościgu i suspensu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "pościg i dynamiczne ujęcia w vlogu",
+        "montaż z napięciem i zwrotami akcji",
+        "tło do gamingowych momentów boss fight"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:35.795Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_219592",
+      "fileName": "vasilyatsevich-in-slow-motion-inspiring-ambient-lounge-219592.mp3",
+      "title": "In Slow Motion (Inspiring Ambient Lounge)",
+      "mood": [
+        "uplifting",
+        "dreamy",
+        "glamorous",
+        "hopeful",
+        "smooth",
+        "bright",
+        "sexy"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog",
+        "shorts"
+      ],
+      "energy": "high",
+      "durationSec": 118.988,
+      "integratedLufs": -9.2,
+      "pixabay": {
+        "genre": [
+          "Future",
+          "Bass",
+          "Beats",
+          "Electronic",
+          "Rnb"
+        ],
+        "mood": [
+          "Dreamy",
+          "Laid",
+          "Back",
+          "Bright",
+          "Hopeful",
+          "Uplifting",
+          "Sexy",
+          "Glamorous"
+        ],
+        "movement": [
+          "Smooth",
+          "Floating",
+          "Medium",
+          "Elegant"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/future-bass-in-slow-motion-inspiring-ambient-lounge-219592/",
+      "description": "Gładki, przyszłościowy future-bass z ciepłym basem i delikatnymi, elektronicznymi teksturami tworzy lekko „pływający” klimat. Tempo jest dynamiczne, ale podane w miękkim, lounge’owym stylu—brzmienie jest jasne, eleganckie i podbija poczucie nadziei oraz lekkości. Idealne jako tło do vlogów, gdy chcesz dodać energii bez przytłaczania narracji.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "tło do dynamicznych ujęć lifestyle i podróży",
+        "bed pod intro/outro z futurystycznym vibe",
+        "montaż z beatami i płynnymi przejściami"
+      ],
+      "suggestedBedVolumeDb": -18,
+      "aiEnrichedAt": "2026-07-09T22:01:38.132Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_202298",
+      "fileName": "34910776-for-her-chill-upbeat-summel-travel-vlog-and-ig-music-royalty-free-use-202298.mp3",
+      "title": "For Her Chill Upbeat Summel Travel Vlog and IG Music Royalty Free Use",
+      "mood": [
+        "uplifting",
+        "restless",
+        "bright",
+        "dreamy",
+        "glamorous",
+        "smooth",
+        "elegant"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 133.381,
+      "integratedLufs": -11.2,
+      "pixabay": {
+        "genre": [
+          "Beats",
+          "Electronic",
+          "Alternative",
+          "Hip",
+          "Hop",
+          "Rnb",
+          "Pop"
+        ],
+        "mood": [
+          "Uplifting",
+          "Restless",
+          "Laid",
+          "Back",
+          "Bright",
+          "Glamorous",
+          "Dreamy"
+        ],
+        "movement": [
+          "Smooth",
+          "Elegant",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/beats-for-her-chill-upbeat-summel-travel-vlog-and-ig-music-royalty-free-use-202298/",
+      "description": "Chillowo-upbeatowe, elektroniczne brzmienie z gładkim groove’em i wyraźnym, sprężystym beatem. Nastrój jest jasny i „glamorous”, z marzycielskimi, dreamy naleciałościami i eleganckim, średnio-smooth ruchem — idealne pod dynamiczny montaż vlogowy.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "szybkie ujęcia z podróży i city breaków",
+        "montaż lifestyle z dynamicznym przejściem beatów",
+        "intro/outro do vlogów i reelsów o lekkim, modnym klimacie"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:40.740Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_173062",
+      "fileName": "rockot-drive-breakbeat-173062.mp3",
+      "title": "Drive Breakbeat",
+      "mood": [
+        "restless",
+        "suspense",
+        "energetic",
+        "epic",
+        "upbeat",
+        "action"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 109.923,
+      "integratedLufs": -11.2,
+      "pixabay": {
+        "genre": [
+          "Upbeat",
+          "Electronic",
+          "Action",
+          "Alternative",
+          "Hip",
+          "Hop"
+        ],
+        "mood": [
+          "Restless",
+          "Suspense",
+          "Energetic",
+          "Epic",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Chasing",
+          "Running",
+          "Heavy &",
+          "Ponderous",
+          "Medium"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/upbeat-drive-breakbeat-173062/",
+      "description": "Dynamiczny, elektroniczny breakbeat z mocnym, napędzającym groove’em i wyraźnym rytmem „chasing/running”. Brzmienie jest cięższe i bardziej epickie (warstwowe uderzenia, pulsujące syntezatory), z napięciem budowanym przez suspense’owe akcenty. Idealne jako energiczne tło do szybkich ujęć i montażu w ruchu.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "szybkie intro i dynamiczne przejścia w vlogu",
+        "montaż akcji: bieganie, pościg, sportowe ujęcia",
+        "tło do dynamicznych screenów i highlightów na YouTube"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:43.005Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_170190",
+      "fileName": "alisiabeats-titanium-170190.mp3",
+      "title": "Titanium",
+      "mood": [
+        "uplifting",
+        "restless",
+        "dreamy",
+        "bright",
+        "futuristic",
+        "smooth"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 106.2,
+      "integratedLufs": -10.9,
+      "pixabay": {
+        "genre": [
+          "Future",
+          "Bass",
+          "Beats",
+          "Electronic"
+        ],
+        "mood": [
+          "Uplifting",
+          "Restless",
+          "Dreamy",
+          "Bright",
+          "Laid",
+          "Back"
+        ],
+        "movement": [
+          "Chasing",
+          "Elegant",
+          "Smooth",
+          "Medium",
+          "Floating"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/future-bass-titanium-170190/",
+      "description": "Przyszłościowy future-bass z wyraźnym, sprężystym basem i błyszczącymi syntezatorami, utrzymany w dynamicznym, pędzącym tempie. Brzmienie jest eleganckie i gładkie, z „floating” charakterem melodii, co daje jednocześnie lekki niepokój i jasny, podnoszący nastrój.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro do vloga",
+        "tło pod montaż „chasing/fast cut”",
+        "podkład do futurystycznych ujęć i przejść"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-09T22:01:44.946Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     }
   ]
 }

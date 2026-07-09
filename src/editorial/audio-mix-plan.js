@@ -36,7 +36,8 @@ function shouldRecommendMusicBed({ batchSummary, batchContext = {}, outputs = []
     return false;
   }
 
-  const hasShort = outputs.some((o) => o.outputKind === "short");
+  const hasShort = outputs.some((o) => o.outputKind === "short")
+    || (batchContext.requiredFormats ?? []).includes("9:16");
   const totalSilence = batchSummary?.totalSilenceSec ?? 0;
   const clipCount = batchSummary?.clipCount ?? 0;
 
@@ -45,6 +46,40 @@ function shouldRecommendMusicBed({ batchSummary, batchContext = {}, outputs = []
   }
 
   return /music|bed|soundtrack/i.test(String(batchContext.notes ?? ""));
+}
+
+function resolvePreferredTrackId({
+  batchContext = {},
+  outputs = [],
+  recommendedTrackId,
+  mood,
+  estimatedBpm,
+  catalogPath,
+}) {
+  if (batchContext.musicBedTrackId) {
+    const resolved = resolveTrackById(batchContext.musicBedTrackId, { catalogPath });
+    if (resolved.track) {
+      return resolved.track;
+    }
+  }
+
+  const hasShort = outputs.some((o) => o.outputKind === "short")
+    || (batchContext.requiredFormats ?? []).includes("9:16");
+  if (hasShort) {
+    const shortsTrack = resolveTrackById("shorts_energy_01", { catalogPath }).track;
+    if (shortsTrack) {
+      return shortsTrack;
+    }
+  }
+
+  if (recommendedTrackId) {
+    const resolved = resolveTrackById(recommendedTrackId, { catalogPath });
+    if (resolved.track) {
+      return resolved.track;
+    }
+  }
+
+  return pickByMood(mood, { bpm: estimatedBpm, catalogPath });
 }
 
 /**
@@ -56,6 +91,7 @@ export function deriveAudioMixPlanDefaults({
   batchContext = {},
   perClipAnalysis = [],
   catalogPath,
+  musicSelection = null,
 } = {}) {
   const batchSummary = audioIndex?.batchSummary ?? {};
   const avgVoiceLufs = batchSummary.avgVoiceLufs ?? null;
@@ -73,11 +109,19 @@ export function deriveAudioMixPlanDefaults({
   }
 
   const mood = inferDominantMood(batchSummary, batchContext);
-  const recommendedTrackId = audioIndex?.clips?.find((c) => c.recommendedTrackId)?.recommendedTrackId;
-  const resolved = recommendedTrackId
-    ? resolveTrackById(recommendedTrackId, { catalogPath })
-    : { track: pickByMood(mood, { bpm: estimatedBpm, catalogPath }), reason: null };
-  const track = resolved.track;
+  const recommendedTrackId = musicSelection?.trackId
+    ?? audioIndex?.clips?.find((c) => c.recommendedTrackId)?.recommendedTrackId;
+  const track = resolvePreferredTrackId({
+    batchContext: {
+      ...batchContext,
+      musicBedTrackId: musicSelection?.trackId ?? batchContext.musicBedTrackId,
+    },
+    outputs,
+    recommendedTrackId,
+    mood,
+    estimatedBpm,
+    catalogPath,
+  });
 
   if (!track) {
     return plan;

@@ -20,7 +20,7 @@ describe("super-director agent", () => {
     };
 
     const client = createMockOpenAIClient([mockPlan], { captureRequests: true });
-    const plan = await runSuperDirector(client, {
+    const { plan, briefMetric } = await runSuperDirector(client, {
       abstraction,
       timelineIndex,
       clipRegistry,
@@ -31,6 +31,8 @@ describe("super-director agent", () => {
     assert.equal(SuperDirectorPlanSchema.safeParse(plan).success, true);
     assert.equal(plan.segmentPicks[0].segmentId, "seg001");
     assert.equal(plan.crossSegmentNotes[0], "Zachowaj hook na początku");
+    assert.equal(briefMetric.task, "super_director_route");
+    assert.ok(briefMetric.estimatedTokens > 0);
 
     const requests = client.getCapturedRequests();
     assert.equal(requests.length, 1);

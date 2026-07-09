@@ -340,4 +340,43 @@ describe("critic agent", () => {
     assert.equal(payload.vlogRetentionProfile.enabled, true);
     assert.ok(payload.retentionBeatTargetsMain?.length >= 1);
   });
+
+  it("prepends super critic error issues into heuristic review", async () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.2",
+      creativeMoments: [],
+    };
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    const client = createMockOpenAIClient([{
+      approved: true,
+      issues: [],
+      summary: "looks fine",
+    }], { captureRequests: true });
+
+    const review = await runCritic(client, {
+      recipe,
+      abstraction,
+      timelineIndex,
+      iteration: 1,
+      requiredFormats: ["16:9", "9:16"],
+      superCriticReview: {
+        approved: false,
+        issues: [{
+          severity: "error",
+          code: "SUPER-ARC-01",
+          message: "Missing callback between segments",
+        }],
+        summary: "arc gap",
+        crossSegmentNotes: [],
+      },
+    });
+
+    assert.equal(review.approved, false);
+    assert.ok(review.issues.some((issue) => issue.code === "SUPER-ARC-01"));
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.ok(payload.heuristicIssues.some((issue) => issue.code === "SUPER-ARC-01"));
+  });
 });

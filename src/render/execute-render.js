@@ -28,8 +28,9 @@ import {
 import { applyCreativeMoments } from "./ffmpeg-creative.js";
 import { burnAssSubtitles } from "./ass-subtitles.js";
 import { applyTextOverlays } from "./ffmpeg-graphics.js";
-import { applyAudioMix } from "./audio-mix.js";
+import { applyAudioMix, outputHasAudioCensorship } from "./audio-mix.js";
 import { applyColorGrade, shouldApplyColorGrade } from "./color-grade.js";
+import { shouldAllowColorGrade } from "../editorial/color-grade-policy.js";
 import { validateRenderFidelity } from "../validators/render-fidelity.js";
 import {
   normalizeFromPass,
@@ -280,6 +281,7 @@ export async function renderOutput({
           context,
           stylePresets,
           format: output.format,
+          dimensions,
         });
         currentPath = subsPath;
       }
@@ -305,7 +307,8 @@ export async function renderOutput({
     let audioMixApplied = false;
     let sfxApplied = false;
     let audioTechniquesApplied = false;
-    if ((recipe.audioMixPlan || recipe.sfxPlan?.length) && shouldRunPass(fromPass, "audio_mix")) {
+    if ((recipe.audioMixPlan || recipe.sfxPlan?.length || outputHasAudioCensorship(output))
+      && shouldRunPass(fromPass, "audio_mix")) {
       if (options.skipAudioMix) {
         passesSkipped.push("audio_mix");
       } else {
@@ -336,7 +339,8 @@ export async function renderOutput({
       }
     }
 
-    if (shouldApplyColorGrade(recipe.colorGrade) && shouldRunPass(fromPass, "color_grade")) {
+    const colorGradeAllowed = shouldAllowColorGrade(recipe.batchContext, recipe.colorGrade);
+    if (colorGradeAllowed && shouldApplyColorGrade(recipe.colorGrade) && shouldRunPass(fromPass, "color_grade")) {
       if (options.skipColorGrade) {
         passesSkipped.push("color_grade");
       } else {

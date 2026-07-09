@@ -233,6 +233,8 @@ export async function runCritic(client, {
   audioIndex = null,
   perClipAnalysis = null,
   brollSyncHints,
+  onUsage,
+  superCriticReview = null,
 }) {
   const heuristicIssues = heuristicReview(recipe, {
     requiredFormats,
@@ -246,6 +248,19 @@ export async function runCritic(client, {
     brollSyncHints,
     abstraction,
   });
+
+  if (superCriticReview?.issues?.length) {
+    const superErrors = superCriticReview.issues.filter((issue) => issue.severity === "error");
+    for (const issue of superErrors) {
+      const duplicate = heuristicIssues.some(
+        (h) => h.code === issue.code && h.message === issue.message,
+      );
+      if (!duplicate) {
+        heuristicIssues.unshift(issue);
+      }
+    }
+  }
+
   const isV2Recipe = isRecipeV2(recipe.version);
   const system = loadPrompt("critic", { version: isV2Recipe ? "v2" : "v1" })
     || loadPrompt("critic");
@@ -317,6 +332,7 @@ export async function runCritic(client, {
     system,
     user,
     temperature: 0.2,
+    onUsage,
   });
 
   const mergedIssues = [...heuristicIssues];

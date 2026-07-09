@@ -29,7 +29,7 @@ describe("cli", () => {
     const args = parseArgs(["node", "cli.js", "analyze", "--input", "./inbox"]);
     assert.equal(args.command, "analyze");
     assert.equal(args.fromStep, "ingest");
-    assert.equal(args.toStep, "index");
+    assert.equal(args.toStep, "clip_profile");
     assert.equal(args.input, "./inbox");
   });
 
@@ -42,6 +42,12 @@ describe("cli", () => {
   it("parseArgs sets report command with batch-id", () => {
     const args = parseArgs(["node", "cli.js", "report", "--batch-id", "abc12345"]);
     assert.equal(args.command, "report");
+    assert.equal(args.batchId, "abc12345");
+  });
+
+  it("parseArgs sets doctor command with batch-id", () => {
+    const args = parseArgs(["node", "cli.js", "doctor", "--batch-id", "abc12345"]);
+    assert.equal(args.command, "doctor");
     assert.equal(args.batchId, "abc12345");
   });
 
@@ -128,6 +134,15 @@ describe("cli", () => {
       "--max-review-iterations", "5",
     ]);
     assert.equal(args.maxReviewIterations, "5");
+  });
+
+  it("parseArgs sets --strict-review", () => {
+    const args = parseArgs([
+      "node", "cli.js", "run",
+      "--input", "./inbox",
+      "--strict-review",
+    ]);
+    assert.equal(args.strictReview, true);
   });
 
   it("resolveMaxReviewIterations defaults to 3 and validates range", () => {

@@ -5,6 +5,7 @@ import { ARTIFACTS } from "./work-paths.js";
 
 export const CLIP_ARTIFACT_PATTERNS = {
   words: "01-words-*",
+  metaCommands: "01c-meta-commands-*",
   audioAnalysis: "01b-audio-analysis-*",
   keyframes: "02-keyframes-*",
   twelvelabs: "03b-twelvelabs-*",
@@ -15,6 +16,7 @@ export const CLIP_ARTIFACT_PATTERNS = {
 
 const CLIP_ARTIFACT_PREFIXES = {
   [CLIP_ARTIFACT_PATTERNS.words]: "01-words-",
+  [CLIP_ARTIFACT_PATTERNS.metaCommands]: "01c-meta-commands-",
   [CLIP_ARTIFACT_PATTERNS.audioAnalysis]: "01b-audio-analysis-",
   [CLIP_ARTIFACT_PATTERNS.keyframes]: "02-keyframes-",
   [CLIP_ARTIFACT_PATTERNS.twelvelabs]: "03b-twelvelabs-",
@@ -33,12 +35,14 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
   [ARTIFACTS.manifest]: [],
   [ARTIFACTS.sceneCatalog]: [ARTIFACTS.manifest],
   [CLIP_ARTIFACT_PATTERNS.words]: [ARTIFACTS.sceneCatalog],
+  [CLIP_ARTIFACT_PATTERNS.metaCommands]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
   [CLIP_ARTIFACT_PATTERNS.audioAnalysis]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
   [CLIP_ARTIFACT_PATTERNS.keyframes]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
   [CLIP_ARTIFACT_PATTERNS.twelvelabs]: [ARTIFACTS.sceneCatalog, ARTIFACTS.manifest],
   [ARTIFACTS.audioIndex]: [
     ARTIFACTS.sceneCatalog,
     CLIP_ARTIFACT_PATTERNS.words,
+    CLIP_ARTIFACT_PATTERNS.metaCommands,
     CLIP_ARTIFACT_PATTERNS.audioAnalysis,
   ],
   [CLIP_ARTIFACT_PATTERNS.vision]: [CLIP_ARTIFACT_PATTERNS.keyframes],
@@ -47,6 +51,7 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
   [ARTIFACTS.timelineIndex]: [
     ARTIFACTS.sceneCatalog,
     CLIP_ARTIFACT_PATTERNS.words,
+    CLIP_ARTIFACT_PATTERNS.metaCommands,
     CLIP_ARTIFACT_PATTERNS.keyframes,
     CLIP_ARTIFACT_PATTERNS.vision,
     CLIP_ARTIFACT_PATTERNS.objects,
@@ -73,6 +78,13 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     CLIP_ARTIFACT_PATTERNS.objects,
     CLIP_ARTIFACT_PATTERNS.faces,
   ],
+  [ARTIFACTS.aiVideo]: [
+    ARTIFACTS.spatialIndex,
+    ARTIFACTS.abstraction,
+    ARTIFACTS.timelineIndex,
+    ARTIFACTS.sceneCatalog,
+    ARTIFACTS.audioIndex,
+  ],
   [ARTIFACTS.recipeDraft]: [
     ARTIFACTS.timelineIndex,
     ARTIFACTS.abstraction,
@@ -80,6 +92,8 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     ARTIFACTS.topicIndex,
     ARTIFACTS.spatialIndex,
     ARTIFACTS.audioIndex,
+    ARTIFACTS.aiVideo,
+    CLIP_ARTIFACT_PATTERNS.metaCommands,
   ],
   [ARTIFACTS.review]: [
     ARTIFACTS.recipeDraft,
@@ -90,8 +104,14 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     ARTIFACTS.sceneCatalog,
     ARTIFACTS.audioIndex,
     CLIP_ARTIFACT_PATTERNS.words,
+    CLIP_ARTIFACT_PATTERNS.metaCommands,
   ],
   [ARTIFACTS.recipeFinal]: [ARTIFACTS.review, ARTIFACTS.recipeDraft],
+  [ARTIFACTS.gptUsage]: [
+    ARTIFACTS.recipeDraft,
+    ARTIFACTS.review,
+    ARTIFACTS.recipeFinal,
+  ],
   [ARTIFACTS.thumbnailPlan]: [
     ARTIFACTS.recipeFinal,
     ARTIFACTS.timelineIndex,
@@ -101,6 +121,13 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     ARTIFACTS.manifest,
   ],
   [ARTIFACTS.thumbnailReview]: [ARTIFACTS.thumbnailPlan, ARTIFACTS.recipeFinal, ARTIFACTS.abstraction],
+  "15-publish-package-*": [
+    ARTIFACTS.recipeFinal,
+    ARTIFACTS.thumbnailPlan,
+    ARTIFACTS.renderManifest,
+    ARTIFACTS.topicIndex,
+    ARTIFACTS.abstraction,
+  ],
   [ARTIFACTS.batchQualityReport]: [
     ARTIFACTS.timelineIndex,
     ARTIFACTS.spatialIndex,

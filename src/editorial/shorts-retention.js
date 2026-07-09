@@ -16,6 +16,12 @@ import {
   findAnchorNearTimestamp,
 } from "./spatial-ref.js";
 import { buildTopSceneRanks } from "./scene-rank.js";
+import {
+  isChronologicalFirstScene,
+  isSetupNarrativeScene,
+  resolveHookWordInpointSec,
+  segmentOpensWithGreeting,
+} from "./shorts-greeting.js";
 
 export const SHORT_HOOK_SEGMENT_ID = "enrich_short_hook_01";
 const DEFAULT_SHORT_HOOK_MAX_SEC = 3;
@@ -31,6 +37,7 @@ export const DEFAULT_SHORTS_RETENTION_PROFILE = {
   maxHookOverlayDurationSec: 4,
   techniquePack: "shorts_retention_2026",
   mode: "shorts",
+  dynamicBeatCadence: true,
 };
 
 /** Softer cadence for 16:9 vlog main — subtle variety, not constant flashing. */
@@ -307,13 +314,36 @@ export function mergeShortsRetentionProfile(overrides = {}, context = {}) {
 }
 
 /**
+ * Effective retention beat interval for shorts — denser cadence on reels ≤45s.
+ * @param {object} profile
+ * @param {number} durationSec
+ */
+export function resolveShortRetentionInterval(profile = {}, durationSec = 60) {
+  const base = profile.retentionBeatIntervalSec
+    ?? DEFAULT_SHORTS_RETENTION_PROFILE.retentionBeatIntervalSec;
+
+  if (profile.dynamicBeatCadence === false) {
+    return base;
+  }
+
+  if (durationSec <= 45) {
+    return Math.min(base, 10);
+  }
+  if (durationSec <= 60) {
+    return Math.min(base, 15);
+  }
+  return base;
+}
+
+/**
  * @param {number} durationSec
  * @param {object} profile
  */
 export function computeScaledMinRetentionBeats(durationSec, profile) {
   const base = profile.minRetentionBeats ?? DEFAULT_SHORTS_RETENTION_PROFILE.minRetentionBeats;
-  const interval = profile.retentionBeatIntervalSec
-    ?? DEFAULT_SHORTS_RETENTION_PROFILE.retentionBeatIntervalSec;
+  const interval = profile.mode === "vlog"
+    ? (profile.retentionBeatIntervalSec ?? DEFAULT_VLOG_RETENTION_PROFILE.retentionBeatIntervalSec)
+    : resolveShortRetentionInterval(profile, durationSec);
 
   if (durationSec <= 30) {
     return base;
@@ -425,7 +455,9 @@ export function computeRetentionBeatTargets(durationSec, profile = {}, { mode = 
   const resolvedMode = profile.mode ?? mode;
   const defaults = resolveRetentionDefaults(resolvedMode);
   const hookWindow = profile.hookWindowSec ?? defaults.hookWindowSec;
-  const interval = profile.retentionBeatIntervalSec ?? defaults.retentionBeatIntervalSec;
+  const interval = resolvedMode === "shorts"
+    ? resolveShortRetentionInterval(profile, durationSec)
+    : (profile.retentionBeatIntervalSec ?? defaults.retentionBeatIntervalSec);
   const effectiveProfile = { ...defaults, ...profile };
   const minBeats = computeScaledMinRetentionBeats(durationSec, effectiveProfile);
   const span = durationSec - hookWindow;
@@ -1113,8 +1145,24 @@ function resolveEnergyHookSceneId(timelineIndex, audioIndex) {
 }
 
 function resolveRankedHookSceneId(abstraction, timelineIndex, audioIndex) {
-  const ranks = buildTopSceneRanks(abstraction, timelineIndex, audioIndex, { limit: 1 });
-  return ranks[0]?.sceneId ?? null;
+  const ranks = buildTopSceneRanks(abstraction, timelineIndex, audioIndex, { limit: 5 });
+  const wordIndex = { words: timelineIndex?.words ?? [] };
+
+  for (const entry of ranks) {
+    if (isSetupNarrativeScene(entry.sceneId, abstraction)) {
+      continue;
+    }
+    const scene = (timelineIndex?.scenes ?? []).find((s) => s.sceneId === entry.sceneId);
+    if (
+      scene
+      && isChronologicalFirstScene(entry.sceneId, timelineIndex)
+      && segmentOpensWithGreeting(wordIndex, scene.startSec ?? 0)
+    ) {
+      continue;
+    }
+    return entry.sceneId;
+  }
+  return null;
 }
 
 /**
@@ -1148,7 +1196,7 @@ export function prependShortHookSegment(
   shortOutput,
   hookSceneId,
   timelineIndex,
-  { allowBrollReuse = false } = {},
+  { allowBrollReuse = false, wordIndexes = null } = {},
 ) {
   if (!hookSceneId || !shortOutput?.timeline?.length) {
     return false;
@@ -1173,8 +1221,13 @@ export function prependShortHookSegment(
   const sceneEnd = scene.endSec ?? (scene.startSec ?? 0) + (scene.durationSec ?? DEFAULT_SHORT_HOOK_MAX_SEC);
   const sceneStart = scene.startSec ?? 0;
   const duration = Math.min(DEFAULT_SHORT_HOOK_MAX_SEC, sceneEnd - sceneStart);
-  const videoInSec = Math.max(sceneStart, sceneEnd - duration);
-  const videoOutSec = sceneEnd;
+
+  const wordIndex = wordIndexes?.find((entry) => entry.clipId === clipId) ?? null;
+  const hookInpoint = wordIndex
+    ? resolveHookWordInpointSec(wordIndex, sceneStart, sceneEnd)
+    : Math.max(sceneStart, sceneEnd - duration);
+  const videoInSec = Math.max(sceneStart, Math.min(hookInpoint, sceneEnd - 0.5));
+  const videoOutSec = Math.min(sceneEnd, videoInSec + duration);
 
   shortOutput.timeline.unshift({
     segmentId: SHORT_HOOK_SEGMENT_ID,
@@ -1222,7 +1275,7 @@ function enrichShortHookMoment(shortOutput, profile, existingMoments, options = 
     return [];
   }
 
-  const { abstraction, timelineIndex, audioIndex, recipe } = options;
+  const { abstraction, timelineIndex, audioIndex, recipe, wordIndexes } = options;
   const allowBrollReuse = recipe?.batchContext?.allowBrollReuse ?? false;
   const { sceneId: hookSceneId, source: hookSource } = resolveBestHookScene(
     abstraction ?? {},
@@ -1236,7 +1289,7 @@ function enrichShortHookMoment(shortOutput, profile, existingMoments, options = 
       shortOutput,
       hookSceneId,
       timelineIndex,
-      { allowBrollReuse },
+      { allowBrollReuse, wordIndexes },
     );
   }
 

@@ -17,6 +17,11 @@ function passingMetrics(overrides = {}) {
     minRetentionBeatsRequired: 2,
     hookInFirst3s: true,
     hasShortOutputs: true,
+    briefSceneMapCoverage: null,
+    superPath: false,
+    superCriticApproved: null,
+    sceneCount: 5,
+    timelineSceneCount: 5,
     ...overrides,
   };
 }
@@ -61,6 +66,40 @@ describe("quality_gate_config", () => {
       evaluateQualityGates(passingMetrics({ reviewApproved: null }), "production"),
       ["review_not_approved"],
     );
+  });
+
+  it("production fails super_critic_not_approved when super path critic rejects", () => {
+    const failures = evaluateQualityGates(passingMetrics({
+      superPath: true,
+      superCriticApproved: false,
+    }), "production");
+    assert.ok(failures.includes("super_critic_not_approved"));
+  });
+
+  it("production skips super_critic gate when super critic review is absent", () => {
+    const failures = evaluateQualityGates(passingMetrics({
+      superPath: true,
+      superCriticApproved: null,
+    }), "production");
+    assert.ok(!failures.includes("super_critic_not_approved"));
+  });
+
+  it("production fails brief_scene_map_coverage_low on non-super path with low coverage", () => {
+    const failures = evaluateQualityGates(passingMetrics({
+      superPath: false,
+      briefSceneMapCoverage: 0.3,
+      timelineSceneCount: 40,
+    }), "production");
+    assert.ok(failures.includes("brief_scene_map_coverage_low"));
+  });
+
+  it("production skips brief_scene_map_coverage_low when scene count is small", () => {
+    const failures = evaluateQualityGates(passingMetrics({
+      superPath: false,
+      briefSceneMapCoverage: 0.3,
+      timelineSceneCount: 30,
+    }), "production");
+    assert.ok(!failures.includes("brief_scene_map_coverage_low"));
   });
 
   it("shorts profile adds retention beat and hook gates on top of production", () => {

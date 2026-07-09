@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "mustIncludeAny": [["kuuurwa", "kurwa", "kuuuurwa"]],
+  "minTokenRecall": 0.8,
+  "orderedSubsequence": ["yyy", "kuuuurwa", "to", "jest", "niemożliwe"],
+  "allowEmptyWords": false
+}

@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  pickBestSfxByTagFromSounds,
+  PROFANITY_BLEEP_FALLBACK_IDS,
+  PROFANITY_BLEEP_SFX_ID,
+} from "./sfx-catalog-summary.js";
+
+export { PROFANITY_BLEEP_SFX_ID };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_CATALOG_PATH = path.join(ROOT, "assets", "sfx", "catalog.json");
@@ -64,13 +71,10 @@ export function resolveSfxById(sfxId, { catalogPath = DEFAULT_CATALOG_PATH } = {
 }
 
 /**
- * Resolve first catalog sound matching an editorial tag.
+ * Resolve best catalog sound matching an editorial tag (title-aware scoring).
  */
 export function resolveSfxByTag(tag, { catalogPath = DEFAULT_CATALOG_PATH } = {}) {
-  const normalized = String(tag).toLowerCase();
-  const sound = listSfxCatalog(catalogPath).find((entry) =>
-    (entry.tags ?? []).some((entryTag) => String(entryTag).toLowerCase() === normalized),
-  );
+  const sound = pickBestSfxByTagFromSounds(listSfxCatalog(catalogPath), tag);
   if (!sound) {
     return { sound: null, reason: "sfx_not_in_catalog" };
   }
@@ -78,6 +82,25 @@ export function resolveSfxByTag(tag, { catalogPath = DEFAULT_CATALOG_PATH } = {}
     return { sound: null, reason: "sfx_file_missing" };
   }
   return { sound, reason: null };
+}
+
+/**
+ * Resolve profanity censor bleep from catalog (stable id → fallbacks → bleep tag).
+ */
+export function resolveProfanityBleepSfx({ catalogPath = DEFAULT_CATALOG_PATH } = {}) {
+  const byAlias = resolveSfxById(PROFANITY_BLEEP_SFX_ID, { catalogPath });
+  if (byAlias.sound) {
+    return byAlias;
+  }
+
+  for (const sfxId of PROFANITY_BLEEP_FALLBACK_IDS) {
+    const match = resolveSfxById(sfxId, { catalogPath });
+    if (match.sound) {
+      return match;
+    }
+  }
+
+  return resolveSfxByTag("bleep", { catalogPath });
 }
 
 export function resetSfxCatalogCache() {

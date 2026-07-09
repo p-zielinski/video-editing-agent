@@ -2,6 +2,20 @@ import { z } from "zod";
 import { AnchorTypeSchema } from "./spatial-index.js";
 import { PublishVoiceSchema } from "../editorial/publish-voice.js";
 
+export const ProfanityPolicySchema = z.enum(["bleep", "mute", "cut", "off"]);
+
+export const ProfanitySubtitleModeSchema = z.enum(["partial", "full", "off"]);
+
+export const AudioCensorshipWindowSchema = z.object({
+  startSec: z.number().nonnegative(),
+  endSec: z.number().positive(),
+  mode: z.enum(["bleep", "mute"]),
+  wordId: z.string().optional(),
+}).refine(
+  (window) => window.startSec < window.endSec,
+  { message: "audioCensorship: startSec must be less than endSec" },
+);
+
 export const AudioPolicyV2Schema = z.enum([
   "from_audio_ref",
   "from_video_ref",
@@ -19,7 +33,7 @@ export const SyncModeSchema = z.enum([
   "loop_video",
 ]);
 
-export const SegmentRoleSchema = z.enum(["aroll", "broll"]);
+export const SegmentRoleSchema = z.enum(["aroll", "broll", "ai_hook"]);
 
 export const ClipRoleSchema = z.enum([
   "aroll_primary",
@@ -28,6 +42,7 @@ export const ClipRoleSchema = z.enum([
   "narration_track",
   "outtakes",
   "undecided",
+  "ai_generated",
 ]);
 
 export const MediaTypeSchema = z.enum(["audio_only", "video"]);
@@ -128,6 +143,8 @@ export const VideoTransformSchema = z.object({
   }).optional(),
   reframe: z.enum(["center", "face", "subject"]).optional(),
   fitMode: z.enum(["pillarbox", "pillarbox_blur", "fill"]).optional(),
+  playbackMode: z.enum(["normal", "reverse", "boomerang"]).default("normal").optional(),
+  boomerangHalfSec: z.number().positive().max(30).optional(),
   speed: z.number().positive().max(4).default(1),
   speedMode: z.enum(["video_only", "video_audio"]).default("video_audio"),
 }).optional();
@@ -148,6 +165,7 @@ export const TimelineSegmentV2Schema = z.object({
   syncMode: SyncModeSchema.default("align_start"),
   allowBrollReuse: z.boolean().default(false),
   cuts: z.array(WordCutSchema).default([]),
+  audioCensorship: z.array(AudioCensorshipWindowSchema).default([]),
   timeCuts: z.array(TimeCutSchema).default([]),
   pictureInPicture: PictureInPictureSchema,
   subtitles: SubtitlesConfigSchema.optional(),
@@ -245,6 +263,26 @@ export const BatchContextV2Schema = z.object({
   shortsStrategy: z.enum(["standalone_highlights"]).default("standalone_highlights"),
   shortsMaxDurationSec: z.number().positive().default(60),
   publishVoice: PublishVoiceSchema.optional(),
+  profanityPolicy: ProfanityPolicySchema.default("bleep"),
+  profanitySubtitleMode: ProfanitySubtitleModeSchema.default("partial"),
+  aiVideoEnabled: z.boolean().default(false),
+  aiVideoMaxPerBatch: z.number().int().positive().default(1),
+  aiVideoMaxDurationSec: z.number().positive().max(15).default(5),
+  aiVideoGenerateAudio: z.boolean().default(false),
+  aiVideoTargetOutputs: z.array(z.enum(["16:9", "9:16"])).default(["9:16"]),
+  skipDrillDown: z.boolean().optional(),
+  sortBy: z.enum(["mtime", "creation_time", "name"]).optional(),
+  musicBed: z.boolean().optional(),
+  musicFirst: z.boolean().optional(),
+  musicBedTrackId: z.string().optional(),
+  targetDurationSec: z.number().positive().optional(),
+  formatsSource: z.enum(["cli", "context", "l3", "default"]).optional(),
+  superDirectorDurationThresholdSec: z.number().positive().optional(),
+  superDirectorMaxSegments: z.number().int().positive().optional(),
+  /** When true, always use classic director (single GPT pass) even for long / multi-L2 batches. */
+  forceClassicDirector: z.boolean().optional(),
+  /** off = never apply LUT/EQ (default, phone SDR); allow = director may set colorGrade. */
+  colorGradePolicy: z.enum(["off", "allow"]).default("off"),
 });
 
 export const SceneUsageEntrySchema = z.object({

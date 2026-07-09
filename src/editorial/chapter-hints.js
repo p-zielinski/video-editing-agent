@@ -287,12 +287,74 @@ export function enrichRecipeChapterCards(recipe, { abstraction } = {}) {
     existingChapterOverlays.push(overlay);
   }
 
-  recipe.outputs[mainOutputIndex] = {
+  const updatedMainOutput = {
     ...mainOutput,
     timeline,
   };
+  recipe.outputs[mainOutputIndex] = updatedMainOutput;
+  syncOutputChapterMarkers(updatedMainOutput, { abstraction, recipe });
 
   return recipe;
+}
+
+/**
+ * Chapter markers from timeline chapter_card overlays (output-time positions).
+ */
+export function chapterMarkersFromTimeline(output) {
+  const enriched = buildOutputTimeline(output);
+  const markers = [];
+
+  for (const segment of enriched) {
+    for (const overlay of segment.textOverlays ?? []) {
+      if (overlay.style !== "chapter_card" && overlay.role !== "chapter") {
+        continue;
+      }
+      markers.push({
+        title: overlay.text,
+        startSec: overlay.outputStartSec ?? segment.outputStartSec ?? 0,
+      });
+    }
+  }
+
+  return markers.sort((a, b) => a.startSec - b.startSec);
+}
+
+/**
+ * Resolve chapterMarkers: recipe field → timeline overlays → L2 chapter-card targets.
+ */
+export function resolveChapterMarkersForOutput(output, { abstraction, recipe } = {}) {
+  if ((output.chapterMarkers ?? []).length > 0) {
+    return [...output.chapterMarkers].sort((a, b) => a.startSec - b.startSec);
+  }
+
+  const fromTimeline = chapterMarkersFromTimeline(output);
+  if (fromTimeline.length > 0) {
+    return fromTimeline;
+  }
+
+  const mainOutput = findMainOutput(recipe?.outputs ?? []);
+  if (!abstraction || !recipe || mainOutput?.outputId !== output.outputId) {
+    return [];
+  }
+
+  const durationSec = resolveMainOutputDurationSec({
+    outputs: recipe.outputs ?? [],
+    batchContext: recipe.batchContext ?? {},
+  });
+
+  return buildChapterCardTargets(abstraction, durationSec, {
+    recipe,
+    mainOutput: output,
+  }).map((target) => ({
+    title: target.text,
+    startSec: target.targetSec,
+  }));
+}
+
+/** Mutates output.chapterMarkers when empty. */
+export function syncOutputChapterMarkers(output, options = {}) {
+  output.chapterMarkers = resolveChapterMarkersForOutput(output, options);
+  return output.chapterMarkers;
 }
 
 function buildStructuralLoopHint(loop) {

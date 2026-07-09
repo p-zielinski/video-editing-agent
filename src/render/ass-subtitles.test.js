@@ -115,6 +115,82 @@ describe("ass-subtitles", () => {
     });
   });
 
+  it("censors profane tokens without displayWord in subtitles", () => {
+    withContext((context, recipe) => {
+      context.wordIndexes.clip01 = {
+        clipId: "clip01",
+        words: [
+          { wordId: "clip01_w001", word: "hej", start: 0.5, end: 0.8, isProfanity: false },
+          { wordId: "clip01_w002", word: "kurwa", start: 1.0, end: 1.4, isProfanity: true },
+        ],
+      };
+
+      const output = {
+        outputId: "test_profanity_censor",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 10,
+          subtitles: { policy: "word_by_word", sourceClipId: "clip01" },
+        }],
+      };
+
+      const edl = buildRenderEdl(output, recipe, context);
+      const ass = generateAssSubtitles({ edl, context, stylePresets, format: "16:9" });
+      const profanityLine = ass.split("\n").find((line) => line.includes("k***a"));
+
+      assert.ok(profanityLine, "expected censored profanity in ASS output");
+      assert.ok(!ass.includes("kurwa"), "raw profanity should not appear in ASS output");
+    });
+  });
+
+  it("uses displayWord for profane tokens in subtitles", () => {
+    withContext((context, recipe) => {
+      context.wordIndexes.clip01 = {
+        clipId: "clip01",
+        words: [
+          { wordId: "clip01_w001", word: "hej", start: 0.5, end: 0.8, isProfanity: false },
+          { wordId: "clip01_w002", word: "kurwa", start: 1.0, end: 1.4, isProfanity: true, displayWord: "k***a" },
+        ],
+      };
+
+      const output = {
+        outputId: "test_profanity",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 10,
+          subtitles: { policy: "word_by_word", sourceClipId: "clip01" },
+        }],
+      };
+
+      const edl = buildRenderEdl(output, recipe, context);
+      const ass = generateAssSubtitles({ edl, context, stylePresets, format: "16:9" });
+      const profanityLine = ass.split("\n").find((line) => line.includes("k***a"));
+
+      assert.ok(profanityLine, "expected censored profanity in ASS output");
+      assert.ok(!ass.includes("kurwa"), "raw profanity should not appear in ASS output");
+    });
+  });
+
   it("uses previous segment outputStartSec for J-cut from_prev subtitles", () => {
     withContext((context, recipe) => {
       const output = {

@@ -5,8 +5,13 @@ import {
   extractAudioChunksForWhisper,
   whisperAudioPath,
 } from "../../lib/extract-audio.js";
-import { transcribeForEdit, transcribeChunksForEdit } from "../../lib/transcribe.js";
-import { tagFillerWords } from "../../lib/srt-processor.js";
+import {
+  transcribeForEdit,
+  transcribeChunksForEdit,
+  buildWhisperPrompt,
+} from "../../lib/transcribe.js";
+import { tagFillerWords, tagProfanityWords } from "../../lib/srt-processor.js";
+import { applyExpectedTermCorrections } from "../../lib/transcript-correction.js";
 import { assignWordIds, WordIndexSchema } from "../../schemas/word-index.js";
 import { resolveClipContentHash } from "../../lib/clip-artifact-cache.js";
 import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
@@ -19,6 +24,22 @@ import { writeJson, readJson, ARTIFACTS, removeClipArtifact } from "../work-path
 import { shouldUseCachedClipArtifact } from "../artifact-deps.js";
 
 const WHISPER_MAX_BYTES = 24 * 1024 * 1024;
+
+function resolveExpectedTerms(manifest) {
+  const fromManifest = manifest?.batchContext?.expectedTerms;
+  if (Array.isArray(fromManifest) && fromManifest.length > 0) {
+    return fromManifest;
+  }
+  return [];
+}
+
+function resolveProfanityOptions(manifest) {
+  const batchContext = manifest?.batchContext ?? {};
+  return {
+    profanityPolicy: batchContext.profanityPolicy ?? "bleep",
+    profanitySubtitleMode: batchContext.profanitySubtitleMode ?? "partial",
+  };
+}
 
 export async function transcribeClip({
   workDir,
@@ -40,7 +61,9 @@ export async function transcribeClip({
     return readJson(outPath);
   }
 
-  const resolvedFingerprint = configFingerprint ?? buildStepConfigFingerprint("words", {});
+  const expectedTerms = resolveExpectedTerms(manifest);
+  const resolvedFingerprint = configFingerprint
+    ?? buildStepConfigFingerprint("words", { expectedTerms });
   const sourceContentHash = await resolveClipContentHash(manifest, clip.clipId, clip.sourcePath);
   const cachedWords = maybeUseGlobalClipCache({
     enabled: !globalCacheDisabled,
@@ -63,6 +86,8 @@ export async function transcribeClip({
 
   await extractAudioForWhisper(clip.sourcePath, audioPath);
 
+  const whisperPrompt = buildWhisperPrompt({ expectedTerms });
+
   let words;
   let durationSec;
 
@@ -70,17 +95,23 @@ export async function transcribeClip({
     const chunks = await extractAudioChunksForWhisper(clip.sourcePath, workDir, {
       clipId: clip.clipId,
     });
-    const result = await transcribeChunksForEdit(chunks, apiKey);
+    const result = await transcribeChunksForEdit(chunks, apiKey, { prompt: whisperPrompt });
     words = result.words;
     durationSec = result.duration;
   } else {
-    const result = await transcribeForEdit(audioPath, apiKey);
+    const result = await transcribeForEdit(audioPath, apiKey, { prompt: whisperPrompt });
     words = result.words;
     durationSec = result.duration ?? clip.durationSec;
   }
 
+  const profanityOptions = resolveProfanityOptions(manifest);
   const tagged = tagFillerWords(words);
-  const withIds = assignWordIds(tagged, clip.clipId);
+  const profanityTagged = tagProfanityWords(tagged, {
+    profanityPolicy: profanityOptions.profanityPolicy,
+    subtitleMode: profanityOptions.profanitySubtitleMode,
+  });
+  const corrected = applyExpectedTermCorrections(profanityTagged, expectedTerms);
+  const withIds = assignWordIds(corrected, clip.clipId);
 
   const wordIndex = WordIndexSchema.parse({
     version: "1.0",
@@ -114,7 +145,8 @@ export async function runTranscribeStep({
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const manifestPath = path.join(workDir, ARTIFACTS.manifest);
   const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : null;
-  const configFingerprint = buildStepConfigFingerprint("words", {});
+  const expectedTerms = resolveExpectedTerms(manifest);
+  const configFingerprint = buildStepConfigFingerprint("words", { expectedTerms });
 
   return runWithConcurrency(
     catalog.clips,

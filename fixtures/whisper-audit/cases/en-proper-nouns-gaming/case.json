@@ -1,0 +1,11 @@
+{
+  "caseId": "en-proper-nouns-gaming",
+  "category": "en-proper-nouns",
+  "title": "English gaming title",
+  "spokenTranscript": "Gram w Elden Ring od tygodnia",
+  "language": "pl",
+  "tags": ["gaming", "english-title"],
+  "notes": "English proper noun inside Polish sentence",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

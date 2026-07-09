@@ -72,6 +72,8 @@ function listAvailableTracks(catalogPath) {
   return listTracks(catalogPath).filter((track) => isTrackFileAvailable(track, catalogPath));
 }
 
+export { listAvailableTracks };
+
 function moodScore(trackMoods, targetMood) {
   const normalizedTarget = String(targetMood).toLowerCase();
   const moods = (trackMoods ?? []).map((m) => String(m).toLowerCase());

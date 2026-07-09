@@ -10,7 +10,7 @@ Jesteś krytykiem montażu wideo v2. Oceniasz EditRecipe 2.0 pod kątem:
 - naruszeń kodów: BROLL_AUDIO_MISMATCH, BROLL_SCENE_NOT_IN_TOPIC_INDEX, SCENE_REUSE_SAME_FORMAT, SCENE_DUPLICATE_IN_OUTPUT, SCENE_EXCLUDED, AUDIO_POLICY_VIOLATION, CUT_WORDID_WRONG_CLIP, TOPIC_INDEX_HALLUCINATION, MAX_BROLL_EXCEEDED,
 - **creativeMoments (v2.1):** V21-01 … V21-15, NEEDS_SPATIAL_REVIEW.
 - **renderer fidelity:** techniki ≠ zawsze efekt montażowy offline — patrz sekcja „Uczciwość renderera”; nie karz za pulse zamiast cięcia, ale zgłaszaj V21-14 (J/L w creativeMoments), V21-15 (partial crossfade), V22-06 (`chapter_card` na main), V27-RENDER-* (honestność stub/partial, production crossfade).
-- **shorts retention (v2.2):** V22-01 … V22-07 dla `outputKind: short` (tylko gdy retention włączone).
+- **shorts retention (v2.2):** V22-01 … V22-08 dla `outputKind: short` (tylko gdy retention włączone).
 - **vlog retention (v2.2):** V22-VLOG-01 … V22-VLOG-06 dla main 16:9 (gdy `vlogRetentionProfile` lub 16:9 bez short-only).
 - **narracja (P1-3):** NAR-PAYOFF-UNDELIVERED, NAR-PAYOFF-MISSING, NAR-BEAT-SPAM, NAR-DRAMATIC-PAUSE-CUT — gdy L3 `openLoops[]` lub `narrativeProfile` z wolnymi segmentami.
 - **audio mix (v2.4):** V23-02 (LUFS poza [-24,-12]), V23-03 (`musicBed.trackId` brak w katalogu / brak pliku).
@@ -144,8 +144,9 @@ Przy V21-10: payload zawiera `spatialIndex` — porównaj `spatialRef` z kotwica
 | V22-05 | Hook overlay/technika (`hook_*`, `snap_zoom`, `hook_visual_punch`) tylko w pierwszych `hookWindowSec` |
 | V22-06 | Techniki `graphics` z `requiresOutputKind: short` tylko na short output |
 | V22-07 | `maxHookOverlayDurationSec`; max 1 duży hook overlay na 15s |
+| V22-08 | Pierwszy segment shorta nie zaczyna od intro/setup/greeting — wymagany hook lub mid-sentence inpoint |
 
-Severity: V22-01, V22-02, V22-04 → error przy `level: shorts`; warning przy balanced short.
+Severity: V22-01, V22-02, V22-04, V22-08 → error przy `level: shorts`; warning przy balanced short.
 
 ### Kody V22-VLOG (gramatyka retencji vlog 16:9)
 

@@ -7,6 +7,7 @@ import { computeSourceContentHash } from "./source-hash.js";
 /** Expected artifact schema versions per clip artifact type. */
 export const EXPECTED_ARTIFACT_VERSIONS = {
   words: "1.0",
+  metaCommands: "1.0",
   audioAnalysis: "1.0",
   keyframes: "1.0",
   twelvelabs: "1.1",
@@ -17,6 +18,7 @@ export const EXPECTED_ARTIFACT_VERSIONS = {
 
 const ARTIFACT_PREFIX_TO_NAME = {
   "01-words-": "words",
+  "01c-meta-commands-": "metaCommands",
   "01b-audio-analysis-": "audioAnalysis",
   "02-keyframes-": "keyframes",
   "03b-twelvelabs-": "twelvelabs",

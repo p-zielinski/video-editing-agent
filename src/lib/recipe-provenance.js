@@ -71,6 +71,7 @@ export function buildProvenanceDocument({
   stitchValidation = null,
   superCriticReview = null,
   reviewIterations = 0,
+  directorMetrics = null,
 }) {
   return {
     version: "1.0",
@@ -82,6 +83,7 @@ export function buildProvenanceDocument({
     stitchValidation,
     superCriticReview,
     reviewIterations,
+    directorMetrics,
   };
 }
 

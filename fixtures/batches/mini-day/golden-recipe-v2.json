@@ -229,7 +229,7 @@
   ],
   "sfxPlan": [
     {
-      "sfxId": "sfx_whoosh_hook",
+      "sfxId": "whoosh",
       "source": "library",
       "label": "whoosh",
       "outputStartSec": 0,
@@ -241,6 +241,20 @@
   "colorGrade": {
     "lutId": "warm_golden_hour",
     "exposure": 0.02
+  },
+  "renderStylePresets": {
+    "formats": {
+      "9:16": {
+        "width": 1080,
+        "height": 1920,
+        "safeZone": {
+          "top": 0.12,
+          "bottom": 0.18,
+          "left": 0.06,
+          "right": 0.06
+        }
+      }
+    }
   },
   "audioMixPlan": {
     "voiceTargetLufs": -16,

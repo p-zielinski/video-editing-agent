@@ -78,4 +78,17 @@ describe("config-fingerprint", () => {
 
     assert.equal(EXPECTED_ARTIFACT_VERSIONS.words, "1.0");
   });
+
+  it("includes expectedTerms in words fingerprint when provided", () => {
+    const withoutTerms = buildStepConfigFingerprint("words");
+    const withTerms = buildStepConfigFingerprint("words", {
+      expectedTerms: ["Elden Ring", "Breaking Bad"],
+    });
+    assert.notEqual(withoutTerms, withTerms);
+
+    const sameTermsDifferentOrder = buildStepConfigFingerprint("words", {
+      expectedTerms: ["Breaking Bad", "Elden Ring"],
+    });
+    assert.equal(withTerms, sameTermsDifferentOrder);
+  });
 });

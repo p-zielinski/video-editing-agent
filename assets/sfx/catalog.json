@@ -2,85 +2,1009 @@
   "version": "1.0",
   "sounds": [
     {
-      "sfxId": "whoosh",
-      "fileName": "whoosh.wav",
-      "title": "Whoosh transition",
-      "tags": ["whoosh", "transition", "swipe"],
-      "category": "transition",
-      "durationSec": 0.4,
-      "license": "repo-generated-test-stub"
-    },
-    {
-      "sfxId": "swoosh_fast_01",
-      "fileName": "swoosh_fast_01.wav",
-      "title": "Fast swoosh",
-      "tags": ["whoosh", "swoosh", "transition", "fast"],
-      "category": "transition",
-      "durationSec": 0.18,
-      "license": "repo-generated-test-stub"
-    },
-    {
-      "sfxId": "swoosh_soft_01",
-      "fileName": "swoosh_soft_01.wav",
-      "title": "Soft swoosh",
-      "tags": ["whoosh", "swoosh", "transition", "soft"],
-      "category": "transition",
-      "durationSec": 0.35,
-      "license": "repo-generated-test-stub"
-    },
-    {
-      "sfxId": "riser_short_01",
-      "fileName": "riser_short_01.wav",
-      "title": "Short riser",
-      "tags": ["riser", "transition", "build"],
-      "category": "transition",
-      "durationSec": 0.6,
-      "license": "repo-generated-test-stub"
-    },
-    {
-      "sfxId": "click_short_01",
-      "fileName": "click_short_01.wav",
-      "title": "UI click",
-      "tags": ["click", "ui", "transition"],
-      "category": "foley",
-      "durationSec": 0.05,
-      "license": "repo-generated-test-stub"
-    },
-    {
-      "sfxId": "impact_heavy_01",
-      "fileName": "impact_heavy_01.wav",
-      "title": "Heavy impact",
-      "tags": ["impact", "foley", "hit"],
-      "category": "foley",
-      "durationSec": 0.8,
-      "license": "repo-generated-test-stub"
-    },
-    {
-      "sfxId": "applause_short_01",
-      "fileName": "applause_short_01.wav",
-      "title": "Short applause",
-      "tags": ["applause", "crowd", "reaction"],
+      "sfxId": "pixabay_sfx_372459",
+      "fileName": "dragon-studio-censor-beep-1-372459.mp3",
+      "title": "Censor Beep 1",
+      "tags": [
+        "alert",
+        "bleep",
+        "notification"
+      ],
       "category": "reaction",
-      "durationSec": 1.2,
-      "license": "repo-generated-test-stub"
+      "durationSec": 2.116,
+      "license": "pixabay-content-license",
+      "integratedLufs": -12.1,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-censor-beep-1-372459/",
+      "description": "Krótki, wysoki „censor beep” o czystym, elektronicznym brzmieniu, z lekkim metalicznym zabarwieniem. Dźwięk jest dość energiczny i wyraźnie przebija się nad typowym głosem, trwając około 2 sekund z wyraźnym charakterem sygnału.",
+      "useCases": [
+        "wstawka cenzury w shortach",
+        "zamaskowanie wulgaryzmów lub danych osobowych",
+        "sygnał ostrzegawczy w montażu"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:57:40.568Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     },
     {
-      "sfxId": "laughter_short_01",
-      "fileName": "laughter_short_01.wav",
-      "title": "Short laughter",
-      "tags": ["laughter", "reaction", "crowd"],
+      "sfxId": "pixabay_sfx_329314",
+      "fileName": "u_edtmwfwu7c-beep-329314.mp3",
+      "title": "Beep",
+      "tags": [
+        "alert",
+        "bleep",
+        "notification"
+      ],
       "category": "reaction",
-      "durationSec": 0.3,
-      "license": "repo-generated-test-stub"
+      "durationSec": 1.463,
+      "license": "pixabay-content-license",
+      "integratedLufs": -6.7,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-beep-329314/",
+      "description": "Krótki, czysty „beep” o wysokiej częstotliwości, brzmiący jak elektroniczny sygnał z lekkim metalicznym nalotem. Tempo jest jednorazowe (pojedynczy impuls) z szybkim wybrzmieniem.",
+      "useCases": [
+        "podkreślenie kliknięcia/zmiany sceny",
+        "sygnał powiadomienia w interfejsie",
+        "akcent do efektu „glitch”"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:57:42.411Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     },
     {
-      "sfxId": "thunder_rumble_01",
-      "fileName": "thunder_rumble_01.wav",
-      "title": "Thunder rumble",
-      "tags": ["thunder", "weather", "rumble"],
+      "sfxId": "pixabay_sfx_91654",
+      "fileName": "freesound_community-htranchant_01-91654.mp3",
+      "title": "Htranchant_01",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 1.045,
+      "license": "pixabay-content-license",
+      "integratedLufs": -7.3,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-htranchant-01-91654/",
+      "description": "Krótki, chropowaty „htranchant”/szarpany efekt przypominający metaliczno-gumowy trzask z narastającym tarciem i szybkim wybrzmieniem. Tempo jest błyskawiczne, jednorazowe uderzenie z lekkim pogłosem.",
+      "useCases": [
+        "podkreślenie cięcia montażowego",
+        "efekt do wejścia/akcentu w shortach",
+        "zbudowanie dramatycznego „hit” bez muzyki"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:57:44.134Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_71297",
+      "fileName": "freesound_community-elevator-71297.mp3",
+      "title": "elevator",
+      "tags": [
+        "impact",
+        "alert",
+        "door"
+      ],
+      "category": "foley",
+      "durationSec": 38.064,
+      "license": "pixabay-content-license",
+      "integratedLufs": -23.6,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-elevator-71297/",
+      "description": "Słychać pracę windy: metaliczne, mechaniczne szumy i delikatne zgrzyty/kliknięcia w rytmie pracy silnika, z narastaniem i opadaniem intensywności. Całość brzmi jak realistyczny efekt „elevator ride” bez wyraźnych słów, raczej tło-foley niż pojedynczy strzał.",
+      "useCases": [
+        "wejście do windy w vogu",
+        "przejście sceny do nowego piętra",
+        "podkreślenie momentu start/stop windy"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:46.152Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_457700",
+      "fileName": "magiaz-bip-457700.mp3",
+      "title": "Bip",
+      "tags": [
+        "bleep",
+        "notification",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 5.112,
+      "license": "pixabay-content-license",
+      "integratedLufs": -29.2,
+      "sourceUrl": "https://pixabay.com/sound-effects/bip-457700/",
+      "description": "Krótki, pojedynczy „bip” o czystym, elektronicznym brzmieniu (ton prosty, lekko metaliczny), z szybkim narastaniem i wyraźnym wybrzmieniem. Dźwięk jest dość cichy względem typowego głosu, dobrze nadaje się jako sygnał/klik w tle.",
+      "useCases": [
+        "podkreślenie włączania/aktywacji funkcji",
+        "sygnał błędu lub potwierdzenia w UI",
+        "mikro-reakcja na zmianę w kadrze"
+      ],
+      "loudnessCharacter": "quiet",
+      "aiEnrichedAt": "2026-07-09T21:57:48.087Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_402324",
+      "fileName": "dragon-studio-pop-402324.mp3",
+      "title": "Pop",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 0.72,
+      "license": "pixabay-content-license",
+      "integratedLufs": -16.1,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-pop-402324/",
+      "description": "Krótki, suchy „pop”/klik z lekkim metaliczno-plastikowym zabarwieniem, szybki atak i krótki wybrzmiewający ogon. Działa jak pojedynczy efekt akcentujący w rytmie montażu.",
+      "useCases": [
+        "akcent na wejście tekstu",
+        "podkreślenie przejścia między ujęciami",
+        "punktowe „kliknięcie” przy zmianie sceny"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:49.724Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_406640",
+      "fileName": "dragon-studio-bubble-pop-406640.mp3",
+      "title": "Bubble Pop",
+      "tags": [
+        "alert",
+        "bleep",
+        "notification",
+        "impact"
+      ],
+      "category": "foley",
+      "durationSec": 1.032,
+      "license": "pixabay-content-license",
+      "integratedLufs": -12.7,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-bubble-pop-406640/",
+      "description": "Szybki, krótki dźwięk pękających baniek: lekkie „pop” z wysokim, iskrzącym brzmieniem i krótkim wybrzmieniem. Tempo jest jednorazowe, bez rytmicznej sekwencji.",
+      "useCases": [
+        "zaznaczenie punktu w grafice/animacji",
+        "akcent przy przejściu do nowej sceny",
+        "podkreślenie efektu specjalnego w shortach"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:51.330Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_494246",
+      "fileName": "universfield-new-notification-051-494246.mp3",
+      "title": "New Notification 051",
+      "tags": [
+        "cat",
+        "notification",
+        "bleep",
+        "alert"
+      ],
+      "category": "reaction",
+      "durationSec": 2.456,
+      "license": "pixabay-content-license",
+      "integratedLufs": -19.3,
+      "sourceUrl": "https://pixabay.com/sound-effects/technology-new-notification-051-494246/",
+      "description": "Krótki, cyfrowy dźwięk powiadomienia: jasny „ping” z lekkim metalicznym zabarwieniem i szybkim opadaniem tonu, bez dłuższego ogona. Tempo jest natychmiastowe, efekt trwa tylko ułamek sekundy i kończy się wyraźnym wyciszeniem.",
+      "useCases": [
+        "podkreślenie pojawienia się powiadomienia na ekranie",
+        "sygnał start/stop nagrania w shortach",
+        "akcent do przejścia między segmentami vlogu"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:53.280Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_398649",
+      "fileName": "dragon-studio-new-notification-3-398649.mp3",
+      "title": "New Notification - 3",
+      "tags": [
+        "cat",
+        "notification",
+        "alert",
+        "bleep"
+      ],
+      "category": "reaction",
+      "durationSec": 0.504,
+      "license": "pixabay-content-license",
+      "integratedLufs": -16.1,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-new-notification-3-398649/",
+      "description": "Krótki, jasny dźwięk powiadomienia: szybki atak z lekkim „cyfrowym” zabarwieniem i krótkim, opadającym ogonem. Brzmi jak pojedynczy ping/klik bez tła, idealny do akcentu w krótkim formacie.",
+      "useCases": [
+        "podkreślenie pojawienia się powiadomienia",
+        "akcent przy przejściu do nowej sceny",
+        "sygnał start/stop w shortach"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:55.147Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_290204",
+      "fileName": "matthewvakaliuk73627-mouse-click-290204.mp3",
+      "title": "Mouse click",
+      "tags": [
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 0.366,
+      "license": "pixabay-content-license",
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-mouse-click-290204/",
+      "description": "Krótki, suchy klik myszy z wyraźnym „tik” i lekkim, metaliczno-plastikowym zabarwieniem. Tempo jest natychmiastowe (jednorazowy efekt, bez ogona).",
+      "useCases": [
+        "kliknięcie w interfejsie",
+        "potwierdzenie wyboru w menu",
+        "akcent przy przejściu slajdu"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:56.585Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_371229",
+      "fileName": "virtualzero-keyboard-typing-fast-371229.mp3",
+      "title": "Keyboard Typing Fast",
+      "tags": [
+        "footsteps",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 8.046,
+      "license": "pixabay-content-license",
+      "integratedLufs": -20.5,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-keyboard-typing-fast-371229/",
+      "description": "Szybkie, rytmiczne stuknięcia klawiszy na klawiaturze, z wyraźnym kliknięciem i krótkim wybrzmieniem. Tempo jest dynamiczne i ciągłe przez cały czas nagrania.",
+      "useCases": [
+        "podkreślenie pisania w vlogu",
+        "przejście do sceny z komputerem",
+        "tło do ujęcia pracy/edytowania"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:57.886Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_31859",
+      "fileName": "freesound_community-hitting-metal-31859.mp3",
+      "title": "Hitting Metal",
+      "tags": [
+        "impact"
+      ],
+      "category": "foley",
+      "durationSec": 15.912,
+      "license": "pixabay-content-license",
+      "integratedLufs": -19.4,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-hitting-metal-31859/",
+      "description": "Słychać krótkie, suche uderzenia w metal: twarde „clank/clang” z wyraźnym atakiem i krótkim wybrzmieniem, rytmicznie powtarzane w średnim tempie. Barwa jest metaliczna, z lekkim pogłosem typowym dla pustej powierzchni.",
+      "useCases": [
+        "zbudowanie efektu uderzenia przedmiotem w metal",
+        "podkreślenie akcji w scenie walki lub majsterkowania",
+        "wstawka do przejścia między ujęciami (hit)"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:57:59.549Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_38478",
+      "fileName": "freesound_community-hitting-nails-with-hammer-38478.mp3",
+      "title": "Hitting nails with Hammer",
+      "tags": [
+        "impact",
+        "alert",
+        "footsteps"
+      ],
+      "category": "foley",
+      "durationSec": 4.152,
+      "license": "pixabay-content-license",
+      "integratedLufs": -16.5,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-hitting-nails-with-hammer-38478/",
+      "description": "Słychać krótkie, suche uderzenia młotka w metalowy gwóźdź: twardy „klik/łup” z wyraźnym atakiem i krótkim wybrzmieniem, w dość równym tempie. Całość brzmi jak seria kilku trafień z lekkim metalicznym rezonem.",
+      "useCases": [
+        "podkreślenie momentu naprawy w vlogu",
+        "akcent do sceny majsterkowania/DIY",
+        "budowanie napięcia przed ujęciem z efektem specjalnym"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:01.103Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_356120",
+      "fileName": "dragon-studio-breaking-wood-356120.mp3",
+      "title": "Breaking Wood",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 8.098,
+      "license": "pixabay-content-license",
+      "integratedLufs": -31.7,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-breaking-wood-356120/",
+      "description": "Słychać dynamiczne łamanie i kruszenie drewna: krótkie, suche trzaski przechodzą w cięższe pęknięcia z narastającym szelestem/pyleniem materiału. Tempo jest szybkie, efekt ma charakter jednorazowego „złamania” z wyraźnym początkiem i końcem.",
+      "useCases": [
+        "zbudowanie momentu zniszczenia w scenie",
+        "podkreślenie uderzenia/łamanej przeszkody",
+        "akcent do krótkiego zwrotu akcji w shortach"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:02.783Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_430452",
+      "fileName": "wings_of_freedom-heard-the-news-of-a-thunderbolt-surprise-430452.mp3",
+      "title": "heard the news of a thunderbolt, surprise",
+      "tags": [
+        "weather",
+        "alert",
+        "impact"
+      ],
       "category": "ambience",
-      "durationSec": 2.5,
-      "license": "repo-generated-test-stub"
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -15.6,
+      "sourceUrl": "https://pixabay.com/sound-effects/nature-heard-the-news-of-a-thunderbolt-surprise-430452/",
+      "description": "Krótki, nagły wybuchowy grzmot z narastającym dudnieniem w tle, po którym szybko zapada się cisza; dynamika jest zaskakująca i „przebija” miks. Barwa ciemna, niskotonowa, bez wyraźnej melodii, trzyma napięcie przez ułamek sekundy.",
+      "useCases": [
+        "zbudowanie zaskoczenia w scenie z piorunem",
+        "podkreślenie nagłej reakcji bohatera",
+        "akcent do przejścia między ujęciami"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:05.048Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_523991",
+      "fileName": "wings_of_freedom-spring-snapping-sound-523991.mp3",
+      "title": "spring snapping sound",
+      "tags": [
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -12.3,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-spring-snapping-sound-523991/",
+      "description": "Słychać krótki, sprężysty trzask/„snap” jak napięta sprężyna lub mechanizm sprężynowy, z wyraźnym, suchym atakiem i krótkim wybrzmieniem. Tempo jest jednorazowe (pojedynczy efekt) z lekkim metaliczno-gumowym charakterem.",
+      "useCases": [
+        "zaznaczenie zadziałania mechanizmu",
+        "podkreślenie zwrotu akcji w shortach",
+        "akcent do przejścia po zatrzaśnięciu/odskoku"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:06.748Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_501250",
+      "fileName": "wings_of_freedom-bass-hit-501250.mp3",
+      "title": "bass hit",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -11,
+      "sourceUrl": "https://pixabay.com/sound-effects/technology-bass-hit-501250/",
+      "description": "Głęboki, krótki „bass hit” o niskiej, ciepłej barwie z wyraźnym uderzeniem i szybkim wybrzmieniem; charakterystyczny dla efektów technologicznych/beatowych. Tempo jest impulsowe (jednorazowy strzał) z lekkim narastaniem tuż przed atakiem.",
+      "useCases": [
+        "mocny akcent przy przejściu sceny",
+        "podbicie ujęcia z dropem/beatem",
+        "punktowe wzmocnienie reakcji na ekranie"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:08.413Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_501249",
+      "fileName": "wings_of_freedom-bass-hit-501249.mp3",
+      "title": "bass hit",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -12.4,
+      "sourceUrl": "https://pixabay.com/sound-effects/technology-bass-hit-501249/",
+      "description": "Głęboki, krótki „bass hit” o wyraźnym uderzeniu niskich częstotliwości i szybkim wybrzmieniu, z lekkim, elektronicznym charakterem. Brzmi jak mocny akcent do rytmu, bez wyraźnej melodii.",
+      "useCases": [
+        "mocny akcent przy wejściu na ekran",
+        "podbicie przejścia w shortsie",
+        "punktowe uderzenie pod beat w montażu"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:09.897Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_490797",
+      "fileName": "wings_of_freedom-gloomy-scene-490797.mp3",
+      "title": "gloomy scene",
+      "tags": [
+        "alert",
+        "impact"
+      ],
+      "category": "ambience",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -16.5,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-gloomy-scene-490797/",
+      "description": "Niskie, mroczne tło filmowe z narastającym, powolnym „ciągnięciem” i subtelnymi, metaliczno-ambientowymi przetarciami; bez wyraźnego uderzenia, bardziej jak napięcie budowane w czasie. Tempo jest wolne, a dynamika lekko rośnie pod koniec.",
+      "useCases": [
+        "podłożenie napięcia pod ujęcie w ponurej scenerii",
+        "wejście do sceny grozy lub dramatycznego zwrotu",
+        "tło pod montaż z szybkimi cięciami (bez dominacji)"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:12.111Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_490800",
+      "fileName": "wings_of_freedom-tak-tak-tak-490800.mp3",
+      "title": "tak tak tak",
+      "tags": [
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -15.2,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-tak-tak-tak-490800/",
+      "description": "Słychać krótkie, rytmiczne „tak tak tak” — serię krótkich, suchych uderzeń/kliknięć o wyraźnym, perkusyjnym charakterze. Tempo jest szybkie i równe, dobrze nadaje się jako akcent do montażu.",
+      "useCases": [
+        "akcent do przejścia między ujęciami",
+        "podkreślenie krótkiej reakcji/komendy",
+        "zaznaczenie punktu w montażu (beat)"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:13.709Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_490792",
+      "fileName": "wings_of_freedom-strange-sounds-490792.mp3",
+      "title": "strange sounds",
+      "tags": [
+        "whoosh",
+        "alert",
+        "bleep"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -11.9,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-strange-sounds-490792/",
+      "description": "Krótki, dziwnie brzmiący efekt: cienkie, metaliczno-syntetyczne dźwięki z lekkim „wibrującym” pogłosem i narastającą intensywnością, jakby coś przelatywało w tle. Tempo jest szybkie i impulsywne, z wyraźnymi zmianami barwy w trakcie trwania.",
+      "useCases": [
+        "podkreślenie zaskoczenia w shortsie",
+        "przejście do nowej sceny z efektem tajemniczości",
+        "akcent na moment zwrotu akcji"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:15.671Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_490785",
+      "fileName": "wings_of_freedom-strong-impact-490785.mp3",
+      "title": "strong impact",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -19.9,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-strong-impact-490785/",
+      "description": "Gęsty, krótki „strong impact” z wyraźnym uderzeniem niskich częstotliwości i metaliczno-filmowym zabarwieniem, z lekkim narastaniem i szybkim wybrzmieniem. Brzmi jak mocny efekt specjalny do cięć w montażu, bez długiego ogona.",
+      "useCases": [
+        "mocne cięcie między ujęciami",
+        "akcent na wejście postaci lub tekstu",
+        "podbicie efektu uderzenia w shortach"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:17.258Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_490791",
+      "fileName": "wings_of_freedom-depth-bass-490791.mp3",
+      "title": "depth-bass",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -18.4,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-depth-bass-490791/",
+      "description": "Głęboki, nisko schodzący „bass drop”/sub-bum o filmowym charakterze, z długim narastaniem i ciężkim uderzeniem w środku. Brzmi jak efekt specjalny z wyraźnym dołem częstotliwości, bez wyraźnej melodii.",
+      "useCases": [
+        "podkreślenie wejścia postaci lub sceny",
+        "akcent do przejścia z napięciem",
+        "wzmocnienie ujęcia z efektem specjalnym"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:19.012Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_490799",
+      "fileName": "wings_of_freedom-vibrant-scene-transition-490799.mp3",
+      "title": "vibrant scene transition",
+      "tags": [
+        "whoosh",
+        "impact",
+        "alert"
+      ],
+      "category": "transition",
+      "durationSec": 5.042,
+      "license": "pixabay-content-license",
+      "integratedLufs": -27.9,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-vibrant-scene-transition-490799/",
+      "description": "Dynamiczny, „vibrant” przejściowy whoosh z warstwowym narastaniem i krótkim, świetlistym zabarwieniem (jak przelot energii), kończący się wyraźnym opadnięciem/cięciem. Tempo jest szybkie i skoncentrowane w pierwszych sekundach, z lekkim przyspieszeniem przed finałem.",
+      "useCases": [
+        "przejście między ujęciami w shortach",
+        "podkreślenie zmiany sceny lub tematu",
+        "wejście nowego segmentu vloga"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:20.868Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_476445",
+      "fileName": "wings_of_freedom-percussion-476445.mp3",
+      "title": "percussion",
+      "tags": [
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 6.06,
+      "license": "pixabay-content-license",
+      "integratedLufs": -20.6,
+      "sourceUrl": "https://pixabay.com/sound-effects/percussion-476445/",
+      "description": "Słyszalna jest krótka, rytmiczna perkusja o wyraźnym ataku i średniej nośności, z lekką „suchej” barwą (bez długiego pogłosu). Tempo jest dynamiczne i nadaje się jako akcent pod wejścia lub przejścia w shortach.",
+      "useCases": [
+        "podkreślenie wejścia w kadr",
+        "akcent do przejścia między ujęciami",
+        "rytmiczne podbicie pod tekst na ekranie"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:22.949Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_199583",
+      "fileName": "universfield-water-splash-199583.mp3",
+      "title": "Water Splash",
+      "tags": [
+        "water",
+        "impact"
+      ],
+      "category": "foley",
+      "durationSec": 3.056,
+      "license": "pixabay-content-license",
+      "integratedLufs": -19.4,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-water-splash-199583/",
+      "description": "Słychać krótki, dynamiczny plusk wody z wyraźnym rozbryzgiem i lekkim „chlupnięciem” w tle; barwa jest mokra i perkusyjna, bez długiego pogłosu. Tempo jest jednorazowe, szybkie — efekt trwa tylko ułamek sekundy i szybko gaśnie.",
+      "useCases": [
+        "podkreślenie wejścia do wody lub zachlapania",
+        "akcent do sceny z nagłym rozbryzgiem",
+        "przejście między ujęciami z efektem chlupnięcia"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:25.135Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_278823",
+      "fileName": "universfield-water-bubbling-278823.mp3",
+      "title": "Water Bubbling",
+      "tags": [
+        "water"
+      ],
+      "category": "foley",
+      "durationSec": 4.392,
+      "license": "pixabay-content-license",
+      "integratedLufs": -19.1,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-water-bubbling-278823/",
+      "description": "Słychać delikatne bulgotanie i pienienie wody: krótkie, nieregularne bąbelki z lekkim szumem tafli, bez wyraźnych uderzeń. Tempo jest naturalne i falujące, z narastaniem drobnych dźwięków w tle.",
+      "useCases": [
+        "podkreślenie sceny z nalewaniem lub gotującą się wodą",
+        "tło do ujęć w łazience/kuchni lub przy basenie",
+        "mikro-akcenty do przejść między ujęciami"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:26.871Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_522908",
+      "fileName": "soundreality-wind-lake-sfx-522908.mp3",
+      "title": "Wind Lake SFX",
+      "tags": [
+        "wind",
+        "water",
+        "weather"
+      ],
+      "category": "ambience",
+      "durationSec": 48.024,
+      "license": "pixabay-content-license",
+      "integratedLufs": -10.2,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-wind-lake-sfx-522908/",
+      "description": "Słychać ciągły, szeroki szum wiatru nad jeziorem: miękki, falujący podmuch z lekkim „powietrznym” szelestem, bez wyraźnych uderzeń. Dynamika jest umiarkowana, z delikatnymi zmianami natężenia w tle przez cały czas trwania.",
+      "useCases": [
+        "tło do sceny nad wodą",
+        "podkład pod ujęcia w plenerze",
+        "wypełnienie przejść między ujęciami"
+      ],
+      "loudnessCharacter": "medium",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:28.528Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_88052",
+      "fileName": "freesound_community-censor-beep-88052.mp3",
+      "title": "Censor Beep",
+      "tags": [
+        "alert",
+        "bleep",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 0.549,
+      "license": "pixabay-content-license",
+      "integratedLufs": -6.1,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-censor-beep-88052/",
+      "description": "Krótki, wyraźny „censor beep” o wysokiej częstotliwości, z lekkim metalicznym zabarwieniem i szybkim narastaniem, trwający mniej więcej pół sekundy. Brzmi jak elektroniczny sygnał blokady/ukrycia treści.",
+      "useCases": [
+        "zamaskowanie wideo (cenzura) na shortach",
+        "sygnał ostrzegawczy w montażu",
+        "reakcja na nieodpowiednią treść w vlogu"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:30.143Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_504874",
+      "fileName": "u_op8btczor7-guitar-c-strum-504874.mp3",
+      "title": "Guitar C Strum",
+      "tags": [
+        "music",
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 3.657,
+      "license": "pixabay-content-license",
+      "integratedLufs": -22.3,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-guitar-c-strum-504874/",
+      "description": "Słychać krótkie, rytmiczne szarpnięcie strun gitary (C) z wyraźnym atakiem kostki i lekkim wybrzmieniem pudła. Tempo jest umiarkowane, a dynamika średnia względem typowego głosu.",
+      "useCases": [
+        "podkreślenie wejścia w nowy segment vloga",
+        "akcent do przejścia między ujęciami",
+        "dodanie krótkiego „kliknięcia” rytmicznego pod beat"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:32.007Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_508236",
+      "fileName": "u_op8btczor7-guitar-em-strum-508236.mp3",
+      "title": "Guitar Em Strum",
+      "tags": [
+        "music",
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 4.023,
+      "license": "pixabay-content-license",
+      "integratedLufs": -24.9,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-guitar-em-strum-508236/",
+      "description": "Słychać pojedyncze, miękkie szarpnięcia strun gitary w stylu „em” — ciepła, lekko przytłumiona barwa z krótkim wybrzmieniem, bez perkusyjnego ataku. Tempo jest umiarkowane, z wyraźnymi zmianami akordu w krótkich odstępach.",
+      "useCases": [
+        "podkreślenie wejścia w nowy segment vloga",
+        "akcent do przejścia między ujęciami",
+        "delikatny „cue” przed pointą w shortsie"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:33.841Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_301396",
+      "fileName": "idoberg-emotional-guitar-loop-02-301396.mp3",
+      "title": "Emotional Guitar Loop 02",
+      "tags": [
+        "music",
+        "alert",
+        "impact"
+      ],
+      "category": "ambience",
+      "durationSec": 20.454,
+      "license": "pixabay-content-license",
+      "integratedLufs": -15.1,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-emotional-guitar-loop-02-301396/",
+      "description": "Ciepła, emocjonalna pętla gitarowa z miękkim atakiem i delikatnym pogłosem; tempo jest umiarkowane, a dźwięk płynnie „oddycha” w tle bez wyraźnych uderzeń. Brzmi jak podkład harmoniczny, raczej nośny niż perkusyjny.",
+      "useCases": [
+        "tło pod dramatyczny moment w shortsie",
+        "wypełnienie przejścia między ujęciami bez skoków głośności",
+        "podkreślenie emocji przed pointą"
+      ],
+      "loudnessCharacter": "loud",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:35.703Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_363627",
+      "fileName": "u_xg7ssi08yr-acoustic-guitar-363627.mp3",
+      "title": "Acoustic Guitar",
+      "tags": [
+        "music",
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 41.77,
+      "license": "pixabay-content-license",
+      "integratedLufs": -11.4,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-acoustic-guitar-363627/",
+      "description": "Słychać pojedyncze, wyraźne brzdąknięcia i krótkie wybrzmienia akustycznej gitary z metalicznym atakiem strun i ciepłym, drewnianym pogłosem. Tempo jest umiarkowane, z rytmicznymi uderzeniami rozłożonymi w czasie.",
+      "useCases": [
+        "podkreślenie wejścia w scenę lub beat w shortsie",
+        "zbudowanie przejścia z akcentem na uderzeniach strun",
+        "dodanie naturalnego tła do vloga z muzycznym vibe’em"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:37.547Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_25924",
+      "fileName": "freesound_community-amen-break-no-copyright-remake-120bpm-25924.mp3",
+      "title": "Amen Break: No Copyright Remake (120BPM)",
+      "tags": [
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 18.048,
+      "license": "pixabay-content-license",
+      "integratedLufs": -14,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-amen-break-no-copyright-remake-120bpm-25924/",
+      "description": "Szybki, sprężysty break perkusyjny w tempie ok. 120 BPM: wyraźna stopa i werbel z krótkimi, suchymi przycięciami talerzy/hi-hatów. Brzmienie jest dynamiczne i rytmiczne, z lekkim „grit” typowym dla klasycznych sampli perkusyjnych.",
+      "useCases": [
+        "podkreślenie wejścia w beat/intro",
+        "akcent do przejścia między ujęciami",
+        "rytmiczny podkład pod szybkie shorts"
+      ],
+      "loudnessCharacter": "loud",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:39.147Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_455453",
+      "fileName": "soundreality-drums-loop-75bpm-3-455453.mp3",
+      "title": "Drums Loop 75BPM 3",
+      "tags": [
+        "music",
+        "impact"
+      ],
+      "category": "foley",
+      "durationSec": 12.84,
+      "license": "pixabay-content-license",
+      "integratedLufs": -10.9,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-drums-loop-75bpm-3-455453/",
+      "description": "Gęsta, rytmiczna pętla perkusyjna w tempie ok. 75 BPM: wyraźna stopa i werbel z krótkim, sprężystym brzmieniem oraz lekkim talerzowym „szumem” na uderzeniach. Całość jest dynamiczna i utrzymuje stały groove przez cały czas trwania.",
+      "useCases": [
+        "podkład pod dynamiczne wejście w shortsie",
+        "wzmocnienie tempa montażu między ujęciami",
+        "tło rytmiczne pod szybkie cuty"
+      ],
+      "loudnessCharacter": "loud",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:40.858Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_432390",
+      "fileName": "darren_hirst-90s-drums-432390.mp3",
+      "title": "90s Drums",
+      "tags": [
+        "music",
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 19.226,
+      "license": "pixabay-content-license",
+      "integratedLufs": -13.4,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-90s-drums-432390/",
+      "description": "Gęsty, dynamiczny zestaw perkusyjny w stylu lat 90.: wyraźna stopa i werbel z krótkim, sprężystym pogłosem oraz charakterystycznymi, „analogowymi” uderzeniami talerzy. Tempo jest szybkie i równe, z krótkimi wypełnieniami między uderzeniami.",
+      "useCases": [
+        "wejście w nowy segment vloga",
+        "akcent do przejścia na beat",
+        "podbicie tempa w shortach"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:42.714Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_169007",
+      "fileName": "lordsonny-whoosh-drum-hits-169007.mp3",
+      "title": "Whoosh Drum Hits",
+      "tags": [
+        "music",
+        "whoosh",
+        "impact",
+        "alert"
+      ],
+      "category": "transition",
+      "durationSec": 4.049,
+      "license": "pixabay-content-license",
+      "integratedLufs": -14.7,
+      "sourceUrl": "https://pixabay.com/sound-effects/film-special-effects-whoosh-drum-hits-169007/",
+      "description": "Gęsty, perkusyjny whoosh z krótkimi uderzeniami „drum hits” — narasta szybko i przechodzi w wyraźne, dynamiczne akcenty. Brzmienie jest energiczne, z lekkim metalicznym/filmowym charakterem i wyraźnym ruchem w tle.",
+      "useCases": [
+        "przejście między ujęciami w shortsie",
+        "akcent na wejście tekstu lub beat drop",
+        "podbicie dynamiki przy zmianie sceny"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-09T21:58:44.390Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_250070",
+      "fileName": "universfield-comedy-drums-03-250070.mp3",
+      "title": "Comedy Drums 03",
+      "tags": [
+        "music",
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 1.968,
+      "license": "pixabay-content-license",
+      "integratedLufs": -19.6,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-comedy-drums-03-250070/",
+      "description": "Krótki, komediowy zestaw perkusyjny: lekkie werble i staccato uderzenia z wyraźnym „pstryknięciem” pałek oraz suchym, sprężystym brzmieniem. Tempo jest szybkie i rytmiczne, idealne do podkreślenia gagów w krótkich momentach.",
+      "useCases": [
+        "akcent komediowy przy wejściu na ekran",
+        "podkreślenie wpadki lub pointy",
+        "rytmiczny „hit” pod szybkie cięcie w shortsie"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:46.082Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_245852",
+      "fileName": "11325622-noise-drum-loop-134bpm-245852.mp3",
+      "title": "Noise Drum Loop 134bpm",
+      "tags": [
+        "music",
+        "impact",
+        "alert",
+        "whoosh"
+      ],
+      "category": "foley",
+      "durationSec": 7.21,
+      "license": "pixabay-content-license",
+      "integratedLufs": -13.6,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-noise-drum-loop-134bpm-245852/",
+      "description": "Gęsta, szeleszcząca pętla perkusyjna z „szumowym” brzmieniem (noise drum), z wyraźnym, równym pulsem w tempie ok. 134 BPM. Charakter jest ziarnisty i dynamiczny, dobrze nadaje się jako rytmiczny podkład pod montaż.",
+      "useCases": [
+        "podbicie tempa w shortach podczas wejścia na scenę",
+        "rytmiczny podkład pod dynamiczne cięcia i przejścia",
+        "akcenty do beatów w montażu vlogowym"
+      ],
+      "loudnessCharacter": "loud",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:48.092Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_230756",
+      "fileName": "lazychillzone-simple-drum-kick-loop-230756.mp3",
+      "title": "simple drum kick loop",
+      "tags": [
+        "music",
+        "impact"
+      ],
+      "category": "foley",
+      "durationSec": 2.116,
+      "license": "pixabay-content-license",
+      "integratedLufs": -10.2,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-simple-drum-kick-loop-230756/",
+      "description": "Czysty, prosty kick perkusyjny w stałym tempie: krótki, sprężysty atak z wyraźnym dołem (sub-bass) i szybkim wybrzmieniem, bez dodatkowych elementów jak werbel czy hi-hat. Brzmi jak pętla do podkładu pod vlog/shorts.",
+      "useCases": [
+        "podkreślenie wejścia w ujęcie (beat drop)",
+        "rytmiczny podkład pod szybkie przejścia",
+        "wzmocnienie akcentów w montażu shortów"
+      ],
+      "loudnessCharacter": "loud",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:49.887Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_93358",
+      "fileName": "freesound_community-lyckad-bana-v1-93358.mp3",
+      "title": "lyckad bana v1",
+      "tags": [
+        "applause",
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 5.256,
+      "license": "pixabay-content-license",
+      "integratedLufs": -16,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-lyckad-bana-v1-93358/",
+      "description": "Słychać krótkie, rytmiczne „klaskanie”/uderzenia w stylu muzycznego przyklasku: wyraźne, suche transjenty z lekkim metaliczno-drewnianym zabarwieniem, w średnim tempie. Brzmi jak efekt do podkreślenia akcji lub rytmu w krótkim fragmencie.",
+      "useCases": [
+        "podkreślenie momentu sukcesu w shortsie",
+        "akcent na wejście/wyjście z ujęcia",
+        "rytmiczny podkład pod szybkie cięcia"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-09T21:58:51.635Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_308711",
+      "fileName": "idoberg-funky-bassline-02-308711.mp3",
+      "title": "Funky Bassline 02",
+      "tags": [
+        "impact",
+        "alert",
+        "notification"
+      ],
+      "category": "foley",
+      "durationSec": 19.226,
+      "license": "pixabay-content-license",
+      "integratedLufs": -11.7,
+      "sourceUrl": "https://pixabay.com/sound-effects/musical-funky-bassline-02-308711/",
+      "description": "Gęsta, funkowa linia basu z wyraźnym, sprężystym atakiem i synkopowanym groove’em; brzmi jak krótko podbijane nuty z lekkim przesterem i dynamicznym „pompowaniem”. Tempo jest żywe i taneczne, utrzymane w pętli przez cały czas trwania.",
+      "useCases": [
+        "podbicie wejścia w beat podczas przejścia",
+        "akcent na drop/zmianę tempa w shortsie",
+        "tło rytmiczne pod dynamiczny montaż"
+      ],
+      "loudnessCharacter": "loud",
+      "isLoop": true,
+      "aiEnrichedAt": "2026-07-09T21:58:54.383Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     }
   ]
 }

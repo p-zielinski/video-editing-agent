@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   ARTIFACT_DEPENDENCY_GRAPH,
+  CLIP_ARTIFACT_PATTERNS,
   isSpatialIndexStale,
   isArtifactStale,
   getStaleDownstream,
@@ -59,6 +60,14 @@ describe("artifact-deps", () => {
     assert.deepEqual(
       SPATIAL_INDEX_INPUTS,
       ARTIFACT_DEPENDENCY_GRAPH[ARTIFACTS.spatialIndex],
+    );
+  });
+
+  it("recipeDraft depends on metaCommands clip artifacts", () => {
+    assert.ok(
+      ARTIFACT_DEPENDENCY_GRAPH[ARTIFACTS.recipeDraft].includes(
+        CLIP_ARTIFACT_PATTERNS.metaCommands,
+      ),
     );
   });
 

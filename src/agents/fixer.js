@@ -81,8 +81,9 @@ export function shouldInvokeFixer(issues = []) {
   );
 }
 
-function resolveFixerPromptVersion(recipe) {
-  if (recipe.version === "2.0" || recipe.version === "2.1" || recipe.version === "2.2" || recipe.version === "2.3") {
+export function resolveFixerPromptVersion(recipe) {
+  const version = recipe?.version;
+  if (typeof version === "string" && /^2\.\d+$/.test(version)) {
     return "v2";
   }
   return "v1";
@@ -106,6 +107,14 @@ function buildWordIdHint(wordIndexes = [], timelineIndex) {
     wordCount: timelineWords.length,
     wordIdSample: timelineWords.slice(0, 24).map((word) => word.wordId),
   };
+}
+
+export function recipeHasCreativeLayer(recipe) {
+  const version = parseFloat(recipe?.version);
+  if (Number.isFinite(version) && version >= 2.1) {
+    return true;
+  }
+  return (recipe?.creativeMoments?.length ?? 0) > 0;
 }
 
 function buildTechniqueCatalog(recipe) {
@@ -134,10 +143,7 @@ function buildRepairContext({
   wordIndexes,
   perClipAnalysis,
 }) {
-  const hasCreativeLayer = recipe.version === "2.1"
-    || recipe.version === "2.2"
-    || recipe.version === "2.3"
-    || (recipe.creativeMoments?.length ?? 0) > 0;
+  const hasCreativeLayer = recipeHasCreativeLayer(recipe);
 
   const editorial = buildEditorialContext({
     timelineIndex,
@@ -163,12 +169,7 @@ function buildRepairContext({
 }
 
 function buildCreativeFixerContext({ recipe }) {
-  const hasCreativeLayer = recipe.version === "2.1"
-    || recipe.version === "2.2"
-    || recipe.version === "2.3"
-    || (recipe.creativeMoments?.length ?? 0) > 0;
-
-  if (!hasCreativeLayer) {
+  if (!recipeHasCreativeLayer(recipe)) {
     return {};
   }
 
@@ -255,17 +256,18 @@ export async function runFixer(client, {
   audioIndex = null,
   perClipAnalysis = null,
   brollSyncHints = null,
+  onUsage,
+  superCriticReview = null,
 }) {
   const promptVersion = resolveFixerPromptVersion(recipe);
   const system = loadPrompt("fixer", { version: promptVersion });
-  const retentionContext = recipe.version === "2.2" || recipe.version === "2.3"
-    || shouldRunShortsRetentionValidation({
-      recipeVersion: recipe.version,
-      outputs: recipe.outputs ?? [],
-      requiredFormats: recipe.batchContext?.requiredFormats ?? [],
-      creativityProfile: recipe.creativityProfile ?? {},
-      shortsRetentionProfile: recipe.shortsRetentionProfile ?? {},
-    })
+  const retentionContext = shouldRunShortsRetentionValidation({
+    recipeVersion: recipe.version,
+    outputs: recipe.outputs ?? [],
+    requiredFormats: recipe.batchContext?.requiredFormats ?? [],
+    creativityProfile: recipe.creativityProfile ?? {},
+    shortsRetentionProfile: recipe.shortsRetentionProfile ?? {},
+  })
     || shouldRunVlogRetentionValidation({
       recipeVersion: recipe.version,
       outputs: recipe.outputs ?? [],
@@ -304,6 +306,9 @@ export async function runFixer(client, {
     ...narrativeContext,
     sessionSummary: abstraction.L3,
     ...fixerContext,
+    ...(superCriticReview?.crossSegmentNotes?.length
+      ? { priorCrossSegmentReview: superCriticReview.crossSegmentNotes }
+      : {}),
   });
 
   const raw = await chatJson(client, {
@@ -311,13 +316,26 @@ export async function runFixer(client, {
     system,
     user,
     temperature: 0.3,
+    onUsage,
   });
 
   raw.batchId = recipe.batchId;
-  raw.version = recipe.version ?? "2.0";
+  raw.version = raw.version ?? recipe.version ?? "2.0";
 
-  if (raw.version === "2.0" || raw.version === "2.1" || raw.version === "2.2" || raw.version === "2.3") {
-    return EditRecipeV2Schema.parse(raw);
+  const version = raw.version;
+  if (version === "2.0" || version === "2.1" || version === "2.2" || version === "2.3" || version === "2.4") {
+    const merged = {
+      ...structuredClone(recipe),
+      ...raw,
+      batchContext: {
+        ...(recipe.batchContext ?? {}),
+        ...(raw.batchContext ?? {}),
+      },
+      outputs: raw.outputs ?? recipe.outputs,
+      clipRegistry: raw.clipRegistry ?? recipe.clipRegistry,
+      creativeMoments: raw.creativeMoments ?? recipe.creativeMoments,
+    };
+    return EditRecipeV2Schema.parse(merged);
   }
 
   return raw;

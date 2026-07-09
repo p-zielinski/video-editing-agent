@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "mustIncludeTokens": ["kurwa"],
+  "minTokenRecall": 0.8,
+  "orderedSubsequence": ["kurwa", "serio"],
+  "allowEmptyWords": false
+}

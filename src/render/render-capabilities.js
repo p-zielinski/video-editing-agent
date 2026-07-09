@@ -12,6 +12,15 @@ export const RENDER_SUPPORT_LEVELS = [
   "segment_only",
 ];
 
+/**
+ * Timeline segment fields rendered in ffmpeg-segment.js (not creativeMoments).
+ * Keys match recipe paths or shorthand ids used in docs.
+ */
+export const SEGMENT_RENDER_FEATURES = {
+  "videoTransform.playbackMode:reverse": "segment_only",
+  "videoTransform.playbackMode:boomerang": "segment_only",
+};
+
 /** techniqueId → renderSupport */
 const TECHNIQUE_RENDER_SUPPORT = {
   // camera — full FFmpeg filters
@@ -82,6 +91,10 @@ export function isSyncSpeedSupported(syncMode, speed, speedMode = "video_audio")
     }
   }
   return true;
+}
+
+export function getSegmentRenderFeatureSupport(featureKey) {
+  return SEGMENT_RENDER_FEATURES[featureKey] ?? null;
 }
 
 export { TECHNIQUE_RENDER_SUPPORT };

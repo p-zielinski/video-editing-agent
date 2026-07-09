@@ -113,10 +113,16 @@ export function rankSegmentsByUserContext(userContext, catalog) {
   });
 }
 
-export function shouldUseSuperDirector(timelineIndex, abstraction) {
+export function shouldUseSuperDirector(timelineIndex, abstraction, batchContext = {}) {
+  if (batchContext.forceClassicDirector === true) {
+    return false;
+  }
+
+  const durationThreshold = batchContext.superDirectorDurationThresholdSec
+    ?? SUPER_DIRECTOR_DURATION_THRESHOLD_SEC;
   const durationSec = resolveTotalDurationSec(timelineIndex);
   const l2Count = abstraction?.L2?.length ?? 0;
-  return durationSec > SUPER_DIRECTOR_DURATION_THRESHOLD_SEC || l2Count > 1;
+  return durationSec > durationThreshold || l2Count > 1;
 }
 
 export function resolveNarrativeRoleForSegment(segmentId, abstraction) {
@@ -124,7 +130,8 @@ export function resolveNarrativeRoleForSegment(segmentId, abstraction) {
   return segment?.narrativeRole ?? null;
 }
 
-export function resolveSegmentPicks(superPlan, catalog) {
+export function resolveSegmentPicks(superPlan, catalog, batchContext = {}) {
+  const maxPicks = batchContext.superDirectorMaxSegments ?? SUPER_DIRECTOR_MAX_SEGMENT_PICKS;
   const catalogById = new Map(catalog.map((card) => [card.segmentId, card]));
   const orderIndex = new Map(
     (superPlan.segmentOrder ?? []).map((segmentId, index) => [segmentId, index]),
@@ -140,7 +147,7 @@ export function resolveSegmentPicks(superPlan, catalog) {
       }
       return a.priority - b.priority;
     })
-    .slice(0, SUPER_DIRECTOR_MAX_SEGMENT_PICKS);
+    .slice(0, maxPicks);
 
   return picks.map((pick) => ({
     ...pick,

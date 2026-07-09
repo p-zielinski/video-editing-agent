@@ -574,6 +574,35 @@ describe("recipe v2 validator", () => {
     assert.equal(parsed.outputs[0].timeline[0].sourceVolumeDb, -12);
   });
 
+  it("parses videoTransform.playbackMode and boomerangHalfSec", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline[0].videoTransform = {
+      playbackMode: "boomerang",
+      boomerangHalfSec: 1.5,
+    };
+    recipe.outputs[0].timeline[0].audioPolicy = "mute";
+
+    const parsed = EditRecipeV2Schema.parse(recipe);
+    assert.equal(parsed.outputs[0].timeline[0].videoTransform.playbackMode, "boomerang");
+    assert.equal(parsed.outputs[0].timeline[0].videoTransform.boomerangHalfSec, 1.5);
+  });
+
+  it("warns when reverse/boomerang lacks mute or external audioPolicy", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline[0].videoTransform = { playbackMode: "reverse" };
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(result.issues.some((i) => i.code === "PLAYBACK_AUDIO_POLICY"));
+  });
+
+  it("warns when boomerangHalfSec is set without boomerang mode", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.outputs[0].timeline[0].videoTransform = { boomerangHalfSec: 2 };
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(result.issues.some((i) => i.code === "PLAYBACK_BOOMERANG_HALF_UNUSED"));
+  });
+
   it("warns V23-02 when LUFS targets are outside recommended range", () => {
     const recipe = structuredClone(baseRecipe);
     recipe.version = "2.3";

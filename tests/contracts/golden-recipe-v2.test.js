@@ -33,7 +33,9 @@ describe("golden recipe v2.4 (mini-day batch)", () => {
     const parsed = EditRecipeV2Schema.parse(recipe);
     assert.equal(parsed.version, "2.4");
     assert.equal(parsed.sfxPlan.length, 1);
+    assert.equal(parsed.sfxPlan[0].sfxId, "whoosh");
     assert.equal(parsed.colorGrade.lutId, "warm_golden_hour");
+    assert.ok(parsed.renderStylePresets?.formats?.["9:16"]?.safeZone);
     assert.ok(parsed.shortsRetentionProfile?.enabled);
   });
 

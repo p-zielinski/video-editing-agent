@@ -5,10 +5,12 @@ import { runFfmpeg } from "../lib/ffmpeg.js";
 import { measureLoudness } from "../lib/measure-loudness.js";
 import { resolveTrackFilePath, resolveTrackById } from "../editorial/music-library.js";
 import {
+  resolveProfanityBleepSfx,
   resolveSfxById,
   resolveSfxByTag,
   resolveSfxFilePath,
 } from "../editorial/sfx-library.js";
+import { suggestSfxVolumeDb, PROFANITY_BLEEP_SFX_ID } from "../editorial/sfx-catalog-summary.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SFX_DIR = path.join(ROOT, "assets", "sfx");
@@ -20,6 +22,8 @@ const DEFAULT_VOICE_SAMPLE_RATE = 44100;
 const DEFAULT_SWELL_GAIN_DB = 3;
 const DEFAULT_DROP_GAIN_DB = -6;
 const DEFAULT_SILENCE_BEAT_VOLUME = 0.3;
+export { PROFANITY_BLEEP_SFX_ID };
+const DEFAULT_BLEEP_VOLUME_DB = -3;
 
 /**
  * creativeMoments handled in the music-bed mix pass (not video creative).
@@ -33,6 +37,67 @@ export function resolveMusicBedMoments(creativeMoments = []) {
  */
 export function resolveVoiceAudioMoments(creativeMoments = []) {
   return creativeMoments.filter((m) => VOICE_AUDIO_TECHNIQUES.has(m.techniqueId));
+}
+
+/**
+ * Collect profanity censorship windows from an output timeline (output seconds).
+ */
+export function resolveAudioCensorshipWindows(output) {
+  const windows = [];
+  for (const segment of output?.timeline ?? []) {
+    for (const window of segment.audioCensorship ?? []) {
+      windows.push(window);
+    }
+  }
+  return windows.sort((a, b) => a.startSec - b.startSec);
+}
+
+/**
+ * Mute voice during censorship windows (bleep + mute modes).
+ */
+export function buildVoiceCensorshipMuteFilter(inputLabel, outputLabel, windows) {
+  if (!windows.length) {
+    return null;
+  }
+
+  const muteExpr = windows
+    .map(({ startSec, endSec }) => `between(t\\,${startSec}\\,${endSec})`)
+    .join("+");
+  return `${inputLabel}volume='if(${muteExpr}\\,0\\,1)':eval=frame${outputLabel}`;
+}
+
+/**
+ * Resolve bleep SFX overlays for censorship windows in bleep mode.
+ */
+export function resolveBleepSfxEntries(censorshipWindows = []) {
+  const { sound: bleepSound } = resolveProfanityBleepSfx();
+  const bleepSfxId = bleepSound?.sfxId ?? PROFANITY_BLEEP_SFX_ID;
+  const bleepVolumeDb = bleepSound
+    ? Math.min(-1, suggestSfxVolumeDb(bleepSound, { baseVolumeDb: -3 }))
+    : DEFAULT_BLEEP_VOLUME_DB;
+
+  return censorshipWindows
+    .filter((window) => window.mode === "bleep")
+    .map((window) => {
+      const windowDur = Math.max(0.05, window.endSec - window.startSec);
+      const durationSec = bleepSound?.durationSec != null
+        ? Math.min(windowDur, bleepSound.durationSec)
+        : windowDur;
+
+      return {
+        sfxId: bleepSfxId,
+        source: "library",
+        label: "bleep",
+        outputStartSec: window.startSec,
+        outputEndSec: window.startSec + durationSec,
+        durationSec,
+        volumeDb: bleepVolumeDb,
+      };
+    });
+}
+
+export function outputHasAudioCensorship(output) {
+  return resolveAudioCensorshipWindows(output).length > 0;
 }
 
 /**
@@ -285,12 +350,14 @@ export function buildAudioMixFilterGraph({
   voiceLoudnormFilter = null,
   musicBedMoments = [],
   voiceAudioMoments = [],
+  censorshipWindows = [],
 }) {
   const filters = [];
   const mixInputs = [];
   let inputCount = 1;
 
-  const voiceBaseLabel = voiceAudioMoments.length > 0 ? "[voice_base]" : "[voice]";
+  const voiceNeedsFxChain = voiceAudioMoments.length > 0 || censorshipWindows.length > 0;
+  const voiceBaseLabel = voiceNeedsFxChain ? "[voice_base]" : "[voice]";
   if (voiceLoudnormFilter) {
     filters.push(`[0:a]${voiceLoudnormFilter}${voiceBaseLabel}`);
   } else {
@@ -299,9 +366,25 @@ export function buildAudioMixFilterGraph({
 
   let voiceLabel = voiceBaseLabel;
   for (let i = 0; i < voiceAudioMoments.length; i += 1) {
-    const nextLabel = i === voiceAudioMoments.length - 1 ? "[voice]" : `[voice_m${i}]`;
+    const nextLabel = i === voiceAudioMoments.length - 1 ? "[voice_fx]" : `[voice_m${i}]`;
     filters.push(...buildVoiceAudioMomentFilters(voiceLabel, nextLabel, voiceAudioMoments[i], i));
     voiceLabel = nextLabel;
+  }
+
+  if (censorshipWindows.length > 0) {
+    const censoredLabel = "[voice]";
+    const muteFilter = buildVoiceCensorshipMuteFilter(voiceLabel, censoredLabel, censorshipWindows);
+    if (muteFilter) {
+      filters.push(muteFilter);
+      voiceLabel = censoredLabel;
+    }
+  } else if (voiceAudioMoments.length > 0) {
+    filters.push(`${voiceLabel}anull[voice]`);
+    voiceLabel = "[voice]";
+  }
+
+  if (voiceLabel !== "[voice]") {
+    filters.push(`${voiceLabel}anull[voice]`);
   }
 
   mixInputs.push("[voice]");
@@ -347,14 +430,26 @@ export function buildAudioMixFilterGraph({
         + `asetpts=PTS-STARTPTS,adelay=${delayMs}|${delayMs},volume=${vol}[${sfxLabel}]`,
       );
     } else {
-      filters.push(`[${inputCount}:a]adelay=${delayMs}|${delayMs},volume=${vol}[${sfxLabel}]`);
+      const trimDur = sfx.durationSec
+        ?? ((sfx.outputEndSec != null && sfx.outputStartSec != null)
+          ? Math.max(0.01, sfx.outputEndSec - sfx.outputStartSec)
+          : null);
+      if (trimDur != null) {
+        filters.push(
+          `[${inputCount}:a]atrim=0:${trimDur},asetpts=PTS-STARTPTS,adelay=${delayMs}|${delayMs},volume=${vol}[${sfxLabel}]`,
+        );
+      } else {
+        filters.push(`[${inputCount}:a]adelay=${delayMs}|${delayMs},volume=${vol}[${sfxLabel}]`);
+      }
     }
 
     mixInputs.push(`[${sfxLabel}]`);
     inputCount += 1;
   }
 
-  const voiceNeedsProcessing = voiceLoudnormFilter || voiceAudioMoments.length > 0;
+  const voiceNeedsProcessing = voiceLoudnormFilter
+    || voiceAudioMoments.length > 0
+    || censorshipWindows.length > 0;
 
   if (mixInputs.length === 1 && !voiceNeedsProcessing) {
     return { filters: [], mixInputs, inputCount: 0, needsMix: false };
@@ -461,11 +556,20 @@ export async function applyAudioMix(inputPath, outputPath, {
     : [];
   const voiceAudioMoments = resolveVoiceAudioMoments(creativeMoments);
 
-  const { sfxEntries, warnings: sfxWarnings } = resolveSfxPlanEntries(
+  const censorshipWindows = resolveAudioCensorshipWindows(output);
+  const bleepEntries = resolveBleepSfxEntries(censorshipWindows);
+  const { sfxEntries: planSfxEntries, warnings: sfxWarnings } = resolveSfxPlanEntries(
     recipe.sfxPlan ?? [],
     context,
     mixSegment,
   );
+  const { sfxEntries: bleepSfxEntries, warnings: bleepWarnings } = resolveSfxPlanEntries(
+    bleepEntries,
+    context,
+    mixSegment,
+  );
+  const sfxEntries = [...planSfxEntries, ...bleepSfxEntries];
+  const sfxWarningsCombined = [...sfxWarnings, ...bleepWarnings];
 
   const voiceTargetLufs = plan?.voiceTargetLufs ?? DEFAULT_VOICE_TARGET_LUFS;
   let voiceLoudnormFilter = null;
@@ -487,6 +591,7 @@ export async function applyAudioMix(inputPath, outputPath, {
     voiceLoudnormFilter,
     musicBedMoments,
     voiceAudioMoments,
+    censorshipWindows,
   });
 
   const appliedAudioTechniques = [
@@ -503,7 +608,7 @@ export async function applyAudioMix(inputPath, outputPath, {
       sfxApplied: false,
       audioTechniquesApplied: false,
       appliedAudioTechniques: [],
-      warnings: sfxWarnings,
+      warnings: sfxWarningsCombined,
     };
   }
 
@@ -543,6 +648,6 @@ export async function applyAudioMix(inputPath, outputPath, {
     sfxApplied: sfxEntries.length > 0,
     audioTechniquesApplied,
     appliedAudioTechniques,
-    warnings: sfxWarnings,
+    warnings: sfxWarningsCombined,
   };
 }

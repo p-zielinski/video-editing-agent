@@ -10,6 +10,7 @@ import {
 import { validateRecipeV2 } from "../validators/recipe-v2.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import { readRecipeProvenance } from "./recipe-provenance.js";
+import { shouldUseSuperDirector } from "./segment-catalog.js";
 import { evaluateQualityGates } from "./quality-gate-config.js";
 import { readJson, writeJson, ARTIFACTS } from "../pipeline/work-paths.js";
 
@@ -392,6 +393,15 @@ export function buildBatchQualityReport(workDir, { qualityProfile = "lenient" } 
   const recipe = loadRecipe(workDir);
   const audioIndex = tryReadJson(workDir, ARTIFACTS.audioIndex);
   const provenance = readRecipeProvenance(workDir);
+  const superPath = timelineIndex && abstraction
+    ? shouldUseSuperDirector(timelineIndex, abstraction, manifest?.batchContext ?? {})
+    : false;
+  const briefSceneMapCoverage = provenance?.directorMetrics?.briefSceneMapCoverage ?? null;
+  const briefMetrics = provenance?.directorMetrics?.briefMetrics ?? null;
+  const directorPath = provenance?.directorMetrics?.directorPath ?? null;
+  const superCriticApproved = provenance?.superCriticReview != null
+    ? Boolean(provenance.superCriticReview.approved)
+    : null;
   const audioMetrics = computeAudioMetrics(audioIndex);
   const stubCoverage = computeStubCoverage(workDir, catalog);
   const enricherContribution = summarizeEnricherContribution(provenance);
@@ -476,6 +486,12 @@ export function buildBatchQualityReport(workDir, { qualityProfile = "lenient" } 
     minRetentionBeatsRequired,
     hookInFirst3s,
     hasShortOutputs: shortOutputs.length > 0,
+    briefSceneMapCoverage,
+    briefMetrics,
+    directorPath,
+    superPath,
+    superCriticApproved,
+    timelineSceneCount: timelineIndex?.scenes?.length ?? 0,
   };
 
   const qualityGateFailures = evaluateQualityGates(gateMetrics, qualityProfile);
@@ -516,6 +532,9 @@ export function buildBatchQualityReport(workDir, { qualityProfile = "lenient" } 
       stitchIssues,
       reviewIterations,
       reviewApproved: review?.approved ?? null,
+      briefSceneMapCoverage,
+      superPath,
+      superCriticApproved,
       dataQualityWarnings,
       qualityGateFailures,
       needsHumanReview,

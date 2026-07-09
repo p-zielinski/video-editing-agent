@@ -16,6 +16,7 @@ export async function runSuperCritic(client, {
   audioIndex,
   perClipAnalysis,
   wordIndexes,
+  onUsage,
 }) {
   const system = loadPrompt("super-critic", { version: "v2" })
     || loadPrompt("super-critic");
@@ -72,6 +73,7 @@ export async function runSuperCritic(client, {
     system,
     user: JSON.stringify(userPayload),
     temperature: 0.2,
+    onUsage,
   });
 
   const issues = raw.issues ?? [];

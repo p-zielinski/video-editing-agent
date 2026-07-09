@@ -1,0 +1,11 @@
+{
+  "caseId": "meta-command-date-overlay",
+  "category": "meta-commands",
+  "title": "Date overlay meta-command",
+  "spokenTranscript": "Hej dodaj tu datę realizacji filmu czyli 6 lipca 2020",
+  "language": "pl",
+  "tags": ["date", "overlay"],
+  "notes": "Voice director instruction with explicit date",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

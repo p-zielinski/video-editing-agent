@@ -2,7 +2,13 @@ import path from "node:path";
 import fs from "node:fs";
 import { createOpenAIClient } from "../../agents/openai-client.js";
 import { buildAbstractionBundle } from "../../agents/summarizer.js";
-import { runDirector, directorDrillDown, extractSceneIdsFromRecipe, attachRetentionBeatTargets } from "../../agents/director.js";
+import {
+  runDirector,
+  directorDrillDown,
+  extractSceneIdsFromRecipe,
+  attachRetentionBeatTargets,
+  shouldRunDirectorDrillDown,
+} from "../../agents/director.js";
 import { runSuperDirector } from "../../agents/super-director.js";
 import { runSegmentDirector } from "../../agents/segment-director.js";
 import {
@@ -14,6 +20,7 @@ import { mergeSegmentRecipes } from "../../lib/recipe-merge.js";
 import { resolveEffectiveNarrativeProfile } from "../../lib/narrative-profile.js";
 import { buildEmotionalBeatHints } from "../../agents/director.js";
 import { validateStitchContinuity } from "../../validators/stitch-continuity.js";
+import { repairStitchContinuity } from "../../lib/stitch-repair.js";
 import { runCritic } from "../../agents/critic.js";
 import { runFixer, shouldInvokeFixer } from "../../agents/fixer.js";
 import { EditRecipeV2Schema } from "../../schemas/edit-recipe-v2.js";
@@ -35,12 +42,20 @@ import {
 
 import { enrichRecipeDeadAirHandling } from "../../editorial/dead-air-enrich.js";
 import { enrichRecipeFillerCuts } from "../../editorial/filler-enrich.js";
+import { enrichRecipeProfanity } from "../../editorial/profanity-enrich.js";
+import { enrichRecipeVoiceDirectives } from "../../editorial/voice-directive-enrich.js";
 import { enrichRecipePacingTrim } from "../../editorial/pacing-enrich.js";
 import { enrichRecipeFastRhythmSpeed } from "../../editorial/speed-enrich.js";
 import { enrichRecipePayoffMoments } from "../../editorial/payoff-enrich.js";
 import { enrichRecipeCallbackMoments } from "../../editorial/callback-enrich.js";
 import { enrichRecipeClosureCta } from "../../editorial/closure-enrich.js";
 import { enrichRecipeJlCutSnap } from "../../editorial/jlcut-snap.js";
+import { enrichRecipeAiHook, loadAiVideoArtifact } from "../../editorial/ai-hook-enrich.js";
+import { enrichRecipeShortIntroSkip } from "../../editorial/shorts-intro-skip.js";
+import { enrichRecipeMusicBeatSnap } from "../../editorial/music-beat-snap.js";
+import { enrichRecipeDisableColorGrade } from "../../editorial/color-grade-policy.js";
+import { resolveMusicBeatGridForBrief } from "../../lib/music-beat-grid.js";
+import { runMusicCurator } from "../../agents/music-curator.js";
 import { enrichUnpickedL2Bridges } from "../../editorial/bridge-enrich.js";
 import { enrichJumpCutsAsTimeCuts } from "../../render/time-cuts.js";
 import { runSuperCritic } from "../../agents/super-critic.js";
@@ -53,10 +68,59 @@ import {
   readRecipeProvenance,
   stripRecipeProvenanceFields,
 } from "../../lib/recipe-provenance.js";
+import { createUsageRecorder } from "../../lib/gpt-usage-log.js";
+import { mapWithConcurrency } from "../../lib/map-with-concurrency.js";
+import { createBriefMetricsAccumulator } from "../../lib/brief-metrics.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
 
-export { shouldUseSuperDirector };
+function parseSegmentDirectorConcurrency() {
+  const raw = process.env.SEGMENT_DIRECTOR_CONCURRENCY;
+  if (raw === undefined || raw === "") {
+    return 3;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 3;
+}
+
+export const SEGMENT_DIRECTOR_CONCURRENCY = parseSegmentDirectorConcurrency();
+
+function buildDrillDownOptions(context) {
+  return {
+    metaCommandsByClip: context.metaCommandsByClip,
+    timelineIndex: context.timelineIndex,
+    audioIndex: context.audioIndex,
+  };
+}
+
+function reconstructSuperPlanFromRecipe(recipe, abstraction) {
+  const segmentOrder = abstraction?.L2?.map((entry) => entry.segmentId).filter(Boolean) ?? [];
+  const segmentPicks = (recipe.narrativeProfile?.segments ?? abstraction?.L2 ?? [])
+    .map((entry) => ({
+      segmentId: entry.l2SegmentId ?? entry.segmentId,
+      ...entry,
+    }))
+    .filter((pick) => pick.segmentId);
+
+  return {
+    segmentOrder,
+    segmentPicks,
+    crossSegmentNotes: recipe.superPlanNotes ?? [],
+    crossSegmentCallbacks: recipe.structuredCallbacks ?? [],
+    globalTheme: recipe.batchContext?.theme,
+    creativityProfile: recipe.creativityProfile,
+    narrativeProfile: recipe.narrativeProfile,
+  };
+}
+
+export { shouldUseSuperDirector, shouldRunDirectorDrillDown };
+
+function finalizeDirectorMetrics(directorMetrics, briefMetricsAcc) {
+  return {
+    ...directorMetrics,
+    briefMetrics: briefMetricsAcc.finalize(),
+  };
+}
 
 export async function runSuperDirectorDirectPath(client, context) {
   const {
@@ -66,40 +130,71 @@ export async function runSuperDirectorDirectPath(client, context) {
     userContext,
     batchContext,
     requiredFormats,
+    gptUsageTracker,
   } = context;
 
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
-  const superPlan = await runSuperDirector(client, {
+  const briefMetricsAcc = createBriefMetricsAccumulator();
+  const superDirectorResult = await runSuperDirector(client, {
     abstraction,
     timelineIndex,
     clipRegistry,
     userContext,
     batchContext,
     requiredFormats,
+    onUsage: createUsageRecorder(gptUsageTracker, "super_director"),
   });
+  const superPlan = superDirectorResult.plan;
+  briefMetricsAcc.record(superDirectorResult.briefMetric);
 
-  const picks = resolveSegmentPicks(superPlan, catalog);
+  const picks = resolveSegmentPicks(superPlan, catalog, batchContext);
   if (picks.length === 0) {
     throw new Error("Super Director nie wybrał żadnego segmentu L2");
   }
 
-  const partials = await Promise.all(
-    picks.map((pick) => runSegmentDirector(client, context, {
-      segmentId: pick.segmentId,
-      sceneIds: pick.catalogCard.sceneIds,
-      superPlan,
-      superNotes: superPlan.crossSegmentNotes ?? [],
-    })),
+  const concurrency = parseSegmentDirectorConcurrency();
+  const partials = await mapWithConcurrency(
+    picks,
+    concurrency,
+    async (pick) => {
+      const segmentResult = await runSegmentDirector(client, context, {
+        segmentId: pick.segmentId,
+        sceneIds: pick.catalogCard.sceneIds,
+        superPlan,
+        superNotes: superPlan.crossSegmentNotes ?? [],
+        onUsage: createUsageRecorder(gptUsageTracker, "segment_director"),
+      });
+      briefMetricsAcc.record(segmentResult.briefMetric);
+      return segmentResult.recipe;
+    },
   );
 
-  const recipe = mergeSegmentRecipes(superPlan, partials, { wordIndexes: context.wordIndexes });
+  let recipe = mergeSegmentRecipes(superPlan, partials, { wordIndexes: context.wordIndexes });
   enrichUnpickedL2Bridges(recipe, { abstraction, superPlan });
-  enrichJumpCutsAsTimeCuts(recipe);
   attachRetentionBeatTargets(recipe, {
     requiredFormats,
     batchContext: context.batchContext,
     timelineIndex,
   });
+
+  let directorMetrics = {
+    drillDownRan: false,
+    drillDownSceneCount: 0,
+    briefSceneMapCoverage: null,
+  };
+
+  const sceneIds = extractSceneIdsFromRecipe(recipe);
+  if (sceneIds.length > 0 && shouldRunDirectorDrillDown(recipe, batchContext, buildDrillDownOptions(context))) {
+    const drillDownResult = await directorDrillDown(client, {
+      ...context,
+      recipe,
+      sceneIds,
+      onUsage: createUsageRecorder(gptUsageTracker, "drill_down"),
+    });
+    recipe = drillDownResult.recipe;
+    directorMetrics = drillDownResult.directorMetrics;
+    briefMetricsAcc.record(drillDownResult.directorMetrics?.briefMetric);
+  }
 
   const stitchIssues = validateStitchContinuity(recipe, {
     superPlan,
@@ -112,6 +207,42 @@ export async function runSuperDirectorDirectPath(client, context) {
     issues: stitchIssues,
   };
 
+  const stitchErrors = stitchIssues.filter((issue) => issue.severity === "error");
+  if (stitchErrors.length > 0) {
+    const repairResult = repairStitchContinuity(recipe, {
+      superPlan,
+      abstraction,
+      partials,
+      wordIndexes: context.wordIndexes,
+      timelineIndex: context.timelineIndex,
+    });
+
+    if (!repairResult.unfixable) {
+      const repairedIssues = validateStitchContinuity(recipe, {
+        superPlan,
+        abstraction,
+        partials,
+        wordIndexes: context.wordIndexes,
+      });
+      recipe.stitchValidation = {
+        valid: repairedIssues.filter((issue) => issue.severity === "error").length === 0,
+        issues: repairedIssues,
+        repaired: repairResult.repaired,
+      };
+    }
+
+    const remainingErrors = (recipe.stitchValidation?.issues ?? stitchIssues)
+      .filter((issue) => issue.severity === "error");
+    if (remainingErrors.length > 0) {
+      const error = new Error(
+        `Scalona receptura nie przeszła walidacji stitch: ${remainingErrors.map((issue) => issue.message).join("; ")}`,
+      );
+      error.code = "STITCH_VALIDATION_FAILED";
+      error.validation = recipe.stitchValidation;
+      throw error;
+    }
+  }
+
   const superCritic = await runSuperCritic(client, {
     recipe,
     superPlan,
@@ -123,6 +254,7 @@ export async function runSuperDirectorDirectPath(client, context) {
     audioIndex: context.audioIndex,
     perClipAnalysis: context.perClipAnalysis,
     wordIndexes: context.wordIndexes,
+    onUsage: createUsageRecorder(gptUsageTracker, "super_critic"),
   });
   recipe.superCriticReview = superCritic;
   if (superCritic.crossSegmentNotes?.length) {
@@ -132,17 +264,13 @@ export async function runSuperDirectorDirectPath(client, context) {
     ];
   }
 
-  const stitchErrors = stitchIssues.filter((issue) => issue.severity === "error");
-  if (stitchErrors.length > 0) {
-    const error = new Error(
-      `Scalona receptura nie przeszła walidacji stitch: ${stitchErrors.map((issue) => issue.message).join("; ")}`,
-    );
-    error.code = "STITCH_VALIDATION_FAILED";
-    error.validation = recipe.stitchValidation;
-    throw error;
-  }
-
-  return recipe;
+  return {
+    recipe,
+    directorMetrics: finalizeDirectorMetrics({
+      ...directorMetrics,
+      directorPath: "super",
+    }, briefMetricsAcc),
+  };
 }
 
 function buildDeterministicEnricherSteps(recipe, {
@@ -156,6 +284,9 @@ function buildDeterministicEnricherSteps(recipe, {
   batchContext = {},
   keyframeArtifacts = null,
   wordIndexes = null,
+  metaCommandsByClip = null,
+  aiVideoArtifact = null,
+  musicBeatGrid = null,
 }) {
   const effectiveBatchContext = {
     ...batchContext,
@@ -186,16 +317,44 @@ function buildDeterministicEnricherSteps(recipe, {
       },
     },
     {
-      name: "enrichRecipeSfxPlan",
+      name: "enrichRecipeAiHook",
       apply: () => {
-        recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
-          audioIndex,
-          clipRegistry,
-          perClipAnalysis,
-          wordIndexes,
+        if (aiVideoArtifact) {
+          enrichRecipeAiHook(recipe, aiVideoArtifact);
+        }
+      },
+    },
+    {
+      name: "enrichRecipeShortIntroSkip",
+      apply: () => {
+        enrichRecipeShortIntroSkip(recipe, {
           abstraction,
           timelineIndex,
+          audioIndex,
+          wordIndexes,
         });
+      },
+    },
+    {
+      name: "enrichRecipeFillerCuts",
+      apply: () => {
+        enrichRecipeFillerCuts(recipe, {
+          abstraction,
+          timelineIndex,
+          wordIndexes,
+        });
+      },
+    },
+    {
+      name: "enrichRecipeProfanity",
+      apply: () => {
+        enrichRecipeProfanity(recipe, wordIndexes, effectiveBatchContext);
+      },
+    },
+    {
+      name: "enrichRecipeVoiceDirectives",
+      apply: () => {
+        enrichRecipeVoiceDirectives(recipe, metaCommandsByClip ?? [], timelineIndex);
       },
     },
     {
@@ -207,16 +366,6 @@ function buildDeterministicEnricherSteps(recipe, {
           wordIndexes,
           perClipAnalysis,
           abstraction,
-        });
-      },
-    },
-    {
-      name: "enrichRecipeFillerCuts",
-      apply: () => {
-        enrichRecipeFillerCuts(recipe, {
-          abstraction,
-          timelineIndex,
-          wordIndexes,
         });
       },
     },
@@ -247,6 +396,19 @@ function buildDeterministicEnricherSteps(recipe, {
       name: "enrichRecipeJlCutSnap",
       apply: () => {
         enrichRecipeJlCutSnap(recipe, wordIndexes);
+      },
+    },
+    {
+      name: "enrichRecipeSfxPlan",
+      apply: () => {
+        recipe.sfxPlan = enrichRecipeSfxPlan(recipe, {
+          audioIndex,
+          clipRegistry,
+          perClipAnalysis,
+          wordIndexes,
+          abstraction,
+          timelineIndex,
+        });
       },
     },
     {
@@ -310,6 +472,15 @@ function buildDeterministicEnricherSteps(recipe, {
       },
     },
     {
+      name: "enrichRecipeMusicBeatSnap",
+      apply: () => {
+        if (musicBeatGrid) {
+          recipe.musicBeatGrid = musicBeatGrid;
+          enrichRecipeMusicBeatSnap(recipe, { musicBeatGrid });
+        }
+      },
+    },
+    {
       name: "enrichBrollSyncFromHints",
       apply: () => {
         if (effectiveBatchContext.brollStrategy !== "minimal") {
@@ -331,12 +502,23 @@ function buildDeterministicEnricherSteps(recipe, {
         enrichJumpCutsAsTimeCuts(recipe);
       },
     },
+    {
+      name: "enrichRecipeDisableColorGrade",
+      apply: () => {
+        enrichRecipeDisableColorGrade(recipe, effectiveBatchContext);
+      },
+    },
   ];
 }
 
 const applyDeterministicRecipeEnrichersWithAudit = createEnricherAuditWrapper(
   buildDeterministicEnricherSteps,
 );
+
+export function getDeterministicEnricherStepOrder(context = {}) {
+  const recipe = { outputs: [], creativeMoments: [], batchContext: {} };
+  return buildDeterministicEnricherSteps(recipe, context).map((step) => step.name);
+}
 
 export function applyDeterministicRecipeEnrichers(recipe, context) {
   for (const step of buildDeterministicEnricherSteps(recipe, context)) {
@@ -358,6 +540,7 @@ export async function runAbstractStep({
   openaiClient,
   userContext = "",
   force = false,
+  gptUsageTracker,
 }) {
   const abstractPath = path.join(workDir, ARTIFACTS.abstraction);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.abstraction, force)) {
@@ -370,6 +553,7 @@ export async function runAbstractStep({
   const bundle = await buildAbstractionBundle(client, timelineIndex, {
     userContext,
     clipRegistry,
+    onUsage: createUsageRecorder(gptUsageTracker, "abstract"),
   });
 
   writeJson(path.join(workDir, ARTIFACTS.abstractionL1), bundle.L1);
@@ -430,6 +614,16 @@ function loadWordIndexes(workDir, catalog) {
       return readJson(path.join(workDir, ARTIFACTS.words(clip.clipId)));
     } catch {
       return { clipId: clip.clipId, words: [] };
+    }
+  });
+}
+
+export function loadMetaCommandsByClip(workDir, catalog) {
+  return catalog.clips.map((clip) => {
+    try {
+      return readJson(path.join(workDir, ARTIFACTS.metaCommands(clip.clipId)));
+    } catch {
+      return { clipId: clip.clipId, commands: [] };
     }
   });
 }
@@ -514,6 +708,7 @@ export async function runDirectStep({
   force = false,
   faceStub = false,
   globalCacheDisabled = false,
+  gptUsageTracker,
 }) {
   const draftPath = path.join(workDir, ARTIFACTS.recipeDraft);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.recipeDraft, force)) {
@@ -529,9 +724,29 @@ export async function runDirectStep({
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
+  const metaCommandsByClip = loadMetaCommandsByClip(workDir, catalog);
   const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
   const keyframesByClip = buildKeyframesByClip(timelineIndex, keyframeArtifacts);
+  const aiVideoArtifact = loadAiVideoArtifact(workDir);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
+
+  const curatorResult = await runMusicCurator(client, {
+    abstraction,
+    audioIndex,
+    batchContext: {
+      ...batchContext,
+      requiredFormats,
+    },
+    requiredFormats,
+    userContext,
+    onUsage: createUsageRecorder(gptUsageTracker, "music_curator"),
+  });
+  const musicSelection = curatorResult.musicSelection;
+  writeJson(path.join(workDir, ARTIFACTS.musicSelection), {
+    version: "1.0",
+    ...curatorResult,
+    selectedAt: new Date().toISOString(),
+  });
 
   const audioMixDefaults = deriveAudioMixPlanDefaults({
     audioIndex,
@@ -540,6 +755,18 @@ export async function runDirectStep({
       ...batchContext,
       requiredFormats,
     },
+    musicSelection,
+  });
+
+  const musicBeatGrid = await resolveMusicBeatGridForBrief({
+    batchContext: {
+      ...batchContext,
+      requiredFormats,
+      musicBedTrackId: musicSelection?.trackId,
+    },
+    audioMixDefaults,
+    audioIndex,
+    musicSelection,
   });
 
   const context = {
@@ -550,8 +777,11 @@ export async function runDirectStep({
     spatialIndex,
     audioIndex,
     audioMixDefaults,
+    musicSelection,
+    musicBeatGrid,
     perClipAnalysis,
     wordIndexes,
+    metaCommandsByClip,
     keyframesByClip,
     userContext,
     requiredFormats,
@@ -560,23 +790,47 @@ export async function runDirectStep({
       ...batchContext,
       requiredFormats,
     },
+    gptUsageTracker,
   };
 
   let recipe;
-  if (shouldUseSuperDirector(timelineIndex, abstraction)) {
-    recipe = await runSuperDirectorDirectPath(client, context);
+  const briefMetricsAcc = createBriefMetricsAccumulator();
+  let directorMetrics = {
+    drillDownRan: false,
+    drillDownSceneCount: 0,
+    briefSceneMapCoverage: null,
+    directorPath: null,
+  };
+  if (shouldUseSuperDirector(timelineIndex, abstraction, batchContext)) {
+    const superResult = await runSuperDirectorDirectPath(client, context);
+    recipe = superResult.recipe;
+    directorMetrics = superResult.directorMetrics;
   } else {
-    recipe = await runDirector(client, context);
+    const directorResult = await runDirector(client, {
+      ...context,
+      onUsage: createUsageRecorder(gptUsageTracker, "direct"),
+    });
+    recipe = directorResult.recipe;
+    briefMetricsAcc.record(directorResult.briefMetric);
+    directorMetrics.directorPath = "classic";
 
     const sceneIds = extractSceneIdsFromRecipe(recipe);
-    if (sceneIds.length > 0) {
-      recipe = await directorDrillDown(client, {
+    if (sceneIds.length > 0 && shouldRunDirectorDrillDown(recipe, context.batchContext, buildDrillDownOptions(context))) {
+      const drillDownResult = await directorDrillDown(client, {
         ...context,
         recipe,
         sceneIds,
+        onUsage: createUsageRecorder(gptUsageTracker, "drill_down"),
       });
+      recipe = drillDownResult.recipe;
+      directorMetrics = {
+        ...directorMetrics,
+        ...drillDownResult.directorMetrics,
+      };
+      briefMetricsAcc.record(drillDownResult.directorMetrics?.briefMetric);
     }
 
+    directorMetrics = finalizeDirectorMetrics(directorMetrics, briefMetricsAcc);
   }
 
   if (!recipe.narrativeProfile) {
@@ -597,6 +851,7 @@ export async function runDirectStep({
       ...batchContext,
       requiredFormats,
     },
+    musicSelection,
   }));
 
   const afterDirector = snapshotRecipeStage(recipe, "afterDirector");
@@ -612,6 +867,10 @@ export async function runDirectStep({
     batchContext,
     keyframeArtifacts,
     wordIndexes,
+    metaCommandsByClip,
+    aiVideoArtifact,
+    musicBeatGrid,
+    musicSelection,
   };
   const { enricherLog } = applyDeterministicRecipeEnrichersWithAudit(recipe, enricherContext);
   const afterEnrichers = snapshotRecipeStage(recipe, "afterEnrichers");
@@ -623,6 +882,7 @@ export async function runDirectStep({
     enricherLog,
     stitchValidation: recipe.stitchValidation ?? null,
     superCriticReview: recipe.superCriticReview ?? null,
+    directorMetrics,
   }));
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
@@ -637,18 +897,21 @@ export async function runReviewStep({
   requiredFormats = ["16:9", "9:16"],
   batchContext = {},
   maxIterations = MAX_REVIEW_ITERATIONS,
+  strictReview = false,
   force = false,
   faceStub = false,
   globalCacheDisabled = false,
+  gptUsageTracker,
 }) {
-  const finalPath = path.join(workDir, ARTIFACTS.recipeFinal);
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const topicIndex = loadTopicIndex(workDir);
   const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
+  const metaCommandsByClip = loadMetaCommandsByClip(workDir, catalog);
   const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
+  const finalPath = path.join(workDir, ARTIFACTS.recipeFinal);
 
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.recipeFinal, force)) {
     const recipe = EditRecipeV2Schema.parse(readJson(finalPath));
@@ -679,6 +942,14 @@ export async function runReviewStep({
   let recipe = EditRecipeV2Schema.parse(
     readJson(path.join(workDir, ARTIFACTS.recipeDraft)),
   );
+
+  const existingProvenance = readRecipeProvenance(workDir) ?? {};
+  let superCriticReview = existingProvenance.superCriticReview
+    ?? recipe.superCriticReview
+    ?? null;
+  const usedSuperPath = existingProvenance.superCriticReview != null
+    || (recipe.superPlanNotes?.length ?? 0) > 0
+    || (recipe.structuredCallbacks?.length ?? 0) > 0;
 
   let iteration = 0;
   let lastReview = null;
@@ -717,6 +988,8 @@ export async function runReviewStep({
       audioIndex,
       perClipAnalysis,
       brollSyncHints,
+      superCriticReview,
+      onUsage: createUsageRecorder(gptUsageTracker, "critic"),
     });
 
     writeJson(path.join(workDir, ARTIFACTS.review), lastReview);
@@ -741,6 +1014,8 @@ export async function runReviewStep({
         audioIndex,
         perClipAnalysis,
         brollSyncHints,
+        superCriticReview,
+        onUsage: createUsageRecorder(gptUsageTracker, "fixer"),
       }),
     );
     applyDeterministicRecipeEnrichers(recipe, {
@@ -754,7 +1029,37 @@ export async function runReviewStep({
       batchContext,
       keyframeArtifacts: loadKeyframesByClip(workDir, catalog),
       wordIndexes,
+      metaCommandsByClip,
+      aiVideoArtifact: loadAiVideoArtifact(workDir),
     });
+
+    if (usedSuperPath) {
+      const superPlan = reconstructSuperPlanFromRecipe(recipe, abstraction);
+      const partials = (abstraction?.L2 ?? []).map((entry) => ({
+        segmentId: entry.segmentId,
+      }));
+      superCriticReview = await runSuperCritic(client, {
+        recipe,
+        superPlan,
+        abstraction,
+        partials,
+        timelineIndex,
+        topicIndex,
+        spatialIndex,
+        audioIndex,
+        perClipAnalysis,
+        wordIndexes,
+        onUsage: createUsageRecorder(gptUsageTracker, "super_critic"),
+      });
+      recipe.superCriticReview = superCriticReview;
+      if (superCriticReview.crossSegmentNotes?.length) {
+        recipe.superPlanNotes = [
+          ...(recipe.superPlanNotes ?? []),
+          ...superCriticReview.crossSegmentNotes,
+        ];
+      }
+    }
+
     recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
     writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
   }
@@ -785,9 +1090,18 @@ export async function runReviewStep({
     throw error;
   }
 
+  if (strictReview && !lastReview?.approved) {
+    const error = new Error(
+      `Receptura nie została zatwierdzona przez krytyka — nie zapisano ${ARTIFACTS.recipeFinal}`,
+    );
+    error.code = "RECIPE_REVIEW_NOT_APPROVED";
+    error.validation = validation;
+    error.review = lastReview;
+    throw error;
+  }
+
   const afterReview = snapshotRecipeStage(recipe, "afterReview");
-  const { recipe: recipeForFinal, stitchValidation, superCriticReview } = stripRecipeProvenanceFields(recipe);
-  const existingProvenance = readRecipeProvenance(workDir) ?? {};
+  const { recipe: recipeForFinal, stitchValidation, superCriticReview: recipeSuperCritic } = stripRecipeProvenanceFields(recipe);
 
   writeRecipeProvenance(workDir, buildProvenanceDocument({
     batchId: recipe.batchId,
@@ -796,8 +1110,9 @@ export async function runReviewStep({
     afterReview,
     enricherLog: existingProvenance.enricherLog ?? [],
     stitchValidation: stitchValidation ?? existingProvenance.stitchValidation ?? null,
-    superCriticReview: superCriticReview ?? existingProvenance.superCriticReview ?? null,
+    superCriticReview: recipeSuperCritic ?? superCriticReview ?? existingProvenance.superCriticReview ?? null,
     reviewIterations: iteration,
+    directorMetrics: existingProvenance.directorMetrics ?? null,
   }));
 
   writeJson(path.join(workDir, ARTIFACTS.recipeFinal), EditRecipeV2Schema.parse(recipeForFinal));

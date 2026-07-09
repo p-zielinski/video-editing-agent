@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "tracks": [
+    {
+      "trackId": "pixabay_560133",
+      "fileName": "club_party_560133.mp3",
+      "title": "Updated",
+      "mood": [
+        "uplifting restless bright energetic",
+        "dance upbeat electronic pop",
+        "chasing running medium fast"
+      ],
+      "useCase": [
+        "youtube",
+        "vlog"
+      ],
+      "energy": "high",
+      "bpm": 128,
+      "durationSec": 41,
+      "integratedLufs": -14.2,
+      "pixabay": {
+        "genre": [
+          "Dance Upbeat Electronic Pop"
+        ],
+        "mood": [
+          "Uplifting Restless Bright Energetic"
+        ],
+        "movement": [
+          "Chasing Running Medium Fast"
+        ],
+        "theme": [
+          "Music For Videos Music For Youtube Videos Vlog Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/music/upbeat-club-party-dance-music-560133/",
+      "beatGrid": {
+        "beatsSec": [
+          0.5,
+          1
+        ],
+        "barSec": [
+          1
+        ],
+        "source": "librosa"
+      }
+    }
+  ]
+}

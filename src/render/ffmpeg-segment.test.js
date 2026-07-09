@@ -594,4 +594,63 @@ describe("ffmpeg-segment", () => {
     assert.match(filter, /atempo=2,apad=pad_dur=1\.5/);
     assert.match(filter, /volume=0\.5011872336272722/);
   });
+
+  it("buildSegmentFfmpegArgs applies reverse filter and mutes audio", () => {
+    const segment = {
+      ...baseSegment,
+      videoTransform: { playbackMode: "reverse" },
+      audioPolicy: "mute",
+    };
+    const { args, targetDur } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.match(joined, /reverse/);
+    assert.match(joined, /-an/);
+    assert.equal(targetDur, 10);
+  });
+
+  it("buildSegmentFfmpegArgs applies boomerang trim+reverse+concat and shortens output", () => {
+    const segment = {
+      ...baseSegment,
+      videoInSec: 0,
+      videoOutSec: 8,
+      audioInSec: 0,
+      audioOutSec: 8,
+      videoTransform: { playbackMode: "boomerang", boomerangHalfSec: 1.5 },
+      audioPolicy: "mute",
+    };
+    const { args, targetDur } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.match(joined, /-filter_complex/);
+    assert.match(joined, /trim=0:1\.5000/);
+    assert.match(joined, /concat=n=2:v=1:a=0/);
+    assert.match(joined, /-an/);
+    assert.equal(targetDur, 3);
+  });
+
+  it("buildSegmentFfmpegArgs mutes audio for reverse even without explicit audioPolicy", () => {
+    const segment = {
+      ...baseSegment,
+      videoTransform: { playbackMode: "reverse" },
+      audioPolicy: "from_video_ref",
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.match(joined, /-an/);
+    assert.doesNotMatch(joined, /-af /);
+  });
 });

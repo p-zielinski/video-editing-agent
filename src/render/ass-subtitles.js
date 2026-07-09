@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { runFfmpeg } from "../lib/ffmpeg.js";
+import { censorWordForDisplay } from "../lib/profanity-censor.js";
 import { findWordById } from "./audio-cuts.js";
 
 function assColor(hex) {
@@ -56,6 +57,13 @@ function subtitleClipRange(segment, segmentIndex, segments) {
   return { start, end };
 }
 
+function subtitleWordText(word) {
+  if (word.isProfanity) {
+    return word.displayWord ?? censorWordForDisplay(word.word, "partial");
+  }
+  return word.word;
+}
+
 function clampEventTime(time, clipStart, clipEnd) {
   return Math.max(clipStart, Math.min(time, clipEnd));
 }
@@ -63,17 +71,19 @@ function clampEventTime(time, clipStart, clipEnd) {
 /**
  * Generate ASS file content for word-by-word subtitles on output timeline.
  */
-export function generateAssSubtitles({ edl, context, stylePresets, format }) {
+export function generateAssSubtitles({ edl, context, stylePresets, format, dimensions }) {
   const styleKey = format === "9:16" ? "shorts" : "default";
   const style = stylePresets.subtitles[styleKey] ?? stylePresets.subtitles.default;
+  const playResX = dimensions?.width ?? (format === "9:16" ? 1080 : 1920);
+  const playResY = dimensions?.height ?? (format === "9:16" ? 1920 : 1080);
   const header = `[Script Info]
 ScriptType: v4.00+
-PlayResX: ${format === "9:16" ? 1080 : 1920}
-PlayResY: ${format === "9:16" ? 1920 : 1080}
+PlayResX: ${playResX}
+PlayResY: ${playResY}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, Bold, Alignment, MarginV
-Style: Default,${style.fontFamily},${style.fontSizePx},${assColor(style.color)},${assColor(style.outlineColor ?? "#000000")},-1,2,${Math.round((style.safeMarginPct ?? 0.08) * 1080)}
+Style: Default,${style.fontFamily},${style.fontSizePx},${assColor(style.color)},${assColor(style.outlineColor ?? "#000000")},-1,2,${Math.round((style.safeMarginPct ?? 0.08) * playResY)}
 
 [Events]
 Format: Layer, Start, End, Style, Text
@@ -117,7 +127,7 @@ Format: Layer, Start, End, Style, Text
       if (end <= start) {
         continue;
       }
-      const text = wordsInRange.map((w) => w.word).join(" ");
+      const text = wordsInRange.map((w) => subtitleWordText(w)).join(" ");
       events.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,${text}`);
       continue;
     }
@@ -130,7 +140,7 @@ Format: Layer, Start, End, Style, Text
       if (end <= start) {
         continue;
       }
-      events.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,${word.word}`);
+      events.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,${subtitleWordText(word)}`);
     }
   }
 
@@ -145,8 +155,9 @@ export async function burnAssSubtitles({
   context,
   stylePresets,
   format,
+  dimensions,
 }) {
-  const assContent = generateAssSubtitles({ edl, context, stylePresets, format });
+  const assContent = generateAssSubtitles({ edl, context, stylePresets, format, dimensions });
   fs.writeFileSync(assPath, assContent, "utf8");
 
   const escapedAss = assPath.replace(/:/g, "\\:").replace(/'/g, "'\\''");

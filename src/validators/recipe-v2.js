@@ -25,6 +25,7 @@ import { deriveTeaseSceneIdFromRecipe } from "../editorial/chapter-hints.js";
 import { validateMultiClipChronology } from "./chronology.js";
 import { validateBrollStrategy } from "./broll-strategy.js";
 import { validateNarrative } from "./narrative.js";
+import { validateAiVideoSegments } from "../editorial/ai-hook-enrich.js";
 import { resolveSfxById, resolveSfxByTag } from "../editorial/sfx-library.js";
 import { validateSfxNarrativeOnly } from "../editorial/sfx-plan.js";
 import {
@@ -361,8 +362,65 @@ export function validateSyncMode(segment, outputId) {
   return issues;
 }
 
+export function validatePlaybackMode(segment, outputId) {
+  const issues = [];
+  const transform = segment.videoTransform;
+  if (!transform) {
+    return issues;
+  }
+
+  const mode = transform.playbackMode ?? "normal";
+  const halfSec = transform.boomerangHalfSec;
+
+  if (mode === "normal" && halfSec != null) {
+    issues.push({
+      severity: "warning",
+      code: "PLAYBACK_BOOMERANG_HALF_UNUSED",
+      message: `Segment ${segment.segmentId}: boomerangHalfSec bez playbackMode boomerang`,
+      outputId,
+      sceneId: segment.videoRef?.sceneId,
+    });
+  }
+
+  if (mode === "boomerang" || mode === "reverse") {
+    if (segment.audioPolicy !== "mute" && segment.audioPolicy !== "external") {
+      issues.push({
+        severity: "warning",
+        code: "PLAYBACK_AUDIO_POLICY",
+        message: `Segment ${segment.segmentId}: ${mode} wymaga audioPolicy mute lub external`,
+        outputId,
+        sceneId: segment.videoRef?.sceneId,
+      });
+    }
+  }
+
+  if (mode === "boomerang") {
+    const videoDur = segment.videoOutSec - segment.videoInSec;
+    if (halfSec != null && halfSec > videoDur / 2) {
+      issues.push({
+        severity: "warning",
+        code: "PLAYBACK_BOOMERANG_HALF_CLAMPED",
+        message: `Segment ${segment.segmentId}: boomerangHalfSec ${halfSec}s > połowa zakresu wideo (${(videoDur / 2).toFixed(2)}s) — renderer obetnie`,
+        outputId,
+        sceneId: segment.videoRef?.sceneId,
+      });
+    }
+    if (videoDur < 0.08) {
+      issues.push({
+        severity: "warning",
+        code: "PLAYBACK_BOOMERANG_TOO_SHORT",
+        message: `Segment ${segment.segmentId}: zakres wideo zbyt krótki na boomerang`,
+        outputId,
+        sceneId: segment.videoRef?.sceneId,
+      });
+    }
+  }
+
+  return issues;
+}
+
 export function validateSegmentRole(segment, outputId) {
-  if (!["aroll", "broll"].includes(segment.segmentRole)) {
+  if (!["aroll", "broll", "ai_hook"].includes(segment.segmentRole)) {
     return [{
       severity: "error",
       code: "INVALID_SEGMENT_ROLE",
@@ -987,7 +1045,12 @@ export function validateRecipeV2(recipe, {
     }),
     ...validateVoicePitchMoments(parsed),
     ...validateRenderFidelity(parsed, { qualityProfile }),
-    ...validateShortsRetention(parsed, catalog, { creativityLevel: profile.level }),
+    ...validateShortsRetention(parsed, catalog, {
+      creativityLevel: profile.level,
+      wordIndexes,
+      timelineIndex,
+      abstraction,
+    }),
     ...validateVlogRetention(parsed, catalog, {
       creativityLevel: profile.level,
       retentionBeatTargets: parsed.retentionBeatTargets,
@@ -1001,6 +1064,7 @@ export function validateRecipeV2(recipe, {
       audioIndex,
       wordIndexes,
     }),
+    ...validateAiVideoSegments(parsed, parsed.batchContext ?? {}),
   ];
 
   for (const output of parsed.outputs) {
@@ -1013,6 +1077,7 @@ export function validateRecipeV2(recipe, {
         ...validateSegmentRole(segment, output.outputId),
         ...validateSubtitles(segment, output.outputId),
         ...validateSyncMode(segment, output.outputId),
+        ...validatePlaybackMode(segment, output.outputId),
         ...validateDeprecatedFields(segment, output.outputId),
         ...(brollStrategy !== "match_speech_topics"
           ? validateBrollTopicIndex(segment, topicIndex, parsed.clipRegistry, output.outputId)

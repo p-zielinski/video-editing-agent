@@ -6,9 +6,11 @@ import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { buildBrollSyncHintsForRecipe } from "../../editorial/broll-sync-hints.js";
 import { buildChapterCardHints } from "../../editorial/chapter-hints.js";
+import { loadAiVideoArtifact } from "../../editorial/ai-hook-enrich.js";
 import {
   applyDeterministicRecipeEnrichers,
   ensureSpatialIndex,
+  loadMetaCommandsByClip,
 } from "./agents.js";
 
 function loadClipRegistry(workDir) {
@@ -109,6 +111,7 @@ export async function runRecipeEnrichStep({
   const audioIndex = loadAudioIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
+  const metaCommandsByClip = loadMetaCommandsByClip(workDir, catalog);
   const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
   const clipRegistry = resolveClipRegistryForEnrichers(workDir, recipe);
   const requiredFormats = recipe.batchContext?.requiredFormats
@@ -126,6 +129,8 @@ export async function runRecipeEnrichStep({
     batchContext: { ...batchContext, ...recipe.batchContext },
     keyframeArtifacts,
     wordIndexes,
+    metaCommandsByClip,
+    aiVideoArtifact: loadAiVideoArtifact(workDir),
   });
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);

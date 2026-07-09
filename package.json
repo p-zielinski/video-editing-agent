@@ -10,11 +10,19 @@
   "scripts": {
     "start": "node src/cli.js",
     "run": "node src/cli.js run",
+    "pipeline": "node src/cli.js run",
     "analyze": "node src/cli.js analyze",
     "direct": "node src/cli.js direct",
     "full": "node src/cli.js full",
     "render": "node src/cli.js render",
     "generate:sfx-stubs": "node scripts/generate-sfx-stubs.js",
+    "ingest:pixabay-music": "node scripts/ingest-pixabay-music.js",
+    "enrich:music-catalog": "node scripts/enrich-music-catalog.js --all",
+    "ingest:pixabay-sfx": "node scripts/ingest-pixabay-sfx.js",
+    "enrich:sfx-catalog": "node scripts/enrich-sfx-catalog.js --all",
+    "setup:playwright": "playwright install chromium",
+    "benchmark:whisper": "node scripts/whisper-benchmark.js",
+    "benchmark:whisper:fixture": "node scripts/whisper-benchmark.js --mode fixture",
     "test": "node --test $(find src tests -name '*.test.js' 2>/dev/null | sort)",
     "test:e2e": "node --test tests/e2e/*.test.js",
     "export-schemas": "node src/schemas/export-json-schema.js"
@@ -38,6 +46,7 @@
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "playwright": "^1.51.0"
   }
 }

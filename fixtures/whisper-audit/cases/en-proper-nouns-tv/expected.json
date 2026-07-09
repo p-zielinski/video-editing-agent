@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "preserveEnglishTokens": ["breaking", "bad"],
+  "forbidPolishPhonetic": ["brejking"],
+  "minTokenRecall": 0.75,
+  "allowEmptyWords": false
+}

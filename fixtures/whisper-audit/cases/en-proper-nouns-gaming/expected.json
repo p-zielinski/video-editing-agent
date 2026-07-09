@@ -1,0 +1,7 @@
+{
+  "tokenPolicy": "wordCore",
+  "preserveEnglishTokens": ["elden", "ring"],
+  "forbidPolishPhonetic": ["eldyn"],
+  "minTokenRecall": 0.8,
+  "allowEmptyWords": false
+}

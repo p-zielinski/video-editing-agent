@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 export const PIPELINE_STEPS = [
   "ingest",
   "transcribe",
+  "meta_commands",
   "audio_analysis",
   "keyframes",
   "twelvelabs",
@@ -15,9 +16,11 @@ export const PIPELINE_STEPS = [
   "abstract",
   "topic_index",
   "spatial_index",
+  "ai_video",
   "direct",
   "review",
   "thumbnails",
+  "publish",
 ];
 
 export const PIPELINE_STEP_COUNT = PIPELINE_STEPS.length;
@@ -26,6 +29,7 @@ export const ARTIFACTS = {
   manifest: "00-manifest.json",
   sceneCatalog: "00-scene-catalog.json",
   words: (clipId) => `01-words-${clipId}.json`,
+  metaCommands: (clipId) => `01c-meta-commands-${clipId}.json`,
   audioAnalysis: (clipId) => `01b-audio-analysis-${clipId}.json`,
   keyframes: (clipId) => `02-keyframes-${clipId}.json`,
   twelvelabs: (clipId) => `03b-twelvelabs-${clipId}.json`,
@@ -36,6 +40,8 @@ export const ARTIFACTS = {
   clipRegistry: "05a-clip-registry.json",
   topicIndex: "05b-topic-index.json",
   spatialIndex: "05c-spatial-index.json",
+  aiVideo: "05e-ai-video.json",
+  musicSelection: "05f-music-selection.json",
   audioIndex: "05d-audio-index.json",
   abstraction: "06-abstract.json",
   abstractionL1: "06-abstract-L1.json",
@@ -49,6 +55,8 @@ export const ARTIFACTS = {
   thumbnailReview: "12-thumbnail-review.json",
   renderManifest: "13-render-manifest.json",
   recipeProvenance: "14-recipe-provenance.json",
+  publishPackage: (outputId) => `15-publish-package-${outputId}.json`,
+  gptUsage: "16-gpt-usage.json",
 };
 
 export function formatToRenderSuffix(format) {

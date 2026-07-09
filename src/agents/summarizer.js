@@ -100,7 +100,7 @@ export function groupScenesForL1Summarization(scenes, words, visionCaptions, {
   return groups;
 }
 
-export async function summarizeScene(client, sceneInput) {
+export async function summarizeScene(client, sceneInput, { onUsage } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L1_scene_summary",
@@ -108,10 +108,10 @@ export async function summarizeScene(client, sceneInput) {
     outputSchema: L1_OUTPUT_SCHEMA,
   });
 
-  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
+  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
 }
 
-export async function summarizeSceneBatch(client, scenesInputs) {
+export async function summarizeSceneBatch(client, scenesInputs, { onUsage } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L1_batch_summary",
@@ -121,11 +121,11 @@ export async function summarizeSceneBatch(client, scenesInputs) {
     },
   });
 
-  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
+  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
   return Array.isArray(raw) ? raw : raw.scenes ?? [];
 }
 
-export async function summarizeSegment(client, segment, l1Summaries) {
+export async function summarizeSegment(client, segment, l1Summaries, { onUsage } = {}) {
   const system = loadSummarizerPrompt();
   const scenes = l1Summaries.filter((s) => segment.sceneIds.includes(s.sceneId));
 
@@ -136,11 +136,11 @@ export async function summarizeSegment(client, segment, l1Summaries) {
     outputSchema: L2_OUTPUT_SCHEMA,
   });
 
-  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
+  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
   return AbstractL2Schema.parse(raw);
 }
 
-export async function summarizeSession(client, { l2Summaries, userContext, stats, clipRegistry = [] }) {
+export async function summarizeSession(client, { l2Summaries, userContext, stats, clipRegistry = [] }, { onUsage } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L3_session_summary",
@@ -165,12 +165,13 @@ export async function summarizeSession(client, { l2Summaries, userContext, stats
     },
   });
 
-  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3 });
+  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
 }
 
 export async function buildAbstractionBundle(client, timelineIndex, {
   userContext = "",
   clipRegistry = [],
+  onUsage,
 } = {}) {
   const l1 = [];
   const groups = groupScenesForL1Summarization(
@@ -185,12 +186,12 @@ export async function buildAbstractionBundle(client, timelineIndex, {
 
   for (const group of groups) {
     if (group.type === "batch") {
-      const summaries = await summarizeSceneBatch(client, group.inputs);
+      const summaries = await summarizeSceneBatch(client, group.inputs, { onUsage });
       for (const summary of summaries) {
         l1.push(AbstractL1Schema.parse(summary));
       }
     } else {
-      const summary = await summarizeScene(client, group.input);
+      const summary = await summarizeScene(client, group.input, { onUsage });
       l1.push(AbstractL1Schema.parse(summary));
     }
   }
@@ -199,7 +200,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
   const l2 = [];
 
   for (const segment of segmentDefs) {
-    const summary = await summarizeSegment(client, segment, l1);
+    const summary = await summarizeSegment(client, segment, l1, { onUsage });
     l2.push(AbstractL2Schema.parse(summary));
   }
 
@@ -208,7 +209,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     userContext: userContext || timelineIndex.userContext || "",
     stats: timelineIndex.stats,
     clipRegistry,
-  });
+  }, { onUsage });
 
   return AbstractionBundleSchema.parse({
     version: "1.0",

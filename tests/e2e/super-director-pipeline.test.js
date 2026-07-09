@@ -47,7 +47,7 @@ describe("super-director pipeline e2e (mocked)", () => {
       { approved: true, issues: [], summary: "ok", crossSegmentNotes: [] },
     ]);
 
-    const recipe = await runSuperDirectorDirectPath(client, {
+    const { recipe } = await runSuperDirectorDirectPath(client, {
       abstraction: multiL2,
       timelineIndex,
       clipRegistry,

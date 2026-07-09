@@ -1,0 +1,11 @@
+{
+  "caseId": "profanity-literal",
+  "category": "profanity",
+  "title": "Literal profanity",
+  "spokenTranscript": "Kurwa, serio?",
+  "language": "pl",
+  "tags": ["literal"],
+  "notes": "Baseline: does Whisper preserve literal profanity?",
+  "audio": { "optional": true, "fileName": "audio.mp3" },
+  "promptVariant": "default"
+}

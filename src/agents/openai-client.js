@@ -32,6 +32,7 @@ export async function chatJson(client, {
   system,
   user,
   temperature = 0.4,
+  onUsage,
 }) {
   const response = await client.chat.completions.create({
     model,
@@ -43,22 +44,55 @@ export async function chatJson(client, {
     ],
   });
 
+  if (typeof onUsage === "function" && response.usage) {
+    onUsage({ model, usage: response.usage });
+  }
+
   const content = response.choices[0]?.message?.content;
   if (!content) {
     throw new Error("Pusta odpowiedź modelu");
   }
 
-  return JSON.parse(content);
+  try {
+    return JSON.parse(content);
+  } catch {
+    const retryResponse = await client.chat.completions.create({
+      model,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+        { role: "assistant", content },
+        {
+          role: "user",
+          content: "Your previous response was not valid JSON. Reply with valid JSON only.",
+        },
+      ],
+    });
+
+    if (typeof onUsage === "function" && retryResponse.usage) {
+      onUsage({ model, usage: retryResponse.usage });
+    }
+
+    const retryContent = retryResponse.choices[0]?.message?.content;
+    if (!retryContent) {
+      throw new Error("Pusta odpowiedź modelu (retry JSON)");
+    }
+
+    return JSON.parse(retryContent);
+  }
 }
 
 export const MODELS = {
-  // Domyślnie GPT-5.5; ustaw OPENAI_MODEL_NANO/MINI lub użyj gpt-4.1-* jako fallback w .env
-  summarizer: process.env.OPENAI_MODEL_NANO ?? "gpt-5.5-nano",
-  director: process.env.OPENAI_MODEL_MINI ?? "gpt-5.5-mini",
-  critic: process.env.OPENAI_MODEL_MINI ?? "gpt-5.5-mini",
-  fixer: process.env.OPENAI_MODEL_MINI ?? "gpt-5.5-mini",
-  thumbnailStrategist: process.env.OPENAI_MODEL_MINI ?? "gpt-5.5-mini",
-  thumbnailCritic: process.env.OPENAI_MODEL_MINI ?? "gpt-5.5-mini",
+  // Domyślnie GPT-5.4; ustaw OPENAI_MODEL_NANO/MINI w .env
+  summarizer: process.env.OPENAI_MODEL_NANO ?? "gpt-5.4-nano",
+  musicCurator: process.env.OPENAI_MODEL_NANO ?? "gpt-5.4-nano",
+  director: process.env.OPENAI_MODEL_DIRECTOR ?? process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
+  critic: process.env.OPENAI_MODEL_CRITIC ?? process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
+  fixer: process.env.OPENAI_MODEL_CRITIC ?? process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
+  thumbnailStrategist: process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
+  thumbnailCritic: process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
 };
 
 export const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";

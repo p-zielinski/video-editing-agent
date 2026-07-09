@@ -12,6 +12,9 @@ import {
   buildAudioEventAnchors,
   buildEmotionalBeatHints,
   resolveSceneMapCompactThreshold,
+  shouldRunDirectorDrillDown,
+  prioritizeDrillDownSceneIds,
+  DRILL_DOWN_SCENE_CAP,
 } from "./director.js";
 import { DIRECTOR_BRIEF_CAPS, DRILL_DOWN_CAPS } from "../editorial/brief-caps.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
@@ -128,6 +131,9 @@ describe("director agent v2", () => {
     assert.ok(Array.isArray(brief.sfxCatalogSummary));
     assert.ok(brief.sfxCatalogSummary.length > 0);
     assert.ok(brief.sfxCatalogSummary[0].sfxId);
+    assert.ok(brief.sfxCatalogSummary[0].title);
+    assert.ok(Array.isArray(brief.sfxCatalogSummary[0].tags));
+    assert.ok("suggestedVolumeDb" in brief.sfxCatalogSummary[0]);
   });
 
   it("caps transcriptExcerpts at 80 words per scene", () => {
@@ -397,7 +403,7 @@ describe("director agent v2", () => {
       batchContext: { brollMatchThreshold: 0.55 },
     });
 
-    assert.equal(brief.version, "2.2");
+    assert.equal(brief.version, "2.4");
     assert.equal(brief.inputMode, "single_clip");
     assert.equal(brief.clipRegistry.length, 1);
     assert.equal(brief.topicIndex.topics.length, 0);
@@ -1019,6 +1025,47 @@ describe("director agent v2", () => {
     assert.equal(brief.brollSyncHints, undefined);
   });
 
+  it("includes brollSyncHints when topic index has matches and recipe is null", () => {
+    const topicWithMatches = {
+      version: "1.0",
+      batchId: "testbatch",
+      topics: [{
+        topicId: "topic_coffee",
+        label: "coffee",
+        wordIds: [],
+        timeRange: { clipId: "clip01", startSec: 0, endSec: 10 },
+        matchingScenes: [{ sceneId: "clip01_scene001", score: 0.85 }],
+      }],
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex: topicWithMatches,
+      requiredFormats: ["16:9", "9:16"],
+      recipe: null,
+    });
+
+    assert.ok(Array.isArray(brief.brollSyncHints));
+    assert.ok(brief.brollSyncHints.length > 0);
+    assert.equal(brief.brollSyncHints[0].sceneId, "clip01_scene001");
+    assert.ok(brief.brollSyncHints.length <= DIRECTOR_BRIEF_CAPS.BROLL_SYNC_HINTS_LIMIT);
+  });
+
+  it("includes voiceDirectivePolicy in brief constraints", () => {
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+    });
+
+    assert.equal(brief.constraints.voiceDirectivePolicy, "enricher_materializes");
+    assert.equal(brief.voiceDirectives, undefined);
+  });
+
   it("includes daySegments for multi-clip registry with creationTime", () => {
     const multiRegistry = [
       {
@@ -1332,7 +1379,7 @@ describe("director agent v2", () => {
     const refinedRecipe = loadFixture("fixer-response.json");
     const client = createMockOpenAIClient([recipeDraft, refinedRecipe], { captureRequests: true });
 
-    const draft = await runDirector(client, {
+    const draftResult = await runDirector(client, {
       abstraction,
       timelineIndex,
       clipRegistry,
@@ -1342,6 +1389,7 @@ describe("director agent v2", () => {
       requiredFormats: ["16:9", "9:16"],
     });
 
+    const draft = draftResult.recipe;
     assert.equal(draft.version, "2.0");
     assert.equal(draft.outputs.length, 2);
     assert.equal(draft.outputs[0].timeline[0].videoRef.sceneId, "clip01_scene001");
@@ -1350,7 +1398,7 @@ describe("director agent v2", () => {
     const sceneIds = draft.outputs.flatMap((o) =>
       o.timeline.flatMap((s) => [s.videoRef.sceneId, s.audioRef.sceneId]),
     );
-    const refined = await directorDrillDown(client, {
+    const { recipe: refined } = await directorDrillDown(client, {
       abstraction,
       timelineIndex,
       clipRegistry,
@@ -1388,6 +1436,171 @@ describe("director agent v2", () => {
     assert.equal(DRILL_DOWN_CAPS.spatialAnchorLimit, 3);
   });
 
+  it("directorDrillDown includes voiceDirectivePolicy instead of voiceDirectives", async () => {
+    const refinedRecipe = loadFixture("fixer-response.json");
+    const client = createMockOpenAIClient([refinedRecipe], { captureRequests: true });
+    const draft = loadFixture("recipe-draft.json");
+    const sceneIds = ["clip01_scene001", "clip01_scene002"];
+
+    await directorDrillDown(client, {
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      audioIndex,
+      userContext: "dzień 66",
+      requiredFormats: ["16:9", "9:16"],
+      recipe: draft,
+      sceneIds,
+    });
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.equal(payload.constraints.voiceDirectivePolicy, "enricher_materializes");
+    assert.equal(payload.voiceDirectives, undefined);
+  });
+
+  it("directorDrillDown omits voiceDirectives when meta commands empty", async () => {
+    const refinedRecipe = loadFixture("fixer-response.json");
+    const client = createMockOpenAIClient([refinedRecipe], { captureRequests: true });
+    const draft = loadFixture("recipe-draft.json");
+    const sceneIds = ["clip01_scene001", "clip01_scene002"];
+
+    await directorDrillDown(client, {
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      audioIndex,
+      userContext: "",
+      requiredFormats: ["16:9", "9:16"],
+      recipe: draft,
+      sceneIds,
+    });
+
+    const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.equal(payload.constraints.voiceDirectivePolicy, "enricher_materializes");
+    assert.equal(payload.voiceDirectives, undefined);
+  });
+
+  describe("shouldRunDirectorDrillDown", () => {
+    function segment(overrides = {}) {
+      return {
+        segmentId: "seg_1",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        cuts: [],
+        ...overrides,
+      };
+    }
+
+    function recipeWithSegments(segments) {
+      return {
+        outputs: [{ outputId: "main", timeline: segments }],
+      };
+    }
+
+    it("skips when batchContext.skipDrillDown is true", () => {
+      const recipe = recipeWithSegments([
+        segment({ videoRef: { clipId: "clip01", sceneId: "s1" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s4" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, { skipDrillDown: true }), false);
+    });
+
+    it("skips when unique scene count is 3 or fewer", () => {
+      const recipe = recipeWithSegments([
+        segment({ videoRef: { clipId: "clip01", sceneId: "s1" }, audioRef: { clipId: "clip01", sceneId: "s1" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" }, audioRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" }, audioRef: { clipId: "clip01", sceneId: "s3" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, {}), false);
+    });
+
+    it("runs when cross-clip B-roll exists", () => {
+      const recipe = recipeWithSegments([
+        segment({
+          videoRef: { clipId: "clip02", sceneId: "clip02_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" }, audioRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" }, audioRef: { clipId: "clip01", sceneId: "s3" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s4" }, audioRef: { clipId: "clip01", sceneId: "s4" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, {}), true);
+    });
+
+    it("runs when any segment has cuts", () => {
+      const recipe = recipeWithSegments([
+        segment({ cuts: [{ cutId: "c1", atSec: 1 }] }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" }, audioRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" }, audioRef: { clipId: "clip01", sceneId: "s3" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s4" }, audioRef: { clipId: "clip01", sceneId: "s4" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, {}), true);
+    });
+
+    it("runs when scene count exceeds 12", () => {
+      const segments = Array.from({ length: 13 }, (_, i) => segment({
+        videoRef: { clipId: "clip01", sceneId: `s${i + 1}` },
+        audioRef: { clipId: "clip01", sceneId: `s${i + 1}` },
+      }));
+      assert.equal(shouldRunDirectorDrillDown(recipeWithSegments(segments), {}), true);
+    });
+
+    it("skips otherwise for medium recipes without cuts or cross-clip B-roll", () => {
+      const segments = Array.from({ length: 8 }, (_, i) => segment({
+        videoRef: { clipId: "clip01", sceneId: `s${i + 1}` },
+        audioRef: { clipId: "clip01", sceneId: `s${i + 1}` },
+      }));
+      assert.equal(shouldRunDirectorDrillDown(recipeWithSegments(segments), {}), false);
+    });
+
+    it("runs when meta commands exist", () => {
+      const recipe = recipeWithSegments([
+        segment({ videoRef: { clipId: "clip01", sceneId: "s1" }, audioRef: { clipId: "clip01", sceneId: "s1" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" }, audioRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" }, audioRef: { clipId: "clip01", sceneId: "s3" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s4" }, audioRef: { clipId: "clip01", sceneId: "s4" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, {}, {
+        metaCommandsByClip: [{ clipId: "clip01", commands: [{ type: "boomerang" }] }],
+      }), true);
+    });
+
+    it("runs when fillerWordCount is at least 5", () => {
+      const recipe = recipeWithSegments([
+        segment({ videoRef: { clipId: "clip01", sceneId: "s1" }, audioRef: { clipId: "clip01", sceneId: "s1" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" }, audioRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" }, audioRef: { clipId: "clip01", sceneId: "s3" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s4" }, audioRef: { clipId: "clip01", sceneId: "s4" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, {}, {
+        timelineIndex: { stats: { fillerWordCount: 5 } },
+      }), true);
+    });
+
+    it("runs when deadAirHints count is at least 2", () => {
+      const recipe = recipeWithSegments([
+        segment({ videoRef: { clipId: "clip01", sceneId: "s1" }, audioRef: { clipId: "clip01", sceneId: "s1" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s2" }, audioRef: { clipId: "clip01", sceneId: "s2" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s3" }, audioRef: { clipId: "clip01", sceneId: "s3" } }),
+        segment({ videoRef: { clipId: "clip01", sceneId: "s4" }, audioRef: { clipId: "clip01", sceneId: "s4" } }),
+      ]);
+      assert.equal(shouldRunDirectorDrillDown(recipe, {}, {
+        audioIndex: {
+          clips: [{
+            clipId: "clip01",
+            deadAirHints: [{ startSec: 1, endSec: 2 }, { startSec: 3, endSec: 4 }],
+          }],
+        },
+      }), true);
+    });
+  });
+
   it("resolveSceneMapCompactThreshold scales with clip and scene count", () => {
     const singleClip = resolveSceneMapCompactThreshold(
       { clips: [{ clipId: "clip01" }], scenes: Array.from({ length: 20 }) },
@@ -1409,5 +1622,41 @@ describe("director agent v2", () => {
       "multi_clip_day",
     );
     assert.equal(multiClip, 70);
+  });
+
+  it("prioritizeDrillDownSceneIds caps at DRILL_DOWN_SCENE_CAP", () => {
+    const sceneIds = Array.from({ length: 20 }, (_, i) => `scene_${String(i).padStart(3, "0")}`);
+    const recipe = {
+      outputs: [{
+        timeline: [
+          {
+            videoRef: { clipId: "clip01", sceneId: "scene_000" },
+            audioRef: { clipId: "clip02", sceneId: "scene_000" },
+            cuts: [{ cutId: "c1" }],
+          },
+        ],
+      }],
+    };
+
+    const prioritized = prioritizeDrillDownSceneIds(
+      recipe,
+      sceneIds,
+      abstraction,
+      timelineIndex,
+    );
+
+    assert.equal(prioritized.length, DRILL_DOWN_SCENE_CAP);
+    assert.ok(prioritized.includes("scene_000"));
+  });
+
+  it("prioritizeDrillDownSceneIds returns all scenes when under cap", () => {
+    const sceneIds = ["clip01_scene001", "clip01_scene002"];
+    const prioritized = prioritizeDrillDownSceneIds(
+      recipeDraft,
+      sceneIds,
+      abstraction,
+      timelineIndex,
+    );
+    assert.deepEqual(prioritized, sceneIds);
   });
 });
