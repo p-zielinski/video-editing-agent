@@ -1,0 +1,68 @@
+{
+  "id": "cinematic_frame",
+  "version": "1.0",
+  "category": "graphics",
+  "label": "Cinematic rounded frame",
+  "description": "Zmniejsza obraz do eleganckiej ramki z zaokrąglonymi rogami na przyciemnionym lub rozmytym tle.",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "cinematic",
+    "frame_within_frame",
+    "editorial"
+  ],
+  "narrativeFunctions": [
+    "isolation",
+    "memory",
+    "intimacy",
+    "transition"
+  ],
+  "visualIntensity": "strong",
+  "params": {
+    "scale": {
+      "type": "number",
+      "min": 0.62,
+      "max": 0.92,
+      "default": 0.82
+    },
+    "cornerRadiusPx": {
+      "type": "number",
+      "min": 0,
+      "max": 96,
+      "default": 36
+    },
+    "borderWidthPx": {
+      "type": "number",
+      "min": 0,
+      "max": 16,
+      "default": 4
+    },
+    "background": {
+      "type": "enum",
+      "values": [
+        "blur",
+        "black",
+        "paper"
+      ],
+      "default": "blur"
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 90,
+    "maxPerOutputMinutes": 0.08,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "balanced",
+    "maxDurationSec": 20
+  },
+  "whenToUse": "Jeden motywowany fragment: wspomnienie, izolacja bohatera, materiał archiwalny lub eleganckie otwarcie nowego rozdziału.",
+  "whenToAvoid": "Losowa dekoracja, szybki dialog, kilka ramek pod rząd albo fragment bez funkcji narracyjnej.",
+  "syncHints": [
+    "scene_boundary",
+    "chapter_start",
+    "memory_cue"
+  ],
+  "renderSupport": "full"
+}

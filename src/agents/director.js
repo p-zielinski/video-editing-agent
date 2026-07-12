@@ -522,7 +522,18 @@ function selectL1SummaryScenes({
       clipRegistry,
     },
   );
-  const rankOrder = new Map(topRanked.map((entry, index) => [entry.sceneId, index]));
+  const highSignalIds = (abstraction?.L1 ?? [])
+    .filter(
+      (entry) => (entry.brollPotential ?? 0) >= 0.8
+        || entry.visualQuality === "high",
+    )
+    .map((entry) => entry.sceneId)
+    .filter((sceneId) => sceneMapIds.has(sceneId));
+  const orderedSceneIds = [...new Set([
+    ...highSignalIds,
+    ...topRanked.map((entry) => entry.sceneId),
+  ])].slice(0, DIRECTOR_BRIEF_CAPS.L1_SCENE_SUMMARIES_THRESHOLD);
+  const rankOrder = new Map(orderedSceneIds.map((sceneId, index) => [sceneId, index]));
   return scenesInMap
     .filter((scene) => rankOrder.has(scene.sceneId))
     .sort((a, b) => rankOrder.get(a.sceneId) - rankOrder.get(b.sceneId));
@@ -1902,7 +1913,7 @@ export async function directorDrillDown(client, {
   });
 
   const raw = await chatJson(client, {
-    model: MODELS.director,
+    model: MODELS.directorDrillDown,
     system,
     user,
     temperature: 0.4,

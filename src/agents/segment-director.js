@@ -232,7 +232,7 @@ export async function runSegmentDirector(client, context, {
   });
 
   const raw = await chatJson(client, {
-    model: MODELS.director,
+    model: MODELS.segmentDirector,
     system,
     user,
     temperature: 0.45,

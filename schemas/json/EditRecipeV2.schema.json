@@ -173,6 +173,109 @@
                 }
               },
               "additionalProperties": false
+            },
+            "profanityPolicy": {
+              "type": "string",
+              "enum": [
+                "bleep",
+                "mute",
+                "cut",
+                "off"
+              ],
+              "default": "bleep"
+            },
+            "profanitySubtitleMode": {
+              "type": "string",
+              "enum": [
+                "partial",
+                "full",
+                "off"
+              ],
+              "default": "partial"
+            },
+            "aiVideoEnabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "aiVideoMaxPerBatch": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 1
+            },
+            "aiVideoMaxDurationSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 15,
+              "default": 5
+            },
+            "aiVideoGenerateAudio": {
+              "type": "boolean",
+              "default": false
+            },
+            "aiVideoTargetOutputs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "16:9",
+                  "9:16"
+                ]
+              },
+              "default": [
+                "9:16"
+              ]
+            },
+            "skipDrillDown": {
+              "type": "boolean"
+            },
+            "sortBy": {
+              "type": "string",
+              "enum": [
+                "mtime",
+                "creation_time",
+                "name"
+              ]
+            },
+            "musicBed": {
+              "type": "boolean"
+            },
+            "musicFirst": {
+              "type": "boolean"
+            },
+            "musicBedTrackId": {
+              "type": "string"
+            },
+            "targetDurationSec": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "formatsSource": {
+              "type": "string",
+              "enum": [
+                "cli",
+                "context",
+                "l3",
+                "default"
+              ]
+            },
+            "superDirectorDurationThresholdSec": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "superDirectorMaxSegments": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "forceClassicDirector": {
+              "type": "boolean"
+            },
+            "colorGradePolicy": {
+              "type": "string",
+              "enum": [
+                "off",
+                "allow"
+              ],
+              "default": "off"
             }
           },
           "required": [
@@ -213,7 +316,8 @@
                   "broll_pool",
                   "narration_track",
                   "outtakes",
-                  "undecided"
+                  "undecided",
+                  "ai_generated"
                 ]
               },
               "roleConfidence": {
@@ -335,7 +439,8 @@
                       "type": "string",
                       "enum": [
                         "aroll",
-                        "broll"
+                        "broll",
+                        "ai_hook"
                       ]
                     },
                     "videoRef": {
@@ -448,6 +553,39 @@
                           "startWordId",
                           "endWordId",
                           "reason"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "audioCensorship": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "startSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "endSec": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "bleep",
+                              "mute"
+                            ]
+                          },
+                          "wordId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "startSec",
+                          "endSec",
+                          "mode"
                         ],
                         "additionalProperties": false
                       },
@@ -585,6 +723,7 @@
                               "emphasis",
                               "chapter_card",
                               "cta",
+                              "closure_bracket",
                               "subtitle_style"
                             ]
                           },
@@ -595,7 +734,8 @@
                               "retention_beat",
                               "payoff",
                               "cta",
-                              "chapter"
+                              "chapter",
+                              "closure"
                             ]
                           },
                           "animation": {
@@ -661,6 +801,20 @@
                             "pillarbox_blur",
                             "fill"
                           ]
+                        },
+                        "playbackMode": {
+                          "type": "string",
+                          "enum": [
+                            "normal",
+                            "reverse",
+                            "boomerang"
+                          ],
+                          "default": "normal"
+                        },
+                        "boomerangHalfSec": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 30
                         },
                         "speed": {
                           "type": "number",
@@ -966,6 +1120,21 @@
                   "beat",
                   "payoff",
                   "breath",
+                  "closure"
+                ]
+              },
+              "narrativeIntent": {
+                "type": "string",
+                "enum": [
+                  "tension",
+                  "intimacy",
+                  "isolation",
+                  "memory",
+                  "transition",
+                  "contrast",
+                  "reveal",
+                  "momentum",
+                  "passage_of_time",
                   "closure"
                 ]
               },
@@ -1566,6 +1735,64 @@
               "default": false
             }
           },
+          "additionalProperties": false
+        },
+        "shortsOutroBracket": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            },
+            "endAtOutputSec": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "bracketDurationSec": {
+              "type": "number",
+              "minimum": 1.5,
+              "maximum": 4,
+              "default": 2.5
+            },
+            "auto": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "shortsOutroBracketMeta": {
+          "type": "object",
+          "properties": {
+            "applied": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "director",
+                "enricher"
+              ]
+            },
+            "contentEndSec": {
+              "type": "number",
+              "minimum": 0
+            },
+            "endAtOutputSec": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "applied"
+          ],
           "additionalProperties": false
         },
         "structuredCallbacks": {

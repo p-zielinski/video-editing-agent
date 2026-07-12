@@ -70,8 +70,11 @@ function ensureManifestBatchContext(workDir, batchContext) {
   writeJson(manifestPath, manifest);
 }
 
-function applyAiVideoCliOverrides(batchContext, { aiVideo = false, noAiVideo = false } = {}) {
-  if (aiVideo === true) {
+export function applyAiVideoCliOverrides(
+  batchContext,
+  { aiVideo = false, aiVideoStub = false, noAiVideo = false } = {},
+) {
+  if (aiVideo === true || aiVideoStub === true) {
     batchContext.aiVideoEnabled = true;
   }
   if (noAiVideo === true) {
@@ -198,7 +201,7 @@ export async function runPipeline(options) {
   const contextExplicit = Array.isArray(parsedContext.requiredFormats) && parsedContext.requiredFormats.length > 0;
   const batchContext = applyAiVideoCliOverrides(
     resolveBatchContext(userContext, 0, requiredFormats, { contextExplicit }),
-    { aiVideo, noAiVideo },
+    { aiVideo, aiVideoStub, noAiVideo },
   );
   const resolvedAiVideoStub = aiVideoStub === true || process.env.AI_VIDEO_STUB === "1";
   const gptUsageTracker = createGptUsageTracker();
@@ -232,7 +235,7 @@ export async function runPipeline(options) {
           : 0;
         context.batchContext = applyAiVideoCliOverrides(
           resolveBatchContext(userContext, clipCount, requiredFormats),
-          { aiVideo, noAiVideo },
+          { aiVideo, aiVideoStub, noAiVideo },
         );
         ensureManifestBatchContext(workDir, context.batchContext);
         log.stepDone("pominięto (istnieje manifest)");
@@ -280,7 +283,7 @@ export async function runPipeline(options) {
             ingestResult.catalog.clips.length,
             requiredFormats,
           ),
-          { aiVideo, noAiVideo },
+          { aiVideo, aiVideoStub, noAiVideo },
         );
         ensureManifestBatchContext(workDir, context.batchContext);
         log.stepDone(`${ingestResult.catalog.clips.length} klipów (inputMode: ${context.batchContext.inputMode})`);

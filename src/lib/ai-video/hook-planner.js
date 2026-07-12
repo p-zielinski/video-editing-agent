@@ -22,23 +22,37 @@ function findPreviousScene(timelineIndex, scene) {
 }
 
 function buildPrompt(abstraction, hookScene) {
-  const synopsis = abstraction?.L3?.synopsis
-    ?? abstraction?.L2?.synopsis
-    ?? abstraction?.L1?.synopsis
+  const l1Scenes = Array.isArray(abstraction?.L1) ? abstraction.L1 : [];
+  const l2Segments = Array.isArray(abstraction?.L2) ? abstraction.L2 : [];
+  const sceneSummary = l1Scenes.find(
+    (entry) => entry.sceneId === hookScene?.sceneId,
+  );
+  const segmentSummary = l2Segments.find(
+    (entry) => entry.sceneIds?.includes(hookScene?.sceneId),
+  );
+  const storyContext = abstraction?.L3?.sessionSummary
+    ?? abstraction?.L3?.narrativeArc
+    ?? segmentSummary?.summary
+    ?? segmentSummary?.synopsis
     ?? "";
-  const topics = (abstraction?.L3?.topics ?? abstraction?.L1?.topics ?? [])
+  const topics = (sceneSummary?.topics ?? segmentSummary?.topics ?? [])
     .slice(0, 3)
     .join(", ");
-  const sceneHint = hookScene?.sceneId ?? "highlight";
-  const base = "Dynamic, cinematic transition with energy, smooth motion, vertical short-form hook";
-  const parts = [base];
+  const visualTarget = sceneSummary?.summary ?? segmentSummary?.summary ?? "";
+  const parts = [
+    "Create a dynamic cinematic opening transition for a vertical short-form video",
+    "Use smooth motivated camera motion and preserve subject identity, lighting, and composition between the supplied start and end frames",
+  ];
   if (topics) {
-    parts.push(`theme: ${topics}`);
+    parts.push(`Themes: ${topics}`);
   }
-  if (synopsis) {
-    parts.push(synopsis.slice(0, 200));
+  if (storyContext) {
+    parts.push(`Story context: ${storyContext.slice(0, 300)}`);
   }
-  parts.push(`leading into scene ${sceneHint}`);
+  if (visualTarget) {
+    parts.push(`End naturally on this visual beat: ${visualTarget.slice(0, 240)}`);
+  }
+  parts.push("Single continuous shot, photorealistic, no captions, no logos, no generated text");
   return parts.join(". ").slice(0, 2400);
 }
 

@@ -25,6 +25,7 @@ export function registerGeneratedHookClip(workDir, {
   durationSec,
   aspectRatio = "9:16",
   resolution = { w: 1080, h: 1920 },
+  provider = "kling",
 }) {
   const manifestPath = path.join(workDir, ARTIFACTS.manifest);
   const catalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
@@ -50,7 +51,7 @@ export function registerGeneratedHookClip(workDir, {
     resolution,
     mediaType: "video",
     generated: true,
-    provider: "kling",
+    provider,
   };
 
   const sceneEntry = {

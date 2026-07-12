@@ -1,0 +1,41 @@
+{
+  "id": "slide_down",
+  "version": "1.0",
+  "category": "transition",
+  "label": "Frame slide down",
+  "description": "Stary kadr wysuwa się w dół, a nowy wjeżdża od góry.",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "modern",
+    "editorial"
+  ],
+  "narrativeFunctions": [
+    "transition",
+    "momentum"
+  ],
+  "visualIntensity": "strong",
+  "params": {
+    "durationSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 0.8,
+      "default": 0.5
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.08,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "balanced"
+  },
+  "whenToUse": "Motywowana zmiana etapu, regres lub ruch kadru zgodny z kierunkiem przejścia.",
+  "whenToAvoid": "Spokojna rozmowa, segment breath lub przejście bez zmiany miejsca/czasu.",
+  "syncHints": [
+    "scene_boundary"
+  ],
+  "renderSupport": "full"
+}

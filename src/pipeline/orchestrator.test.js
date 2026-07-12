@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runPipeline, applyEffectiveRequiredFormats } from "./orchestrator.js";
+import {
+  applyAiVideoCliOverrides,
+  applyEffectiveRequiredFormats,
+  runPipeline,
+} from "./orchestrator.js";
 import { ensureSpatialIndex } from "./steps/agents.js";
 import { SpatialIndexSchema } from "../schemas/spatial-index.js";
 import { writeJson, ARTIFACTS, resolveWorkDir } from "./work-paths.js";
@@ -165,5 +169,27 @@ describe("orchestrator", () => {
       }
       fs.rmSync(tlWorkDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("AI video CLI overrides", () => {
+  it("--ai-video-stub enables AI video generation", () => {
+    assert.equal(
+      applyAiVideoCliOverrides(
+        { aiVideoEnabled: false },
+        { aiVideoStub: true },
+      ).aiVideoEnabled,
+      true,
+    );
+  });
+
+  it("--no-ai-video wins over live and stub enable flags", () => {
+    assert.equal(
+      applyAiVideoCliOverrides(
+        { aiVideoEnabled: false },
+        { aiVideo: true, aiVideoStub: true, noAiVideo: true },
+      ).aiVideoEnabled,
+      false,
+    );
   });
 });

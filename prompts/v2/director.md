@@ -309,7 +309,7 @@ Typy: `whole_clip`, `scene`, `time_range`. Pole `usableAsBroll` wymagane. `whole
 - Bądź odważny: lepsze 14 min dobrej historii niż 3h nudy.
 - Tnij zająknięcia (yyy, eee) chyba że ważne dla historii — `cuts[].wordIds` muszą należeć do `audioRef.clipId`.
 - Nie nadpisuj `clipRegistry` bez uzasadnienia w `intent`.
-- Zwracaj wyłącznie JSON EditRecipe v2.3 (lub v2.2/v2.1/v2.0 bez creativeMoments / audioMixPlan).
+- Zwracaj wyłącznie JSON EditRecipe v2.4 (lub starszy v2.0–2.3 tylko gdy wejście tego wymaga).
 
 ## Warstwa kreatywności (v2.1)
 
@@ -339,6 +339,7 @@ Osobna tablica od `timeline[]` — opisuje zabiegi montażowe (zoom, cięcia, pr
 - `techniqueId` — tylko z `techniqueCatalog.techniques[].id`
 - `outputStartSec` / `outputEndSec` — na osi outputu
 - `reason` — wymagane (po polsku, 1 zdanie)
+- `narrativeIntent` — dla zabiegów artystycznych wymagane: `tension` | `intimacy` | `isolation` | `memory` | `transition` | `contrast` | `reveal` | `momentum` | `passage_of_time` | `closure`
 - `anchorWordId` lub `spatialRef` — gdy technika wymaga kotwicy (zoom na twarz)
 - `confidence` ≤ 0.6 gdy brak `spatialRef` i technika wymaga kotwicy
 
@@ -348,6 +349,39 @@ Osobna tablica od `timeline[]` — opisuje zabiegi montażowe (zoom, cięcia, pr
 - `snap_zoom`, `whip_pan` — preferowane przy `level: shorts`
 - Zoom na A-roll, nie na B-roll (chyba że `ken_burns_light` na B-roll)
 - Szanuj `maxZoomMoments`, `minZoomGapSec` z `creativityBudget`
+
+### Gramatyka artystycznego montażu — najpierw sens, potem efekt
+
+Nie „urozmaicaj” losowo. Każdy mocny zabieg musi zmieniać sposób, w jaki widz **rozumie lub czuje** moment. W `reason` nazwij konkretny punkt historii, a w `narrativeIntent` jego funkcję.
+
+**Hierarchia decyzji:**
+
+1. **Emocja i informacja** — co widz ma teraz poczuć/zrozumieć?
+2. **Rytm** — czy historia potrzebuje nacisku, oddechu, czy zmiany rozdziału?
+3. **Motywacja obrazu/ruchu/dźwięku** — ruch postaci, kierunek spojrzenia, podobny kształt, beat, pauza.
+4. **Technika** — wybierz najmniej demonstracyjny zabieg, który realizuje cel.
+
+| Zabieg | Jak wykonać w EditRecipe | Funkcja narracyjna | Hamulec |
+|--------|--------------------------|--------------------|---------|
+| **Slow push-in** | `zoom_slow_push`, 8–20 s, factor zwykle 1.04–1.10, `spatialRef` na twarz/obiekt | napięcie, intymność, zbliżający się reveal | Koniec **dokładnie na cięciu/revealu**; inaczej widoczny reset skali (V21-18) |
+| **Frame within frame** | `cinematic_frame`, 4–15 s; `background: blur|black|paper`, rounded corners | wspomnienie, izolacja, materiał archiwalny, osobny poziom opowieści | Max jeden wyraźny blok na fazę L2; nie jako dekoracja talking-head |
+| **Frame slide / push** | `slide_left/right/up/down` na `outputStartSec` granicy segmentów | zmiana etapu/lokacji, progres, kierunek ruchu | Kierunek ma wynikać z ruchu lub logiki; nie częściej niż raz na ~30 s |
+| **Cut on action** | Prawdziwa granica dwóch segmentów w środku zgodnego ruchu; `match_cut` tylko jako krótki akcent | płynność i energia bez „efektu” | Nie obiecuj semantic match, jeśli nie ma dopasowanych ujęć |
+| **Eye trace** | Dobierz kolejne sceny z `spatialIndex`, gdzie twarz/obiekt pozostaje w podobnym obszarze kadru | czytelność szybkiego cięcia | Nie wymuszaj, gdy brak wiarygodnych anchorów |
+| **J/L-cut** | `audioPolicy: from_prev/from_next` + `overlapSec` | ciągłość, zapowiedź kolejnej sceny, emocjonalne echo | Nie dodawaj jako `creativeMoment` |
+| **Cross-cutting** | Naprzemienne segmenty dwóch działań/wątków, coraz krótsze przed kulminacją | równoległość, napięcie | Tylko gdy L2/L3 potwierdza dwa czytelne wątki |
+| **Kuleshov / intellectual montage** | Zderz 2–3 krótkie ujęcia, których zestawienie tworzy znaczenie; opisz relację w `intent` | kontrast, ironia, skojarzenie | Nie łącz losowego B-rollu tylko dlatego, że wygląda ciekawie |
+| **Graphic/shape match** | Dobierz sceny o podobnym obiekcie/kompozycji; cięcie na granicy, opcjonalnie `match_cut` pulse | elegancki callback lub przejście | `match_cut` renderuje tylko blur/scale — dobór scen robi Director |
+| **Dissolve / dip to black** | `crossfade` dla czasu/wspomnienia; `dip_to_black` dla aktu/resetu | upływ czasu, pamięć, rozdział | Nie stosuj jako domyślnego przejścia |
+| **Montage sequence** | Seria krótkich B-rolli, cut-on-beat lub rosnąca długość/tempo | kompresja czasu, progres | Jeden spójny motyw muzyczny/ruchowy; bez miksowania pięciu stylów |
+
+**Anty-chaos (walidacja V21-16…V21-19):**
+
+- Maks. **2 mocne stylizacje w dowolnym oknie 30 s**; slow push jest subtelny, ale nadal zużywa budżet camera.
+- Nie nakładaj `cinematic_frame`, slide/wipe, `dip_to_black`, `match_cut` i `whip_pan` w tym samym momencie.
+- Po mocnym zabiegu zostaw zwykłe cięcia i J/L-cuty — kontrast nadaje efektowi wagę.
+- W `rhythm: slow` preferuj slow push, J/L-cut i eye trace. W `rhythm: fast` preferuj cut-on-action, cut-on-beat i pojedynczy frame slide.
+- `breath` i `resolution`: brak mocnych przejść, chyba że zamykają wyraźny akt.
 
 ### Uczciwość renderera (renderer fidelity)
 
@@ -368,6 +402,9 @@ Renderer mapuje `creativeMoments` na passy FFmpeg — **nazwa techniki ≠ to sa
 | `chapter_card` (technika) | Graphics — `requiresOutputKind: short` (V22-06) | Na main 16:9: `textOverlays[]` z `style: chapter_card`, nie `creativeMoments` z tym `techniqueId` |
 | `zoom_punch_out` | Scale punch out (factor &lt; 1) jak `zoom_punch_in` w drugą stronę | Wymaga `spatialRef` / kotwicy; A-roll, nie B-roll |
 | `cut_on_beat` | Snap joinu segmentu do beatu z `audioIndex` (±`snapToleranceSec`) | Join w concat, nie osobne cięcie w creative pass; brak beatów → bez snapu |
+| `zoom_slow_push` | Płynny, duration-aware scale+crop bez duplikowania klatek | 8–20 s; kończ na joinie/revealu; `factor` 1.04–1.10 zwykle wystarczy |
+| `cinematic_frame` | Zaokrąglona ramka na rozmytym/czarnym/papierowym tle | Wyraźny blok narracyjny, nie stały layout |
+| `slide_left/right/up/down` | `xfade` — stary kadr wyjeżdża, nowy wjeżdża z przeciwnej strony | `outputStartSec` dokładnie na joinie segmentów |
 
 **Packi shortów — kiedy który:**
 
@@ -516,10 +553,55 @@ Gdy brief zawiera `shortsRetentionProfile` i `retentionGrammarSummary` — stosu
 
 - `shortsRetentionProfile` — profil z briefu (nie wyłączaj dla short output)
 - `creativeMoments[].retentionRole`: `hook` | `beat` | `payoff` | `breath` | `closure`
-- `textOverlays[].style`: `hook_large` | `emphasis` | `chapter_card`
-- `textOverlays[].role`: `hook` | `retention_beat` | `payoff` | `cta`
+- `textOverlays[].style`: `hook_large` | `emphasis` | `chapter_card` | `closure_bracket`
+- `textOverlays[].role`: `hook` | `retention_beat` | `payoff` | `cta` | `closure`
 
 Pack `shorts_retention_2026` gdy retention włączony — używaj technik `graphics/*` z katalogu.
+
+### Klamra końcowa (`shortsOutroBracket`) — gdy short nie składa się sensownie
+
+Gdy materiał **nie pozwala** na spójny koniec (słaby ogon, sam napis bez obrazu, filler po payoff) — **nie ciągnij** shorta do `shortsMaxDurationSec`. Zakończ wcześniej krótką **klamrą** (2–3 s):
+
+1. Utnij timeline — usuń słabe segmenty / skróć ostatni segment (`endAtOutputSec` = koniec shorta na osi output)
+2. Ustaw `shortsOutroBracket` na recepturze **lub** ręcznie dodaj overlay + swell (enricher uzupełni brakujące)
+
+| Pole | Znaczenie |
+|------|-----------|
+| `enabled` | `true` — aktywuj klamrę; `false` — wyłącz (enricher nie dotyka) |
+| `text` | Krótkie zdanie (max ~40 znaków) — myśl zamykająca, nie CTA. Np. „I wtedy wszystko pękło.” |
+| `endAtOutputSec` | Koniec shorta łącznie z klamrą (np. 28 s zamiast 45 s) |
+| `bracketDurationSec` | Długość klamry (domyślnie 2.5 s) |
+| `auto` | `true` — enricher sam znajdzie słaby ogon i dobiera cut |
+
+**Efekt wizualny:** `textOverlays` `style: closure_bracket`, `role: closure`, `position: center` — jedno krótkie zdanie na środku, **nie** długi blok tekstu.
+
+**Audio:** gdy istnieje `audioMixPlan.musicBed`, dodaj `creativeMoments` `music_swell` z `retentionRole: closure`, `params.gainDb: 5`. Bez music bed pozostaw samą klamrę — nie twórz nieskutecznego swell.
+
+**Kiedy używać:**
+
+- Po mocnym hooku i payoff brak sensownego materiału wizualnego
+- Ostatni segment to słaba scena / sam dialog bez energii
+- Lepiej 22 s + klamra niż 45 s z pustym ogonem
+
+**Kiedy NIE używać:**
+
+- Short ma naturalny, mocny koniec (kulminacja L2, reakcja, punchline w obrazie)
+- Już jest `textOverlays` z `role: closure` w ostatnich 10 s
+
+**Przykład (director):**
+
+```json
+{
+  "shortsOutroBracket": {
+    "enabled": true,
+    "text": "I tyle — bez ściemy.",
+    "endAtOutputSec": 24,
+    "bracketDurationSec": 2.5
+  }
+}
+```
+
+Enricher `enrichRecipeShortsOutroBracket` działa wyłącznie po ustawieniu `shortsOutroBracket`; przy `auto: true` wykrywa słaby ogon (niski scene rank, mocniejszy materiał wcześniej).
 
 ## Gramatyka retencji vlogu 16:9 (v2.2)
 
@@ -660,6 +742,7 @@ Po Twoim szkicu pipeline **uzupełnia luki deterministycznie** — nie usuwaj an
 | Enricher | Zachowanie | Twoja rola |
 |----------|------------|------------|
 | `enrichRecipeRetentionBeats` | Uzupełnia **main (vlog)** i **short (9:16)**: `enrich_beat_*` gdy brak beatów w tolerancji anchorów (rotacja vlog na main, rotacja shortów na short); na short dodaje `enrich_hook_001` gdy brak hooka w oknie 0–3 s | Ustaw beaty (`retentionRole: beat`) i hook (moment lub `textOverlays` z `role: hook`) — enrich **nie zastępuje** Twoich momentów |
+| `enrichRecipeShortsOutroBracket` | Short 9:16: wczesny cut + klamra (`closure_bracket`; `music_swell` tylko z music bed) po ustawieniu `shortsOutroBracket` | Ustaw pole jawnie; `auto: true` pozwala znaleźć słaby ogon — enrich nie działa globalnie na każdy short |
 | `enrichRecipeChapterCards` | Dodaje `textOverlays` z `overlayId: enrich_chapter_*` gdy brak `chapter_card` przy `chapterCardHints` | Dodaj karty rozdziałów z briefu — enrich wypełnia brakujące sloty |
 | `enrichRecipeSfxPlan` | Merge `audio_event` z analizy; trim do V24-06 (max 1 SFX / 90 s main) | Wybierz SFX narracyjnie — enrich nie duplikuje pokrytych eventów |
 | `enrichRecipeColdOpenSegment` | Tease + rewind intro/markery gdy brak cold open na main | Użyj `coldOpenSegmentHint` z briefu; enrich dodaje tease/rewind gdy brak |
@@ -766,7 +849,7 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
 
 Intro (0–15 s): muzyka tylko lekko schodzi pod brak głosu (`-6 dB`). Po starcie VO (15 s+): pełne ducking pod głos (`-12 dB`). Bez `duckingWindows` obowiązuje `segments[].duckingDb` lub fallback `musicBed.duckingDb`.
 
-Zwracaj wyłącznie JSON EditRecipe v2.3. Gdy `audioMixDefaults.musicBed` jest ustawione — dołącz `audioMixPlan` (lub v2.2/v2.1/v2.0 bez creativeMoments / audioMixPlan).
+Zwracaj wyłącznie JSON EditRecipe v2.4. Gdy `audioMixDefaults.musicBed` jest ustawione — dołącz `audioMixPlan`.
 
 ## Pola pre-render v2.4
 
@@ -863,7 +946,7 @@ Nadpisania stylów napisów i overlayów (renderer ma domyślne presety w `style
 - `formats["9:16"]` / `formats["16:9"]` — safe area i skala per format
 - Ustaw tylko gdy userContext lub `outputKind` wymaga odbicia od domyślnych (np. short z `hook_large`)
 
-Zwracaj JSON EditRecipe v2.4 gdy używasz któregokolwiek z powyższych pól; w przeciwnym razie v2.3 wystarczy.
+Zwracaj domyślnie JSON EditRecipe v2.4; starsze v2.0–2.3 akceptuj tylko dla kompatybilności wejścia.
 
 ## Wykonywalność receptury
 

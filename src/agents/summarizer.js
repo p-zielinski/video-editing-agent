@@ -108,7 +108,7 @@ export async function summarizeScene(client, sceneInput, { onUsage } = {}) {
     outputSchema: L1_OUTPUT_SCHEMA,
   });
 
-  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
+  return chatJson(client, { model: MODELS.summarizerL1, system, user, temperature: 0.3, onUsage });
 }
 
 export async function summarizeSceneBatch(client, scenesInputs, { onUsage } = {}) {
@@ -121,7 +121,7 @@ export async function summarizeSceneBatch(client, scenesInputs, { onUsage } = {}
     },
   });
 
-  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
+  const raw = await chatJson(client, { model: MODELS.summarizerL1, system, user, temperature: 0.3, onUsage });
   return Array.isArray(raw) ? raw : raw.scenes ?? [];
 }
 
@@ -136,7 +136,7 @@ export async function summarizeSegment(client, segment, l1Summaries, { onUsage }
     outputSchema: L2_OUTPUT_SCHEMA,
   });
 
-  const raw = await chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
+  const raw = await chatJson(client, { model: MODELS.summarizerL2, system, user, temperature: 0.3, onUsage });
   return AbstractL2Schema.parse(raw);
 }
 
@@ -165,7 +165,7 @@ export async function summarizeSession(client, { l2Summaries, userContext, stats
     },
   });
 
-  return chatJson(client, { model: MODELS.summarizer, system, user, temperature: 0.3, onUsage });
+  return chatJson(client, { model: MODELS.summarizerL3, system, user, temperature: 0.3, onUsage });
 }
 
 export async function buildAbstractionBundle(client, timelineIndex, {

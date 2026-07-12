@@ -11,9 +11,50 @@ import {
 } from "../lib/narrative-profile.js";
 import { collectCrossfadesAtBoundaries } from "../render/ffmpeg-concat.js";
 import { hasJlCutOverlap } from "../render/audio-jlcut.js";
+import { buildOutputTimeline } from "../lib/build-output-timeline.js";
 
 /** J/L-cut are segment audioPolicy techniques — not creativeMoment filters. */
 const SEGMENT_AUDIO_POLICY_TECHNIQUES = new Set(["j_cut", "l_cut"]);
+
+const ARTISTIC_TECHNIQUE_IDS = new Set([
+  "zoom_slow_push",
+  "cinematic_frame",
+  "slide_left",
+  "slide_right",
+  "slide_up",
+  "slide_down",
+  "wipe_left",
+  "wipe_right",
+  "dip_to_black",
+  "match_cut",
+  "whip_pan",
+]);
+
+const STRONG_STYLIZATION_IDS = new Set([
+  "cinematic_frame",
+  "slide_left",
+  "slide_right",
+  "slide_up",
+  "slide_down",
+  "wipe_left",
+  "wipe_right",
+  "dip_to_black",
+  "match_cut",
+  "whip_pan",
+]);
+
+const BOUNDARY_ONLY_ARTISTIC_IDS = new Set([
+  "slide_left",
+  "slide_right",
+  "slide_up",
+  "slide_down",
+  "wipe_left",
+  "wipe_right",
+]);
+
+const ARTISTIC_BOUNDARY_TOLERANCE_SEC = 0.12;
+const STRONG_STYLIZATION_WINDOW_SEC = 30;
+const MAX_STRONG_STYLIZATIONS_PER_WINDOW = 2;
 
 function momentDuration(moment) {
   return (moment.outputEndSec ?? 0) - (moment.outputStartSec ?? 0);
@@ -47,6 +88,122 @@ function findSegmentForMoment(recipe, moment) {
 
 function getOutputIds(recipe) {
   return new Set((recipe.outputs ?? []).map((o) => o.outputId));
+}
+
+function outputBoundaries(output) {
+  const segments = output?.timeline?.length ? buildOutputTimeline(output) : [];
+  const boundaries = segments.slice(1)
+    .map((segment) => segment.outputStartSec)
+    .filter(Number.isFinite);
+  const outputEnd = segments.at(-1)?.outputEndSec;
+  if (Number.isFinite(outputEnd)) {
+    boundaries.push(outputEnd);
+  }
+  return boundaries;
+}
+
+function isNearBoundary(timeSec, boundaries) {
+  return boundaries.some(
+    (boundary) => Math.abs(boundary - timeSec) <= ARTISTIC_BOUNDARY_TOLERANCE_SEC,
+  );
+}
+
+/**
+ * Narrative guardrails for expressive techniques. These are warnings: older
+ * recipes remain renderable, while director/fixer get actionable feedback.
+ */
+export function validateArtisticEditingGrammar(recipe) {
+  const moments = recipe.creativeMoments ?? [];
+  if (!moments.length) {
+    return [];
+  }
+
+  // Backward compatibility: older recipes used slide/zoom ids before the
+  // narrative-intent contract existed. New artistic moments opt in by setting
+  // narrativeIntent; brand-new techniques are always checked.
+  const hasArtisticGrammar = moments.some(
+    (moment) => moment.narrativeIntent
+      || moment.techniqueId === "cinematic_frame"
+      || moment.techniqueId === "slide_up"
+      || moment.techniqueId === "slide_down",
+  );
+  if (!hasArtisticGrammar) {
+    return [];
+  }
+
+  const issues = [];
+
+  for (const moment of moments) {
+    if (!ARTISTIC_TECHNIQUE_IDS.has(moment.techniqueId)) {
+      continue;
+    }
+
+    if (!moment.narrativeIntent) {
+      issues.push({
+        severity: "warning",
+        code: "V21-16",
+        message: `Moment ${moment.momentId}: ${moment.techniqueId} wymaga narrativeIntent — efekt musi wynikać z historii, nie z dekoracji`,
+        momentId: moment.momentId,
+      });
+    }
+
+    const output = recipe.outputs?.find((entry) => entry.outputId === moment.outputId);
+    const boundaries = outputBoundaries(output);
+
+    if (
+      moment.techniqueId === "zoom_slow_push"
+      && !isNearBoundary(moment.outputEndSec, boundaries)
+    ) {
+      issues.push({
+        severity: "warning",
+        code: "V21-18",
+        message: `Moment ${moment.momentId}: zoom_slow_push powinien kończyć się na cięciu/revealu, inaczej skala wróci skokowo`,
+        momentId: moment.momentId,
+      });
+    }
+
+    if (
+      BOUNDARY_ONLY_ARTISTIC_IDS.has(moment.techniqueId)
+      && !isNearBoundary(moment.outputStartSec, boundaries)
+    ) {
+      issues.push({
+        severity: "warning",
+        code: "V21-19",
+        message: `Moment ${moment.momentId}: ${moment.techniqueId} działa na granicy segmentów — ustaw outputStartSec na join`,
+        momentId: moment.momentId,
+      });
+    }
+  }
+
+  const outputIds = new Set(moments.map((moment) => moment.outputId).filter(Boolean));
+  for (const outputId of outputIds) {
+    const strong = moments
+      .filter(
+        (moment) => moment.outputId === outputId
+          && STRONG_STYLIZATION_IDS.has(moment.techniqueId),
+      )
+      .sort((a, b) => a.outputStartSec - b.outputStartSec);
+
+    for (let startIndex = 0; startIndex < strong.length; startIndex += 1) {
+      const windowStart = strong[startIndex].outputStartSec;
+      const inWindow = strong.filter(
+        (moment) => moment.outputStartSec >= windowStart
+          && moment.outputStartSec < windowStart + STRONG_STYLIZATION_WINDOW_SEC,
+      );
+      if (inWindow.length > MAX_STRONG_STYLIZATIONS_PER_WINDOW) {
+        issues.push({
+          severity: "warning",
+          code: "V21-17",
+          message: `Output ${outputId}: ${inWindow.length} mocnych stylizacji w ${STRONG_STYLIZATION_WINDOW_SEC}s — max ${MAX_STRONG_STYLIZATIONS_PER_WINDOW}; zostaw widzowi oddech`,
+          outputId,
+          momentId: inWindow[MAX_STRONG_STYLIZATIONS_PER_WINDOW]?.momentId,
+        });
+        break;
+      }
+    }
+  }
+
+  return issues;
 }
 
 function estimateOutputDurationMinutes(recipe, outputId) {
@@ -761,6 +918,15 @@ export function validateCreativeMoments(
 
     issues.push(...validateParams(moment, technique));
     issues.push(...validateCreativityLevelGate(moment, technique, levelBudget));
+    const maxDurationSec = technique.constraints?.maxDurationSec;
+    if (maxDurationSec != null && momentDuration(moment) > maxDurationSec) {
+      issues.push({
+        severity: "error",
+        code: "V21-02",
+        message: `Moment ${moment.momentId}: duration ${momentDuration(moment).toFixed(1)}s > maxDurationSec=${maxDurationSec} dla ${technique.id}`,
+        momentId: moment.momentId,
+      });
+    }
 
     // V21-14 j_cut / l_cut belong on segment audioPolicy, not creativeMoments
     if (SEGMENT_AUDIO_POLICY_TECHNIQUES.has(moment.techniqueId)) {
@@ -901,6 +1067,7 @@ export function validateCreativeMoments(
   }
 
   issues.push(...validatePartialCrossfadePattern(recipe, moments));
+  issues.push(...validateArtisticEditingGrammar(recipe));
 
   issues.push(...validateL2SegmentBudgetLimits(
     moments,

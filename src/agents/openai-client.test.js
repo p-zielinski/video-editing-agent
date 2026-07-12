@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chatJson } from "./openai-client.js";
+import { chatJson, resolveAgentModels } from "./openai-client.js";
 
 function createJsonRetryMockClient(validPayload) {
   let callCount = 0;
@@ -79,5 +79,46 @@ describe("openai-client chatJson", () => {
 
     assert.deepEqual(result, { ready: true });
     assert.equal(callCount, 1);
+  });
+});
+
+describe("agent model routing", () => {
+  it("uses quality-first defaults at global decisions and efficient local models", () => {
+    const models = resolveAgentModels({});
+
+    assert.equal(models.summarizerL1, "gpt-5.4-nano");
+    assert.equal(models.summarizerL2, "gpt-5.4-mini");
+    assert.equal(models.summarizerL3, "gpt-5.4");
+    assert.equal(models.director, "gpt-5.4");
+    assert.equal(models.superDirector, "gpt-5.4");
+    assert.equal(models.segmentDirector, "gpt-5.4-mini");
+    assert.equal(models.directorDrillDown, "gpt-5.4-mini");
+    assert.equal(models.critic, "gpt-5.4-mini");
+    assert.equal(models.fixer, "gpt-5.4-mini");
+    assert.equal(models.fixerEscalation, "gpt-5.4");
+  });
+
+  it("supports independent per-role model overrides", () => {
+    const models = resolveAgentModels({
+      OPENAI_MODEL_NANO: "nano-custom",
+      OPENAI_MODEL_MINI: "mini-custom",
+      OPENAI_MODEL_FLAGSHIP: "flagship-custom",
+      OPENAI_MODEL_SUMMARIZER_L3: "l3-custom",
+      OPENAI_MODEL_SUPER_DIRECTOR: "super-custom",
+      OPENAI_MODEL_SEGMENT_DIRECTOR: "segment-custom",
+      OPENAI_MODEL_DIRECTOR_DRILLDOWN: "drill-custom",
+      OPENAI_MODEL_FIXER: "fixer-custom",
+      OPENAI_MODEL_FIXER_ESCALATION: "fixer-escalation-custom",
+    });
+
+    assert.equal(models.summarizerL1, "nano-custom");
+    assert.equal(models.summarizerL2, "mini-custom");
+    assert.equal(models.summarizerL3, "l3-custom");
+    assert.equal(models.director, "flagship-custom");
+    assert.equal(models.superDirector, "super-custom");
+    assert.equal(models.segmentDirector, "segment-custom");
+    assert.equal(models.directorDrillDown, "drill-custom");
+    assert.equal(models.fixer, "fixer-custom");
+    assert.equal(models.fixerEscalation, "fixer-escalation-custom");
   });
 });

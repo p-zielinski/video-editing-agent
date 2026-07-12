@@ -44,6 +44,8 @@ const TECHNIQUE_RENDER_SUPPORT = {
   wipe_right: "full",
   slide_left: "full",
   slide_right: "full",
+  slide_up: "full",
+  slide_down: "full",
   j_cut: "segment_only",
   l_cut: "segment_only",
   // audio — mix plan only
@@ -58,6 +60,7 @@ const TECHNIQUE_RENDER_SUPPORT = {
   pattern_interrupt: "graphics_only",
   hook_visual_punch: "full",
   retention_beat: "full",
+  cinematic_frame: "full",
 };
 
 /**

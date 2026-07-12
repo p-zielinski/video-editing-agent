@@ -4,21 +4,48 @@ import { createKlingJwt } from "./kling-auth.js";
 import { KLING_API_BASE } from "./types.js";
 
 const POLL_INTERVAL_MS = 5000;
-const POLL_TIMEOUT_MS = 180_000;
+const POLL_TIMEOUT_MS = 600_000;
 
-function resolveModelName() {
-  return process.env.KLING_VIDEO_MODEL ?? "kling-v2-6";
+export const DEFAULT_KLING_VIDEO_MODEL = "kling-v3";
+
+export function resolveKlingVideoModel(env = process.env) {
+  return env.KLING_VIDEO_MODEL ?? DEFAULT_KLING_VIDEO_MODEL;
 }
 
-function resolveDurationString(durationSec) {
+function isKlingV3(modelName) {
+  return /^kling-(?:v3|3(?:\.0)?)(?:$|[-/])/.test(modelName);
+}
+
+export function resolveKlingDurationString(durationSec, modelName) {
   const rounded = Math.max(3, Math.min(15, Math.round(durationSec)));
+  if (isKlingV3(modelName)) {
+    return String(rounded);
+  }
   if (rounded <= 5) {
     return "5";
   }
-  if (rounded <= 10) {
-    return "10";
-  }
   return "10";
+}
+
+export function buildKlingImage2VideoPayload({
+  modelName,
+  prompt,
+  firstFrameBase64,
+  lastFrameBase64,
+  durationSec,
+  aspectRatio,
+  generateAudio,
+}) {
+  return {
+    model_name: modelName,
+    prompt,
+    image: firstFrameBase64,
+    image_tail: lastFrameBase64,
+    mode: "pro",
+    aspect_ratio: aspectRatio,
+    duration: resolveKlingDurationString(durationSec, modelName),
+    sound: generateAudio ? "on" : "off",
+  };
 }
 
 function authHeaders(accessKey, secretKey) {
@@ -49,6 +76,7 @@ async function parseJsonResponse(response) {
  * @param {number} params.durationSec
  * @param {string} [params.aspectRatio]
  * @param {boolean} [params.generateAudio]
+ * @param {string} [params.modelName]
  */
 export async function submitKlingImage2VideoTask({
   accessKey,
@@ -59,17 +87,17 @@ export async function submitKlingImage2VideoTask({
   durationSec,
   aspectRatio = "9:16",
   generateAudio = false,
+  modelName = resolveKlingVideoModel(),
 }) {
-  const payload = {
-    model_name: resolveModelName(),
+  const payload = buildKlingImage2VideoPayload({
+    modelName,
     prompt,
-    image: firstFrameBase64,
-    image_tail: lastFrameBase64,
-    mode: "pro",
-    aspect_ratio: aspectRatio,
-    duration: resolveDurationString(durationSec),
-    sound: generateAudio ? "on" : "off",
-  };
+    firstFrameBase64,
+    lastFrameBase64,
+    durationSec,
+    aspectRatio,
+    generateAudio,
+  });
 
   const response = await fetch(`${KLING_API_BASE}/v1/videos/image2video`, {
     method: "POST",
@@ -150,6 +178,7 @@ export async function generateKlingHookVideo({
   aspectRatio = "9:16",
   generateAudio = false,
   rawOutputPath,
+  modelName = resolveKlingVideoModel(),
 }) {
   const taskId = await submitKlingImage2VideoTask({
     accessKey,
@@ -160,6 +189,7 @@ export async function generateKlingHookVideo({
     durationSec,
     aspectRatio,
     generateAudio,
+    modelName,
   });
 
   const { videoUrl } = await pollKlingImage2VideoTask({
@@ -173,6 +203,7 @@ export async function generateKlingHookVideo({
 
   return {
     provider: "kling",
+    model: modelName,
     taskId,
     videoUrl,
     rawOutputPath: tmpPath,

@@ -60,6 +60,10 @@ Gdy payload zawiera `shortsRetentionProfile` i `retentionBeatTargets`, weryfikuj
 | V21-13 | `silence_beat` bez bliskiego `silenceGap` lub `cutSuggestion` (`reason: "silence_start"`) w tolerancji `durationSec` (domyślnie 0.8 s) |
 | V21-14 | `j_cut` / `l_cut` w `creativeMoments` — użyj `segment.audioPolicy` (`from_prev` / `from_next`) + `overlapSec`; nie jako technika w creative pass |
 | V21-15 | Częściowy wzorzec `crossfade` (3+ segmenty, crossfade tylko na części joinów) — renderer wymaga crossfade na **każdym** joinie albo **dokładnie jednym**; usuń częściowy wzór lub uzupełnij wszystkie joiny |
+| V21-16 | Artystyczny zabieg bez `narrativeIntent` — efekt nie ma jawnej funkcji w historii |
+| V21-17 | Więcej niż 2 mocne stylizacje (`cinematic_frame`, slide/wipe, dip, match/whip) w oknie 30 s — montaż staje się demonstracyjny |
+| V21-18 | `zoom_slow_push` nie kończy się na joinie/revealu — grozi widoczny reset skali |
+| V21-19 | Slide/wipe poza granicą segmentów — renderer xfade go nie zastosuje |
 
 ### Kody V26-VOICE (modulacja głosu)
 
@@ -101,6 +105,9 @@ Przy V21-10: payload zawiera `spatialIndex` — porównaj `spatialRef` z kotwica
 | `reframe_follow_subject` | Statyczny `zoompan` do bbox | Nie jako „tracking failure”; V21-07 gdy brak kotwicy |
 | `chapter_card` na main | Technika wymaga `outputKind: short` | **Error** V22-06; fixer: `textOverlays[]` `style: chapter_card` |
 | Pack `shorts_energy` vs `shorts_retention_2026` | Różne zestawy technik w katalogu | V21-01 gdy `techniqueId` poza packiem z `creativityProfile.techniquePack` |
+| `zoom_slow_push` | Płynny scale+crop przez pełny czas momentu | V21-18, jeśli nie kończy się na cięciu; factor zwykle ≤1.10 |
+| `cinematic_frame` | Zaokrąglona ramka na tle blur/black/paper | V21-16 bez funkcji `memory/isolation/intimacy/transition`; V21-17 przy spamie |
+| `slide_*`, `wipe_*` | Rzeczywisty xfade na joinie segmentów | V21-19 poza joinem; kierunek powinien wynikać z ruchu lub zmiany etapu |
 
 - `zoom_punch_out` — **obsługiwany** (scale punch out); wymaga kotwicy jak `zoom_punch_in`
 - `cut_on_beat` na granicy segmentów — snap join do beatu z `audioIndex` (±`snapToleranceSec`); brak beatów → `CUT_ON_BEAT_NOT_APPLIED`

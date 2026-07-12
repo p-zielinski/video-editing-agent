@@ -85,7 +85,7 @@ export async function runSuperDirector(client, {
   });
 
   const raw = await chatJson(client, {
-    model: MODELS.director,
+    model: MODELS.superDirector,
     system,
     user,
     temperature: 0.35,

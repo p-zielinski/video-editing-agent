@@ -34,6 +34,28 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "narrativeFunctions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "tension",
+          "intimacy",
+          "isolation",
+          "memory",
+          "transition",
+          "contrast",
+          "reveal",
+          "momentum",
+          "passage_of_time",
+          "closure"
+        ]
+      }
+    },
+    "visualIntensity": {
+      "type": "string",
+      "enum": ["subtle", "moderate", "strong"]
+    },
     "params": {
       "type": "object",
       "additionalProperties": {

@@ -9,8 +9,14 @@
     "shorts"
   ],
   "trendTags": [
-    "modern"
+    "modern",
+    "editorial"
   ],
+  "narrativeFunctions": [
+    "transition",
+    "momentum"
+  ],
+  "visualIntensity": "strong",
   "params": {
     "durationSec": {
       "type": "number",
@@ -20,14 +26,14 @@
     }
   },
   "constraints": {
-    "minGapFromSameTechniqueSec": 10,
-    "maxPerOutputMinutes": 0.12,
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.08,
     "requiresSpatialAnchor": false,
     "forbiddenOnSegmentRole": [],
     "requiresCreativityLevel": null
   },
-  "whenToUse": "Dynamiczna zmiana lokacji, montaż internetowy.",
-  "whenToAvoid": "Spokojne segmenty slow rhythm.",
+  "whenToUse": "Stary kadr odjeżdża w lewo, nowy wjeżdża z prawej — zmiana etapu, miejsca lub progres zgodny z ruchem.",
+  "whenToAvoid": "Spokojne segmenty slow rhythm, rozmowa bez zmiany osi lub dekoracyjne przejście bez motywacji.",
   "syncHints": [
     "scene_boundary"
   ],

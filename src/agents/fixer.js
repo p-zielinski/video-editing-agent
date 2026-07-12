@@ -258,6 +258,7 @@ export async function runFixer(client, {
   brollSyncHints = null,
   onUsage,
   superCriticReview = null,
+  attempt = 1,
 }) {
   const promptVersion = resolveFixerPromptVersion(recipe);
   const system = loadPrompt("fixer", { version: promptVersion });
@@ -312,7 +313,7 @@ export async function runFixer(client, {
   });
 
   const raw = await chatJson(client, {
-    model: MODELS.fixer,
+    model: attempt > 1 ? MODELS.fixerEscalation : MODELS.fixer,
     system,
     user,
     temperature: 0.3,

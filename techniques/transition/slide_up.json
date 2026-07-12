@@ -1,0 +1,41 @@
+{
+  "id": "slide_up",
+  "version": "1.0",
+  "category": "transition",
+  "label": "Frame slide up",
+  "description": "Stary kadr wysuwa się w górę, a nowy wjeżdża od dołu.",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "modern",
+    "editorial"
+  ],
+  "narrativeFunctions": [
+    "transition",
+    "momentum"
+  ],
+  "visualIntensity": "strong",
+  "params": {
+    "durationSec": {
+      "type": "number",
+      "min": 0.3,
+      "max": 0.8,
+      "default": 0.5
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.08,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "balanced"
+  },
+  "whenToUse": "Motywowana zmiana etapu, progres lub ruch kadru zgodny z kierunkiem przejścia.",
+  "whenToAvoid": "Spokojna rozmowa, segment breath lub przejście bez zmiany miejsca/czasu.",
+  "syncHints": [
+    "scene_boundary"
+  ],
+  "renderSupport": "full"
+}

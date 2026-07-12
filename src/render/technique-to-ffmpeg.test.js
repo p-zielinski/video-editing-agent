@@ -55,8 +55,51 @@ describe("technique-to-ffmpeg", () => {
       },
       { dimensions: { width: 1080, height: 1920 } },
     );
-    assert.ok(result.filter?.includes("zoompan="));
-    assert.ok(!result.filter?.includes("iw/2-(iw/zoom/2)"));
+    assert.ok(result.filter?.includes("scale="));
+    assert.ok(result.filter?.includes("crop="));
+    assert.ok(result.filter?.includes("0.3750"));
+    assert.ok(result.filter?.includes("0.4750"));
+  });
+
+  it("builds duration-aware slow push without duplicating frames", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "zoom_slow_push",
+        outputStartSec: 10,
+        outputEndSec: 22,
+        params: { factor: 1.08, durationSec: 12 },
+      },
+      { dimensions: { width: 1920, height: 1080 } },
+    );
+
+    assert.ok(result.filter?.includes("eval=frame"));
+    assert.ok(result.filter?.includes("(t-10)/12"));
+    assert.ok(result.filter?.includes("1.08"));
+    assert.ok(!result.filter?.includes("d=125"));
+  });
+
+  it("builds rounded cinematic frame over a blurred background", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "cinematic_frame",
+        outputStartSec: 12,
+        outputEndSec: 20,
+        params: {
+          scale: 0.82,
+          cornerRadiusPx: 36,
+          borderWidthPx: 5,
+          background: "blur",
+        },
+      },
+      { dimensions: { width: 1920, height: 1080 } },
+    );
+
+    assert.ok(result.filter?.includes("split=3"));
+    assert.ok(result.filter?.includes("boxblur="));
+    assert.ok(result.filter?.includes("geq="));
+    assert.ok(result.filter?.includes("pow(max(abs(X-W/2)"));
+    assert.ok(result.filter?.includes("overlay="));
+    assert.ok(result.filter?.includes("between(t\\,12\\,20)"));
   });
 
   it("builds fade out/in filter for dip_to_black", () => {

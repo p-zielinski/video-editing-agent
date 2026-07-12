@@ -64,10 +64,10 @@ node src/cli.js run --batch-id <id> --from-step meta_commands --to-step meta_com
 
 ### AI video hooks (`ai_video`)
 
-Opt-in krok generujący krótki hook (Kling API, model `kling-v2-6`) dla shortów `9:16` — max 1 klip/batch, domyślnie 5 s, `audio: false`.
+Opt-in krok generujący krótki hook (Kling VIDEO 3.0, model `kling-v3`) dla shortów `9:16` — max 1 klip/batch, domyślnie 5 s, `audio: false`.
 
 - Włączenie: `--ai-video` lub `"aiVideoEnabled": true` w `--context`
-- Stub (bez API): `--ai-video-stub` lub `AI_VIDEO_STUB=1`
+- Stub (bez API): `--ai-video-stub` sam włącza krok; `AI_VIDEO_STUB=1` wybiera stub dla kroku włączonego kontekstem lub `--ai-video`. Brak kluczy live kończy krok błędem zamiast cichego użycia placeholdera.
 - Klucze: `KLING_ACCESS_KEY` + `KLING_SECRET_KEY` ([kling.ai/dev/pricing](https://kling.ai/dev/pricing))
 - Artefakt: `05e-ai-video.json`; klip rejestrowany w manifeście jako `ai_generated`
 - Enricher `enrichRecipeAiHook` wstawia segment `ai_hook` na początku shorta
@@ -186,7 +186,7 @@ flowchart TD
 | 11 | `abstract` | timeline | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | GPT summarizer — hierarchia L1 → L2 → L3 |
 | 12 | `topic_index` | abstraction, timeline, clip registry, twelvelabs | `05b-topic-index.json` | embeddingi OpenAI + keyword — dopasowanie tematów mowy do scen B-roll |
 | 13 | `spatial_index` | timeline, objects | `05c-spatial-index.json`, `04a-faces-<clipId>.json` | face detect (OpenCV) + kotwice przestrzenne |
-| 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json` | Kling API (`kling-v2-6`) hook (opcjonalnie; stub: lavfi) |
+| 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json` | Kling API (`kling-v3`) hook (opcjonalnie; jawny stub: lavfi) |
 | 15 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne) |
 | 16 | `review` | draft + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop (GPT + walidatory Zod) |
 | 17 | `thumbnails` | final recipe, indeksy | `11-thumbnail-plan.json`, `12-thumbnail-review.json`, `thumbnails/<outputId>/*.png` | GPT strategist + critic; render PNG (Sharp) |

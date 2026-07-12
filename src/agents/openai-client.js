@@ -84,16 +84,32 @@ export async function chatJson(client, {
   }
 }
 
-export const MODELS = {
-  // Domyślnie GPT-5.4; ustaw OPENAI_MODEL_NANO/MINI w .env
-  summarizer: process.env.OPENAI_MODEL_NANO ?? "gpt-5.4-nano",
-  musicCurator: process.env.OPENAI_MODEL_NANO ?? "gpt-5.4-nano",
-  director: process.env.OPENAI_MODEL_DIRECTOR ?? process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
-  critic: process.env.OPENAI_MODEL_CRITIC ?? process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
-  fixer: process.env.OPENAI_MODEL_CRITIC ?? process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
-  thumbnailStrategist: process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
-  thumbnailCritic: process.env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini",
-};
+export function resolveAgentModels(env = {}) {
+  const nano = env.OPENAI_MODEL_NANO ?? "gpt-5.4-nano";
+  const mini = env.OPENAI_MODEL_MINI ?? "gpt-5.4-mini";
+  const flagship = env.OPENAI_MODEL_FLAGSHIP ?? "gpt-5.4";
+  const director = env.OPENAI_MODEL_DIRECTOR ?? flagship;
+
+  return {
+    // Backward-compatible alias for callers that have not split L1/L2/L3 yet.
+    summarizer: env.OPENAI_MODEL_SUMMARIZER_L1 ?? nano,
+    summarizerL1: env.OPENAI_MODEL_SUMMARIZER_L1 ?? nano,
+    summarizerL2: env.OPENAI_MODEL_SUMMARIZER_L2 ?? mini,
+    summarizerL3: env.OPENAI_MODEL_SUMMARIZER_L3 ?? flagship,
+    musicCurator: env.OPENAI_MODEL_MUSIC_CURATOR ?? nano,
+    director,
+    superDirector: env.OPENAI_MODEL_SUPER_DIRECTOR ?? director,
+    segmentDirector: env.OPENAI_MODEL_SEGMENT_DIRECTOR ?? mini,
+    directorDrillDown: env.OPENAI_MODEL_DIRECTOR_DRILLDOWN ?? mini,
+    critic: env.OPENAI_MODEL_CRITIC ?? mini,
+    fixer: env.OPENAI_MODEL_FIXER ?? mini,
+    fixerEscalation: env.OPENAI_MODEL_FIXER_ESCALATION ?? flagship,
+    thumbnailStrategist: env.OPENAI_MODEL_THUMBNAIL_STRATEGIST ?? mini,
+    thumbnailCritic: env.OPENAI_MODEL_THUMBNAIL_CRITIC ?? mini,
+  };
+}
+
+export const MODELS = resolveAgentModels(process.env);
 
 export const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
 

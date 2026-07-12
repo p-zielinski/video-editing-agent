@@ -49,4 +49,19 @@ describe("formatCatalogForPrompt", () => {
     assert.equal(jumpCut?.renderSupport, "partial");
     assert.equal(zoom?.renderSupport, undefined);
   });
+
+  it("includes artistic narrative functions and visual intensity", () => {
+    const catalog = loadTechniqueCatalog();
+    const budget = computeCreativityBudget(600, { level: "balanced" });
+    const formatted = formatCatalogForPrompt(catalog, budget);
+    const frame = formatted.techniques.find((t) => t.id === "cinematic_frame");
+
+    assert.deepEqual(frame?.narrativeFunctions, [
+      "isolation",
+      "memory",
+      "intimacy",
+      "transition",
+    ]);
+    assert.equal(frame?.visualIntensity, "strong");
+  });
 });

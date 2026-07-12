@@ -18,6 +18,7 @@ import {
 } from "./director.js";
 import { DIRECTOR_BRIEF_CAPS, DRILL_DOWN_CAPS } from "../editorial/brief-caps.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
+import { MODELS } from "./openai-client.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 
 describe("director agent v2", () => {
@@ -1415,6 +1416,8 @@ describe("director agent v2", () => {
     assert.equal(refined.outputs[0].timeline[0].cuts.length, 1);
 
     const drillDownRequest = client.getCapturedRequests()[1];
+    assert.equal(client.getCapturedRequests()[0].model, MODELS.director);
+    assert.equal(drillDownRequest.model, MODELS.directorDrillDown);
     const drillDownPayload = JSON.parse(drillDownRequest.messages[1].content);
     assert.equal(drillDownPayload.task, "drill_down_refine");
     assert.equal(drillDownPayload.sceneSummariesL1.length, 2);

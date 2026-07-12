@@ -49,6 +49,7 @@ import { enrichRecipeFastRhythmSpeed } from "../../editorial/speed-enrich.js";
 import { enrichRecipePayoffMoments } from "../../editorial/payoff-enrich.js";
 import { enrichRecipeCallbackMoments } from "../../editorial/callback-enrich.js";
 import { enrichRecipeClosureCta } from "../../editorial/closure-enrich.js";
+import { enrichRecipeShortsOutroBracket } from "../../editorial/shorts-outro-bracket.js";
 import { enrichRecipeJlCutSnap } from "../../editorial/jlcut-snap.js";
 import { enrichRecipeAiHook, loadAiVideoArtifact } from "../../editorial/ai-hook-enrich.js";
 import { enrichRecipeShortIntroSkip } from "../../editorial/shorts-intro-skip.js";
@@ -449,6 +450,17 @@ function buildDeterministicEnricherSteps(recipe, {
       name: "enrichRecipeClosureCta",
       apply: () => {
         enrichRecipeClosureCta(recipe, { abstraction });
+      },
+    },
+    {
+      name: "enrichRecipeShortsOutroBracket",
+      apply: () => {
+        enrichRecipeShortsOutroBracket(recipe, {
+          abstraction,
+          timelineIndex,
+          audioIndex,
+          wordIndexes,
+        });
       },
     },
     {
@@ -1015,7 +1027,11 @@ export async function runReviewStep({
         perClipAnalysis,
         brollSyncHints,
         superCriticReview,
-        onUsage: createUsageRecorder(gptUsageTracker, "fixer"),
+        attempt: iteration,
+        onUsage: createUsageRecorder(
+          gptUsageTracker,
+          iteration > 1 ? "fixer_escalation" : "fixer",
+        ),
       }),
     );
     applyDeterministicRecipeEnrichers(recipe, {

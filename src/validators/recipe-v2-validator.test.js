@@ -10,7 +10,8 @@ import { resetMusicCatalogCache } from "../editorial/music-library.js";
 
 function createTempMusicCatalog(trackId, fileName = `${trackId}.mp3`) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "recipe-val-music-"));
-  fs.writeFileSync(path.join(tmpDir, fileName), "");
+  const trackPath = path.join(tmpDir, fileName);
+  fs.writeFileSync(trackPath, "");
   const catalogPath = path.join(tmpDir, "catalog.json");
   fs.writeFileSync(catalogPath, JSON.stringify({
     version: "1.0",
@@ -18,6 +19,7 @@ function createTempMusicCatalog(trackId, fileName = `${trackId}.mp3`) {
   }));
   return {
     catalogPath,
+    trackPath,
     cleanup: () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
       resetMusicCatalogCache();
@@ -645,11 +647,17 @@ describe("recipe v2 validator", () => {
       segments: [],
     };
 
-    const issues = validateAudioMixPlan(recipe);
-    const issue = issues.find((i) => i.code === "V23-03");
-    assert.ok(issue);
-    assert.equal(issue.severity, "error");
-    assert.match(issue.message, /nie istnieje na dysku/);
+    const catalog = createTempMusicCatalog("calm_reflective_01");
+    fs.unlinkSync(catalog.trackPath);
+    try {
+      const issues = validateAudioMixPlan(recipe, { catalogPath: catalog.catalogPath });
+      const issue = issues.find((i) => i.code === "V23-03");
+      assert.ok(issue);
+      assert.equal(issue.severity, "error");
+      assert.match(issue.message, /nie istnieje na dysku/);
+    } finally {
+      catalog.cleanup();
+    }
   });
 
   it("errors V24-01 when sfxPlan audio_event lacks valid clipId", () => {

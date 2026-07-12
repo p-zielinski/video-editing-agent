@@ -18,6 +18,8 @@
     "transition/wipe_right.json",
     "transition/slide_left.json",
     "transition/slide_right.json",
+    "transition/slide_up.json",
+    "transition/slide_down.json",
     "transition/dip_to_black.json",
     "transition/whip_pan.json",
     "transition/j_cut.json",
@@ -31,7 +33,8 @@
     "graphics/emphasis_text.json",
     "graphics/chapter_card.json",
     "graphics/pattern_interrupt.json",
-    "graphics/retention_beat.json"
+    "graphics/retention_beat.json",
+    "graphics/cinematic_frame.json"
   ],
   "packFiles": [
     "packs/youtube_vlog_2026.json",

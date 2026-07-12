@@ -100,6 +100,7 @@ export const TextOverlayStyleSchema = z.enum([
   "emphasis",
   "chapter_card",
   "cta",
+  "closure_bracket",
   "subtitle_style",
 ]);
 
@@ -109,7 +110,19 @@ export const TextOverlayRoleSchema = z.enum([
   "payoff",
   "cta",
   "chapter",
+  "closure",
 ]);
+
+export const ShortsOutroBracketSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Krótka klamra (max ~40 znaków). Enricher wybierze z L3 gdy brak. */
+  text: z.string().min(1).max(48).optional(),
+  /** Koniec shorta na osi output (łącznie z klamrą). */
+  endAtOutputSec: z.number().positive().optional(),
+  bracketDurationSec: z.number().min(1.5).max(4).default(2.5),
+  /** Gdy true — enricher szuka słabego ogona i dobiera cut. */
+  auto: z.boolean().optional(),
+});
 
 export const TextOverlayAnimationSchema = z.enum([
   "fade",
@@ -133,6 +146,19 @@ export const TextOverlayV2Schema = z.object({
 
 /** creativeMoments / timeline retention roles; textOverlays use TextOverlayRoleSchema (includes cta). */
 export const RetentionRoleSchema = z.enum(["hook", "beat", "payoff", "breath", "closure"]);
+
+export const NarrativeIntentSchema = z.enum([
+  "tension",
+  "intimacy",
+  "isolation",
+  "memory",
+  "transition",
+  "contrast",
+  "reveal",
+  "momentum",
+  "passage_of_time",
+  "closure",
+]);
 
 export const VideoTransformSchema = z.object({
   crop: z.object({
@@ -324,6 +350,7 @@ export const CreativeMomentSchema = z.object({
   segmentId: z.string().optional(),
   spatialRef: SpatialRefSchema.optional(),
   retentionRole: RetentionRoleSchema.optional(),
+  narrativeIntent: NarrativeIntentSchema.optional(),
   reason: z.string().min(1),
   confidence: z.number().min(0).max(1).optional(),
 });
@@ -527,6 +554,14 @@ export const EditRecipeV2Schema = z.object({
   colorGrade: ColorGradeSchema.optional(),
   renderStylePresets: RenderStylePresetsSchema.optional(),
   pacingTrimMeta: PacingTrimMetaSchema.optional(),
+  shortsOutroBracket: ShortsOutroBracketSchema.optional(),
+  shortsOutroBracketMeta: z.object({
+    applied: z.boolean(),
+    source: z.enum(["director", "enricher"]).optional(),
+    contentEndSec: z.number().nonnegative().optional(),
+    endAtOutputSec: z.number().positive().optional(),
+    text: z.string().optional(),
+  }).optional(),
   structuredCallbacks: z.array(StructuredCallbackSchema).default([]).optional(),
   needsHumanReview: z.boolean().default(false),
   reviewNotes: z.string().optional(),

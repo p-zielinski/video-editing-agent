@@ -23,6 +23,7 @@ describe("deterministic enricher order", () => {
       "enrichRecipePayoffMoments",
       "enrichRecipeCallbackMoments",
       "enrichRecipeClosureCta",
+      "enrichRecipeShortsOutroBracket",
       "enrichRecipeChapterCards",
       "enrichRecipeActTransitions",
       "enrichRecipeMusicBeatSnap",

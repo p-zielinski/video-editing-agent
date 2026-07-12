@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { runSuperDirector } from "./super-director.js";
 import { SuperDirectorPlanSchema } from "../schemas/super-director-plan.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
+import { MODELS } from "./openai-client.js";
 
 describe("super-director agent", () => {
   const abstraction = loadFixture("abstraction.json");
@@ -36,6 +37,7 @@ describe("super-director agent", () => {
 
     const requests = client.getCapturedRequests();
     assert.equal(requests.length, 1);
+    assert.equal(requests[0].model, MODELS.superDirector);
     const payload = JSON.parse(requests[0].messages[1].content);
     assert.equal(payload.task, "super_director_route");
     assert.ok(Array.isArray(payload.segmentCatalog));

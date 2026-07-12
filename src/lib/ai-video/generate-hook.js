@@ -7,8 +7,8 @@ import { registerGeneratedHookClip } from "./register-clip.js";
 import { planAiHook } from "./hook-planner.js";
 import { DEFAULT_FORMAT_DIMENSIONS } from "../../render/render-config.js";
 
-function hasKlingCredentials() {
-  return Boolean(process.env.KLING_ACCESS_KEY && process.env.KLING_SECRET_KEY);
+function hasKlingCredentials(env) {
+  return Boolean(env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY);
 }
 
 /**
@@ -21,6 +21,8 @@ export async function generateAiHookForBatch({
   timelineIndex,
   audioIndex,
   useStub = false,
+  env = process.env,
+  modelName,
 }) {
   const plan = planAiHook({
     abstraction,
@@ -34,6 +36,12 @@ export async function generateAiHookForBatch({
       status: "skipped",
       reason: "no_plan",
     };
+  }
+
+  if (!useStub && !hasKlingCredentials(env)) {
+    throw new Error(
+      "Missing KLING_ACCESS_KEY or KLING_SECRET_KEY; set useStub explicitly for a placeholder",
+    );
   }
 
   const generatedDir = path.join(workDir, "generated");
@@ -58,7 +66,7 @@ export async function generateAiHookForBatch({
   const dimensions = DEFAULT_FORMAT_DIMENSIONS["9:16"];
   let generation;
 
-  if (useStub || !hasKlingCredentials()) {
+  if (useStub) {
     generation = await generateStubHookVideo({
       outputPath: finalVideoPath,
       durationSec: plan.durationSec,
@@ -66,11 +74,12 @@ export async function generateAiHookForBatch({
       height: dimensions.height,
     });
     generation.taskId = null;
+    generation.model = "stub";
     generation.prompt = plan.prompt;
   } else {
     const klingResult = await generateKlingHookVideo({
-      accessKey: process.env.KLING_ACCESS_KEY,
-      secretKey: process.env.KLING_SECRET_KEY,
+      accessKey: env.KLING_ACCESS_KEY,
+      secretKey: env.KLING_SECRET_KEY,
       prompt: plan.prompt,
       firstFrameBase64: readImageBase64(firstFramePath),
       lastFrameBase64: readImageBase64(lastFramePath),
@@ -78,6 +87,7 @@ export async function generateAiHookForBatch({
       aspectRatio: plan.aspectRatio,
       generateAudio: plan.generateAudio,
       rawOutputPath: rawVideoPath,
+      modelName,
     });
 
     const normalized = await normalizeHookVideo({
@@ -89,6 +99,7 @@ export async function generateAiHookForBatch({
 
     generation = {
       provider: "kling",
+      model: klingResult.model,
       taskId: klingResult.taskId,
       outputPath: normalized.outputPath,
       durationSec: normalized.durationSec,
@@ -102,11 +113,13 @@ export async function generateAiHookForBatch({
     durationSec: generation.durationSec ?? plan.durationSec,
     aspectRatio: "9:16",
     resolution: { w: dimensions.width, h: dimensions.height },
+    provider: generation.provider,
   });
 
   return {
     status: "succeeded",
     provider: generation.provider ?? "kling",
+    model: generation.model ?? null,
     taskId: generation.taskId ?? null,
     plan,
     clipId: registered.clipId,

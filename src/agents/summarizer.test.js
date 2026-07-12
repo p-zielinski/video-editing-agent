@@ -8,6 +8,7 @@ import {
 import { sceneSummaryInput } from "../lib/abstraction-chunking.js";
 import { AbstractL1Schema } from "../schemas/edit-recipe.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
+import { MODELS } from "./openai-client.js";
 
 function makeSilentScene(index) {
   return {
@@ -97,6 +98,15 @@ describe("summarizer agent", () => {
     assert.equal(apiCallCount, 4);
 
     const requests = client.getCapturedRequests();
+    assert.deepEqual(
+      requests.map((request) => request.model),
+      [
+        MODELS.summarizerL1,
+        MODELS.summarizerL1,
+        MODELS.summarizerL2,
+        MODELS.summarizerL3,
+      ],
+    );
     const l1Tasks = requests
       .map((r) => JSON.parse(r.messages[1].content).task)
       .filter((task) => task.startsWith("L1_"));

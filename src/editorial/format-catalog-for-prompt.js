@@ -58,6 +58,10 @@ export function formatCatalogForPrompt(catalog, budget) {
       gated: gated.length ? gated.join(", ") : null,
       forbiddenOn: forbidden,
       syncHints: (t.syncHints ?? []).slice(0, 3),
+      ...(t.narrativeFunctions?.length
+        ? { narrativeFunctions: t.narrativeFunctions.slice(0, 4) }
+        : {}),
+      ...(t.visualIntensity ? { visualIntensity: t.visualIntensity } : {}),
     };
     if (renderSupport === "stub" || renderSupport === "partial") {
       row.renderSupport = renderSupport;

@@ -109,6 +109,18 @@ export const DEFAULT_RENDER_STYLE_PRESETS = {
       textTransform: "none",
       animation: "fade",
     },
+    closure_bracket: {
+      fontFamily: "Arial Black",
+      fontSizePx: 52,
+      fontWeight: 800,
+      color: "#FFFFFF",
+      strokeColor: "#000000",
+      strokeWidthPx: 3,
+      position: "center",
+      safeMarginPct: 0.12,
+      textTransform: "none",
+      animation: "fade",
+    },
   },
   formats: {
     "16:9": { width: 1920, height: 1080 },

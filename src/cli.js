@@ -365,7 +365,7 @@ Opcje:
   --no-twelvelabs          Pomiń krok TwelveLabs (suplement wizji)
   --twelvelabs-stub        TwelveLabs stub (CI/testy; domyślnie live gdy TWELVELABS_API_KEY)
   --ai-video               Włącz generowanie hooków AI (Kling 3.0) dla shortów
-  --ai-video-stub          AI video: lavfi stub zamiast Kling API
+  --ai-video-stub          Włącz AI video jako jawny lavfi stub zamiast Kling API
   --no-ai-video            Wyłącz AI video mimo flag w --context
   --twelvelabs-live        [deprecated] live jest domyślne przy ustawionym TWELVELABS_API_KEY
   --thumbnail-stub         Miniatury: plan deterministyczny bez GPT/renderu

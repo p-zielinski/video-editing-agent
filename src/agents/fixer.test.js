@@ -8,6 +8,7 @@ import {
   FIXABLE_NAR_WARNING_CODES,
 } from "./fixer.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
+import { MODELS } from "./openai-client.js";
 
 const audioIndex = {
   version: "1.0",
@@ -85,8 +86,42 @@ describe("fixer agent", () => {
     });
 
     const payload = JSON.parse(client.getCapturedRequests()[0].messages[1].content);
+    assert.equal(client.getCapturedRequests()[0].model, MODELS.fixer);
     assert.ok(payload.spatialIndex);
     assert.equal(payload.spatialIndex.scenes[0].sceneId, "clip01_scene001");
+  });
+
+  it("escalates the second repair attempt to the flagship fixer model", async () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.4",
+      creativeMoments: [],
+    };
+    const client = createMockOpenAIClient(
+      [loadFixture("fixer-response.json")],
+      { captureRequests: true },
+    );
+
+    await runFixer(client, {
+      recipe,
+      review: {
+        version: "1.0",
+        batchId: "testbatch",
+        iteration: 2,
+        approved: false,
+        issues: [{ severity: "error", code: "TEST", message: "still broken" }],
+        summary: "second repair needed",
+      },
+      abstraction: loadFixture("abstraction.json"),
+      timelineIndex: loadFixture("timeline-index.json"),
+      audioIndex,
+      attempt: 2,
+    });
+
+    assert.equal(
+      client.getCapturedRequests()[0].model,
+      MODELS.fixerEscalation,
+    );
   });
 
   it("includes transcriptExcerpts and audioIndex in repair payload", async () => {

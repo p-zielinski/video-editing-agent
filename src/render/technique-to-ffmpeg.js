@@ -64,6 +64,93 @@ function zoompanCenterCoords(spatialRef, dimensions) {
   return { x: "iw/2-(iw/zoom/2)", y: "ih/2-(ih/zoom/2)" };
 }
 
+function resolveNormalizedAnchor(spatialRef) {
+  if (!spatialRef?.bbox) {
+    return { x: 0.5, y: 0.5 };
+  }
+  const [x, y, w, h] = spatialRef.bbox;
+  return {
+    x: Math.min(1, Math.max(0, x + w / 2)),
+    y: Math.min(1, Math.max(0, y + h / 2)),
+  };
+}
+
+function buildSlowPushFilter({
+  outputStartSec,
+  outputEndSec,
+  params,
+  spatialRef,
+  dimensions,
+  inputLabel,
+  outputLabel,
+}) {
+  const start = outputStartSec;
+  const availableDuration = Math.max(0.1, outputEndSec - outputStartSec);
+  const durationSec = Math.min(
+    availableDuration,
+    Math.max(0.1, params.durationSec ?? availableDuration),
+  );
+  const end = start + durationSec;
+  const factor = Math.min(1.2, Math.max(1.001, params.factor ?? 1.05));
+  const width = dimensions.width ?? 1080;
+  const height = dimensions.height ?? 1920;
+  const anchor = resolveNormalizedAnchor(spatialRef);
+  const progress = `min(max((t-${start})/${durationSec},0),1)`;
+  const zoom = `1+(${factor}-1)*${progress}`;
+  const scale = `scale=w='trunc(iw*if(between(t\\,${start}\\,${end})\\,${zoom}\\,1)/2)*2':h='trunc(ih*if(between(t\\,${start}\\,${end})\\,${zoom}\\,1)/2)*2':eval=frame`;
+  const crop = `crop=${width}:${height}:x='(iw-${width})*${anchor.x.toFixed(4)}':y='(ih-${height})*${anchor.y.toFixed(4)}'`;
+  return `${inputLabel}${scale},${crop}${outputLabel}`;
+}
+
+function buildCinematicFrameFilter({
+  outputStartSec,
+  outputEndSec,
+  params,
+  dimensions,
+  inputLabel,
+  outputLabel,
+}) {
+  const width = dimensions.width ?? 1080;
+  const height = dimensions.height ?? 1920;
+  const scale = Math.min(0.92, Math.max(0.62, params.scale ?? 0.82));
+  const frameWidth = Math.max(2, Math.round(width * scale / 2) * 2);
+  const frameHeight = Math.max(2, Math.round(height * scale / 2) * 2);
+  const radius = Math.round(Math.min(
+    Math.max(params.cornerRadiusPx ?? 36, 0),
+    Math.min(frameWidth, frameHeight) / 4,
+  ));
+  const border = Math.round(Math.min(Math.max(params.borderWidthPx ?? 4, 0), 16));
+  const background = params.background ?? "blur";
+  const suffix = `${Math.round(outputStartSec * 1000)}_${Math.round(outputEndSec * 1000)}`;
+  const base = `[cf_base_${suffix}]`;
+  const bgSource = `[cf_bg_src_${suffix}]`;
+  const fgSource = `[cf_fg_src_${suffix}]`;
+  const bg = `[cf_bg_${suffix}]`;
+  const fg = `[cf_fg_${suffix}]`;
+  const withBg = `[cf_with_bg_${suffix}]`;
+  const enable = `between(t\\,${outputStartSec}\\,${outputEndSec})`;
+
+  let backgroundFilter;
+  if (background === "black") {
+    backgroundFilter = `${bgSource}scale=${width}:${height},eq=brightness=-1:saturation=0${bg}`;
+  } else if (background === "paper") {
+    backgroundFilter = `${bgSource}scale=${width}:${height},boxblur=12:2,eq=brightness=0.04:saturation=0.35${bg}`;
+  } else {
+    backgroundFilter = `${bgSource}scale=${width}:${height},boxblur=24:2,eq=brightness=-0.12:saturation=0.8${bg}`;
+  }
+
+  const roundedAlpha = `if(lte(pow(max(abs(X-W/2)-W/2+${radius}\\,0)\\,2)+pow(max(abs(Y-H/2)-H/2+${radius}\\,0)\\,2)\\,pow(${radius}\\,2))\\,255\\,0)`;
+  const foregroundFilter = `${fgSource}scale=${frameWidth}:${frameHeight},format=rgba,drawbox=x=0:y=0:w=iw:h=ih:color=white@0.9:t=${border},geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='${roundedAlpha}'${fg}`;
+
+  return [
+    `${inputLabel}split=3${base}${bgSource}${fgSource}`,
+    backgroundFilter,
+    foregroundFilter,
+    `${base}${bg}overlay=0:0:enable='${enable}'${withBg}`,
+    `${withBg}${fg}overlay=(W-w)/2:(H-h)/2:enable='${enable}'${outputLabel}`,
+  ].join(";");
+}
+
 function buildScalePunchFilter({ outputStartSec, outputEndSec, factor, spatialRef, dimensions, inputLabel, outputLabel }) {
   const s = outputStartSec;
   const e = outputEndSec;
@@ -218,10 +305,16 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
       return { filter, outputLabel };
     }
     case "zoom_slow_push": {
-      const factor = params.factor ?? 1.05;
-      const { x, y } = zoompanCenterCoords(spatialRef, dimensions);
-      const z = `zoompan=z='if(${enable},min(zoom+0.001,${factor}),1)':d=125:x='${x}':y='${y}':s=${dimensions.width}x${dimensions.height}`;
-      return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
+      const filter = buildSlowPushFilter({
+        outputStartSec,
+        outputEndSec,
+        params,
+        spatialRef,
+        dimensions,
+        inputLabel,
+        outputLabel,
+      });
+      return { filter, outputLabel };
     }
     case "ken_burns_light": {
       const { x, y } = zoompanCenterCoords(spatialRef, dimensions);
@@ -293,6 +386,17 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
       const filter = buildMatchCutFilter({
         outputStartSec,
         params,
+        inputLabel,
+        outputLabel,
+      });
+      return { filter, outputLabel };
+    }
+    case "cinematic_frame": {
+      const filter = buildCinematicFrameFilter({
+        outputStartSec,
+        outputEndSec,
+        params,
+        dimensions,
         inputLabel,
         outputLabel,
       });
@@ -397,8 +501,19 @@ export function listSupportedTechniques() {
     "dip_to_black",
     "whip_pan",
     "match_cut",
+    "cinematic_frame",
     "cut_mid_sentence",
   ];
 }
 
-export { buildPatternInterruptFilter, buildScalePunchFilter, bboxAnchorPx, buildDipToBlackFilter, buildCutMidSentencePulse, buildWhipPanFilter, buildMatchCutFilter };
+export {
+  buildPatternInterruptFilter,
+  buildScalePunchFilter,
+  bboxAnchorPx,
+  buildDipToBlackFilter,
+  buildCutMidSentencePulse,
+  buildWhipPanFilter,
+  buildMatchCutFilter,
+  buildSlowPushFilter,
+  buildCinematicFrameFilter,
+};

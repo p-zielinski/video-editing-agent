@@ -104,7 +104,7 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 
 **Profile analizy:** `--analysis-profile preview|production|ci` ustawia zestaw stubów (jawne flagi `--vision-stub` itd. mają pierwszeństwo). `ci` = preview + wyłączony globalny cache.
 
-**AI video:** `--ai-video` włącza krok `ai_video` (Kling); `--ai-video-stub` lub `AI_VIDEO_STUB=1` — lavfi bez API.
+**AI video:** `--ai-video` włącza krok `ai_video` (Kling VIDEO 3.0); `--ai-video-stub` sam włącza krok w jawnym trybie placeholdera lavfi. `AI_VIDEO_STUB=1` robi to samo po włączeniu AI video. Brak kluczy nie uruchamia stuba automatycznie.
 
 ## Struktura katalogów
 
@@ -148,15 +148,18 @@ node src/cli.js run --input ./inbox/gaming --context '{"expectedTerms":["Elden R
 | Zmienna | Opis |
 |---------|------|
 | `OPENAI_API_KEY` | Wymagany dla transcribe, abstract, direct, review, embeddingi |
-| `OPENAI_MODEL_NANO` / `OPENAI_MODEL_MINI` | Modele GPT (domyślnie gpt-5.4-nano / gpt-5.4-mini) |
-| `OPENAI_MODEL_DIRECTOR` / `OPENAI_MODEL_CRITIC` | Opcjonalne nadpisanie modelu dla directora i krytyka/fixer (fallback: `OPENAI_MODEL_MINI`) |
+| `OPENAI_MODEL_NANO` / `OPENAI_MODEL_MINI` / `OPENAI_MODEL_FLAGSHIP` | Bazowe poziomy modeli GPT (domyślnie gpt-5.4-nano / gpt-5.4-mini / gpt-5.4) |
+| `OPENAI_MODEL_SUMMARIZER_L1/L2/L3` | Routing abstrakcji: domyślnie nano / mini / flagship |
+| `OPENAI_MODEL_DIRECTOR` / `OPENAI_MODEL_SUPER_DIRECTOR` | Globalne decyzje reżyserskie; domyślnie flagship |
+| `OPENAI_MODEL_SEGMENT_DIRECTOR` / `OPENAI_MODEL_DIRECTOR_DRILLDOWN` | Lokalne drafty i dopracowanie; domyślnie mini |
+| `OPENAI_MODEL_CRITIC` / `OPENAI_MODEL_FIXER` / `OPENAI_MODEL_FIXER_ESCALATION` | Review i naprawa: mini, a druga próba Fixera — flagship |
 | `OPENAI_WHISPER_MODEL` | Model Whisper (domyślnie `whisper-1`) |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | Opcjonalne ścieżki do binarek |
 | `TWELVELABS_API_KEY` | Opcjonalny — rozdziały i momenty klipu (stub: `--twelvelabs-stub`) |
 | `TWELVELABS_INDEX_ID` | Opcjonalny — ID indexu TwelveLabs |
-| `KLING_ACCESS_KEY` / `KLING_SECRET_KEY` | Kling API (`kling-v2-6`) — krok `ai_video` (domyślnie wyłączony) |
-| `KLING_VIDEO_MODEL` | Model wideo Kling (domyślnie `kling-v2-6`) |
-| `AI_VIDEO_STUB=1` | Stub AI video bez wywołania Kling |
+| `KLING_ACCESS_KEY` / `KLING_SECRET_KEY` | Kling API — krok `ai_video` (domyślnie wyłączony) |
+| `KLING_VIDEO_MODEL` | Model wideo Kling (domyślnie `kling-v3`, czyli VIDEO 3.0) |
+| `AI_VIDEO_STUB=1` | Jawny placeholder AI video bez wywołania Kling; nie jest automatycznym fallbackiem |
 | `PYTHON_VENV` | Opcjonalny venv dla skryptów Python |
 | `CLIP_CONCURRENCY` | Równoległe klipy w analizie (domyślnie `2`) |
 | `GPU_CONCURRENCY` | Równoległość vision/objects/face (domyślnie `1`) |

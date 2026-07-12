@@ -37,6 +37,10 @@ Gdy recipe.version to "2.1" lub zawiera `creativeMoments[]`:
 | V21-11 | Przesuń `cut_on_beat` na najbliższy beat z `audioIndex.clips[].beatTimestamps` (±`snapToleranceSec`) lub usuń technikę |
 | V21-12 | Dodaj `audioMixPlan.musicBed` (z `audioIndex.musicLibrary`) albo zamień/usuń `music_swell` |
 | V21-13 | Kotwicz `silence_beat` na `silenceGap` / `cutSuggestion` (`reason: "silence_start"`) lub na `deadAirHints` z `source: "both"`; przesuń `outputStartSec` w tolerancji `durationSec` |
+| V21-16 | Dodaj właściwy `narrativeIntent` i popraw `reason`, by wskazywał konkretny moment historii; jeśli efekt jest tylko dekoracją — usuń go |
+| V21-17 | Zostaw maks. 2 mocne stylizacje w oknie 30 s; pozostałe zamień na zwykłe cięcia, J/L-cut lub subtelny slow push |
+| V21-18 | Przesuń koniec `zoom_slow_push` na najbliższy join/reveal albo usuń moment |
+| V21-19 | Przesuń `slide_*` / `wipe_*` dokładnie na `outputStartSec` kolejnego segmentu |
 | V21-STRUCT | Popraw `outputStartSec`/`outputEndSec`, `outputId`, `segmentId` — moment w granicach segmentu |
 
 Zachowaj `creativityProfile` zgodny z briefem. Nie usuwaj `creativeMoments` bez potrzeby — popraw zamiast kasować.
