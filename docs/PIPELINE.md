@@ -69,6 +69,8 @@ Opt-in krok generujący krótki hook (Kling VIDEO 3.0, model `kling-v3`) dla sho
 - Włączenie: `--ai-video` lub `"aiVideoEnabled": true` w `--context`
 - Stub (bez API): `--ai-video-stub` sam włącza krok; `AI_VIDEO_STUB=1` wybiera stub dla kroku włączonego kontekstem lub `--ai-video`. Brak kluczy live kończy krok błędem zamiast cichego użycia placeholdera.
 - Klucze: `KLING_ACCESS_KEY` + `KLING_SECRET_KEY` ([kling.ai/dev/pricing](https://kling.ai/dev/pricing))
+- Po sukcesie live wygenerowany plik przechodzi przez istniejącą analizę TwelveLabs. Wynik i status trafiają do `05e-ai-video.json`; awaria analizy nie usuwa hooka.
+- Director dostaje wygenerowaną scenę, prompt, pochodzenie klatek, stan audio i realną interpretację TwelveLabs. Może dobrać muzykę/przejście albo pominąć słaby hook. `enrichRecipeAiHook` jest tylko idempotentnym fallbackiem.
 - Artefakt: `05e-ai-video.json`; klip rejestrowany w manifeście jako `ai_generated`
 - Enricher `enrichRecipeAiHook` wstawia segment `ai_hook` na początku shorta
 
@@ -186,7 +188,7 @@ flowchart TD
 | 11 | `abstract` | timeline | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | GPT summarizer — hierarchia L1 → L2 → L3 |
 | 12 | `topic_index` | abstraction, timeline, clip registry, twelvelabs | `05b-topic-index.json` | embeddingi OpenAI + keyword — dopasowanie tematów mowy do scen B-roll |
 | 13 | `spatial_index` | timeline, objects | `05c-spatial-index.json`, `04a-faces-<clipId>.json` | face detect (OpenCV) + kotwice przestrzenne |
-| 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json` | Kling API (`kling-v3`) hook (opcjonalnie; jawny stub: lavfi) |
+| 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json`, `03b-twelvelabs-ai_hook_01.json` | Kling API (`kling-v3`) + analiza wygenerowanego hooka (opcjonalnie; jawny stub: lavfi) |
 | 15 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne) |
 | 16 | `review` | draft + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop (GPT + walidatory Zod) |
 | 17 | `thumbnails` | final recipe, indeksy | `11-thumbnail-plan.json`, `12-thumbnail-review.json`, `thumbnails/<outputId>/*.png` | GPT strategist + critic; render PNG (Sharp) |
@@ -200,7 +202,7 @@ flowchart TD
 - **Index przed abstract** — summarizer dostaje gotowy `sceneMap` z transkryptem, wizją i detekcjami.
 - **Abstract przed topic_index i ai_video** — tematy B-roll i hook planner korzystają z L1/L2/L3.
 - **Spatial_index przed direct** — director i `creativeMoments` potrzebują kotwic (twarz, subject, bbox) do zoomów i reframe 9:16.
-- **Ai_video przed direct** — enricher `enrichRecipeAiHook` wstawia segment hooka z `05e-ai-video.json`.
+- **Ai_video przed direct** — Director widzi rzeczywisty hook i analizę TwelveLabs; enricher wstawia go tylko gdy Director go nie użył.
 - **Music curator przed direct** — nano wybiera `trackId` z shortlisty katalogu (`05f-music-selection.json`); reżyser dostaje `musicSelection` + `musicBeatGrid`, nie cały katalog.
 - **Direct przed review** — GPT planuje montaż; deterministyczne walidatory i critic łapią błędy strukturalne.
 - **Thumbnails po review** — plan miniatur z finalnej receptury; publish konsumuje plan + review.

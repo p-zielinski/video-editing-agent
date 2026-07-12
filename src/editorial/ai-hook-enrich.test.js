@@ -45,6 +45,26 @@ describe("enrichRecipeAiHook", () => {
     const recipe = { outputs: [{ outputId: "s", format: "9:16", timeline: [] }] };
     assert.equal(enrichRecipeAiHook(recipe, { status: "failed" }), false);
   });
+
+  it("acts as fallback only when Director has not already used the generated clip", () => {
+    const recipe = {
+      outputs: [{
+        outputId: "vertical_main",
+        format: "9:16",
+        timeline: [{
+          segmentId: "director_hook",
+          segmentRole: "broll",
+          videoRef: {
+            clipId: "ai_hook_01",
+            sceneId: "ai_hook_01_scene001",
+          },
+        }],
+      }],
+    };
+
+    assert.equal(enrichRecipeAiHook(recipe, aiArtifact), false);
+    assert.equal(recipe.outputs[0].timeline.length, 1);
+  });
 });
 
 describe("validateAiVideoSegments", () => {

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  analyzeGeneratedHookWithTwelveLabs,
   canReuseAiVideoArtifact,
   resolveAiVideoExecution,
   runAiVideoStep,
@@ -72,6 +73,26 @@ describe("AI video execution mode", () => {
       { status: "succeeded", stub: false, model: "kling-v2-6" },
       { useStub: false, model: "kling-v3" },
     ), false);
+    assert.equal(canReuseAiVideoArtifact(
+      {
+        status: "succeeded",
+        stub: false,
+        model: "kling-v3",
+        twelveLabsAnalysis: { mode: "stub" },
+      },
+      { useStub: false, model: "kling-v3" },
+      { twelveLabsMode: "live" },
+    ), false);
+    assert.equal(canReuseAiVideoArtifact(
+      {
+        status: "succeeded",
+        stub: false,
+        model: "kling-v3",
+        twelveLabsAnalysis: { mode: "live", status: "unavailable" },
+      },
+      { useStub: false, model: "kling-v3" },
+      { twelveLabsMode: "live" },
+    ), false);
   });
 
   it("returns an explicit configuration failure before reading generation inputs", async () => {
@@ -88,5 +109,68 @@ describe("AI video execution mode", () => {
     assert.equal(result.stub, false);
     assert.equal(result.model, "kling-v3");
     assert.match(result.reason, /KLING_ACCESS_KEY/);
+  });
+
+  it("analyzes a generated Kling hook with the existing TwelveLabs clip path", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-video-tl-"));
+    workDirs.push(workDir);
+    fs.writeFileSync(path.join(workDir, "00-manifest.json"), JSON.stringify({
+      clips: [{
+        clipId: "ai_hook_01",
+        sourcePath: "/generated/ai_hook_01.mp4",
+        contentHash: "hook-hash",
+      }],
+    }));
+    const calls = [];
+
+    const analysis = await analyzeGeneratedHookWithTwelveLabs({
+      workDir,
+      generated: {
+        status: "succeeded",
+        provider: "kling",
+        clipId: "ai_hook_01",
+        videoPath: "/generated/ai_hook_01.mp4",
+      },
+      useStub: false,
+      apiKey: "tl-key",
+      processClip: async (options) => {
+        calls.push(options);
+        return {
+          indexingStatus: "indexed",
+          clipSummary: "Dynamiczne przejście rowerzysty na szczyt.",
+          editorial: { mood: "triumphant" },
+        };
+      },
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].clip.clipId, "ai_hook_01");
+    assert.equal(calls[0].clip.sourcePath, "/generated/ai_hook_01.mp4");
+    assert.equal(calls[0].force, false);
+    assert.equal(analysis.status, "succeeded");
+    assert.equal(analysis.clipSummary, "Dynamiczne przejście rowerzysty na szczyt.");
+  });
+
+  it("marks generated-hook understanding unavailable when TwelveLabs returns stub", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-video-tl-stub-"));
+    workDirs.push(workDir);
+    fs.writeFileSync(path.join(workDir, "00-manifest.json"), JSON.stringify({
+      clips: [{ clipId: "ai_hook_01", sourcePath: "/generated/hook.mp4" }],
+    }));
+
+    const analysis = await analyzeGeneratedHookWithTwelveLabs({
+      workDir,
+      generated: {
+        status: "succeeded",
+        provider: "kling",
+        clipId: "ai_hook_01",
+        videoPath: "/generated/hook.mp4",
+      },
+      useStub: true,
+      processClip: async () => ({ indexingStatus: "stub", moments: [] }),
+    });
+
+    assert.equal(analysis.status, "unavailable");
+    assert.equal(analysis.reason, "twelvelabs_stub");
   });
 });

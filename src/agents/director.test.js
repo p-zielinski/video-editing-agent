@@ -117,6 +117,30 @@ describe("director agent v2", () => {
     assert.equal(scene2.words[0].word, "świat");
   });
 
+  it("uses safety display text in LLM transcript excerpts", () => {
+    const excerpts = buildTranscriptExcerpts({
+      scenes: [{
+        sceneId: "clip01_scene001",
+        clipId: "clip01",
+        startSec: 0,
+        endSec: 2,
+        hasSpeech: true,
+      }],
+      words: [{
+        wordId: "clip01_w001",
+        word: "morderca",
+        displayWord: "m******a",
+        safetyClass: "sensitive",
+        safetyAction: "bleep",
+        start: 0.5,
+        end: 1,
+      }],
+    });
+
+    assert.equal(excerpts[0].words[0].word, "m******a");
+    assert.equal(excerpts[0].words[0].safetyClass, "sensitive");
+  });
+
   it("includes aspectMix, clipAspectById, and sfxCatalogSummary in brief", () => {
     const brief = buildDirectorBrief({
       abstraction,
@@ -135,6 +159,54 @@ describe("director agent v2", () => {
     assert.ok(brief.sfxCatalogSummary[0].title);
     assert.ok(Array.isArray(brief.sfxCatalogSummary[0].tags));
     assert.ok("suggestedVolumeDb" in brief.sfxCatalogSummary[0]);
+  });
+
+  it("includes generated hook provenance and actual TwelveLabs understanding", () => {
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry: [
+        ...clipRegistry,
+        {
+          clipId: "ai_hook_01",
+          fileName: "ai_hook_01.mp4",
+          durationSec: 5,
+          sortIndex: 1,
+          clipRole: "ai_generated",
+        },
+      ],
+      topicIndex,
+      requiredFormats: ["9:16"],
+      aiVideoArtifact: {
+        status: "succeeded",
+        provider: "kling",
+        model: "kling-v3",
+        clipId: "ai_hook_01",
+        sceneId: "ai_hook_01_scene001",
+        durationSec: 5,
+        prompt: "Cinematic bicycle summit reveal",
+        plan: {
+          hookSceneId: "clip01_scene002",
+          firstFrameSec: 9.75,
+          lastFrameSec: 10,
+          generateAudio: false,
+        },
+        twelveLabsAnalysis: {
+          status: "succeeded",
+          mode: "live",
+          clipSummary: "Rowerzysta dynamicznie wjeżdża na szczyt.",
+          editorial: { mood: "triumphant" },
+        },
+      },
+    });
+
+    assert.equal(brief.aiHook.clipId, "ai_hook_01");
+    assert.equal(brief.aiHook.fixedAsset, true);
+    assert.equal(brief.aiHook.generatedAudio, false);
+    assert.equal(
+      brief.aiHook.understanding.clipSummary,
+      "Rowerzysta dynamicznie wjeżdża na szczyt.",
+    );
   });
 
   it("caps transcriptExcerpts at 80 words per scene", () => {

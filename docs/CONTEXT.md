@@ -45,7 +45,8 @@ Pola wprowadzone lub rozszerzone w v2 (pełna lista w tabeli poniżej): `formats
 | `minOutputs` | string[] | — | legacy alias formatów (migracja v1→v2) |
 | `sortBy` | `mtime` \| `creation_time` \| `name` | auto przy multi-clip | ingest |
 | `profanityPolicy` | `bleep` \| `mute` \| `cut` \| `off` | `bleep` | transcribe (tagging), `enrichRecipeProfanity` |
-| `profanitySubtitleMode` | `partial` \| `full` | `partial` | transcribe — cenzura napisów (`config/profanity-pl.json`) |
+| `profanitySubtitleMode` | `partial` \| `full` \| `off` | `partial` | transcribe — cenzura napisów (`config/profanity-pl.json`) |
+| `brandSafety` | object | `social_strict`, enabled | kontekstowa klasyfikacja i sanitizacja publicznych kanałów |
 | `expectedTerms` | string[] | `[]` | Whisper prompt, korekta transkryptu, fingerprint cache słów |
 | `skipDrillDown` | boolean | `false` | `shouldRunDirectorDrillDown` — wyłącza drugi pass directora |
 | `publishVoice` | object | patrz niżej | thumbnails, publish |
@@ -65,6 +66,10 @@ Pola wprowadzone lub rozszerzone w v2 (pełna lista w tabeli poniżej): `formats
 | `titleVoice` | `lowercase_casual` | warianty tytułu |
 | `descriptionVoice` | `lowercase_casual` | opis YouTube |
 | `descriptionRules` | max 2 zdania, lowercase, bez `!` i `?` | formatowanie opisu |
+
+### `brandSafety`
+
+Warstwa jest domyślnie włączona. Pola `audio`, `subtitles`, `overlays`, `titles`, `thumbnails`, `publishText` i `llmPrompts` sterują kanałami niezależnie. `profanityPolicy` pozostaje kompatybilnym override dla audio. Terminy dotyczące chronionych tożsamości są dozwolone w neutralnym, historycznym i edukacyjnym kontekście; cenzura uruchamia się dla ataków oraz ryzykownych terminów przestępstw, przemocy i nadużyć. Zmiana `config/profanity-pl.json` lub `config/safety/content-safety-pl.json` unieważnia cache WordIndex.
 
 ---
 

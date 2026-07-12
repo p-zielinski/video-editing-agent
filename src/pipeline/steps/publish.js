@@ -10,6 +10,8 @@ import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { resolveChapterMarkersForOutput } from "../../editorial/chapter-hints.js";
 import { formatDescriptionForVoice, resolvePublishVoice } from "../../editorial/publish-voice.js";
 import { PublishPackageSchema } from "../../schemas/publish-package.js";
+import { resolveBrandSafety } from "../../editorial/brand-safety-enrich.js";
+import { sanitizeTextForSafety } from "../../lib/profanity-censor.js";
 
 const MAX_TAGS = 15;
 const SHORTS_CAPTION_STUB = "";
@@ -184,6 +186,12 @@ export function buildPublishPackageForOutput({
   const description = assemblePublishDescription(synopsis, chapterTimestamps);
   const thumbnailOutputPlan = resolveThumbnailPlanOutput(thumbnailPlan, output.outputId);
   const renderOutput = resolveRenderOutput(renderManifest, output.outputId);
+  const safety = resolveBrandSafety(recipe.batchContext ?? {});
+  const safetyEnabled = safety.enabled !== false && safety.preset !== "off";
+  const sanitize = (text, mode) => sanitizeTextForSafety(text, {
+    mode,
+    brandSafetyEnabled: safetyEnabled,
+  });
 
   return PublishPackageSchema.parse({
     version: "1.0",
@@ -191,18 +199,23 @@ export function buildPublishPackageForOutput({
     outputId: output.outputId,
     format: output.format,
     outputKind: output.outputKind,
-    title: output.title,
-    titleVariants: resolveTitleVariants(thumbnailOutputPlan),
-    description,
-    tags: resolvePublishTags({ topicIndex, workDir }),
-    chapterTimestamps,
+    title: sanitize(output.title, safety.titles),
+    titleVariants: resolveTitleVariants(thumbnailOutputPlan)
+      .map((title) => sanitize(title, safety.titles)),
+    description: sanitize(description, safety.publishText),
+    tags: resolvePublishTags({ topicIndex, workDir })
+      .map((tag) => sanitize(tag, safety.publishText)),
+    chapterTimestamps: chapterTimestamps
+      .map((chapter) => sanitize(chapter, safety.publishText)),
     thumbnailPath: resolveThumbnailPath({
       workDir,
       thumbnailOutputPlan,
       outputId: output.outputId,
     }),
     videoPath: renderOutput?.outputPath ?? null,
-    shortsCaption: output.outputKind === "short" ? SHORTS_CAPTION_STUB : null,
+    shortsCaption: output.outputKind === "short"
+      ? sanitize(SHORTS_CAPTION_STUB, safety.publishText)
+      : null,
   });
 }
 

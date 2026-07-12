@@ -9,9 +9,11 @@ function findShortOutput(recipe) {
   ) ?? null;
 }
 
-function hasAiHookSegment(timeline = []) {
+function hasAiHookSegment(timeline = [], aiVideoArtifact = null) {
   return timeline.some(
-    (segment) => segment.segmentRole === "ai_hook" || segment.segmentId === AI_HOOK_SEGMENT_ID,
+    (segment) => segment.segmentRole === "ai_hook"
+      || segment.segmentId === AI_HOOK_SEGMENT_ID
+      || (aiVideoArtifact?.clipId && segment.videoRef?.clipId === aiVideoArtifact.clipId),
   );
 }
 
@@ -35,7 +37,7 @@ export function enrichRecipeAiHook(recipe, aiVideoArtifact) {
     return false;
   }
 
-  if (hasAiHookSegment(shortOutput.timeline)) {
+  if (hasAiHookSegment(shortOutput.timeline, aiVideoArtifact)) {
     return false;
   }
 

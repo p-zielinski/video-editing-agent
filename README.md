@@ -27,7 +27,7 @@ inbox/*.MOV  →  [analiza + reżyseria]  →  output/.work/<batchId>/
 | Warstwa | Technologia | Rola |
 |---------|-------------|------|
 | Ingest / keyframes | Node + FFmpeg | manifest, sceny, klatki kluczowe |
-| Transkrypcja | OpenAI Whisper | słowa, timery, fillery, profanity, korekta `expectedTerms` |
+| Transkrypcja | OpenAI Whisper + safety classifier | słowa, timery, fillery, kontekstowa brand-safety PL, korekta `expectedTerms` |
 | Meta-komendy | reguły PL | boomerang, overlay daty, reverse z transkryptu |
 | Analiza audio | Python (librosa) | beaty, energia, LUFS, cisza |
 | Wizja | Python (Qwen2.5-VL) | opisy scen, jakość wizualna |
@@ -104,7 +104,7 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 
 **Profile analizy:** `--analysis-profile preview|production|ci` ustawia zestaw stubów (jawne flagi `--vision-stub` itd. mają pierwszeństwo). `ci` = preview + wyłączony globalny cache.
 
-**AI video:** `--ai-video` włącza krok `ai_video` (Kling VIDEO 3.0); `--ai-video-stub` sam włącza krok w jawnym trybie placeholdera lavfi. `AI_VIDEO_STUB=1` robi to samo po włączeniu AI video. Brak kluczy nie uruchamia stuba automatycznie.
+**AI video:** `--ai-video` włącza krok `ai_video` (Kling VIDEO 3.0); po wygenerowaniu live klip jest analizowany przez TwelveLabs i trafia do briefu Directora jako rzeczywisty asset. Błąd analizy nie usuwa hooka, ale oznacza go jako niezweryfikowany. `--ai-video-stub` sam włącza krok w jawnym trybie placeholdera lavfi. Brak kluczy nie uruchamia stuba automatycznie.
 
 ## Struktura katalogów
 
@@ -115,6 +115,7 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 | `fixtures/batches/` | Gotowe work-diry do testów (`mini-day`, `shorts-hook`, `voiceover-day`) |
 | `fixtures/whisper-audit/` | Case'y benchmarku Whisper |
 | `config/profanity-pl.json` | Lista słów dla tagowania wulgaryzmów (PL) |
+| `config/safety/content-safety-pl.json` | Kontekstowa taksonomia PL: przemoc, przestępstwa, nadużycia, ataki i neutralne tożsamości chronione |
 | `techniques/` | Katalog zabiegów montażowych |
 | `prompts/v2/` | **Kanoniczne** prompty agentów (director, super-director, critic, fixer, summarizer) |
 | `prompts/v1/` | Legacy — nie używane przez bieżący pipeline |
@@ -135,7 +136,8 @@ node src/cli.js run --input ./inbox/gaming --context '{"expectedTerms":["Elden R
 
 | Pole | Skrót |
 |------|-------|
-| `profanityPolicy` | `bleep` (domyślnie), `mute`, `cut`, `off` — tagowanie w transcribe + enricher w recepturze |
+| `profanityPolicy` | kompatybilny override audio: `bleep` (domyślnie), `mute`, `cut`, `off` |
+| `brandSafety` | domyślnie włączona polityka dla audio, napisów, overlayów, tytułów, miniatur, publish text i excerptów LLM; neutralne określenia grup nie są cenzurowane bez szkodliwego kontekstu |
 | `expectedTerms` | nazwy własne dla Whisper prompt i korekty tokenów po transkrypcji |
 | `aiVideoEnabled` | `true` + `--ai-video` — hook Kling dla shortów |
 | `skipDrillDown` | `true` — pomija drugi pass directora (drill-down) |
@@ -153,6 +155,7 @@ node src/cli.js run --input ./inbox/gaming --context '{"expectedTerms":["Elden R
 | `OPENAI_MODEL_DIRECTOR` / `OPENAI_MODEL_SUPER_DIRECTOR` | Globalne decyzje reżyserskie; domyślnie flagship |
 | `OPENAI_MODEL_SEGMENT_DIRECTOR` / `OPENAI_MODEL_DIRECTOR_DRILLDOWN` | Lokalne drafty i dopracowanie; domyślnie mini |
 | `OPENAI_MODEL_CRITIC` / `OPENAI_MODEL_FIXER` / `OPENAI_MODEL_FIXER_ESCALATION` | Review i naprawa: mini, a druga próba Fixera — flagship |
+| `OPENAI_MODEL_SAFETY_CLASSIFIER` | Klasyfikacja tylko niejednoznacznych kontekstów brand-safety (domyślnie mini) |
 | `OPENAI_WHISPER_MODEL` | Model Whisper (domyślnie `whisper-1`) |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | Opcjonalne ścieżki do binarek |
 | `TWELVELABS_API_KEY` | Opcjonalny — rozdziały i momenty klipu (stub: `--twelvelabs-stub`) |

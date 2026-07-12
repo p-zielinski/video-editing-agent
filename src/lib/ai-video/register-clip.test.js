@@ -27,8 +27,11 @@ describe("registerGeneratedHookClip", () => {
       clipRegistry: [],
     });
 
+    const sourcePath = path.join(workDir, "stub.mp4");
+    fs.writeFileSync(sourcePath, "generated-video-bytes");
+
     registerGeneratedHookClip(workDir, {
-      sourcePath: path.join(workDir, "stub.mp4"),
+      sourcePath,
       fileName: "stub.mp4",
       durationSec: 5,
       provider: "stub",
@@ -36,5 +39,7 @@ describe("registerGeneratedHookClip", () => {
 
     const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
     assert.equal(catalog.clips[0].provider, "stub");
+    const manifest = readJson(path.join(workDir, ARTIFACTS.manifest));
+    assert.match(manifest.clips[0].contentHash, /^[a-f0-9]{64}$/);
   });
 });

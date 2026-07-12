@@ -10,10 +10,19 @@ export const WordEntrySchema = z.object({
   normalizedWord: z.string().optional(),
   isProfanity: z.boolean().optional(),
   displayWord: z.string().optional(),
+  safetyClass: z.enum([
+    "profanity",
+    "sensitive",
+    "protected_identity",
+    "hateful_attack",
+  ]).optional(),
+  safetyAction: z.enum(["allow", "review", "bleep", "mute", "cut", "mask"]).optional(),
+  safetyReason: z.string().optional(),
+  safetyConfidence: z.number().min(0).max(1).optional(),
 });
 
 export const WordIndexSchema = z.object({
-  version: z.literal("1.0"),
+  version: z.enum(["1.0", "1.1"]),
   clipId: z.string(),
   words: z.array(WordEntrySchema),
   durationSec: z.number().positive(),
@@ -30,5 +39,9 @@ export function assignWordIds(words, clipId) {
     ...(entry.normalizedWord !== undefined && { normalizedWord: entry.normalizedWord }),
     ...(entry.isProfanity !== undefined && { isProfanity: entry.isProfanity }),
     ...(entry.displayWord !== undefined && { displayWord: entry.displayWord }),
+    ...(entry.safetyClass !== undefined && { safetyClass: entry.safetyClass }),
+    ...(entry.safetyAction !== undefined && { safetyAction: entry.safetyAction }),
+    ...(entry.safetyReason !== undefined && { safetyReason: entry.safetyReason }),
+    ...(entry.safetyConfidence !== undefined && { safetyConfidence: entry.safetyConfidence }),
   }));
 }

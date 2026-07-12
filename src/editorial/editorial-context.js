@@ -45,10 +45,12 @@ export function buildTranscriptExcerpts(
         .slice(0, maxWordsPerScene)
         .map((w) => ({
           wordId: w.wordId,
-          word: w.word,
+          word: w.displayWord ?? w.word,
           start: w.start,
           end: w.end,
           isFiller: w.isFiller,
+          ...(w.safetyClass ? { safetyClass: w.safetyClass } : {}),
+          ...(w.safetyAction ? { safetyAction: w.safetyAction } : {}),
         }));
 
       return {

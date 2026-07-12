@@ -104,6 +104,7 @@ export function resolveAgentModels(env = {}) {
     critic: env.OPENAI_MODEL_CRITIC ?? mini,
     fixer: env.OPENAI_MODEL_FIXER ?? mini,
     fixerEscalation: env.OPENAI_MODEL_FIXER_ESCALATION ?? flagship,
+    safetyClassifier: env.OPENAI_MODEL_SAFETY_CLASSIFIER ?? mini,
     thumbnailStrategist: env.OPENAI_MODEL_THUMBNAIL_STRATEGIST ?? mini,
     thumbnailCritic: env.OPENAI_MODEL_THUMBNAIL_CRITIC ?? mini,
   };

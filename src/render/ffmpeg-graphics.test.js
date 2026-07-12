@@ -32,6 +32,26 @@ describe("ffmpeg-graphics", () => {
     assert.ok(filter.includes("fontsize=72"));
   });
 
+  it("sanitizes unsafe overlay text as a render-time safeguard", () => {
+    const [filter] = buildDrawtextFilters(
+      [{
+        text: "Morderca i kurwa",
+        style: "hook_large",
+        outputStartSec: 0,
+        outputEndSec: 2.5,
+      }],
+      {
+        dimensions: { width: 1080, height: 1920 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    );
+
+    assert.equal(filter.includes("MORDERCA"), false);
+    assert.equal(filter.includes("KURWA"), false);
+    assert.ok(filter.includes("M******A"));
+    assert.ok(filter.includes("K***A"));
+  });
+
   it("uses chapter_card documentary preset instead of hook_large fallback", () => {
     const filters = buildDrawtextFilters(
       [{

@@ -124,4 +124,53 @@ describe("enrichRecipeProfanity", () => {
       wordId: "clip01_w002",
     });
   });
+
+  it("applies resolved safety actions even when the word is not profanity", () => {
+    const recipe = baseRecipe();
+    const indexes = [{
+      clipId: "clip01",
+      words: [{
+        wordId: "clip01_w100",
+        word: "pedofil",
+        start: 3,
+        end: 3.5,
+        isProfanity: false,
+        safetyClass: "sensitive",
+        safetyAction: "bleep",
+      }],
+    }];
+
+    const applied = enrichRecipeProfanity(recipe, indexes, {});
+
+    assert.equal(applied, 1);
+    assert.equal(recipe.outputs[0].timeline[0].audioCensorship[0].wordId, "clip01_w100");
+  });
+
+  it("catches and clamps a flagged word overlapping the segment boundary", () => {
+    const recipe = baseRecipe();
+    const segment = recipe.outputs[0].timeline[0];
+    segment.audioInSec = 1;
+    segment.audioOutSec = 2;
+    segment.outputStartSec = 0;
+    const indexes = [{
+      clipId: "clip01",
+      words: [{
+        wordId: "clip01_w101",
+        word: "kurwa",
+        start: 0.8,
+        end: 1.1,
+        isProfanity: true,
+        safetyAction: "bleep",
+      }],
+    }];
+
+    enrichRecipeProfanity(recipe, indexes, {});
+
+    assert.deepEqual(segment.audioCensorship[0], {
+      startSec: 0,
+      endSec: 0.1,
+      mode: "bleep",
+      wordId: "clip01_w101",
+    });
+  });
 });

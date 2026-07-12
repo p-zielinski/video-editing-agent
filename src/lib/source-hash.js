@@ -4,6 +4,32 @@ import { createHash } from "node:crypto";
 /** Files larger than this hash only the first 64MB plus file size (see computeSourceContentHash). */
 const PARTIAL_HASH_BYTES = 64 * 1024 * 1024;
 
+function updateHashFromFileSync(hash, sourcePath, stat) {
+  if (stat.size > PARTIAL_HASH_BYTES) {
+    const fd = fs.openSync(sourcePath, "r");
+    try {
+      const buffer = Buffer.alloc(PARTIAL_HASH_BYTES);
+      const bytesRead = fs.readSync(fd, buffer, 0, PARTIAL_HASH_BYTES, 0);
+      hash.update(buffer.subarray(0, bytesRead));
+      hash.update(String(stat.size));
+    } finally {
+      fs.closeSync(fd);
+    }
+    return;
+  }
+  hash.update(fs.readFileSync(sourcePath));
+}
+
+export function computeSourceContentHashSync(sourcePath) {
+  if (!sourcePath || !fs.existsSync(sourcePath)) {
+    return null;
+  }
+  const stat = fs.statSync(sourcePath);
+  const hash = createHash("sha256");
+  updateHashFromFileSync(hash, sourcePath, stat);
+  return hash.digest("hex");
+}
+
 /**
  * SHA-256 content fingerprint for cache invalidation.
  * Streams the full file for inputs up to 64MB; for larger files hashes the first 64MB

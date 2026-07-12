@@ -10,12 +10,35 @@ import {
   formatTitleForVoice,
   summarizePublishVoiceForPrompt,
 } from "../editorial/publish-voice.js";
+import { resolveBrandSafety } from "../editorial/brand-safety-enrich.js";
+import { sanitizeTextForSafety } from "../lib/profanity-censor.js";
 
 const STRATEGY_STYLES = {
   safe: "frame_only",
   controlled: "frame_plus_text",
   risk: "frame_text_accent",
 };
+
+function sanitizeThumbnailPlan(plan, recipe) {
+  const policy = resolveBrandSafety(recipe.batchContext ?? {});
+  if (policy.enabled === false || policy.preset === "off") {
+    return plan;
+  }
+  for (const output of plan.outputs ?? []) {
+    for (const variant of output.variants ?? []) {
+      variant.headline = sanitizeTextForSafety(variant.headline, {
+        mode: policy.thumbnails,
+      });
+      variant.titleVariant = sanitizeTextForSafety(variant.titleVariant, {
+        mode: policy.titles,
+      });
+      variant.descriptionVariant = sanitizeTextForSafety(variant.descriptionVariant, {
+        mode: policy.publishText,
+      });
+    }
+  }
+  return plan;
+}
 
 function truncateHeadline(text, maxWords = 5) {
   return text
@@ -75,14 +98,14 @@ function normalizeStrategistPlan(raw, recipe, frameShortlist, publishVoice = DEF
     };
   });
 
-  return applyPublishVoiceToPlan(
+  return sanitizeThumbnailPlan(applyPublishVoiceToPlan(
     ThumbnailPlanSchema.parse({
       version: "1.0",
       batchId: recipe.batchId,
       outputs,
     }),
     publishVoice,
-  );
+  ), recipe);
 }
 
 function pickFrame(shortlist, index) {
@@ -146,14 +169,14 @@ export function buildStubThumbnailPlan({
     };
   });
 
-  return applyPublishVoiceToPlan(
+  return sanitizeThumbnailPlan(applyPublishVoiceToPlan(
     ThumbnailPlanSchema.parse({
       version: "1.0",
       batchId: recipe.batchId,
       outputs,
     }),
     publishVoice,
-  );
+  ), recipe);
 }
 
 export async function runThumbnailStrategist(client, {

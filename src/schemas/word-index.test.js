@@ -19,6 +19,10 @@ describe("word-index", () => {
         normalizedWord: "kurwa",
         isProfanity: true,
         displayWord: "k***a",
+        safetyClass: "profanity",
+        safetyAction: "bleep",
+        safetyReason: "profanity_match",
+        safetyConfidence: 1,
       },
     ];
 
@@ -28,6 +32,8 @@ describe("word-index", () => {
     assert.equal(withIds[1].normalizedWord, "kurwa");
     assert.equal(withIds[1].isProfanity, true);
     assert.equal(withIds[1].displayWord, "k***a");
+    assert.equal(withIds[1].safetyClass, "profanity");
+    assert.equal(withIds[1].safetyAction, "bleep");
     assert.doesNotThrow(() => WordIndexSchema.parse({
       version: "1.0",
       clipId: "clip1",

@@ -1021,6 +1021,32 @@ export function buildTwelveLabsBriefFields(workDir, clipRegistry = []) {
   return summary ? { twelveLabsMoments: summary } : {};
 }
 
+export function buildAiHookBrief(aiVideoArtifact) {
+  if (aiVideoArtifact?.status !== "succeeded") {
+    return undefined;
+  }
+  const plan = aiVideoArtifact.plan ?? {};
+  return {
+    fixedAsset: true,
+    clipId: aiVideoArtifact.clipId,
+    sceneId: aiVideoArtifact.sceneId,
+    durationSec: aiVideoArtifact.durationSec,
+    provider: aiVideoArtifact.provider,
+    model: aiVideoArtifact.model,
+    prompt: aiVideoArtifact.prompt,
+    generatedAudio: plan.generateAudio === true,
+    sourceHookSceneId: plan.hookSceneId ?? null,
+    sourceFrames: {
+      firstFrameSec: plan.firstFrameSec ?? null,
+      lastFrameSec: plan.lastFrameSec ?? null,
+    },
+    understanding: aiVideoArtifact.twelveLabsAnalysis ?? {
+      status: "unavailable",
+      reason: "missing_analysis",
+    },
+  };
+}
+
 export function buildDirectorBrief({
   abstraction,
   timelineIndex,
@@ -1044,6 +1070,7 @@ export function buildDirectorBrief({
   outputs = null,
   narrativeProfile = null,
   workDir = null,
+  aiVideoArtifact = null,
 }) {
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
   const sortedClipRegistry = [...clipRegistry].sort(
@@ -1282,6 +1309,10 @@ export function buildDirectorBrief({
   }));
 
   Object.assign(brief, buildTwelveLabsBriefFields(workDir, sortedClipRegistry));
+  const aiHook = buildAiHookBrief(aiVideoArtifact);
+  if (aiHook) {
+    brief.aiHook = aiHook;
+  }
 
   if (!recipe && (topicIndex?.topics?.length ?? 0) > 0 && brollStrategy !== "minimal") {
     const skeletonOutputs = outputs ?? requiredFormats.map((format) => ({
@@ -1534,6 +1565,7 @@ export async function runDirector(client, {
   requiredFormats = ["16:9", "9:16"],
   batchContext = {},
   workDir = null,
+  aiVideoArtifact = null,
   onUsage,
 }) {
   const system = loadPrompt("director", { version: "v2" });
@@ -1554,6 +1586,7 @@ export async function runDirector(client, {
     batchContext,
     includeL1: false,
     workDir,
+    aiVideoArtifact,
   });
 
   const user = JSON.stringify({
@@ -1747,6 +1780,7 @@ export async function directorDrillDown(client, {
   sceneIds,
   targetDurationSec,
   keyframesByClip = null,
+  aiVideoArtifact = null,
   onUsage,
 }) {
   const system = loadPrompt("director", { version: "v2" });
@@ -1855,6 +1889,9 @@ export async function directorDrillDown(client, {
     audioIndex: editorialContext.audioIndex,
     clipRegistry: sortedClipRegistry,
     sessionSummary: abstraction.L3,
+    ...(buildAiHookBrief(aiVideoArtifact)
+      ? { aiHook: buildAiHookBrief(aiVideoArtifact) }
+      : {}),
     userContext: userContext || timelineIndex.userContext || "",
     requiredFormats,
     inputMode,

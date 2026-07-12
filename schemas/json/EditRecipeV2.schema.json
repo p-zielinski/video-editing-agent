@@ -193,6 +193,88 @@
               ],
               "default": "partial"
             },
+            "brandSafety": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "preset": {
+                  "type": "string",
+                  "enum": [
+                    "social_strict",
+                    "off"
+                  ],
+                  "default": "social_strict"
+                },
+                "audio": {
+                  "type": "string",
+                  "enum": [
+                    "bleep",
+                    "mute",
+                    "cut",
+                    "off"
+                  ],
+                  "default": "bleep"
+                },
+                "subtitles": {
+                  "type": "string",
+                  "enum": [
+                    "partial",
+                    "full",
+                    "off"
+                  ],
+                  "default": "partial"
+                },
+                "overlays": {
+                  "type": "string",
+                  "enum": [
+                    "partial",
+                    "full",
+                    "off"
+                  ],
+                  "default": "partial"
+                },
+                "titles": {
+                  "type": "string",
+                  "enum": [
+                    "partial",
+                    "full",
+                    "off"
+                  ],
+                  "default": "partial"
+                },
+                "thumbnails": {
+                  "type": "string",
+                  "enum": [
+                    "partial",
+                    "full",
+                    "off"
+                  ],
+                  "default": "partial"
+                },
+                "publishText": {
+                  "type": "string",
+                  "enum": [
+                    "partial",
+                    "full",
+                    "off"
+                  ],
+                  "default": "partial"
+                },
+                "llmPrompts": {
+                  "type": "string",
+                  "enum": [
+                    "masked",
+                    "raw"
+                  ],
+                  "default": "masked"
+                }
+              },
+              "additionalProperties": false,
+              "default": {}
+            },
             "aiVideoEnabled": {
               "type": "boolean",
               "default": false

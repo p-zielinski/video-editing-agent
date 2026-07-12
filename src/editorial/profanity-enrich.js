@@ -12,7 +12,7 @@ function resolveProfanityPolicy(batchContext = {}) {
 
 function wordsInSegmentRange(wordIndex, audioIn, audioOut) {
   return (wordIndex?.words ?? [])
-    .filter((word) => word.start >= audioIn && word.end <= audioOut)
+    .filter((word) => word.end > audioIn && word.start < audioOut)
     .sort((a, b) => a.start - b.start);
 }
 
@@ -20,6 +20,17 @@ function sourceToOutputSec(sourceSec, segment) {
   const audioIn = segment.audioInSec ?? segment.videoInSec ?? 0;
   const outputStart = segment.outputStartSec ?? 0;
   return outputStart + (sourceSec - audioIn);
+}
+
+function roundSec(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
+function resolveWordSafetyAction(word, profanityPolicy) {
+  if (word.safetyAction && word.safetyAction !== "review") {
+    return word.safetyClass === "profanity" ? profanityPolicy : word.safetyAction;
+  }
+  return word.isProfanity ? profanityPolicy : "allow";
 }
 
 function hasProfanityCut(segment, startWordId, endWordId) {
@@ -71,10 +82,14 @@ export function enrichRecipeProfanity(recipe, wordIndexes = null, batchContext =
 
       const { audioIn, audioOut } = resolveSegmentRange(segment);
       const profaneWords = wordsInSegmentRange(wordIndex, audioIn, audioOut)
-        .filter((word) => word.isProfanity);
+        .filter((word) =>
+          ["bleep", "mute", "cut", "mask"].includes(
+            resolveWordSafetyAction(word, policy),
+          ));
 
       for (const word of profaneWords) {
-        if (policy === "cut") {
+        const action = resolveWordSafetyAction(word, policy);
+        if (action === "cut") {
           if (hasProfanityCut(segment, word.wordId, word.wordId)) {
             continue;
           }
@@ -87,13 +102,13 @@ export function enrichRecipeProfanity(recipe, wordIndexes = null, batchContext =
           continue;
         }
 
-        const mode = policy === "mute" ? "mute" : "bleep";
+        const mode = action === "mute" ? "mute" : "bleep";
         if (hasProfanityCensorship(segment, word.wordId, mode)) {
           continue;
         }
 
-        const startSec = sourceToOutputSec(word.start, segment);
-        const endSec = sourceToOutputSec(word.end, segment);
+        const startSec = roundSec(sourceToOutputSec(Math.max(word.start, audioIn), segment));
+        const endSec = roundSec(sourceToOutputSec(Math.min(word.end, audioOut), segment));
         if (endSec <= startSec) {
           continue;
         }

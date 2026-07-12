@@ -105,6 +105,17 @@ function resolveBatchContext(userContext, clipCount, requiredFormats, { contextE
     aiVideoMaxDurationSec: parsed.aiVideoMaxDurationSec ?? 5,
     aiVideoGenerateAudio: parsed.aiVideoGenerateAudio ?? false,
     aiVideoTargetOutputs: parsed.aiVideoTargetOutputs ?? ["9:16"],
+    brandSafety: parsed.brandSafety ?? {
+      enabled: true,
+      preset: "social_strict",
+      audio: parsed.profanityPolicy ?? "bleep",
+      subtitles: parsed.profanitySubtitleMode ?? "partial",
+      overlays: "partial",
+      titles: "partial",
+      thumbnails: "partial",
+      publishText: "partial",
+      llmPrompts: "masked",
+    },
     colorGradePolicy: parsed.colorGradePolicy ?? "off",
   };
 }
@@ -451,6 +462,10 @@ export async function runPipeline(options) {
         batchContext: context.batchContext,
         force,
         useStub: resolvedAiVideoStub,
+        analyzeWithTwelveLabs: twelvelabsEnabled,
+        twelveLabsStub: resolvedTwelvelabsStub,
+        twelveLabsApiKey: process.env.TWELVELABS_API_KEY,
+        globalCacheDisabled,
       });
       const statusLabel = aiVideoResult.status ?? "unknown";
       log.stepDone(statusLabel);

@@ -26,6 +26,7 @@ import { validateMultiClipChronology } from "./chronology.js";
 import { validateBrollStrategy } from "./broll-strategy.js";
 import { validateNarrative } from "./narrative.js";
 import { validateAiVideoSegments } from "../editorial/ai-hook-enrich.js";
+import { validateBrandSafetyText } from "./brand-safety.js";
 import { resolveSfxById, resolveSfxByTag } from "../editorial/sfx-library.js";
 import { validateSfxNarrativeOnly } from "../editorial/sfx-plan.js";
 import {
@@ -1065,6 +1066,7 @@ export function validateRecipeV2(recipe, {
       wordIndexes,
     }),
     ...validateAiVideoSegments(parsed, parsed.batchContext ?? {}),
+    ...validateBrandSafetyText(parsed),
   ];
 
   for (const output of parsed.outputs) {

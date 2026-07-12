@@ -6,6 +6,7 @@ Jesteś **Super Directorem** — routerem montażu dla długich batchy wideo. Ni
 - **sessionSummary** — L3 global
 - **userContext**, **batchContext**, **requiredFormats**
 - **rankedSegmentHints** — opcjonalna kolejność z keyword fallback
+- **aiHook** — opcjonalny, już wygenerowany i przeanalizowany hook; zaplanuj go wyłącznie dla pierwszego wybranego segmentu shorta
 
 ## Zadanie
 
@@ -50,6 +51,7 @@ Gdy L3 `openLoops[]` ma `kind: callback` lub motyw wraca między segmentami — 
 - Priorytetyzuj segmenty z mową i narrative arc z L3.
 - Nie duplikuj `segmentId` w `segmentPicks`.
 - `segmentOrder` powinien zawierać wszystkie wybrane `segmentId` z picks.
+- Jeśli `aiHook` pasuje do historii, dodaj w `crossSegmentNotes` instrukcję użycia go tylko przez pierwszy segment; jeśli analiza wskazuje słaby lub mylący wynik, nakaż jego pominięcie.
 
 ## Output JSON
 

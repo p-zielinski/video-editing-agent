@@ -6,6 +6,7 @@ import {
 } from "../lib/segment-catalog.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 import { measureBriefPayload } from "../lib/brief-metrics.js";
+import { buildAiHookBrief } from "./director.js";
 
 const SUPER_DIRECTOR_OUTPUT_SCHEMA = {
   segmentOrder: ["seg001"],
@@ -57,6 +58,7 @@ export async function runSuperDirector(client, {
   userContext = "",
   batchContext = {},
   requiredFormats = ["16:9", "9:16"],
+  aiVideoArtifact = null,
   onUsage,
 }) {
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
@@ -75,6 +77,9 @@ export async function runSuperDirector(client, {
     requiredFormats,
     rankedSegmentHints: rankedSegmentHints.map((card) => card.segmentId),
     maxSegmentPicks: SUPER_DIRECTOR_MAX_SEGMENT_PICKS,
+    ...(buildAiHookBrief(aiVideoArtifact)
+      ? { aiHook: buildAiHookBrief(aiVideoArtifact) }
+      : {}),
     outputSchema: SUPER_DIRECTOR_OUTPUT_SCHEMA,
   });
 

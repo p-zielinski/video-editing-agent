@@ -647,11 +647,8 @@ function validateOutputBudgetLimits(moments, outputBudget, catalog, outputLabel)
     return issues;
   }
 
-  const isMain = outputBudget.outputKind === "main";
-  const beatMoments = isMain ? moments.filter(isRetentionBeatMoment) : [];
-  const nonBeatMoments = isMain
-    ? moments.filter((moment) => !isRetentionBeatMoment(moment))
-    : moments;
+  const beatMoments = moments.filter(isRetentionBeatMoment);
+  const nonBeatMoments = moments.filter((moment) => !isRetentionBeatMoment(moment));
 
   const zoomMoments = moments.filter((moment) => countsTowardZoomBudget(moment.techniqueId, catalog));
   if (zoomMoments.length > outputBudget.maxZoomMoments) {
@@ -694,7 +691,7 @@ function validateOutputBudgetLimits(moments, outputBudget, catalog, outputLabel)
     });
   }
 
-  if (isMain && outputBudget.maxRetentionBeatMoments != null) {
+  if (outputBudget.maxRetentionBeatMoments != null) {
     if (beatMoments.length > outputBudget.maxRetentionBeatMoments) {
       issues.push({
         severity: "error",

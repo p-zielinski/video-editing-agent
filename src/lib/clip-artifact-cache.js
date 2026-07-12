@@ -6,7 +6,7 @@ import { computeSourceContentHash } from "./source-hash.js";
 
 /** Expected artifact schema versions per clip artifact type. */
 export const EXPECTED_ARTIFACT_VERSIONS = {
-  words: "1.0",
+  words: "1.1",
   metaCommands: "1.0",
   audioAnalysis: "1.0",
   keyframes: "1.0",

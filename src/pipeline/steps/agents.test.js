@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runReviewStep, ensureSpatialIndex, shouldUseSuperDirector, runSuperDirectorDirectPath, SEGMENT_DIRECTOR_CONCURRENCY } from "./agents.js";
+import {
+  ensureSpatialIndex,
+  mergeGeneratedAiSceneIntoTimeline,
+  runReviewStep,
+  runSuperDirectorDirectPath,
+  SEGMENT_DIRECTOR_CONCURRENCY,
+  shouldUseSuperDirector,
+} from "./agents.js";
 import { buildSceneUsageRegistry } from "../../validators/scene-registry.js";
 import { writeJson, ARTIFACTS } from "../work-paths.js";
 import { loadFixture } from "../../agents/test-helpers.js";
@@ -12,6 +19,39 @@ import {
   buildMiniDaySuperDirectorPlan,
   buildMiniDaySegmentPartial,
 } from "../../test-helpers/mock-openai-client.js";
+
+describe("generated AI scene context", () => {
+  it("appends the registered generated scene without mutating the saved timeline", () => {
+    const timeline = {
+      batchId: "b1",
+      clips: [{ clipId: "clip01" }],
+      scenes: [{ sceneId: "clip01_scene001", clipId: "clip01" }],
+      words: [],
+      stats: { totalScenes: 1 },
+    };
+    const catalog = {
+      clips: [{ clipId: "ai_hook_01", durationSec: 5 }],
+      scenes: [{
+        sceneId: "ai_hook_01_scene001",
+        clipId: "ai_hook_01",
+        startSec: 0,
+        endSec: 5,
+        durationSec: 5,
+      }],
+    };
+
+    const merged = mergeGeneratedAiSceneIntoTimeline(timeline, catalog, {
+      status: "succeeded",
+      clipId: "ai_hook_01",
+      sceneId: "ai_hook_01_scene001",
+    });
+
+    assert.equal(merged.scenes.length, 2);
+    assert.equal(merged.clips.length, 2);
+    assert.equal(merged.stats.totalScenes, 2);
+    assert.equal(timeline.scenes.length, 1);
+  });
+});
 
 describe("review step", () => {
   let workDir;

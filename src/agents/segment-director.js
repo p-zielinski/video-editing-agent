@@ -108,6 +108,7 @@ export function buildSegmentDirectorBrief(context, {
     batchContext,
     keyframesByClip,
     workDir,
+    aiVideoArtifact,
   } = context;
 
   const scopedAbstraction = filterAbstractionForSegment(abstraction, sceneIds);
@@ -160,6 +161,9 @@ export function buildSegmentDirectorBrief(context, {
         * segmentPick.targetKeepRatio
       : undefined,
     workDir,
+    aiVideoArtifact: segmentId === superPlan.segmentOrder?.[0]
+      ? aiVideoArtifact
+      : null,
   });
 
   brief.sessionSummary = abstraction.L3;

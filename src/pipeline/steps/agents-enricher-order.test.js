@@ -29,6 +29,7 @@ describe("deterministic enricher order", () => {
       "enrichRecipeMusicBeatSnap",
       "enrichBrollSyncFromHints",
       "enrichJumpCutsAsTimeCuts",
+      "enrichRecipeBrandSafetyText",
       "enrichRecipeDisableColorGrade",
     ]);
   });

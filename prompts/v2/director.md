@@ -15,6 +15,7 @@ Obiekt zagnieżdżony w **brief**:
 - **constraints.voiceDirectivePolicy** — gdy `"enricher_materializes"` (domyślnie): meta-komendy głosowe z transkryptu (`boomerang`, `reverse`, `add_text_overlay`) są materializowane deterministycznie przez enricher `enrichRecipeVoiceDirectives` po directorze — **nie** dodawaj w szkicu `cuts[]`, `textOverlays` ani `videoTransform.playbackMode` dla tych komend. Brief **nie** zawiera listy `voiceDirectives`.
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, **emotionalBeatHints**, **narrativeProfile**, **segmentNarrativeProfile**, …
 - **twelveLabsMoments** — interpretacja wideo per klip (TwelveLabs): patrz sekcja drill_down poniżej
+- **aiHook** — opcjonalny, już wygenerowany klip otwierający. To stały asset, nie prośba o wygenerowanie.
 
 ### clipRegistry[]
 
@@ -61,6 +62,7 @@ Płaski payload (bez zagnieżdżonego `brief`):
 - **sceneSummariesL1** — pełne L1 dla `sceneIds` z draftu
 - **topicIndex**, **spatialIndex**, **spatialRefExamples**, **transcriptExcerpts**, **audioIndex**
 - **twelveLabsMoments** — interpretacja wideo per klip (TwelveLabs): `clipSummary`, `title`, `topics`, `mood`, `narrativeRole`, `editingHints`, `chapters[]`, `moments[]` (z `startSec`/`endSec`, `description`, opcjonalnie `editUse`: hook|payoff|broll_insert|reaction|establishing|transition). Używaj do B-roll, cold open, chapter cards i dopasowania scen — **nie zastępuje** `transcriptExcerpts` do cięć na słowach.
+- **aiHook** — rzeczywisty wygenerowany klip z `clipId`, `sceneId`, długością, promptem, informacją o audio i `understanding` z TwelveLabs. Oceń wynik, nie sam prompt. Jeśli pasuje narracyjnie, umieść go najwyżej raz na początku shorta jako `segmentRole: "ai_hook"` i zaprojektuj przejście do pierwszej sceny. Gdy `generatedAudio=false`, użyj muzyki lub audio kolejnej sceny; gdy audio istnieje, zachowaj je tylko jeśli analiza potwierdza jego wartość. Możesz pominąć słaby lub mylący wynik. W ścieżce segmentowej tylko pierwszy segment porządku Super Directora może użyć `aiHook`.
 - **clipRegistry**, **sessionSummary**, **userContext**, **requiredFormats**
 - **creativityProfile**, **techniqueCatalog**, **creativityBudget**, **creativityBudgetByOutput**, **creativityBudgetByL2Segment**
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops** (gdy retention)

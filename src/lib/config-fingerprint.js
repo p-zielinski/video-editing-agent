@@ -7,6 +7,7 @@ import { WHISPER_EDIT_PROMPT } from "./transcribe.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PROFANITY_LIST_PATH = path.join(ROOT, "config", "profanity-pl.json");
+const CONTENT_SAFETY_PATH = path.join(ROOT, "config", "safety", "content-safety-pl.json");
 
 function whisperPromptFingerprint() {
   return createHash("sha256").update(WHISPER_EDIT_PROMPT).digest("hex").slice(0, 12);
@@ -14,6 +15,11 @@ function whisperPromptFingerprint() {
 
 function profanityListFingerprint() {
   const content = fs.readFileSync(PROFANITY_LIST_PATH, "utf8");
+  return createHash("sha256").update(content).digest("hex").slice(0, 12);
+}
+
+function contentSafetyFingerprint() {
+  const content = fs.readFileSync(CONTENT_SAFETY_PATH, "utf8");
   return createHash("sha256").update(content).digest("hex").slice(0, 12);
 }
 
@@ -42,6 +48,10 @@ export function buildStepConfigFingerprint(step, options = {}) {
         whisperModel: process.env.OPENAI_WHISPER_MODEL ?? "whisper-1",
         whisperPromptHash: whisperPromptFingerprint(),
         profanityListHash: profanityListFingerprint(),
+        contentSafetyHash: contentSafetyFingerprint(),
+        profanityPolicy: options.profanityPolicy ?? "bleep",
+        profanitySubtitleMode: options.profanitySubtitleMode ?? "partial",
+        brandSafety: options.brandSafety ?? null,
         expectedTerms: Array.isArray(options.expectedTerms) && options.expectedTerms.length > 0
           ? [...options.expectedTerms].map(String).sort()
           : null,

@@ -43,6 +43,7 @@ import {
 import { enrichRecipeDeadAirHandling } from "../../editorial/dead-air-enrich.js";
 import { enrichRecipeFillerCuts } from "../../editorial/filler-enrich.js";
 import { enrichRecipeProfanity } from "../../editorial/profanity-enrich.js";
+import { enrichRecipeBrandSafetyText } from "../../editorial/brand-safety-enrich.js";
 import { enrichRecipeVoiceDirectives } from "../../editorial/voice-directive-enrich.js";
 import { enrichRecipePacingTrim } from "../../editorial/pacing-enrich.js";
 import { enrichRecipeFastRhythmSpeed } from "../../editorial/speed-enrich.js";
@@ -143,6 +144,7 @@ export async function runSuperDirectorDirectPath(client, context) {
     userContext,
     batchContext,
     requiredFormats,
+    aiVideoArtifact: context.aiVideoArtifact,
     onUsage: createUsageRecorder(gptUsageTracker, "super_director"),
   });
   const superPlan = superDirectorResult.plan;
@@ -515,6 +517,12 @@ function buildDeterministicEnricherSteps(recipe, {
       },
     },
     {
+      name: "enrichRecipeBrandSafetyText",
+      apply: () => {
+        enrichRecipeBrandSafetyText(recipe, effectiveBatchContext);
+      },
+    },
+    {
       name: "enrichRecipeDisableColorGrade",
       apply: () => {
         enrichRecipeDisableColorGrade(recipe, effectiveBatchContext);
@@ -710,6 +718,39 @@ function buildRecipeValidationOptions({
   };
 }
 
+export function mergeGeneratedAiSceneIntoTimeline(
+  timelineIndex,
+  sceneCatalog,
+  aiVideoArtifact,
+) {
+  if (aiVideoArtifact?.status !== "succeeded") {
+    return timelineIndex;
+  }
+  const generatedScene = (sceneCatalog?.scenes ?? []).find(
+    (scene) => scene.sceneId === aiVideoArtifact.sceneId,
+  );
+  if (!generatedScene) {
+    return timelineIndex;
+  }
+
+  const merged = structuredClone(timelineIndex);
+  if (!(merged.scenes ?? []).some((scene) => scene.sceneId === generatedScene.sceneId)) {
+    merged.scenes = [...(merged.scenes ?? []), structuredClone(generatedScene)];
+  }
+  const generatedClip = (sceneCatalog?.clips ?? []).find(
+    (clip) => clip.clipId === aiVideoArtifact.clipId,
+  );
+  if (generatedClip && !(merged.clips ?? []).some((clip) => clip.clipId === generatedClip.clipId)) {
+    merged.clips = [...(merged.clips ?? []), structuredClone(generatedClip)];
+  }
+  merged.stats = {
+    ...(merged.stats ?? {}),
+    totalScenes: merged.scenes.length,
+    totalClips: merged.clips?.length ?? 0,
+  };
+  return merged;
+}
+
 export async function runDirectStep({
   workDir,
   apiKey,
@@ -727,9 +768,15 @@ export async function runDirectStep({
     return readJson(draftPath);
   }
 
-  const timelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
+  const storedTimelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
   const abstraction = readJson(path.join(workDir, ARTIFACTS.abstraction));
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
+  const aiVideoArtifact = loadAiVideoArtifact(workDir);
+  const timelineIndex = mergeGeneratedAiSceneIntoTimeline(
+    storedTimelineIndex,
+    catalog,
+    aiVideoArtifact,
+  );
   const clipRegistry = loadClipRegistry(workDir, { abstraction, timelineIndex });
   const topicIndex = loadTopicIndex(workDir);
   const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
@@ -739,7 +786,6 @@ export async function runDirectStep({
   const metaCommandsByClip = loadMetaCommandsByClip(workDir, catalog);
   const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
   const keyframesByClip = buildKeyframesByClip(timelineIndex, keyframeArtifacts);
-  const aiVideoArtifact = loadAiVideoArtifact(workDir);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
 
   const curatorResult = await runMusicCurator(client, {
@@ -798,6 +844,7 @@ export async function runDirectStep({
     userContext,
     requiredFormats,
     workDir,
+    aiVideoArtifact,
     batchContext: {
       ...batchContext,
       requiredFormats,

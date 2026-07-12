@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readJson, writeJson, ARTIFACTS } from "../../pipeline/work-paths.js";
 import { AI_HOOK_CLIP_ID, AI_HOOK_SCENE_ID } from "./types.js";
+import { computeSourceContentHashSync } from "../source-hash.js";
 
 function nextAiClipId(existingClipIds) {
   if (!existingClipIds.includes(AI_HOOK_CLIP_ID)) {
@@ -40,6 +41,7 @@ export function registerGeneratedHookClip(workDir, {
   const effectiveClipId = clipId || nextAiClipId(existingIds);
   const effectiveSceneId = sceneId || `${effectiveClipId}_scene001`;
   const effectiveFileName = fileName ?? path.basename(sourcePath);
+  const contentHash = computeSourceContentHashSync(sourcePath);
 
   const clipEntry = {
     clipId: effectiveClipId,
@@ -76,6 +78,7 @@ export function registerGeneratedHookClip(workDir, {
       clipId: effectiveClipId,
       sourcePath,
       fileName: effectiveFileName,
+      ...(contentHash ? { contentHash } : {}),
     }];
   }
   writeJson(manifestPath, manifest);

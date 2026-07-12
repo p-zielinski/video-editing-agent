@@ -180,6 +180,45 @@ describe("publish pipeline step", () => {
     assert.match(publishPackage.chapterTimestamps[0], /^\d+:\d{2} /);
   });
 
+  it("sanitizes all public publish text fields", () => {
+    const output = {
+      outputId: "short",
+      outputKind: "short",
+      format: "9:16",
+      title: "Morderca i kurwa",
+      synopsis: "Pedofil zatrzymany",
+      timeline: [],
+    };
+    const publishPackage = buildPublishPackageForOutput({
+      recipe: {
+        batchId: "b1",
+        batchContext: { brandSafety: { enabled: true } },
+        outputs: [output],
+      },
+      output,
+      thumbnailPlan: {
+        outputs: [{
+          outputId: "short",
+          variants: [{
+            variantId: "v1",
+            strategy: "safe",
+            titleVariant: "Kurwa prawda",
+          }],
+        }],
+      },
+      topicIndex: {
+        topics: [{ label: "morderca", keywords: ["pedofil"] }],
+      },
+      workDir: "/tmp/unused-brand-safety",
+      abstraction: {},
+    });
+
+    assert.equal(publishPackage.title, "m******a i k***a");
+    assert.equal(publishPackage.titleVariants[0], "k***a prawda");
+    assert.equal(publishPackage.description, "p*****l zatrzymany");
+    assert.deepEqual(publishPackage.tags, ["m******a", "p*****l"]);
+  });
+
   it("resolvePublishTags merges topic index labels", () => {
     const topicIndex = loadFixtureArtifact("mini-day", "topic-index.json");
     const tags = resolvePublishTags({ topicIndex, workDir: "/tmp/missing" });

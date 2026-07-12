@@ -1,0 +1,49 @@
+{
+  "version": "1.0",
+  "profanityRoots": [
+    { "root": "kurw", "minLength": 5 },
+    { "root": "pierdol", "minLength": 7 },
+    { "root": "chuj", "minLength": 4 },
+    { "root": "jeb", "minLength": 5 },
+    { "root": "pizd", "minLength": 5 },
+    { "root": "skurw", "minLength": 8 },
+    { "root": "wypierdal", "minLength": 10 },
+    { "root": "spierdal", "minLength": 9 }
+  ],
+  "sensitiveRoots": [
+    { "id": "sexual_abuse", "roots": ["pedofil", "molest", "gwałt", "zgwałc"] },
+    { "id": "violent_crime", "roots": ["morderc", "morderstw", "zabójc", "zabójstw"] },
+    { "id": "self_harm", "roots": ["samobój", "samookalecz"] }
+  ],
+  "protectedIdentityRoots": [
+    { "id": "religion_jewish", "roots": ["żyd", "zyd"] },
+    { "id": "ethnicity_roma", "roots": ["rom", "cygan"] },
+    { "id": "sexual_orientation", "roots": ["gej", "lesbij", "homoseks"] },
+    { "id": "gender_identity", "roots": ["transpł", "transpl", "transseks", "transgender"] },
+    { "id": "religion_muslim", "roots": ["muzułman", "muzulman"] }
+  ],
+  "hatefulAttackCues": [
+    "nienawidzę",
+    "nienawidze",
+    "zabić",
+    "zabic",
+    "wypędzić",
+    "wypedzic",
+    "usunąć",
+    "usunac",
+    "podludzie",
+    "zaraza"
+  ],
+  "educationalCues": [
+    "dokument",
+    "historia",
+    "historyczny",
+    "edukacyjny",
+    "reportaż",
+    "reportaz",
+    "potępia",
+    "potepia",
+    "ofiara",
+    "proces"
+  ]
+}

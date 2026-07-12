@@ -11,7 +11,9 @@ import {
   buildWhisperPrompt,
 } from "../../lib/transcribe.js";
 import { tagFillerWords, tagProfanityWords } from "../../lib/srt-processor.js";
+import { resolveAmbiguousSafetyContexts } from "../../lib/profanity-censor.js";
 import { applyExpectedTermCorrections } from "../../lib/transcript-correction.js";
+import { createOpenAIClient } from "../../agents/openai-client.js";
 import { assignWordIds, WordIndexSchema } from "../../schemas/word-index.js";
 import { resolveClipContentHash } from "../../lib/clip-artifact-cache.js";
 import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
@@ -35,9 +37,13 @@ function resolveExpectedTerms(manifest) {
 
 function resolveProfanityOptions(manifest) {
   const batchContext = manifest?.batchContext ?? {};
+  const brandSafety = batchContext.brandSafety ?? {};
   return {
-    profanityPolicy: batchContext.profanityPolicy ?? "bleep",
-    profanitySubtitleMode: batchContext.profanitySubtitleMode ?? "partial",
+    profanityPolicy: batchContext.profanityPolicy ?? brandSafety.audio ?? "bleep",
+    profanitySubtitleMode: batchContext.profanitySubtitleMode
+      ?? brandSafety.subtitles
+      ?? "partial",
+    brandSafetyEnabled: brandSafety.enabled !== false && brandSafety.preset !== "off",
   };
 }
 
@@ -62,8 +68,13 @@ export async function transcribeClip({
   }
 
   const expectedTerms = resolveExpectedTerms(manifest);
+  const profanityOptions = resolveProfanityOptions(manifest);
   const resolvedFingerprint = configFingerprint
-    ?? buildStepConfigFingerprint("words", { expectedTerms });
+    ?? buildStepConfigFingerprint("words", {
+      expectedTerms,
+      ...profanityOptions,
+      brandSafety: manifest?.batchContext?.brandSafety ?? null,
+    });
   const sourceContentHash = await resolveClipContentHash(manifest, clip.clipId, clip.sourcePath);
   const cachedWords = maybeUseGlobalClipCache({
     enabled: !globalCacheDisabled,
@@ -104,17 +115,21 @@ export async function transcribeClip({
     durationSec = result.duration ?? clip.durationSec;
   }
 
-  const profanityOptions = resolveProfanityOptions(manifest);
   const tagged = tagFillerWords(words);
-  const profanityTagged = tagProfanityWords(tagged, {
+  const corrected = applyExpectedTermCorrections(tagged, expectedTerms);
+  const safetyTagged = tagProfanityWords(corrected, {
     profanityPolicy: profanityOptions.profanityPolicy,
     subtitleMode: profanityOptions.profanitySubtitleMode,
+    brandSafetyEnabled: profanityOptions.brandSafetyEnabled,
   });
-  const corrected = applyExpectedTermCorrections(profanityTagged, expectedTerms);
-  const withIds = assignWordIds(corrected, clip.clipId);
+  const safetyResolved = await resolveAmbiguousSafetyContexts(safetyTagged, {
+    client: apiKey ? createOpenAIClient(apiKey) : null,
+    subtitleMode: profanityOptions.profanitySubtitleMode,
+  });
+  const withIds = assignWordIds(safetyResolved, clip.clipId);
 
   const wordIndex = WordIndexSchema.parse({
-    version: "1.0",
+    version: "1.1",
     clipId: clip.clipId,
     words: withIds,
     durationSec,
@@ -146,7 +161,12 @@ export async function runTranscribeStep({
   const manifestPath = path.join(workDir, ARTIFACTS.manifest);
   const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : null;
   const expectedTerms = resolveExpectedTerms(manifest);
-  const configFingerprint = buildStepConfigFingerprint("words", { expectedTerms });
+  const profanityOptions = resolveProfanityOptions(manifest);
+  const configFingerprint = buildStepConfigFingerprint("words", {
+    expectedTerms,
+    ...profanityOptions,
+    brandSafety: manifest?.batchContext?.brandSafety ?? null,
+  });
 
   return runWithConcurrency(
     catalog.clips,

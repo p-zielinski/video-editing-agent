@@ -6,7 +6,10 @@
       "properties": {
         "version": {
           "type": "string",
-          "const": "1.0"
+          "enum": [
+            "1.0",
+            "1.1"
+          ]
         },
         "clipId": {
           "type": "string"
@@ -46,6 +49,34 @@
               },
               "displayWord": {
                 "type": "string"
+              },
+              "safetyClass": {
+                "type": "string",
+                "enum": [
+                  "profanity",
+                  "sensitive",
+                  "protected_identity",
+                  "hateful_attack"
+                ]
+              },
+              "safetyAction": {
+                "type": "string",
+                "enum": [
+                  "allow",
+                  "review",
+                  "bleep",
+                  "mute",
+                  "cut",
+                  "mask"
+                ]
+              },
+              "safetyReason": {
+                "type": "string"
+              },
+              "safetyConfidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
               }
             },
             "required": [

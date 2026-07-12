@@ -1,4 +1,5 @@
 import { runFfmpeg } from "../lib/ffmpeg.js";
+import { sanitizeTextForSafety } from "../lib/profanity-censor.js";
 
 function resolveSafeZone(dimensions, stylePresets, format) {
   if (format && stylePresets?.formats?.[format]?.safeZone) {
@@ -171,7 +172,7 @@ export function buildDrawtextFilters(overlays, { dimensions, stylePresets, forma
     );
     const fontSize = style.fontSizePx ?? 48;
     const fontColor = (style.color ?? "#FFFFFF").replace("#", "0x");
-    let displayText = overlay.text ?? "";
+    let displayText = sanitizeTextForSafety(overlay.text ?? "");
     if (style.textTransform === "uppercase") {
       displayText = displayText.toUpperCase();
     }

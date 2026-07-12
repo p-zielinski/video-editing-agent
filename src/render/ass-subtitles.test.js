@@ -191,6 +191,48 @@ describe("ass-subtitles", () => {
     });
   });
 
+  it("uses displayWord for non-profanity safety terms", () => {
+    withContext((context, recipe) => {
+      context.wordIndexes.clip01 = {
+        clipId: "clip01",
+        words: [{
+          wordId: "clip01_w001",
+          word: "morderca",
+          start: 1,
+          end: 1.4,
+          isProfanity: false,
+          safetyClass: "sensitive",
+          safetyAction: "bleep",
+          displayWord: "m******a",
+        }],
+      };
+      const output = {
+        outputId: "test_safety",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_video_ref",
+          outputStartSec: 0,
+          outputEndSec: 10,
+          subtitles: { policy: "word_by_word", sourceClipId: "clip01" },
+        }],
+      };
+
+      const edl = buildRenderEdl(output, recipe, context);
+      const ass = generateAssSubtitles({ edl, context, stylePresets, format: "16:9" });
+
+      assert.ok(ass.includes("m******a"));
+      assert.equal(ass.includes("morderca"), false);
+    });
+  });
+
   it("uses previous segment outputStartSec for J-cut from_prev subtitles", () => {
     withContext((context, recipe) => {
       const output = {

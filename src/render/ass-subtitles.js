@@ -58,7 +58,10 @@ function subtitleClipRange(segment, segmentIndex, segments) {
 }
 
 function subtitleWordText(word) {
-  if (word.isProfanity) {
+  if (word.displayWord) {
+    return word.displayWord;
+  }
+  if (word.isProfanity || ["bleep", "mute", "cut", "mask"].includes(word.safetyAction)) {
     return word.displayWord ?? censorWordForDisplay(word.word, "partial");
   }
   return word.word;

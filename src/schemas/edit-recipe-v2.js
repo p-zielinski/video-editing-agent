@@ -271,6 +271,18 @@ export const BrollStrategySchema = z.enum([
   "minimal",
 ]);
 
+export const BrandSafetySchema = z.object({
+  enabled: z.boolean().default(true),
+  preset: z.enum(["social_strict", "off"]).default("social_strict"),
+  audio: ProfanityPolicySchema.default("bleep"),
+  subtitles: ProfanitySubtitleModeSchema.default("partial"),
+  overlays: ProfanitySubtitleModeSchema.default("partial"),
+  titles: ProfanitySubtitleModeSchema.default("partial"),
+  thumbnails: ProfanitySubtitleModeSchema.default("partial"),
+  publishText: ProfanitySubtitleModeSchema.default("partial"),
+  llmPrompts: z.enum(["masked", "raw"]).default("masked"),
+}).default({});
+
 export const BatchContextV2Schema = z.object({
   inputMode: InputModeSchema.optional(),
   theme: z.string().optional(),
@@ -291,6 +303,7 @@ export const BatchContextV2Schema = z.object({
   publishVoice: PublishVoiceSchema.optional(),
   profanityPolicy: ProfanityPolicySchema.default("bleep"),
   profanitySubtitleMode: ProfanitySubtitleModeSchema.default("partial"),
+  brandSafety: BrandSafetySchema,
   aiVideoEnabled: z.boolean().default(false),
   aiVideoMaxPerBatch: z.number().int().positive().default(1),
   aiVideoMaxDurationSec: z.number().positive().max(15).default(5),
