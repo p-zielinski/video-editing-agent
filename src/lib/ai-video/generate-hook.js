@@ -7,9 +7,7 @@ import { registerGeneratedHookClip } from "./register-clip.js";
 import { planAiHook } from "./hook-planner.js";
 import { DEFAULT_FORMAT_DIMENSIONS } from "../../render/render-config.js";
 
-function hasKlingCredentials(env) {
-  return Boolean(env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY);
-}
+import { hasKlingCredentials, resolveKlingAccessKey } from "./kling-credentials.js";
 
 /**
  * Run full AI hook generation pipeline for a batch work dir.
@@ -40,7 +38,7 @@ export async function generateAiHookForBatch({
 
   if (!useStub && !hasKlingCredentials(env)) {
     throw new Error(
-      "Missing KLING_ACCESS_KEY or KLING_SECRET_KEY; set useStub explicitly for a placeholder",
+      "Missing KLING_ACCESS_KEY; set useStub explicitly for a placeholder",
     );
   }
 
@@ -78,8 +76,7 @@ export async function generateAiHookForBatch({
     generation.prompt = plan.prompt;
   } else {
     const klingResult = await generateKlingHookVideo({
-      accessKey: env.KLING_ACCESS_KEY,
-      secretKey: env.KLING_SECRET_KEY,
+      accessKey: resolveKlingAccessKey(env),
       prompt: plan.prompt,
       firstFrameBase64: readImageBase64(firstFramePath),
       lastFrameBase64: readImageBase64(lastFramePath),

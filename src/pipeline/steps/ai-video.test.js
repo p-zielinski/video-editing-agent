@@ -49,8 +49,7 @@ describe("AI video execution mode", () => {
   it("recognizes configured live credentials and model", () => {
     assert.deepEqual(resolveAiVideoExecution({
       env: {
-        KLING_ACCESS_KEY: "access",
-        KLING_SECRET_KEY: "secret",
+        KLING_ACCESS_KEY: "api-key-kling-test",
         KLING_VIDEO_MODEL: "kling-v3-custom",
       },
     }), {

@@ -3,6 +3,7 @@ import path from "node:path";
 import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { generateAiHookForBatch } from "../../lib/ai-video/generate-hook.js";
+import { hasKlingCredentials } from "../../lib/ai-video/kling-credentials.js";
 import { resolveKlingVideoModel } from "../../lib/ai-video/kling-client.js";
 import { createLogger } from "../../lib/logger.js";
 import { processClipTwelveLabs } from "./twelvelabs.js";
@@ -22,7 +23,7 @@ export function resolveAiVideoExecution({
   return {
     useStub: resolvedStub,
     model: resolvedStub ? "stub" : resolveKlingVideoModel(env),
-    credentialsAvailable: Boolean(env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY),
+    credentialsAvailable: hasKlingCredentials(env),
   };
 }
 
@@ -177,7 +178,7 @@ export async function runAiVideoStep({
   if (!execution.useStub && !execution.credentialsAvailable) {
     const failed = {
       status: "failed",
-      reason: "Missing KLING_ACCESS_KEY or KLING_SECRET_KEY; use --ai-video-stub explicitly for a placeholder",
+      reason: "Missing KLING_ACCESS_KEY; use --ai-video-stub explicitly for a placeholder",
       generatedAt: new Date().toISOString(),
       stub: false,
       model: execution.model,

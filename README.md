@@ -160,7 +160,7 @@ node src/cli.js run --input ./inbox/gaming --context '{"expectedTerms":["Elden R
 | `FFMPEG_PATH` / `FFPROBE_PATH` | Opcjonalne ścieżki do binarek |
 | `TWELVELABS_API_KEY` | Opcjonalny — rozdziały i momenty klipu (stub: `--twelvelabs-stub`) |
 | `TWELVELABS_INDEX_ID` | Opcjonalny — ID indexu TwelveLabs |
-| `KLING_ACCESS_KEY` / `KLING_SECRET_KEY` | Kling API — krok `ai_video` (domyślnie wyłączony) |
+| `KLING_ACCESS_KEY` | Kling API — klucz z panelu (`api-key-kling-...`); krok `ai_video` |
 | `KLING_VIDEO_MODEL` | Model wideo Kling (domyślnie `kling-v3`, czyli VIDEO 3.0) |
 | `AI_VIDEO_STUB=1` | Jawny placeholder AI video bez wywołania Kling; nie jest automatycznym fallbackiem |
 | `PYTHON_VENV` | Opcjonalny venv dla skryptów Python |

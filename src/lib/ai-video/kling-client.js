@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createKlingJwt } from "./kling-auth.js";
+import { buildKlingAuthorizationHeader } from "./kling-credentials.js";
 import { KLING_API_BASE } from "./types.js";
 
 const POLL_INTERVAL_MS = 5000;
@@ -48,9 +48,9 @@ export function buildKlingImage2VideoPayload({
   };
 }
 
-function authHeaders(accessKey, secretKey) {
+function authHeaders(accessKey) {
   return {
-    Authorization: `Bearer ${createKlingJwt(accessKey, secretKey)}`,
+    Authorization: buildKlingAuthorizationHeader(accessKey),
     "Content-Type": "application/json",
   };
 }
@@ -69,7 +69,6 @@ async function parseJsonResponse(response) {
 /**
  * @param {object} params
  * @param {string} params.accessKey
- * @param {string} params.secretKey
  * @param {string} params.prompt
  * @param {string} params.firstFrameBase64
  * @param {string} params.lastFrameBase64
@@ -80,7 +79,6 @@ async function parseJsonResponse(response) {
  */
 export async function submitKlingImage2VideoTask({
   accessKey,
-  secretKey,
   prompt,
   firstFrameBase64,
   lastFrameBase64,
@@ -101,7 +99,7 @@ export async function submitKlingImage2VideoTask({
 
   const response = await fetch(`${KLING_API_BASE}/v1/videos/image2video`, {
     method: "POST",
-    headers: authHeaders(accessKey, secretKey),
+    headers: authHeaders(accessKey),
     body: JSON.stringify(payload),
   });
 
@@ -115,7 +113,6 @@ export async function submitKlingImage2VideoTask({
 
 export async function pollKlingImage2VideoTask({
   accessKey,
-  secretKey,
   taskId,
   pollIntervalMs = POLL_INTERVAL_MS,
   timeoutMs = POLL_TIMEOUT_MS,
@@ -124,7 +121,7 @@ export async function pollKlingImage2VideoTask({
 
   while (Date.now() - started < timeoutMs) {
     const response = await fetch(`${KLING_API_BASE}/v1/videos/image2video/${taskId}`, {
-      headers: authHeaders(accessKey, secretKey),
+      headers: authHeaders(accessKey),
     });
     const body = await parseJsonResponse(response);
     const data = body.data ?? {};
@@ -170,7 +167,6 @@ export async function downloadKlingVideo(videoUrl, outputPath) {
  */
 export async function generateKlingHookVideo({
   accessKey,
-  secretKey,
   prompt,
   firstFrameBase64,
   lastFrameBase64,
@@ -182,7 +178,6 @@ export async function generateKlingHookVideo({
 }) {
   const taskId = await submitKlingImage2VideoTask({
     accessKey,
-    secretKey,
     prompt,
     firstFrameBase64,
     lastFrameBase64,
@@ -194,7 +189,6 @@ export async function generateKlingHookVideo({
 
   const { videoUrl } = await pollKlingImage2VideoTask({
     accessKey,
-    secretKey,
     taskId,
   });
 

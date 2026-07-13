@@ -68,7 +68,7 @@ Opt-in krok generujący krótki hook (Kling VIDEO 3.0, model `kling-v3`) dla sho
 
 - Włączenie: `--ai-video` lub `"aiVideoEnabled": true` w `--context`
 - Stub (bez API): `--ai-video-stub` sam włącza krok; `AI_VIDEO_STUB=1` wybiera stub dla kroku włączonego kontekstem lub `--ai-video`. Brak kluczy live kończy krok błędem zamiast cichego użycia placeholdera.
-- Klucze: `KLING_ACCESS_KEY` + `KLING_SECRET_KEY` ([kling.ai/dev/pricing](https://kling.ai/dev/pricing))
+- Klucz: `KLING_ACCESS_KEY` (`api-key-kling-...` z [kling.ai/dev/api-key](https://kling.ai/dev/api-key))
 - Po sukcesie live wygenerowany plik przechodzi przez istniejącą analizę TwelveLabs. Wynik i status trafiają do `05e-ai-video.json`; awaria analizy nie usuwa hooka.
 - Director dostaje wygenerowaną scenę, prompt, pochodzenie klatek, stan audio i realną interpretację TwelveLabs. Może dobrać muzykę/przejście albo pominąć słaby hook. `enrichRecipeAiHook` jest tylko idempotentnym fallbackiem.
 - Artefakt: `05e-ai-video.json`; klip rejestrowany w manifeście jako `ai_generated`
