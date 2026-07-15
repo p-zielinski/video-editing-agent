@@ -988,6 +988,32 @@
                   "additionalProperties": false
                 },
                 "default": []
+              },
+              "aiHookDecision": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "accept",
+                      "reject"
+                    ]
+                  },
+                  "clipId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "action",
+                  "clipId",
+                  "reason"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [

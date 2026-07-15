@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateArtisticEditingGrammar,
+  validateColorCreativeMoments,
   validateCreativeMoments,
 } from "../../src/validators/creative-moments.js";
 import { loadTechniqueCatalog } from "../../src/editorial/load-technique-catalog.js";
@@ -146,5 +147,48 @@ describe("validateArtisticEditingGrammar", () => {
         (issue) => issue.code === "V21-02" && issue.message.includes("maxDurationSec"),
       ),
     );
+  });
+});
+
+describe("validateColorCreativeMoments", () => {
+  const catalog = loadTechniqueCatalog({ pack: "youtube_vlog_2026" });
+
+  it("accepts motivated color desaturate with adequate narrativeIntent", () => {
+    const issues = validateColorCreativeMoments(recipeWith([{
+      momentId: "color_mem",
+      techniqueId: "color_desaturate",
+      outputId: "main_16x9",
+      outputStartSec: 8,
+      outputEndSec: 12,
+      narrativeIntent: "memory",
+      reason: "Krótki flashback przed powrotem do teraźniejszości.",
+    }]), catalog);
+
+    assert.equal(issues.length, 0);
+  });
+
+  it("accepts touching color windows on the same output", () => {
+    const issues = validateColorCreativeMoments(recipeWith([
+      {
+        momentId: "color_a",
+        techniqueId: "color_desaturate",
+        outputId: "main_16x9",
+        outputStartSec: 5,
+        outputEndSec: 8,
+        narrativeIntent: "isolation",
+        reason: "Izolacja bohatera.",
+      },
+      {
+        momentId: "color_b",
+        techniqueId: "color_saturation_boost",
+        outputId: "main_16x9",
+        outputStartSec: 8,
+        outputEndSec: 10,
+        narrativeIntent: "reveal",
+        reason: "Powrót pełnego koloru na reveal.",
+      },
+    ]), catalog);
+
+    assert.equal(issues.some((issue) => issue.code === "V21-20"), false);
   });
 });

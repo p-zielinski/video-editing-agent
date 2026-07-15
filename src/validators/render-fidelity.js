@@ -176,6 +176,11 @@ function validateSilenceBeatWithoutCuts(recipe) {
       continue;
     }
 
+    const volumeFactor = moment.params?.volumeFactor ?? 0.3;
+    if (volumeFactor === 0) {
+      continue;
+    }
+
     issues.push({
       severity: "warning",
       code: "V27-RENDER-05",

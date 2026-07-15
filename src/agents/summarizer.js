@@ -162,6 +162,14 @@ export async function summarizeSession(client, { l2Summaries, userContext, stats
         payoffSceneId: "sceneId payoffu (opcjonalnie)",
         teaseText: "krótki tekst zapowiedzi bez spoilera (opcjonalnie)",
       }],
+      hookCreativeBrief: {
+        strategy: "contextual|intentionally_unexpected",
+        narrativePromise: "obietnica narracyjna hooka bez spoilera payoffu",
+        contextualLink: "jak hook łączy się z materiałem bez ujawniania faktów",
+        mustAvoid: ["spoilery", "logotypy", "napisy"],
+        unexpectedElement: "wymagane gdy strategy=intentionally_unexpected — nieoczywisty, narracyjnie powiązany element wizualny",
+        visualTone: "opcjonalny ton wizualny (np. napięcie, ciepło)",
+      },
     },
   });
 

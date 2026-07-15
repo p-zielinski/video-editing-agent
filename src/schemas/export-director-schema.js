@@ -13,7 +13,7 @@ const SPATIAL_REF_EXAMPLE = {
 
 const TIMELINE_SEGMENT_EXAMPLE = {
   segmentId: "string",
-  segmentRole: "aroll|broll",
+  segmentRole: "aroll|broll|ai_hook",
   videoRef: { clipId: "string", sceneId: "string" },
   audioRef: { clipId: "string", sceneId: "string" },
   videoInSec: 0,
@@ -218,6 +218,11 @@ export const EDIT_RECIPE_DIRECTOR_OUTPUT_SCHEMA = {
       synopsis: "string?",
       targetDurationSec: 600,
       chapterMarkers: [{ title: "string", startSec: 0 }],
+      aiHookDecision: {
+        action: "accept|reject",
+        clipId: "string — must match brief.aiHook.clipId when accepting",
+        reason: "string — explicit rationale for accept or reject",
+      },
       timeline: [TIMELINE_SEGMENT_EXAMPLE],
     },
   ],

@@ -84,3 +84,12 @@ Zwróć obiekt L3:
   - `setupSceneId` — scena setupu (opcjonalnie)
   - `payoffSceneId` — scena payoffu (opcjonalnie)
   - `teaseText` — krótka zapowiedź bez spoilera (opcjonalnie)
+- **hookCreativeBrief** (opcjonalnie, zawsze generuj gdy materiał nadaje się na short) — brief dla AI hooka wideo:
+  - `strategy` — `contextual` (spójny z narracją) lub `intentionally_unexpected` (nieoczywisty, ale narracyjnie powiązany zwrot)
+  - `narrativePromise` — obietnica hooka bez ujawniania payoffu ani faktów
+  - `contextualLink` — jak hook łączy się z materiałem bez spoilera
+  - `mustAvoid` — tablica zakazów (np. spoilery, logotypy, napisy); domyślnie sensowna lista anty-spoiler
+  - `unexpectedElement` — **wymagane** gdy `strategy=intentionally_unexpected`: nieoczywisty element wizualny powiązany narracyjnie, bez faktów/spoilera
+  - `visualTone` — opcjonalny ton wizualny (np. napięcie, ciepło, energia)
+
+Brief nie zastępuje `openLoops` — cold open w montażu to osobna decyzja directora. Hook AI to krótkie przejście generowane przed montażem; nie ujawniaj w briefie rozwiązania wątku.

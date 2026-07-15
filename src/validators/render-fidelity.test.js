@@ -202,6 +202,24 @@ describe("validateRenderFidelity", () => {
     assert.equal(issue.severity, "warning");
   });
 
+  it("V27-RENDER-05 skips hard mute silence_beat without cuts on segment", () => {
+    const recipe = baseRecipe({
+      creativeMoments: [{
+        momentId: "sb_hard",
+        techniqueId: "silence_beat",
+        outputId: "main_16x9",
+        outputStartSec: 12,
+        outputEndSec: 12.5,
+        retentionRole: "hook",
+        params: { durationSec: 0.5, volumeFactor: 0 },
+        reason: "Hard mute pattern interrupt",
+      }],
+    });
+
+    const issues = validateRenderFidelity(recipe);
+    assert.equal(issues.some((i) => i.code === "V27-RENDER-05"), false);
+  });
+
   it("V27-RENDER-05 passes when segment has cuts", () => {
     const recipe = baseRecipe({
       outputs: [{

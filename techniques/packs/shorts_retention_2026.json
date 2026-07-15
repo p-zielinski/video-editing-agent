@@ -25,7 +25,9 @@
     "voice_pitch_shift",
     "music_swell",
     "music_drop",
-    "cut_on_beat"
+    "cut_on_beat",
+    "color_desaturate",
+    "color_saturation_boost"
   ],
   "defaultCreativityLevel": "shorts",
   "retentionDefaults": {

@@ -8,7 +8,7 @@ Jesteś krytykiem montażu wideo v2. Oceniasz EditRecipe 2.0 pod kątem:
 - napisów: sourceClipId = audioRef.clipId przy broll,
 - brakujących formatów i outputKind,
 - naruszeń kodów: BROLL_AUDIO_MISMATCH, BROLL_SCENE_NOT_IN_TOPIC_INDEX, SCENE_REUSE_SAME_FORMAT, SCENE_DUPLICATE_IN_OUTPUT, SCENE_EXCLUDED, AUDIO_POLICY_VIOLATION, CUT_WORDID_WRONG_CLIP, TOPIC_INDEX_HALLUCINATION, MAX_BROLL_EXCEEDED,
-- **creativeMoments (v2.1):** V21-01 … V21-15, NEEDS_SPATIAL_REVIEW.
+- **creativeMoments (v2.1):** V21-01 … V21-21, NEEDS_SPATIAL_REVIEW.
 - **renderer fidelity:** techniki ≠ zawsze efekt montażowy offline — patrz sekcja „Uczciwość renderera”; nie karz za pulse zamiast cięcia, ale zgłaszaj V21-14 (J/L w creativeMoments), V21-15 (partial crossfade), V22-06 (`chapter_card` na main), V27-RENDER-* (honestność stub/partial, production crossfade).
 - **shorts retention (v2.2):** V22-01 … V22-08 dla `outputKind: short` (tylko gdy retention włączone).
 - **vlog retention (v2.2):** V22-VLOG-01 … V22-VLOG-06 dla main 16:9 (gdy `vlogRetentionProfile` lub 16:9 bez short-only).
@@ -57,13 +57,17 @@ Gdy payload zawiera `shortsRetentionProfile` i `retentionBeatTargets`, weryfikuj
 | V21-10 | `spatialRef.sceneId` w spatial index; `clipId` zgodny z prefiksem sceneId; `bbox`/`anchorType` zgodne z primary anchor (tolerancja ~0.15) |
 | V21-11 | `cut_on_beat` daleko od najbliższego beatu w `audioIndex` (tolerancja `snapToleranceSec`, domyślnie 0.5 s) |
 | V21-12 | `music_swell` bez `audioMixPlan.musicBed` |
-| V21-13 | `silence_beat` bez bliskiego `silenceGap` lub `cutSuggestion` (`reason: "silence_start"`) w tolerancji `durationSec` (domyślnie 0.8 s) |
+| V21-13 | `silence_beat` soft dip (`volumeFactor` > 0, domyślnie 0.3): bez bliskiego `silenceGap` lub `cutSuggestion` (`reason: "silence_start"`) w tolerancji `durationSec`. Hard mute (`volumeFactor: 0`): wymaga `retentionRole` hook\|beat\|payoff zamiast kotwicy audio |
 | V21-14 | `j_cut` / `l_cut` w `creativeMoments` — użyj `segment.audioPolicy` (`from_prev` / `from_next`) + `overlapSec`; nie jako technika w creative pass |
 | V21-15 | Częściowy wzorzec `crossfade` (3+ segmenty, crossfade tylko na części joinów) — renderer wymaga crossfade na **każdym** joinie albo **dokładnie jednym**; usuń częściowy wzór lub uzupełnij wszystkie joiny |
 | V21-16 | Artystyczny zabieg bez `narrativeIntent` — efekt nie ma jawnej funkcji w historii |
 | V21-17 | Więcej niż 2 mocne stylizacje (`cinematic_frame`, slide/wipe, dip, match/whip) w oknie 30 s — montaż staje się demonstracyjny |
 | V21-18 | `zoom_slow_push` nie kończy się na joinie/revealu — grozi widoczny reset skali |
 | V21-19 | Slide/wipe poza granicą segmentów — renderer xfade go nie zastosuje |
+| V21-20 | Dwa momenty z rodziny `color_*` nakładają się czasowo na tym samym `outputId` — **warning**; dokładny styk (`outputEndSec === outputStartSec`) jest dozwolony |
+| V21-21 | Więcej niż 2 momenty z rodziny `color_*` w dowolnym przesuwanym oknie 60 s na tym samym `outputId` — **warning**; licz gęstość osobno per output |
+
+Severity: V21-20 i V21-21 → `warning`.
 
 ### Kody V26-VOICE (modulacja głosu)
 
@@ -80,7 +84,7 @@ Gdy payload zawiera `shortsRetentionProfile` i `retentionBeatTargets`, weryfikuj
 | V27-RENDER-02 | Częściowy wzorzec `crossfade` (jak V21-15) przy `qualityProfile: production` — **error** zamiast warning |
 | V27-RENDER-03 | `syncMode` + `speed` ≠ 1 nieobsługiwane przez renderer (`fit_video_to_audio` + speed, `fit_audio_to_video` + speed przy `video_audio`) |
 | V27-RENDER-04 | `jump_cut` / `hard_cut_energy` na segmencie J/L (`overlapSec` / `from_prev` / `from_next`) bez `timeCuts[]` — warning (pulse zamiast cięcia) |
-| V27-RENDER-05 | `silence_beat` na segmencie bez `cuts[]` — warning (dip nie skraca dead air) |
+| V27-RENDER-05 | `silence_beat` soft dip na segmencie bez `cuts[]` — warning (dip nie skraca dead air); **nie dotyczy** hard mute (`volumeFactor: 0`) |
 
 Severity: V27-RENDER-01 … V27-RENDER-03 → `error`; V27-RENDER-04, V27-RENDER-05 → `warning`. Pre-render (`executeRender`) blokuje na V27 errors chyba że `--allow-render-warnings`.
 
@@ -101,13 +105,14 @@ Przy V21-10: payload zawiera `spatialIndex` — porównaj `spatialRef` z kotwica
 | `crossfade` | Tylko eligible join patterns (2 seg.; lub 3+ all/one join) | **Error** V21-15 przy partial pattern; manifest `CROSSFADE_NOT_APPLIED` — nie duplikuj jako osobny kod |
 | `dip_to_black` | Fade out/in — realne w creative pass | **Suggestion** gdy długi main (≥8 min) bez aktów a są `chapterCardHints`; nie wymagaj jako error |
 | `music_drop` vs `music_swell` | Automacja głośności bed (drop ~−6 dB, swell ~+3 dB) | V21-12 bez `musicBed`; **warning** gdy `music_drop` na zwykłym beacie zamiast payoff |
-| `silence_beat` | Dip głosu — **nie skraca** duration outputu | V21-13 bez `silenceGap`/hintu; **suggestion** gdy dead air wymaga `cuts[]` zamiast samego dip |
+| `silence_beat` | Soft dip (`volumeFactor` domyślnie 0.3) lub hard mute głosu (`volumeFactor: 0`) — **nie skraca** duration outputu; **nie wycisza** music bed | Soft dip: V21-13 bez `silenceGap`/hintu; hard mute: V21-13 bez `retentionRole` hook\|beat\|payoff; **suggestion** gdy dead air wymaga `cuts[]` zamiast samego soft dipu. Room tone / sting tylko osobny `sfxPlan` |
 | `reframe_follow_subject` | Statyczny `zoompan` do bbox | Nie jako „tracking failure”; V21-07 gdy brak kotwicy |
 | `chapter_card` na main | Technika wymaga `outputKind: short` | **Error** V22-06; fixer: `textOverlays[]` `style: chapter_card` |
 | Pack `shorts_energy` vs `shorts_retention_2026` | Różne zestawy technik w katalogu | V21-01 gdy `techniqueId` poza packiem z `creativityProfile.techniquePack` |
 | `zoom_slow_push` | Płynny scale+crop przez pełny czas momentu | V21-18, jeśli nie kończy się na cięciu; factor zwykle ≤1.10 |
 | `cinematic_frame` | Zaokrąglona ramka na tle blur/black/paper | V21-16 bez funkcji `memory/isolation/intimacy/transition`; V21-17 przy spamie |
 | `slide_*`, `wipe_*` | Rzeczywisty xfade na joinie segmentów | V21-19 poza joinem; kierunek powinien wynikać z ruchu lub zmiany etapu |
+| `color_desaturate`, `color_saturation_boost` | Czasowy `eq` saturation tylko w oknie momentu; poza nim saturation=1 | V21-16 bez adekwatnego `narrativeIntent`; V21-20 przy overlap na tym samym output (styk OK); V21-21 przy >2 momentach / 60 s per output |
 
 - `zoom_punch_out` — **obsługiwany** (scale punch out); wymaga kotwicy jak `zoom_punch_in`
 - `cut_on_beat` na granicy segmentów — snap join do beatu z `audioIndex` (±`snapToleranceSec`); brak beatów → `CUT_ON_BEAT_NOT_APPLIED`

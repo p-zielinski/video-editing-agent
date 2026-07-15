@@ -184,6 +184,27 @@ function isExcludedTimelineSegment(segment, excludedClipIds) {
     || (audioClipId && excludedClipIds.has(audioClipId));
 }
 
+function mergeAiHookDecisions(orderedPartials, superPlan, templateOutputs) {
+  const canonicalFirst = superPlan.canonicalSegmentOrder?.[0]
+    ?? orderedPartials[0]?.segmentId;
+  const firstPartial = orderedPartials.find((partial) => partial.segmentId === canonicalFirst)
+    ?? orderedPartials[0];
+
+  if (!firstPartial) {
+    return new Map();
+  }
+
+  const decisionsByOutputId = new Map();
+  for (const templateOutput of templateOutputs) {
+    const partialOutput = findMatchingOutput(firstPartial, templateOutput);
+    if (partialOutput?.aiHookDecision) {
+      decisionsByOutputId.set(templateOutput.outputId, partialOutput.aiHookDecision);
+    }
+  }
+
+  return decisionsByOutputId;
+}
+
 function mergeSfxPlan(partials, outputId, mainOutputId, outputTimelineOffsets) {
   const merged = [];
 
@@ -266,6 +287,7 @@ export function mergeSegmentRecipes(superPlan, partials, options = {}) {
   const allCreativeMoments = [];
   const excludedClipIds = new Set(superPlan.excludedClips ?? []);
   const templateOutputs = collectUnionOutputs(effectivePartials);
+  const aiHookDecisions = mergeAiHookDecisions(effectivePartials, superPlan, templateOutputs);
 
   base.outputs = templateOutputs.map((templateOutput) => {
     const stitched = stitchOutputTimeline(
@@ -275,9 +297,11 @@ export function mergeSegmentRecipes(superPlan, partials, options = {}) {
       excludedClipIds,
     );
     allCreativeMoments.push(...stitched.creativeMoments);
+    const aiHookDecision = aiHookDecisions.get(templateOutput.outputId);
     return {
       ...templateOutput,
       timeline: stitched.timeline,
+      ...(aiHookDecision ? { aiHookDecision } : {}),
     };
   });
 

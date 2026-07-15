@@ -1,5 +1,6 @@
-import { resolveBestHookScene } from "../../editorial/shorts-retention.js";
 import { DEFAULT_AI_VIDEO_CONFIG } from "./types.js";
+import { compileHookPrompt } from "./hook-prompt-compiler.js";
+import { selectAiHookScene } from "./ai-hook-scene.js";
 
 function deriveClipIdFromSceneId(sceneId) {
   const match = sceneId?.match(/^(clip\d+)_/);
@@ -21,39 +22,17 @@ function findPreviousScene(timelineIndex, scene) {
   return null;
 }
 
-function buildPrompt(abstraction, hookScene) {
-  const l1Scenes = Array.isArray(abstraction?.L1) ? abstraction.L1 : [];
-  const l2Segments = Array.isArray(abstraction?.L2) ? abstraction.L2 : [];
-  const sceneSummary = l1Scenes.find(
-    (entry) => entry.sceneId === hookScene?.sceneId,
+function buildContinuityContext(abstraction, previousScene) {
+  if (!previousScene) {
+    return {};
+  }
+  const l1 = (abstraction?.L1 ?? []).find(
+    (entry) => entry.sceneId === previousScene.sceneId,
   );
-  const segmentSummary = l2Segments.find(
-    (entry) => entry.sceneIds?.includes(hookScene?.sceneId),
-  );
-  const storyContext = abstraction?.L3?.sessionSummary
-    ?? abstraction?.L3?.narrativeArc
-    ?? segmentSummary?.summary
-    ?? segmentSummary?.synopsis
-    ?? "";
-  const topics = (sceneSummary?.topics ?? segmentSummary?.topics ?? [])
-    .slice(0, 3)
-    .join(", ");
-  const visualTarget = sceneSummary?.summary ?? segmentSummary?.summary ?? "";
-  const parts = [
-    "Create a dynamic cinematic opening transition for a vertical short-form video",
-    "Use smooth motivated camera motion and preserve subject identity, lighting, and composition between the supplied start and end frames",
-  ];
-  if (topics) {
-    parts.push(`Themes: ${topics}`);
-  }
-  if (storyContext) {
-    parts.push(`Story context: ${storyContext.slice(0, 300)}`);
-  }
-  if (visualTarget) {
-    parts.push(`End naturally on this visual beat: ${visualTarget.slice(0, 240)}`);
-  }
-  parts.push("Single continuous shot, photorealistic, no captions, no logos, no generated text");
-  return parts.join(". ").slice(0, 2400);
+  return {
+    previousSceneId: previousScene.sceneId,
+    previousSceneSummary: l1?.summary ?? null,
+  };
 }
 
 /**
@@ -75,11 +54,12 @@ export function planAiHook({
     return null;
   }
 
-  const { sceneId: hookSceneId, source } = resolveBestHookScene(abstraction, timelineIndex, audioIndex);
-  if (!hookSceneId) {
+  const selection = selectAiHookScene(abstraction, timelineIndex, audioIndex);
+  if (!selection?.sceneId) {
     return null;
   }
 
+  const hookSceneId = selection.sceneId;
   const hookScene = findScene(timelineIndex, hookSceneId);
   if (!hookScene?.sourcePath) {
     return null;
@@ -97,9 +77,14 @@ export function planAiHook({
     15,
   );
 
+  const hookCreativeBrief = abstraction?.L3?.hookCreativeBrief ?? null;
+  const continuity = buildContinuityContext(abstraction, previousScene);
+
   return {
     hookSceneId,
-    hookSource: source,
+    hookSource: selection.source,
+    hookSelection: selection.selection,
+    hookCreativeBrief,
     hookClipId: deriveClipIdFromSceneId(hookSceneId),
     sourcePath: hookScene.sourcePath,
     firstFrameSec,
@@ -108,6 +93,11 @@ export function planAiHook({
     aspectRatio: "9:16",
     mode: "pro",
     generateAudio: batchContext.aiVideoGenerateAudio === true,
-    prompt: buildPrompt(abstraction, hookScene),
+    prompt: compileHookPrompt({
+      brief: hookCreativeBrief,
+      abstraction,
+      hookScene,
+      continuity,
+    }),
   };
 }

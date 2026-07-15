@@ -14,6 +14,7 @@ import { runSegmentDirector } from "../../agents/segment-director.js";
 import {
   buildSegmentCatalog,
   resolveSegmentPicks,
+  resolveCanonicalSegmentOrder,
   shouldUseSuperDirector,
 } from "../../lib/segment-catalog.js";
 import { mergeSegmentRecipes } from "../../lib/recipe-merge.js";
@@ -95,16 +96,37 @@ function buildDrillDownOptions(context) {
   };
 }
 
-function reconstructSuperPlanFromRecipe(recipe, abstraction) {
+export function reconstructSuperPlanFromRecipe(recipe, abstraction) {
   const segmentOrder = abstraction?.L2?.map((entry) => entry.segmentId).filter(Boolean) ?? [];
-  const segmentPicks = (recipe.narrativeProfile?.segments ?? abstraction?.L2 ?? [])
+  const knownSegmentIds = new Set(segmentOrder);
+  const narrativeSegments = recipe.narrativeProfile?.segments ?? [];
+  const recipeSceneIds = new Set(
+    (recipe.outputs ?? []).flatMap((output) =>
+      (output.timeline ?? []).flatMap((segment) => [
+        segment.videoRef?.sceneId,
+        segment.audioRef?.sceneId,
+      ].filter(Boolean))),
+  );
+  const timelineSegmentIds = new Set(
+    (abstraction?.L2 ?? [])
+      .filter((entry) =>
+        (entry.sceneIds ?? []).some((sceneId) => recipeSceneIds.has(sceneId)))
+      .map((entry) => entry.segmentId),
+  );
+  const selectedSegments = narrativeSegments.length > 0
+    ? narrativeSegments
+    : (abstraction?.L2 ?? []);
+  const segmentPicks = selectedSegments
     .map((entry) => ({
       segmentId: entry.l2SegmentId ?? entry.segmentId,
       ...entry,
     }))
-    .filter((pick) => pick.segmentId);
+    .filter((pick) =>
+      pick.segmentId
+      && knownSegmentIds.has(pick.segmentId)
+      && timelineSegmentIds.has(pick.segmentId));
 
-  return {
+  const superPlan = {
     segmentOrder,
     segmentPicks,
     crossSegmentNotes: recipe.superPlanNotes ?? [],
@@ -113,6 +135,11 @@ function reconstructSuperPlanFromRecipe(recipe, abstraction) {
     creativityProfile: recipe.creativityProfile,
     narrativeProfile: recipe.narrativeProfile,
   };
+  superPlan.canonicalSegmentOrder = resolveCanonicalSegmentOrder(
+    superPlan,
+    segmentPicks.map((pick) => pick.segmentId),
+  );
+  return superPlan;
 }
 
 export { shouldUseSuperDirector, shouldRunDirectorDrillDown };
@@ -154,6 +181,11 @@ export async function runSuperDirectorDirectPath(client, context) {
   if (picks.length === 0) {
     throw new Error("Super Director nie wybrał żadnego segmentu L2");
   }
+
+  superPlan.canonicalSegmentOrder = resolveCanonicalSegmentOrder(
+    superPlan,
+    picks.map((pick) => pick.segmentId),
+  );
 
   const concurrency = parseSegmentDirectorConcurrency();
   const partials = await mapWithConcurrency(

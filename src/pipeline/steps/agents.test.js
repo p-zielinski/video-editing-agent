@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   ensureSpatialIndex,
   mergeGeneratedAiSceneIntoTimeline,
+  reconstructSuperPlanFromRecipe,
   runReviewStep,
   runSuperDirectorDirectPath,
   SEGMENT_DIRECTOR_CONCURRENCY,
@@ -283,6 +284,47 @@ describe("review step", () => {
 });
 
 describe("super-director direct path", () => {
+  it("reconstructs canonical order from recipe-selected segments only", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg_rejected", sceneIds: ["scene_rejected"] },
+        { segmentId: "seg_selected_b", sceneIds: ["scene_b"] },
+        { segmentId: "seg_selected_a", sceneIds: ["scene_a"] },
+      ],
+    };
+    const recipe = {
+      outputs: [
+        {
+          outputId: "main",
+          timeline: [{ videoRef: { sceneId: "scene_a" }, audioRef: { sceneId: "scene_a" } }],
+        },
+        {
+          outputId: "short",
+          timeline: [{ videoRef: { sceneId: "scene_b" }, audioRef: { sceneId: "scene_b" } }],
+        },
+      ],
+      narrativeProfile: {
+        segments: [
+          { l2SegmentId: "seg_rejected", rhythm: "normal" },
+          { l2SegmentId: "seg_selected_a", rhythm: "fast" },
+          { l2SegmentId: "seg_selected_b", rhythm: "slow" },
+        ],
+      },
+    };
+
+    const reconstructed = reconstructSuperPlanFromRecipe(recipe, abstraction);
+
+    assert.deepEqual(
+      reconstructed.segmentPicks.map((pick) => pick.segmentId),
+      ["seg_selected_a", "seg_selected_b"],
+    );
+    assert.deepEqual(
+      reconstructed.canonicalSegmentOrder,
+      ["seg_selected_b", "seg_selected_a"],
+    );
+    assert.equal(reconstructed.canonicalSegmentOrder.includes("seg_rejected"), false);
+  });
+
   it("shouldUseSuperDirector is false for single-L2 test fixture", () => {
     const abstraction = loadFixture("abstraction.json");
     const timelineIndex = loadFixture("timeline-index.json");

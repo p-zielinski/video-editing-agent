@@ -56,6 +56,17 @@ const ARTISTIC_BOUNDARY_TOLERANCE_SEC = 0.12;
 const STRONG_STYLIZATION_WINDOW_SEC = 30;
 const MAX_STRONG_STYLIZATIONS_PER_WINDOW = 2;
 
+const COLOR_TECHNIQUE_IDS = new Set([
+  "color_desaturate",
+  "color_saturation_boost",
+]);
+const COLOR_DENSITY_WINDOW_SEC = 60;
+const MAX_COLOR_MOMENTS_PER_WINDOW = 2;
+
+function colorMomentsOverlap(a, b) {
+  return a.outputStartSec < b.outputEndSec && b.outputStartSec < a.outputEndSec;
+}
+
 function momentDuration(moment) {
   return (moment.outputEndSec ?? 0) - (moment.outputStartSec ?? 0);
 }
@@ -197,6 +208,91 @@ export function validateArtisticEditingGrammar(recipe) {
           message: `Output ${outputId}: ${inWindow.length} mocnych stylizacji w ${STRONG_STYLIZATION_WINDOW_SEC}s — max ${MAX_STRONG_STYLIZATIONS_PER_WINDOW}; zostaw widzowi oddech`,
           outputId,
           momentId: inWindow[MAX_STRONG_STYLIZATIONS_PER_WINDOW]?.momentId,
+        });
+        break;
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Narrative guardrails for timed color creative moments (V21-16 / V21-20 / V21-21).
+ */
+export function validateColorCreativeMoments(recipe, catalog) {
+  const moments = (recipe.creativeMoments ?? []).filter(
+    (moment) => COLOR_TECHNIQUE_IDS.has(moment.techniqueId),
+  );
+  if (!moments.length) {
+    return [];
+  }
+
+  const issues = [];
+
+  for (const moment of moments) {
+    const technique = catalog?.byId?.get(moment.techniqueId);
+    const allowedIntents = technique?.narrativeFunctions ?? [];
+
+    if (!moment.narrativeIntent) {
+      issues.push({
+        severity: "warning",
+        code: "V21-16",
+        message: `Moment ${moment.momentId}: ${moment.techniqueId} wymaga narrativeIntent — kolor musi wynikać z historii, nie z dekoracji`,
+        momentId: moment.momentId,
+      });
+      continue;
+    }
+
+    if (allowedIntents.length > 0 && !allowedIntents.includes(moment.narrativeIntent)) {
+      issues.push({
+        severity: "warning",
+        code: "V21-16",
+        message: `Moment ${moment.momentId}: narrativeIntent '${moment.narrativeIntent}' nieadekwatny dla ${moment.techniqueId} (dozwolone: ${allowedIntents.join(", ")})`,
+        momentId: moment.momentId,
+      });
+    }
+  }
+
+  const byOutput = new Map();
+  for (const moment of moments) {
+    const outputId = moment.outputId ?? "*";
+    if (!byOutput.has(outputId)) {
+      byOutput.set(outputId, []);
+    }
+    byOutput.get(outputId).push(moment);
+  }
+
+  for (const [outputId, group] of byOutput) {
+    const sorted = [...group].sort((a, b) => a.outputStartSec - b.outputStartSec);
+    for (let i = 0; i < sorted.length; i += 1) {
+      for (let j = i + 1; j < sorted.length; j += 1) {
+        if (colorMomentsOverlap(sorted[i], sorted[j])) {
+          issues.push({
+            severity: "warning",
+            code: "V21-20",
+            message: `Output ${outputId}: nakładające się momenty koloru ${sorted[i].momentId} i ${sorted[j].momentId} — styk dozwolony, overlap nie`,
+            outputId,
+            momentId: sorted[j].momentId,
+          });
+        }
+      }
+    }
+
+    const byStart = [...group].sort((a, b) => a.outputStartSec - b.outputStartSec);
+    for (let startIndex = 0; startIndex < byStart.length; startIndex += 1) {
+      const windowStart = byStart[startIndex].outputStartSec;
+      const inWindow = byStart.filter(
+        (moment) => moment.outputStartSec >= windowStart
+          && moment.outputStartSec < windowStart + COLOR_DENSITY_WINDOW_SEC,
+      );
+      if (inWindow.length > MAX_COLOR_MOMENTS_PER_WINDOW) {
+        issues.push({
+          severity: "warning",
+          code: "V21-21",
+          message: `Output ${outputId}: ${inWindow.length} momentów koloru w ${COLOR_DENSITY_WINDOW_SEC}s — max ${MAX_COLOR_MOMENTS_PER_WINDOW}; nie przesyćaj looku`,
+          outputId,
+          momentId: inWindow[MAX_COLOR_MOMENTS_PER_WINDOW]?.momentId,
         });
         break;
       }
@@ -529,6 +625,21 @@ function validateMusicBedTechniques(moment, recipe) {
 function validateSilenceBeat(moment, recipe, audioIndexByClip) {
   if (moment.techniqueId !== "silence_beat") {
     return [];
+  }
+
+  const volumeFactor = moment.params?.volumeFactor ?? 0.3;
+
+  if (volumeFactor === 0) {
+    const role = moment.retentionRole;
+    if (role === "hook" || role === "beat" || role === "payoff") {
+      return [];
+    }
+    return [{
+      severity: "warning",
+      code: "V21-13",
+      message: `Moment ${moment.momentId}: silence_beat hard mute (volumeFactor: 0) wymaga retentionRole hook, beat lub payoff`,
+      momentId: moment.momentId,
+    }];
   }
 
   const clipId = resolveClipIdForMoment(recipe, moment);
@@ -1065,6 +1176,7 @@ export function validateCreativeMoments(
 
   issues.push(...validatePartialCrossfadePattern(recipe, moments));
   issues.push(...validateArtisticEditingGrammar(recipe));
+  issues.push(...validateColorCreativeMoments(recipe, catalog));
 
   issues.push(...validateL2SegmentBudgetLimits(
     moments,

@@ -28,7 +28,7 @@ import {
 import { applyCreativeMoments } from "./ffmpeg-creative.js";
 import { burnAssSubtitles } from "./ass-subtitles.js";
 import { applyTextOverlays } from "./ffmpeg-graphics.js";
-import { applyAudioMix, outputHasAudioCensorship } from "./audio-mix.js";
+import { applyAudioMix, hasAudioMixMoments, outputHasAudioCensorship } from "./audio-mix.js";
 import { applyColorGrade, shouldApplyColorGrade } from "./color-grade.js";
 import { shouldAllowColorGrade } from "../editorial/color-grade-policy.js";
 import { validateRenderFidelity } from "../validators/render-fidelity.js";
@@ -307,7 +307,8 @@ export async function renderOutput({
     let audioMixApplied = false;
     let sfxApplied = false;
     let audioTechniquesApplied = false;
-    if ((recipe.audioMixPlan || recipe.sfxPlan?.length || outputHasAudioCensorship(output))
+    if ((recipe.audioMixPlan || recipe.sfxPlan?.length || outputHasAudioCensorship(output)
+        || hasAudioMixMoments(outputMoments))
       && shouldRunPass(fromPass, "audio_mix")) {
       if (options.skipAudioMix) {
         passesSkipped.push("audio_mix");

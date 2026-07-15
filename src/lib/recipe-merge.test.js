@@ -746,4 +746,64 @@ describe("recipe-merge", () => {
     assert.equal(merged.sfxPlan[0].outputStartSec, 1);
     assert.equal(merged.sfxPlan[0].outputEndSec, 2);
   });
+
+  it("takes aiHookDecision only from canonical first partial", () => {
+    const superPlan = {
+      canonicalSegmentOrder: ["seg002", "seg001"],
+      segmentOrder: ["seg002", "seg001"],
+      segmentPicks: [
+        { segmentId: "seg001", priority: 1 },
+        { segmentId: "seg002", priority: 2 },
+      ],
+    };
+
+    const partial1 = buildPartialRecipe("short_9x16", [{
+      segmentId: "p1_short",
+      segmentRole: "aroll",
+      videoRef: { clipId: "c1", sceneId: "s1" },
+      audioRef: { clipId: "c1", sceneId: "s1" },
+      videoInSec: 0,
+      videoOutSec: 5,
+      audioInSec: 0,
+      audioOutSec: 5,
+      audioPolicy: "from_video_ref",
+      overlapSec: 0,
+      cuts: [],
+    }], [], "seg001");
+    partial1.outputs[0].outputId = "short_9x16";
+    partial1.outputs[0].format = "9:16";
+    partial1.outputs[0].outputKind = "short";
+    partial1.outputs[0].aiHookDecision = {
+      action: "reject",
+      clipId: "ai_hook_01",
+      reason: "wrong segment",
+    };
+
+    const partial2 = buildPartialRecipe("short_9x16", [{
+      segmentId: "p2_short",
+      segmentRole: "aroll",
+      videoRef: { clipId: "c1", sceneId: "s2" },
+      audioRef: { clipId: "c1", sceneId: "s2" },
+      videoInSec: 0,
+      videoOutSec: 4,
+      audioInSec: 0,
+      audioOutSec: 4,
+      audioPolicy: "from_video_ref",
+      overlapSec: 0,
+      cuts: [],
+    }], [], "seg002");
+    partial2.outputs[0].outputId = "short_9x16";
+    partial2.outputs[0].format = "9:16";
+    partial2.outputs[0].outputKind = "short";
+    partial2.outputs[0].aiHookDecision = {
+      action: "accept",
+      clipId: "ai_hook_01",
+      reason: "canonical first accepted hook",
+    };
+
+    const merged = mergeSegmentRecipes(superPlan, [partial1, partial2]);
+    const shortOutput = merged.outputs.find((output) => output.format === "9:16");
+    assert.equal(shortOutput.aiHookDecision.action, "accept");
+    assert.equal(shortOutput.aiHookDecision.clipId, "ai_hook_01");
+  });
 });

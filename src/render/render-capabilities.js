@@ -61,6 +61,8 @@ const TECHNIQUE_RENDER_SUPPORT = {
   hook_visual_punch: "full",
   retention_beat: "full",
   cinematic_frame: "full",
+  color_desaturate: "full",
+  color_saturation_boost: "full",
 };
 
 /**

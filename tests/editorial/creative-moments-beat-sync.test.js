@@ -142,6 +142,49 @@ describe("creative-moments audio technique validators", () => {
     assert.equal(issues.some((i) => i.code === "V21-13"), false);
   });
 
+  it("skips V21-13 for hard mute with retentionRole beat without silenceGap", () => {
+    const recipe = baseTimelineRecipe([{
+      momentId: "cm_hard_mute",
+      techniqueId: "silence_beat",
+      outputId: "main_16x9",
+      segmentId: "seg_001",
+      outputStartSec: 5,
+      outputEndSec: 5.5,
+      retentionRole: "beat",
+      params: { durationSec: 0.5, volumeFactor: 0 },
+      reason: "pattern interrupt before reveal",
+    }]);
+
+    const audioIndexByClip = new Map([
+      ["clip01", {
+        silenceGaps: [{ startSec: 20, endSec: 21.2, durationSec: 1.2 }],
+        cutSuggestions: [{ timeSec: 22, reason: "silence_start", strength: 0.65 }],
+      }],
+    ]);
+
+    const issues = validateCreativeMoments(recipe, catalog, boldBudget, { audioIndexByClip });
+    assert.equal(issues.some((i) => i.code === "V21-13"), false);
+  });
+
+  it("emits V21-13 for hard mute without retentionRole hook beat payoff", () => {
+    const recipe = baseTimelineRecipe([{
+      momentId: "cm_hard_mute_bad",
+      techniqueId: "silence_beat",
+      outputId: "main_16x9",
+      segmentId: "seg_001",
+      outputStartSec: 5,
+      outputEndSec: 5.5,
+      params: { durationSec: 0.5, volumeFactor: 0 },
+      reason: "hard mute without role",
+    }]);
+
+    const issues = validateCreativeMoments(recipe, catalog, boldBudget, { audioIndexByClip: new Map() });
+    const issue = issues.find((i) => i.code === "V21-13");
+    assert.ok(issue);
+    assert.equal(issue.severity, "warning");
+    assert.match(issue.message, /retentionRole/);
+  });
+
   it("skips V21-13 when silence_beat aligns with nearby cutSuggestion", () => {
     const recipe = baseTimelineRecipe([{
       momentId: "cm_silence",

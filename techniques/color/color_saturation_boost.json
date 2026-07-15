@@ -1,0 +1,46 @@
+{
+  "id": "color_saturation_boost",
+  "version": "1.0",
+  "category": "color",
+  "label": "Saturation boost",
+  "description": "Krótkie podbicie nasycenia na payoff, reveal lub beat energii.",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "retention",
+    "energy"
+  ],
+  "narrativeFunctions": [
+    "reveal",
+    "momentum",
+    "contrast",
+    "tension"
+  ],
+  "visualIntensity": "moderate",
+  "params": {
+    "boost": {
+      "type": "number",
+      "min": 0.05,
+      "max": 0.25,
+      "default": 0.12
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.05,
+    "maxDurationSec": 6,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "balanced"
+  },
+  "whenToUse": "Payoff emocjonalny, reveal produktu/sceny, krótki akcent po dipie — 1–4 s.",
+  "whenToAvoid": "Cały segment, materiał już przesycony, zamiast globalnego colorGrade.",
+  "syncHints": [
+    "beat",
+    "reveal",
+    "payoff"
+  ],
+  "renderSupport": "full"
+}

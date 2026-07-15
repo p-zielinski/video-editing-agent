@@ -21,7 +21,7 @@
     "version": { "type": "string" },
     "category": {
       "type": "string",
-      "enum": ["camera", "edit", "transition", "audio", "graphics"]
+      "enum": ["camera", "edit", "transition", "audio", "graphics", "color"]
     },
     "label": { "type": "string" },
     "description": { "type": "string" },

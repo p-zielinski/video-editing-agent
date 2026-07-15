@@ -16,6 +16,7 @@ import {
   resolveDuckingWindows,
   resolveMusicBedMoments,
   resolveVoiceAudioMoments,
+  hasAudioMixMoments,
   resolveSfxPath,
   resolveSfxPlanEntries,
   applyAudioMix,
@@ -459,6 +460,26 @@ describe("audio-mix", () => {
     assert.deepEqual(moments.map((m) => m.techniqueId), ["music_swell", "music_drop"]);
   });
 
+  it("hasAudioMixMoments is true for voice and music bed audio techniques", () => {
+    assert.equal(hasAudioMixMoments([]), false);
+    assert.equal(hasAudioMixMoments([{ techniqueId: "zoom_punch_in" }]), false);
+    assert.equal(hasAudioMixMoments([{ techniqueId: "silence_beat" }]), true);
+    assert.equal(hasAudioMixMoments([{ techniqueId: "voice_pitch_shift" }]), true);
+    assert.equal(hasAudioMixMoments([{ techniqueId: "music_swell" }]), true);
+    assert.equal(hasAudioMixMoments([{ techniqueId: "music_drop" }]), true);
+  });
+
+  it("buildVoiceMomentVolumeFilter hard mutes voice when volumeFactor is 0", () => {
+    const filter = buildVoiceMomentVolumeFilter("[voice_base]", "[voice]", {
+      techniqueId: "silence_beat",
+      outputStartSec: 4,
+      outputEndSec: 4.8,
+      params: { durationSec: 0.8, volumeFactor: 0 },
+    });
+    assert.ok(filter.includes("between(t\\,4\\,4.8)"));
+    assert.ok(filter.includes("volume=0"));
+  });
+
   it("resolveVoiceAudioMoments keeps silence_beat and voice_pitch_shift", () => {
     const moments = resolveVoiceAudioMoments([
       { techniqueId: "music_swell", outputStartSec: 0, outputEndSec: 3 },
@@ -725,6 +746,63 @@ describe("audio-mix", () => {
       assert.deepEqual(result.appliedAudioTechniques, ["music_swell"]);
       assert.ok(capturedFilterComplex?.includes("between(t\\,0.5\\,1.5)"));
       assert.ok(capturedFilterComplex?.includes("[music_base]"));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("applyAudioMix includes silence_beat hard mute without audioMixPlan", async (t) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-audio-mix-hard-mute-"));
+    const inputPath = path.join(tmpDir, "input.mp4");
+    const outputPath = path.join(tmpDir, "output.mp4");
+    const { ffmpeg } = resolveFfmpegBins();
+
+    const gen = spawnSync(
+      ffmpeg,
+      [
+        "-y",
+        "-f", "lavfi",
+        "-i", "color=c=blue:s=160x120:d=2",
+        "-f", "lavfi",
+        "-i", "sine=frequency=440:duration=2",
+        "-t", "2",
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-shortest",
+        inputPath,
+      ],
+      { encoding: "utf8" },
+    );
+    if (gen.status !== 0) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      t.skip("ffmpeg lavfi unavailable for test input generation");
+    }
+
+    let capturedFilterComplex = null;
+
+    try {
+      const result = await applyAudioMix(inputPath, outputPath, {
+        recipe: { sfxPlan: [] },
+        output: { outputId: "short_9x16" },
+        context: {},
+        creativeMoments: [{
+          techniqueId: "silence_beat",
+          outputStartSec: 0.5,
+          outputEndSec: 1.3,
+          params: { durationSec: 0.8, volumeFactor: 0 },
+        }],
+        encodeProfile: resolveEncodeProfile("draft"),
+        runFfmpegFn: async (args) => {
+          const idx = args.indexOf("-filter_complex");
+          capturedFilterComplex = idx >= 0 ? args[idx + 1] : null;
+        },
+      });
+
+      assert.equal(result.applied, true);
+      assert.equal(result.audioTechniquesApplied, true);
+      assert.deepEqual(result.appliedAudioTechniques, ["silence_beat"]);
+      assert.ok(capturedFilterComplex?.includes("volume=0"));
+      assert.ok(capturedFilterComplex?.includes("between(t\\,0.5\\,1.3)"));
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

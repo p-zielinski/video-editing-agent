@@ -207,6 +207,30 @@ function buildDipToBlackFilter({ outputStartSec, params, inputLabel, outputLabel
   return `${inputLabel}${fadeOut},${fadeIn}${outputLabel}`;
 }
 
+const SATURATION_CLAMP_MIN = 0;
+const SATURATION_CLAMP_MAX = 3;
+
+function clampSaturationFactor(value) {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.min(SATURATION_CLAMP_MAX, Math.max(SATURATION_CLAMP_MIN, value));
+}
+
+function buildTimedSaturationFilter({
+  outputStartSec,
+  outputEndSec,
+  saturation,
+  inputLabel,
+  outputLabel,
+}) {
+  const start = outputStartSec;
+  const end = outputEndSec;
+  const sat = clampSaturationFactor(saturation);
+  const eq = `eq=saturation='if(between(t\\,${start}\\,${end})\\,${sat}\\,1)':eval=frame`;
+  return `${inputLabel}${eq}${outputLabel}`;
+}
+
 function buildCutMidSentencePulse({ outputStartSec, outputEndSec, params, inputLabel, outputLabel }) {
   const energy = params.energy ?? "medium";
   const pulseByEnergy = {
@@ -477,6 +501,30 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
         delegatesTo: "graphics",
         warning: `${techniqueId} — delegacja do pass overlay (textOverlays)`,
       };
+    case "color_desaturate": {
+      const amount = params.amount ?? 1;
+      const saturation = clampSaturationFactor(1 - amount);
+      const filter = buildTimedSaturationFilter({
+        outputStartSec,
+        outputEndSec,
+        saturation,
+        inputLabel,
+        outputLabel,
+      });
+      return { filter, outputLabel };
+    }
+    case "color_saturation_boost": {
+      const boost = params.boost ?? 0.12;
+      const saturation = clampSaturationFactor(1 + boost);
+      const filter = buildTimedSaturationFilter({
+        outputStartSec,
+        outputEndSec,
+        saturation,
+        inputLabel,
+        outputLabel,
+      });
+      return { filter, outputLabel };
+    }
     case "music_swell":
     case "music_drop":
     case "silence_beat":
@@ -503,6 +551,8 @@ export function listSupportedTechniques() {
     "match_cut",
     "cinematic_frame",
     "cut_mid_sentence",
+    "color_desaturate",
+    "color_saturation_boost",
   ];
 }
 
@@ -516,4 +566,6 @@ export {
   buildMatchCutFilter,
   buildSlowPushFilter,
   buildCinematicFrameFilter,
+  buildTimedSaturationFilter,
+  clampSaturationFactor,
 };

@@ -16,7 +16,9 @@
     "j_cut",
     "l_cut",
     "music_swell",
-    "music_drop"
+    "music_drop",
+    "color_desaturate",
+    "color_saturation_boost"
   ],
   "defaultCreativityLevel": "shorts",
   "paramOverrides": {}

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildTechniqueFilter, listSupportedTechniques } from "./technique-to-ffmpeg.js";
+import { buildTechniqueFilter, listSupportedTechniques, buildTimedSaturationFilter, clampSaturationFactor } from "./technique-to-ffmpeg.js";
 
 describe("technique-to-ffmpeg", () => {
   it("lists supported camera techniques", () => {
@@ -11,6 +11,8 @@ describe("technique-to-ffmpeg", () => {
     assert.ok(ids.includes("dip_to_black"));
     assert.ok(ids.includes("whip_pan"));
     assert.ok(ids.includes("match_cut"));
+    assert.ok(ids.includes("color_desaturate"));
+    assert.ok(ids.includes("color_saturation_boost"));
   });
 
   it("builds scale filter for zoom_punch_out with factor < 1", () => {
@@ -422,5 +424,107 @@ describe("technique-to-ffmpeg", () => {
     assert.ok(result.filter?.includes("eq=contrast=") || result.filter?.includes(":contrast="));
     assert.ok(result.filter?.includes("between(t\\,4.5"));
     assert.equal(result.deferred, undefined);
+  });
+
+  it("buildTimedSaturationFilter uses between, eval=frame and escapes commas", () => {
+    const filter = buildTimedSaturationFilter({
+      outputStartSec: 5,
+      outputEndSec: 8,
+      saturation: 0,
+      inputLabel: "[0:v]",
+      outputLabel: "[vout]",
+    });
+    assert.ok(filter.includes("eq=saturation="));
+    assert.ok(filter.includes("between(t\\,5\\,8)"));
+    assert.ok(filter.includes("eval=frame"));
+    assert.ok(filter.includes(",1)':eval=frame"));
+  });
+
+  it("clampSaturationFactor clamps out-of-range values defensively", () => {
+    assert.equal(clampSaturationFactor(-1), 0);
+    assert.equal(clampSaturationFactor(5), 3);
+    assert.equal(clampSaturationFactor(Number.NaN), 1);
+    assert.equal(clampSaturationFactor(1.12), 1.12);
+  });
+
+  it("builds full B&W color_desaturate with default amount 1", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "color_desaturate",
+        outputStartSec: 10,
+        outputEndSec: 14,
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes("eq=saturation="));
+    assert.ok(result.filter?.includes("between(t\\,10\\,14)"));
+    assert.ok(result.filter?.includes(",0\\,1)"));
+    assert.ok(result.filter?.includes("eval=frame"));
+  });
+
+  it("builds partial desaturate when amount is below 1", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "color_desaturate",
+        outputStartSec: 2,
+        outputEndSec: 5,
+        params: { amount: 0.5 },
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes(",0.5\\,1)"));
+  });
+
+  it("clamps color_desaturate saturation at zero for extreme amount", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "color_desaturate",
+        outputStartSec: 0,
+        outputEndSec: 2,
+        params: { amount: 2 },
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes(",0\\,1)"));
+  });
+
+  it("builds color_saturation_boost with default boost 0.12", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "color_saturation_boost",
+        outputStartSec: 20,
+        outputEndSec: 23,
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes("eq=saturation="));
+    assert.ok(result.filter?.includes("between(t\\,20\\,23)"));
+    assert.ok(result.filter?.includes(",1.12\\,1)"));
+  });
+
+  it("builds color_saturation_boost with explicit boost param", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "color_saturation_boost",
+        outputStartSec: 1,
+        outputEndSec: 3,
+        params: { boost: 0.2 },
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes(",1.2\\,1)"));
+  });
+
+  it("clamps color_saturation_boost saturation at max for extreme boost", () => {
+    const result = buildTechniqueFilter(
+      {
+        techniqueId: "color_saturation_boost",
+        outputStartSec: 0,
+        outputEndSec: 1,
+        params: { boost: 5 },
+      },
+      { dimensions: { width: 1080, height: 1920 } },
+    );
+    assert.ok(result.filter?.includes(",3\\,1)"));
   });
 });

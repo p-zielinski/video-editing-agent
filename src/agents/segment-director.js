@@ -118,6 +118,7 @@ export function buildSegmentDirectorBrief(context, {
     (entry) => scopedClipIds.has(entry.clipId),
   );
   const segmentPick = superPlan.segmentPicks?.find((pick) => pick.segmentId === segmentId);
+  const canonicalFirstSegmentId = superPlan.canonicalSegmentOrder?.[0];
   const notes = [
     ...superNotes,
     ...(superPlan.crossSegmentNotes ?? []),
@@ -161,7 +162,7 @@ export function buildSegmentDirectorBrief(context, {
         * segmentPick.targetKeepRatio
       : undefined,
     workDir,
-    aiVideoArtifact: segmentId === superPlan.segmentOrder?.[0]
+    aiVideoArtifact: segmentId === canonicalFirstSegmentId
       ? aiVideoArtifact
       : null,
   });

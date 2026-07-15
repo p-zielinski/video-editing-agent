@@ -88,4 +88,39 @@ describe("artifact-schema contract: agent fixtures vs Zod", () => {
     };
     SpatialIndexSchema.parse(spatialIndex);
   });
+
+  it("exported HookCreativeBrief JSON Schema requires unexpectedElement only for unexpected strategy", () => {
+    const exportedSchema = JSON.parse(fs.readFileSync(
+      path.resolve(FIXTURES_DIR, "../../../schemas/json/AbstractionBundle.schema.json"),
+      "utf8",
+    ));
+    const hookSchema = exportedSchema
+      .definitions
+      .AbstractionBundle
+      .properties
+      .L3
+      .properties
+      .hookCreativeBrief;
+    const variants = hookSchema.anyOf ?? hookSchema.oneOf;
+
+    assert.equal(variants?.length, 2);
+
+    const contextual = variants.find(
+      (variant) => variant.properties?.strategy?.const === "contextual",
+    );
+    const unexpected = variants.find(
+      (variant) => variant.properties?.strategy?.const === "intentionally_unexpected",
+    );
+
+    assert.ok(contextual);
+    assert.ok(unexpected);
+    assert.equal(contextual.required.includes("unexpectedElement"), false);
+    assert.equal(unexpected.required.includes("unexpectedElement"), true);
+    assert.deepEqual(
+      contextual.properties.mustAvoid.default,
+      unexpected.properties.mustAvoid.default,
+    );
+    assert.equal(contextual.required.includes("visualTone"), false);
+    assert.equal(unexpected.required.includes("visualTone"), false);
+  });
 });

@@ -1035,4 +1035,195 @@ describe("validateCreativeMoments", () => {
       ),
     );
   });
+
+  it("rejects color_desaturate params out of range (V21-02)", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [{
+        momentId: "cm_color_bad",
+        techniqueId: "color_desaturate",
+        outputId: "main_16x9",
+        outputStartSec: 10,
+        outputEndSec: 12,
+        params: { amount: 1.5 },
+        narrativeIntent: "memory",
+        reason: "Za mocna desaturacja poza schematem",
+      }],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(issues.some((i) => i.code === "V21-02" && i.message.includes("amount")));
+  });
+
+  it("warns V21-16 when color moment lacks narrativeIntent", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [{
+        momentId: "cm_color_no_intent",
+        techniqueId: "color_desaturate",
+        outputId: "main_16x9",
+        outputStartSec: 30,
+        outputEndSec: 34,
+        reason: "Dekoracyjny wash",
+      }],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(issues.some((i) => i.code === "V21-16" && i.message.includes("color_desaturate")));
+  });
+
+  it("warns V21-16 when color narrativeIntent is inadequate for technique", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [{
+        momentId: "cm_color_wrong_intent",
+        techniqueId: "color_saturation_boost",
+        outputId: "main_16x9",
+        outputStartSec: 40,
+        outputEndSec: 42,
+        narrativeIntent: "memory",
+        reason: "Boost przy wspomnieniu",
+      }],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(issues.some((i) => i.code === "V21-16" && i.message.includes("nieadekwatny")));
+  });
+
+  it("warns V21-20 when color moments overlap on same output", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [
+        {
+          momentId: "cm_color_a",
+          techniqueId: "color_desaturate",
+          outputId: "main_16x9",
+          outputStartSec: 50,
+          outputEndSec: 55,
+          narrativeIntent: "memory",
+          reason: "Flashback A",
+        },
+        {
+          momentId: "cm_color_b",
+          techniqueId: "color_saturation_boost",
+          outputId: "main_16x9",
+          outputStartSec: 53,
+          outputEndSec: 56,
+          narrativeIntent: "reveal",
+          reason: "Reveal overlap",
+        },
+      ],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(issues.some((i) => i.code === "V21-20"));
+  });
+
+  it("allows touching color moments without V21-20", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [
+        {
+          momentId: "cm_color_touch_a",
+          techniqueId: "color_desaturate",
+          outputId: "main_16x9",
+          outputStartSec: 60,
+          outputEndSec: 63,
+          narrativeIntent: "memory",
+          reason: "Flashback",
+        },
+        {
+          momentId: "cm_color_touch_b",
+          techniqueId: "color_saturation_boost",
+          outputId: "main_16x9",
+          outputStartSec: 63,
+          outputEndSec: 65,
+          narrativeIntent: "reveal",
+          reason: "Powrót koloru",
+        },
+      ],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.equal(issues.some((i) => i.code === "V21-20"), false);
+  });
+
+  it("warns V21-21 when more than 2 color moments fall in 60s window", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [
+        {
+          momentId: "cm_color_1",
+          techniqueId: "color_desaturate",
+          outputId: "short_9x16",
+          outputStartSec: 5,
+          outputEndSec: 7,
+          narrativeIntent: "tension",
+          reason: "Napięcie 1",
+        },
+        {
+          momentId: "cm_color_2",
+          techniqueId: "color_saturation_boost",
+          outputId: "short_9x16",
+          outputStartSec: 20,
+          outputEndSec: 22,
+          narrativeIntent: "reveal",
+          reason: "Reveal 1",
+        },
+        {
+          momentId: "cm_color_3",
+          techniqueId: "color_desaturate",
+          outputId: "short_9x16",
+          outputStartSec: 40,
+          outputEndSec: 42,
+          narrativeIntent: "memory",
+          reason: "Flashback",
+        },
+      ],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.ok(issues.some((i) => i.code === "V21-21" && i.message.includes("short_9x16")));
+  });
+
+  it("counts V21-21 color density separately per output", () => {
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [
+        {
+          momentId: "cm_main_desaturate",
+          techniqueId: "color_desaturate",
+          outputId: "main_16x9",
+          outputStartSec: 5,
+          outputEndSec: 7,
+          narrativeIntent: "memory",
+          reason: "Wspomnienie na main",
+        },
+        {
+          momentId: "cm_main_boost",
+          techniqueId: "color_saturation_boost",
+          outputId: "main_16x9",
+          outputStartSec: 20,
+          outputEndSec: 22,
+          narrativeIntent: "reveal",
+          reason: "Reveal na main",
+        },
+        {
+          momentId: "cm_short_desaturate",
+          techniqueId: "color_desaturate",
+          outputId: "short_9x16",
+          outputStartSec: 5,
+          outputEndSec: 7,
+          narrativeIntent: "tension",
+          reason: "Napięcie na short",
+        },
+        {
+          momentId: "cm_short_boost",
+          techniqueId: "color_saturation_boost",
+          outputId: "short_9x16",
+          outputStartSec: 20,
+          outputEndSec: 22,
+          narrativeIntent: "momentum",
+          reason: "Energia na short",
+        },
+      ],
+    };
+
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    assert.equal(issues.some((i) => i.code === "V21-21"), false);
+  });
 });

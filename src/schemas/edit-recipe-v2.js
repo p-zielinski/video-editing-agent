@@ -212,6 +212,14 @@ export const ChapterMarkerSchema = z.object({
 
 export const OutputKindSchema = z.enum(["main", "short"]);
 
+export const AiHookDecisionActionSchema = z.enum(["accept", "reject"]);
+
+export const AiHookDecisionSchema = z.object({
+  action: AiHookDecisionActionSchema,
+  clipId: z.string().min(1),
+  reason: z.string().min(1),
+});
+
 export const OutputRecipeV2Schema = z.object({
   outputId: z.string(),
   format: z.enum(["16:9", "9:16"]),
@@ -221,6 +229,7 @@ export const OutputRecipeV2Schema = z.object({
   targetDurationSec: z.number().positive().optional(),
   timeline: z.array(TimelineSegmentV2Schema),
   chapterMarkers: z.array(ChapterMarkerSchema).default([]),
+  aiHookDecision: AiHookDecisionSchema.optional(),
 });
 
 export const ExclusionTypeSchema = z.enum(["whole_clip", "scene", "time_range"]);

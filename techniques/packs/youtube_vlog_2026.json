@@ -29,7 +29,9 @@
     "music_drop",
     "silence_beat",
     "voice_pitch_shift",
-    "cinematic_frame"
+    "cinematic_frame",
+    "color_desaturate",
+    "color_saturation_boost"
   ],
   "defaultCreativityLevel": "balanced",
   "paramOverrides": {
@@ -37,6 +39,8 @@
   },
   "constraintOverrides": {
     "silence_beat": { "requiresCreativityLevel": "balanced" },
-    "voice_pitch_shift": { "requiresCreativityLevel": "bold" }
+    "voice_pitch_shift": { "requiresCreativityLevel": "bold" },
+    "color_desaturate": { "requiresCreativityLevel": "balanced" },
+    "color_saturation_boost": { "requiresCreativityLevel": "balanced" }
   }
 }

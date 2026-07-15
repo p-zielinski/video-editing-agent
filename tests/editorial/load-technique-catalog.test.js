@@ -42,6 +42,15 @@ describe("loadTechniqueCatalog", () => {
     assert.equal(silenceBeat.constraints.requiresCreativityLevel, "balanced");
   });
 
+  it("exposes silence_beat volumeFactor param with default 0.3", () => {
+    const catalog = loadTechniqueCatalog();
+    const silenceBeat = catalog.byId.get("silence_beat");
+    assert.ok(silenceBeat);
+    assert.equal(silenceBeat.params.volumeFactor.default, 0.3);
+    assert.equal(silenceBeat.params.volumeFactor.min, 0);
+    assert.equal(silenceBeat.params.volumeFactor.max, 1);
+  });
+
   it("does not lower silence_beat gate on non-vlog packs", () => {
     const catalog = loadTechniqueCatalog({ pack: "shorts_energy" });
     const silenceBeat = catalog.byId.get("silence_beat");
@@ -68,5 +77,37 @@ describe("loadTechniqueCatalog", () => {
     assert.equal(chapterCard.constraints.requiresOutputKind, "short");
     assert.match(chapterCard.whenToUse, /textOverlays/i);
     assert.match(chapterCard.whenToAvoid, /main/i);
+  });
+
+  it("loads color techniques with schema params and renderSupport full", () => {
+    const catalog = loadTechniqueCatalog();
+    const desaturate = catalog.byId.get("color_desaturate");
+    const boost = catalog.byId.get("color_saturation_boost");
+    assert.ok(desaturate);
+    assert.ok(boost);
+    assert.equal(desaturate.category, "color");
+    assert.equal(desaturate.params.amount.default, 1);
+    assert.equal(desaturate.params.amount.min, 0);
+    assert.equal(desaturate.params.amount.max, 1);
+    assert.equal(boost.params.boost.default, 0.12);
+    assert.equal(boost.params.boost.min, 0.05);
+    assert.equal(boost.params.boost.max, 0.25);
+    assert.equal(desaturate.renderSupport, "full");
+    assert.equal(boost.renderSupport, "full");
+  });
+
+  it("includes color techniques in youtube_vlog_2026 and shorts packs", () => {
+    const vlog = loadTechniqueCatalog({ pack: "youtube_vlog_2026" });
+    assert.ok(vlog.byId.has("color_desaturate"));
+    assert.ok(vlog.byId.has("color_saturation_boost"));
+    assert.equal(vlog.byId.get("color_desaturate").constraints.requiresCreativityLevel, "balanced");
+
+    const retention = loadTechniqueCatalog({ pack: "shorts_retention_2026" });
+    assert.ok(retention.byId.has("color_desaturate"));
+    assert.ok(retention.byId.has("color_saturation_boost"));
+
+    const energy = loadTechniqueCatalog({ pack: "shorts_energy" });
+    assert.ok(energy.byId.has("color_desaturate"));
+    assert.ok(energy.byId.has("color_saturation_boost"));
   });
 });

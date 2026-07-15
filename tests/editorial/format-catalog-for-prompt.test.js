@@ -64,4 +64,23 @@ describe("formatCatalogForPrompt", () => {
     ]);
     assert.equal(frame?.visualIntensity, "strong");
   });
+
+  it("includes color narrative functions in prompt table", () => {
+    const catalog = loadTechniqueCatalog();
+    const budget = computeCreativityBudget(600, { level: "balanced" });
+    const formatted = formatCatalogForPrompt(catalog, budget);
+    const desaturate = formatted.techniques.find((t) => t.id === "color_desaturate");
+    const boost = formatted.techniques.find((t) => t.id === "color_saturation_boost");
+
+    assert.ok(desaturate);
+    assert.ok(boost);
+    assert.deepEqual(desaturate.narrativeFunctions, [
+      "isolation",
+      "memory",
+      "passage_of_time",
+      "tension",
+    ]);
+    assert.match(desaturate.params, /amount/);
+    assert.match(boost.params, /boost/);
+  });
 });

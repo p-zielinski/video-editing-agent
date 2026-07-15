@@ -5,6 +5,7 @@ import {
   rankSegmentsByUserContext,
   shouldUseSuperDirector,
   resolveSegmentPicks,
+  resolveCanonicalSegmentOrder,
   SUPER_DIRECTOR_MAX_SEGMENT_PICKS,
   SUPER_DIRECTOR_DURATION_THRESHOLD_SEC,
 } from "./segment-catalog.js";
@@ -153,5 +154,35 @@ describe("segment-catalog", () => {
       shouldUseSuperDirector(longTimeline, multiSegment, { forceClassicDirector: true }),
       false,
     );
+  });
+
+  it("resolveCanonicalSegmentOrder respects segmentOrder then picks", () => {
+    const superPlan = {
+      segmentOrder: ["seg003", "seg001"],
+      segmentPicks: [
+        { segmentId: "seg001", priority: 2 },
+        { segmentId: "seg002", priority: 1 },
+        { segmentId: "seg003", priority: 3 },
+      ],
+    };
+    const available = ["seg001", "seg002", "seg003"];
+    const order = resolveCanonicalSegmentOrder(superPlan, available);
+    assert.deepEqual(order, ["seg003", "seg001", "seg002"]);
+  });
+
+  it("resolveCanonicalSegmentOrder never restores unavailable segmentOrder ids", () => {
+    const superPlan = {
+      segmentOrder: ["seg_removed", "seg002", "seg001"],
+      segmentPicks: [
+        { segmentId: "seg_removed", priority: 1 },
+        { segmentId: "seg001", priority: 2 },
+        { segmentId: "seg002", priority: 3 },
+      ],
+    };
+
+    const order = resolveCanonicalSegmentOrder(superPlan, ["seg001", "seg002"]);
+
+    assert.deepEqual(order, ["seg002", "seg001"]);
+    assert.equal(order.includes("seg_removed"), false);
   });
 });

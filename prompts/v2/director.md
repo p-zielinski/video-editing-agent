@@ -15,7 +15,7 @@ Obiekt zagnieżdżony w **brief**:
 - **constraints.voiceDirectivePolicy** — gdy `"enricher_materializes"` (domyślnie): meta-komendy głosowe z transkryptu (`boomerang`, `reverse`, `add_text_overlay`) są materializowane deterministycznie przez enricher `enrichRecipeVoiceDirectives` po directorze — **nie** dodawaj w szkicu `cuts[]`, `textOverlays` ani `videoTransform.playbackMode` dla tych komend. Brief **nie** zawiera listy `voiceDirectives`.
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops**, **emotionalBeatHints**, **narrativeProfile**, **segmentNarrativeProfile**, …
 - **twelveLabsMoments** — interpretacja wideo per klip (TwelveLabs): patrz sekcja drill_down poniżej
-- **aiHook** — opcjonalny, już wygenerowany klip otwierający. To stały asset, nie prośba o wygenerowanie.
+- **aiHook** — opcjonalny, już wygenerowany klip otwierający. To stały asset, nie prośba o wygenerowanie. **Nie pisz promptu dla providera** — oceń gotowy wynik.
 
 ### clipRegistry[]
 
@@ -62,7 +62,7 @@ Płaski payload (bez zagnieżdżonego `brief`):
 - **sceneSummariesL1** — pełne L1 dla `sceneIds` z draftu
 - **topicIndex**, **spatialIndex**, **spatialRefExamples**, **transcriptExcerpts**, **audioIndex**
 - **twelveLabsMoments** — interpretacja wideo per klip (TwelveLabs): `clipSummary`, `title`, `topics`, `mood`, `narrativeRole`, `editingHints`, `chapters[]`, `moments[]` (z `startSec`/`endSec`, `description`, opcjonalnie `editUse`: hook|payoff|broll_insert|reaction|establishing|transition). Używaj do B-roll, cold open, chapter cards i dopasowania scen — **nie zastępuje** `transcriptExcerpts` do cięć na słowach.
-- **aiHook** — rzeczywisty wygenerowany klip z `clipId`, `sceneId`, długością, promptem, informacją o audio i `understanding` z TwelveLabs. Oceń wynik, nie sam prompt. Jeśli pasuje narracyjnie, umieść go najwyżej raz na początku shorta jako `segmentRole: "ai_hook"` i zaprojektuj przejście do pierwszej sceny. Gdy `generatedAudio=false`, użyj muzyki lub audio kolejnej sceny; gdy audio istnieje, zachowaj je tylko jeśli analiza potwierdza jego wartość. Możesz pominąć słaby lub mylący wynik. W ścieżce segmentowej tylko pierwszy segment porządku Super Directora może użyć `aiHook`.
+- **aiHook** — rzeczywisty wygenerowany klip z `clipId`, `sceneId`, długością, promptem, informacją o audio i `understanding` z TwelveLabs. Oceń wynik, nie sam prompt. Gdy pasuje narracyjnie, ustaw na short output `aiHookDecision: { action: "accept", clipId, reason }` **albo** umieść segment `segmentRole: "ai_hook"` na początku timeline z tym samym `clipId`. Gdy słaby lub mylący: `aiHookDecision: { action: "reject", clipId, reason }` i **nie** dodawaj segmentu `ai_hook`. `clipId` w decyzji musi dokładnie odpowiadać `brief.aiHook.clipId`. W ścieżce segmentowej tylko pierwszy segment kanonicznego porządku Super Directora może użyć `aiHook`.
 - **clipRegistry**, **sessionSummary**, **userContext**, **requiredFormats**
 - **creativityProfile**, **techniqueCatalog**, **creativityBudget**, **creativityBudgetByOutput**, **creativityBudgetByL2Segment**
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops** (gdy retention)
@@ -94,7 +94,7 @@ Klip z `clipRole: broll_pool` to materiał do przebitek — NIE dodawaj go do `e
 ## Segmenty v2
 
 Każdy segment wymaga:
-- `segmentRole`: `aroll` lub `broll`
+- `segmentRole`: `aroll`, `broll` lub `ai_hook` (max 1× `ai_hook` na short)
 - `videoRef` i `audioRef` (tylko clipId + sceneId — bez czasów w ref)
 - `videoInSec`/`videoOutSec`, `audioInSec`/`audioOutSec`
 - `audioPolicy`: `from_video_ref` (A-roll, refs równe), `from_audio_ref` (B-roll cross-clip), `from_prev`/`from_next` (J/L-cut)
@@ -399,7 +399,7 @@ Renderer mapuje `creativeMoments` na passy FFmpeg — **nazwa techniki ≠ to sa
 | `dip_to_black` | Fade out/in (0.3–0.8 s) w creative pass | Akty/rozdziały main 16:9 (co ~8–12 min) — przejście między częściami vlogu; nie myl z kartą rozdziału |
 | `music_swell` | Podbicie głośności music bed (+~3 dB) | Wymaga `audioMixPlan.musicBed`; beat retencji, wzmocnienie energii na cadence |
 | `music_drop` | **Ściemnia** music bed (~−6 dB) | Wymaga `audioMixPlan.musicBed`; payoff / reveal emocjonalny (`retentionRole: payoff`) — nie zwykły beat |
-| `silence_beat` | Dip głosu w audio-mix | **Nie skraca** duration outputu — dramatyczna pauza bez usuwania czasu; skrócenie = `cuts[]` lub trim segmentu |
+| `silence_beat` | Soft dip lub hard mute głosu w audio-mix (`params.volumeFactor`: **> 0** = soft dip, domyślnie **0.3**; dokładnie **0** = pełne wyciszenie głosu) | Zakres schema: 0..1. **Nie skraca** duration outputu — dramatyczna pauza bez usuwania czasu; skrócenie = `cuts[]` lub trim segmentu. **Nie wycisza** music bed. Room tone / sting tylko osobny wpis `sfxPlan` |
 | `reframe_follow_subject` | Statyczny `zoompan` do `spatialRef.bbox` | **Nie** continuous tracking — kotwica z `spatialIndex`; krótki moment, nie podążanie przez segment |
 | `chapter_card` (technika) | Graphics — `requiresOutputKind: short` (V22-06) | Na main 16:9: `textOverlays[]` z `style: chapter_card`, nie `creativeMoments` z tym `techniqueId` |
 | `zoom_punch_out` | Scale punch out (factor &lt; 1) jak `zoom_punch_in` w drugą stronę | Wymaga `spatialRef` / kotwicy; A-roll, nie B-roll |
@@ -407,6 +407,19 @@ Renderer mapuje `creativeMoments` na passy FFmpeg — **nazwa techniki ≠ to sa
 | `zoom_slow_push` | Płynny, duration-aware scale+crop bez duplikowania klatek | 8–20 s; kończ na joinie/revealu; `factor` 1.04–1.10 zwykle wystarczy |
 | `cinematic_frame` | Zaokrąglona ramka na rozmytym/czarnym/papierowym tle | Wyraźny blok narracyjny, nie stały layout |
 | `slide_left/right/up/down` | `xfade` — stary kadr wyjeżdża, nowy wjeżdża z przeciwnej strony | `outputStartSec` dokładnie na joinie segmentów |
+| `color_desaturate` | Timed `eq` saturation = `1 - amount` (domyślnie `amount: 1` → B&W) w oknie `outputStartSec`–`outputEndSec` | **Nie** globalny look — flashback / izolacja / passage_of_time; wymaga `narrativeIntent`; max 2 w 60 s (V21-21); bez overlap (V21-20) |
+| `color_saturation_boost` | Timed `eq` saturation = `1 + boost` (domyślnie +0.12) w oknie momentu | Payoff / reveal — krótko (1–4 s); **nie** zamiast `colorGrade`; wymaga `narrativeIntent` z katalogu |
+
+**Kolor narracyjny vs `colorGrade` (globalny pass):**
+
+| | `creativeMoments` `color_*` | `colorGrade` (cały output) |
+|--|---------------------------|----------------------------|
+| Zakres czasu | Okno `outputStartSec`–`outputEndSec` | Cały render outputu |
+| Pass | `creative` (FFmpeg `eq` saturation) | `color_grade` (LUT / global EQ) |
+| Kiedy | Rzadki akcent narracyjny (pamięć, reveal) | Korekcja log/flat lub delikatny LUT na całość |
+| Anti-overuse | Max 2 momenty koloru / 60 s; bez nakładania okien; nie łącz z globalnym grade bez powodu | Jeden profil na output; domyślnie `colorGradePolicy: off` |
+
+Przykłady: `color_desaturate` `narrativeIntent: memory` na 4 s wspomnienia; `color_saturation_boost` na payoff revealu. Unikaj desaturacji „dla urozmaicenia” i boostu na całym segmencie talking-head.
 
 **Packi shortów — kiedy który:**
 
@@ -701,7 +714,16 @@ Po fuzji RMS + transkrypt każdy `deadAirHints[]` ma `silenceKind`:
 |---------------|-----------|
 | `dead_air` | Bezpieczne do cięcia (`cuts[]` `reason: dead_air` lub trim in/out) |
 | `dramatic_pause` | **Nie tnij** — pauza narracyjna; enrich i walidator **NAR-DRAMATIC-PAUSE-CUT** |
-| `breath_before_punchline` | Zachowaj; opcjonalny lekki `silence_beat`, bez agresywnego cięcia |
+| `breath_before_punchline` | Zachowaj; opcjonalny lekki `silence_beat` (soft dip, `volumeFactor` ~0.3), bez agresywnego cięcia |
+
+**`silence_beat` — soft dip vs hard mute:**
+
+| Wariant | `params.volumeFactor` | Kiedy | Wymagania |
+|---------|----------------------|-------|-----------|
+| Soft dip | **> 0** (do 1), domyślnie **0.3** | Pauza dramatyczna przy dead air / breath | Kotwica `silenceGap` / `cutSuggestion` / `deadAirHints` (V21-13) lub cięcie timeline |
+| Hard mute | **0** (dokładnie) | Rzadki pattern interrupt przed revealem / payoffem | `retentionRole`: `hook` \| `beat` \| `payoff`; **nie** wymaga kotwicy audio |
+
+Oba warianty: **nie skracają** output timeline; **nie wyciszają** music bed. Room tone lub sting dodaj osobnym wpisem `sfxPlan`, nie przez `silence_beat`.
 
 Przy `narrativeProfile.silencePolicy: preserve` lub segmencie z `silencePolicy: preserve` — bias w stronę `dramatic_pause` zamiast `dead_air`.
 

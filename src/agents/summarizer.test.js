@@ -6,7 +6,7 @@ import {
   isSilentSceneInput,
 } from "./summarizer.js";
 import { sceneSummaryInput } from "../lib/abstraction-chunking.js";
-import { AbstractL1Schema } from "../schemas/edit-recipe.js";
+import { AbstractL1Schema, HookCreativeBriefSchema } from "../schemas/edit-recipe.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 import { MODELS } from "./openai-client.js";
 
@@ -234,5 +234,39 @@ describe("summarizer agent", () => {
     });
 
     assert.equal(bundle.L3.hasSeparateNarration, true);
+  });
+
+  it("AbstractionBundle accepts optional hookCreativeBrief on L3", async () => {
+    const timelineIndex = loadFixture("timeline-index.json");
+    const l1 = loadFixture("summarizer-l1.json");
+    const l2 = loadFixture("summarizer-l2.json");
+    const l3WithBrief = {
+      ...loadFixture("summarizer-l3.json"),
+      hookCreativeBrief: {
+        strategy: "contextual",
+        narrativePromise: "Obietnica bez spoilera",
+        contextualLink: "Powiązanie z materiałem",
+      },
+    };
+
+    const client = createMockOpenAIClient([l1, l1, l2, l3WithBrief], { captureRequests: true });
+    const bundle = await buildAbstractionBundle(client, timelineIndex);
+
+    assert.equal(bundle.L3.hookCreativeBrief.strategy, "contextual");
+    HookCreativeBriefSchema.parse(bundle.L3.hookCreativeBrief);
+
+    const l3Request = client.getCapturedRequests()
+      .map((r) => JSON.parse(r.messages[1].content))
+      .find((payload) => payload.task === "L3_session_summary");
+    assert.ok(l3Request.outputSchema.hookCreativeBrief);
+  });
+
+  it("HookCreativeBriefSchema requires unexpectedElement for intentionally_unexpected", () => {
+    const result = HookCreativeBriefSchema.safeParse({
+      strategy: "intentionally_unexpected",
+      narrativePromise: "Obietnica",
+      contextualLink: "Link",
+    });
+    assert.equal(result.success, false);
   });
 });

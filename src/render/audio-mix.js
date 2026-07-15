@@ -40,6 +40,14 @@ export function resolveVoiceAudioMoments(creativeMoments = []) {
 }
 
 /**
+ * Whether creativeMoments require the audio mix pass (voice dips/mutes, bed automation).
+ */
+export function hasAudioMixMoments(creativeMoments = []) {
+  return resolveMusicBedMoments(creativeMoments).length > 0
+    || resolveVoiceAudioMoments(creativeMoments).length > 0;
+}
+
+/**
  * Collect profanity censorship windows from an output timeline (output seconds).
  */
 export function resolveAudioCensorshipWindows(output) {

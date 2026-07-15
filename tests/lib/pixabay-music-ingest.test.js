@@ -62,8 +62,9 @@ describe("pixabay-music-page", () => {
     ]);
   });
 
-  it("resolves mp3 by pixabay id suffix in music dir", () => {
+  it("resolves mp3 by pixabay id suffix in music dir", (t) => {
     const tmpDir = fs.mkdtempSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "music-resolve-"));
+    t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
     const fileName = "sigmamusicart-no-copyright-music-537751.mp3";
     fs.writeFileSync(path.join(tmpDir, fileName), "audio");
 
@@ -74,7 +75,6 @@ describe("pixabay-music-page", () => {
 
     assert.equal(resolved?.fileName, fileName);
     assert.equal(resolved?.match, "pixabay_id");
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("parses genre/mood/movement/theme 1:1 from html", () => {
@@ -110,8 +110,9 @@ describe("pixabay-music-page", () => {
 });
 
 describe("ingest-music-track catalog", () => {
-  it("upserts catalog entry", () => {
+  it("upserts catalog entry", (t) => {
     const tmpDir = fs.mkdtempSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "music-ingest-"));
+    t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
     const catalogPath = path.join(tmpDir, "catalog.json");
 
     const entry = buildCatalogEntry({

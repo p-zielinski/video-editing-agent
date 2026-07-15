@@ -28,6 +28,8 @@
     "audio/music_drop.json",
     "audio/silence_beat.json",
     "audio/voice_pitch_shift.json",
+    "color/color_desaturate.json",
+    "color/color_saturation_boost.json",
     "graphics/hook_title_overlay.json",
     "graphics/hook_visual_punch.json",
     "graphics/emphasis_text.json",

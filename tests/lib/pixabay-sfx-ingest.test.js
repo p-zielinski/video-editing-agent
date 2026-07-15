@@ -47,15 +47,15 @@ describe("pixabay-sfx-page", () => {
     );
   });
 
-  it("resolves sfx file by pixabay id suffix", () => {
+  it("resolves sfx file by pixabay id suffix", (t) => {
     const tmpDir = fs.mkdtempSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "sfx-resolve-"));
+    t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
     const fileName = "creator-fast-whoosh-123456.wav";
     fs.writeFileSync(path.join(tmpDir, fileName), "audio");
 
     const resolved = resolveSfxFileForPixabayUrl(SFX_URL, tmpDir);
     assert.equal(resolved?.fileName, fileName);
     assert.equal(resolved?.match, "pixabay_id");
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("parses tags and category from html", () => {
@@ -73,8 +73,9 @@ describe("pixabay-sfx-page", () => {
 });
 
 describe("ingest-sfx-track catalog", () => {
-  it("upserts sfx catalog entry", () => {
+  it("upserts sfx catalog entry", (t) => {
     const tmpDir = fs.mkdtempSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "sfx-ingest-"));
+    t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
     const catalogPath = path.join(tmpDir, "catalog.json");
     const parsed = parsePixabaySfxPage(FIXTURE_HTML, { url: SFX_URL });
 

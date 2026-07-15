@@ -205,6 +205,101 @@
                 "additionalProperties": false
               },
               "default": []
+            },
+            "hookCreativeBrief": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "strategy": {
+                      "type": "string",
+                      "const": "contextual"
+                    },
+                    "narrativePromise": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "contextualLink": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mustAvoid": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "default": [
+                        "text overlays",
+                        "logos",
+                        "captions",
+                        "spoilers",
+                        "explicit payoff reveal"
+                      ]
+                    },
+                    "visualTone": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "unexpectedElement": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "strategy",
+                    "narrativePromise",
+                    "contextualLink"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "strategy": {
+                      "type": "string",
+                      "const": "intentionally_unexpected"
+                    },
+                    "narrativePromise": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "contextualLink": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mustAvoid": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "default": [
+                        "text overlays",
+                        "logos",
+                        "captions",
+                        "spoilers",
+                        "explicit payoff reveal"
+                      ]
+                    },
+                    "visualTone": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "unexpectedElement": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "strategy",
+                    "narrativePromise",
+                    "contextualLink",
+                    "unexpectedElement"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
             }
           },
           "required": [

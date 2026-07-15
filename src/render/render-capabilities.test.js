@@ -51,7 +51,8 @@ describe("render-capabilities", () => {
     assert.equal(getTechniqueRenderSupport("hook_title_overlay"), "graphics_only");
     assert.equal(getTechniqueRenderSupport("j_cut"), "segment_only");
     assert.equal(getTechniqueRenderSupport("cinematic_frame"), "full");
-    assert.equal(getTechniqueRenderSupport("slide_up"), "full");
+    assert.equal(getTechniqueRenderSupport("color_desaturate"), "full");
+    assert.equal(getTechniqueRenderSupport("color_saturation_boost"), "full");
     assert.equal(getTechniqueRenderSupport("unknown_technique"), null);
   });
 

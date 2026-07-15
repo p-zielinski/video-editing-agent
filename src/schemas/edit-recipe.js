@@ -163,6 +163,39 @@ export const OpenLoopSchema = z.object({
   teaseText: z.string().optional(),
 });
 
+export const HookCreativeBriefStrategySchema = z.enum([
+  "contextual",
+  "intentionally_unexpected",
+]);
+
+export const DEFAULT_HOOK_MUST_AVOID = [
+  "text overlays",
+  "logos",
+  "captions",
+  "spoilers",
+  "explicit payoff reveal",
+];
+
+const HookCreativeBriefCommonFields = {
+  narrativePromise: z.string().min(1),
+  contextualLink: z.string().min(1),
+  mustAvoid: z.array(z.string().min(1)).default(DEFAULT_HOOK_MUST_AVOID),
+  visualTone: z.string().min(1).optional(),
+};
+
+export const HookCreativeBriefSchema = z.discriminatedUnion("strategy", [
+  z.object({
+    strategy: z.literal("contextual"),
+    ...HookCreativeBriefCommonFields,
+    unexpectedElement: z.string().min(1).optional(),
+  }),
+  z.object({
+    strategy: z.literal("intentionally_unexpected"),
+    ...HookCreativeBriefCommonFields,
+    unexpectedElement: z.string().min(1),
+  }),
+]);
+
 export const AbstractL3Schema = z.object({
   sessionSummary: z.string(),
   narrativeArc: z.string().optional(),
@@ -171,6 +204,7 @@ export const AbstractL3Schema = z.object({
   estimatedKeepRatio: z.number().min(0).max(1).optional(),
   hasSeparateNarration: z.boolean().default(false),
   openLoops: z.array(OpenLoopSchema).default([]),
+  hookCreativeBrief: HookCreativeBriefSchema.optional(),
 });
 
 export const AbstractionBundleSchema = z.object({

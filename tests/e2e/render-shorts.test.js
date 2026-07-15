@@ -424,6 +424,56 @@ describe("render E2E — shorts 9:16 + creativeMoments warnings", () => {
     assert.equal(entry.audioTechniquesApplied, true);
   });
 
+  it("renders short_9x16 and applies silence_beat in audio mix without audioMixPlan", async (t) => {
+    if (!isFfmpegAvailable()) {
+      t.skip("ffmpeg not available");
+    }
+
+    const { workDir } = setupMiniDayWorkDir("vea-render-shorts-silence-no-plan");
+
+    const recipe = readJson(path.join(workDir, ARTIFACTS.recipeFinal));
+    delete recipe.audioMixPlan;
+    delete recipe.sfxPlan;
+    const shortOutput = recipe.outputs.find((output) => output.outputId === "short_9x16");
+    for (const segment of shortOutput?.timeline ?? []) {
+      delete segment.audioCensorship;
+    }
+    recipe.creativeMoments.push({
+      momentId: "cm_silence_beat_no_plan",
+      techniqueId: "silence_beat",
+      outputId: "short_9x16",
+      outputStartSec: 5,
+      outputEndSec: 6,
+      retentionRole: "beat",
+      params: { durationSec: 1, volumeFactor: 0 },
+      reason: "Hard mute beat without audioMixPlan",
+    });
+    assert.equal(recipe.audioMixPlan, undefined);
+    assert.equal(recipe.sfxPlan, undefined);
+    assert.equal(
+      (shortOutput?.timeline ?? []).some((segment) => segment.audioCensorship?.length),
+      false,
+    );
+    writeJson(path.join(workDir, ARTIFACTS.recipeFinal), recipe);
+
+    const { manifest } = await executeRender(workDir, {
+      outputId: "short_9x16",
+      encodeProfile: "draft",
+      force: true,
+    });
+
+    const entry = manifest.outputs.find((o) => o.outputId === "short_9x16");
+    assert.ok(entry?.outputPath);
+    assert.equal(fs.existsSync(entry.outputPath), true);
+
+    const silenceWarning = (entry.warnings ?? []).find(
+      (w) => w.techniqueId === "silence_beat" && w.code === "TECHNIQUE_AUDIO_ONLY",
+    );
+    assert.ok(!silenceWarning, "silence_beat should be applied in mix without audioMixPlan");
+    assert.equal(entry.audioMixApplied, true);
+    assert.equal(entry.audioTechniquesApplied, true);
+  });
+
   it("renders short_9x16 and applies silence_beat in audio mix when audioMixPlan present", async (t) => {
     if (!isFfmpegAvailable()) {
       t.skip("ffmpeg not available");

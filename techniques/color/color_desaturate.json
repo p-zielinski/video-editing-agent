@@ -1,0 +1,46 @@
+{
+  "id": "color_desaturate",
+  "version": "1.0",
+  "category": "color",
+  "label": "Color desaturate",
+  "description": "Czasowy spadek nasycenia — od subtelnego wash po pełne B&W w oknie narracyjnym.",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "cinematic",
+    "memory"
+  ],
+  "narrativeFunctions": [
+    "isolation",
+    "memory",
+    "passage_of_time",
+    "tension"
+  ],
+  "visualIntensity": "strong",
+  "params": {
+    "amount": {
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "default": 1
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 45,
+    "maxPerOutputMinutes": 0.04,
+    "maxDurationSec": 12,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [],
+    "requiresCreativityLevel": "balanced"
+  },
+  "whenToUse": "Flashback, izolacja emocjonalna, moment przed revealem — krótkie okno (2–8 s), nie cały output.",
+  "whenToAvoid": "Stały look vlogu, talking-head bez funkcji narracyjnej, nakładanie z globalnym colorGrade.",
+  "syncHints": [
+    "reveal",
+    "memory",
+    "pause"
+  ],
+  "renderSupport": "full"
+}

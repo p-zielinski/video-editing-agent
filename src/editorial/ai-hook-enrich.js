@@ -17,8 +17,13 @@ function hasAiHookSegment(timeline = [], aiVideoArtifact = null) {
   );
 }
 
+function resolveAiHookDecision(shortOutput) {
+  return shortOutput?.aiHookDecision ?? null;
+}
+
 /**
  * Prepend AI-generated hook segment at the start of the short output.
+ * Inserts only when director explicitly accepted the artifact with matching clipId.
  * @param {object} recipe
  * @param {object} aiVideoArtifact
  * @returns {boolean}
@@ -38,6 +43,15 @@ export function enrichRecipeAiHook(recipe, aiVideoArtifact) {
   }
 
   if (hasAiHookSegment(shortOutput.timeline, aiVideoArtifact)) {
+    return false;
+  }
+
+  const decision = resolveAiHookDecision(shortOutput);
+  if (!decision || decision.action !== "accept") {
+    return false;
+  }
+
+  if (decision.clipId !== aiVideoArtifact.clipId) {
     return false;
   }
 

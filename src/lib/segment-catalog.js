@@ -154,3 +154,38 @@ export function resolveSegmentPicks(superPlan, catalog, batchContext = {}) {
     catalogCard: catalogById.get(pick.segmentId),
   }));
 }
+
+/**
+ * Canonical segment order for Super Director routing (e.g. aiHook on first segment).
+ * `availableSegmentIds` should come from `resolveSegmentPicks` after limits.
+ */
+export function resolveCanonicalSegmentOrder(superPlan, availableSegmentIds = []) {
+  const available = new Set(availableSegmentIds);
+  const ordered = [];
+  const seen = new Set();
+
+  const append = (segmentId) => {
+    if (!segmentId || !available.has(segmentId) || seen.has(segmentId)) {
+      return;
+    }
+    ordered.push(segmentId);
+    seen.add(segmentId);
+  };
+
+  for (const segmentId of superPlan.segmentOrder ?? []) {
+    append(segmentId);
+  }
+
+  const picksByPriority = [...(superPlan.segmentPicks ?? [])]
+    .filter((pick) => available.has(pick.segmentId))
+    .sort((a, b) => a.priority - b.priority);
+  for (const pick of picksByPriority) {
+    append(pick.segmentId);
+  }
+
+  for (const segmentId of availableSegmentIds) {
+    append(segmentId);
+  }
+
+  return ordered;
+}

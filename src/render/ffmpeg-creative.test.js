@@ -197,4 +197,64 @@ describe("ffmpeg-creative", () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("does not mark color_desaturate as unsupported and builds eq filter", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-creative-color-desat-"));
+    const inputPath = path.join(tmpDir, "in.mp4");
+    const outputPath = path.join(tmpDir, "out.mp4");
+    fs.writeFileSync(inputPath, "stub");
+
+    try {
+      const { warnings } = await applyCreativeMoments(inputPath, outputPath, {
+        moments: [
+          {
+            techniqueId: "color_desaturate",
+            outputStartSec: 6,
+            outputEndSec: 9,
+            params: { amount: 1 },
+          },
+        ],
+        encodeProfile: { videoCodec: "libx264", preset: "ultrafast", crf: 23 },
+        dimensions: { width: 1920, height: 1080 },
+      });
+
+      const unsupported = warnings.filter((w) => w.code === "TECHNIQUE_UNSUPPORTED");
+      const noOp = warnings.filter((w) => w.code === "TECHNIQUE_NO_OP");
+      assert.equal(unsupported.length, 0);
+      assert.equal(noOp.length, 0);
+      assert.ok(fs.existsSync(outputPath));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not mark color_saturation_boost as unsupported", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-creative-color-boost-"));
+    const inputPath = path.join(tmpDir, "in.mp4");
+    const outputPath = path.join(tmpDir, "out.mp4");
+    fs.writeFileSync(inputPath, "stub");
+
+    try {
+      const { warnings } = await applyCreativeMoments(inputPath, outputPath, {
+        moments: [
+          {
+            techniqueId: "color_saturation_boost",
+            outputStartSec: 12,
+            outputEndSec: 14,
+            params: { boost: 0.15 },
+          },
+        ],
+        encodeProfile: { videoCodec: "libx264", preset: "ultrafast", crf: 23 },
+        dimensions: { width: 1920, height: 1080 },
+      });
+
+      const unsupported = warnings.filter((w) => w.code === "TECHNIQUE_UNSUPPORTED");
+      const noOp = warnings.filter((w) => w.code === "TECHNIQUE_NO_OP");
+      assert.equal(unsupported.length, 0);
+      assert.equal(noOp.length, 0);
+      assert.ok(fs.existsSync(outputPath));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

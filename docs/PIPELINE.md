@@ -70,9 +70,10 @@ Opt-in krok generujący krótki hook (Kling VIDEO 3.0, model `kling-v3`) dla sho
 - Stub (bez API): `--ai-video-stub` sam włącza krok; `AI_VIDEO_STUB=1` wybiera stub dla kroku włączonego kontekstem lub `--ai-video`. Brak kluczy live kończy krok błędem zamiast cichego użycia placeholdera.
 - Klucz: `KLING_ACCESS_KEY` (`api-key-kling-...` z [kling.ai/dev/api-key](https://kling.ai/dev/api-key))
 - Po sukcesie live wygenerowany plik przechodzi przez istniejącą analizę TwelveLabs. Wynik i status trafiają do `05e-ai-video.json`; awaria analizy nie usuwa hooka.
-- Director dostaje wygenerowaną scenę, prompt, pochodzenie klatek, stan audio i realną interpretację TwelveLabs. Może dobrać muzykę/przejście albo pominąć słaby hook. `enrichRecipeAiHook` jest tylko idempotentnym fallbackiem.
-- Artefakt: `05e-ai-video.json`; klip rejestrowany w manifeście jako `ai_generated`
-- Enricher `enrichRecipeAiHook` wstawia segment `ai_hook` na początku shorta
+- L3 może zawierać opcjonalny `hookCreativeBrief` (strategia `contextual` / `intentionally_unexpected`, obietnica narracyjna, link kontekstowy, `mustAvoid`). Summarizer generuje go zawsze gdy materiał nadaje się na short — bez flagi `aiVideo`. Planner kompiluje z niego deterministyczny prompt Kling i wybiera scenę źródłową z lokalnym anti-spoiler rankingiem (bez `shorts-retention` cold-open payoff).
+- Director ocenia gotowy asset (`brief.aiHook`) i ustawia na short output `aiHookDecision: { action: accept|reject, clipId, reason }` albo umieszcza segment `ai_hook` w timeline. `clipId` musi dokładnie odpowiadać artefaktowi.
+- W ścieżce Super Director tylko **kanoniczny pierwszy** segment (`resolveCanonicalSegmentOrder` po `resolveSegmentPicks`) dostaje `aiHook` w briefie; merge bierze `aiHookDecision` wyłącznie z tego partiala.
+- `enrichRecipeAiHook` wstawia segment `ai_hook` **tylko** gdy `aiHookDecision.action === "accept"` i `clipId` zgadza się z `05e-ai-video.json`. Istniejący segment `ai_hook` w timeline nie jest usuwany ani zmieniany.
 
 ```bash
 npm run full -- --input inbox/ --ai-video --ai-video-stub --context '{"requiredFormats":["9:16"]}'
@@ -366,7 +367,7 @@ Po GPT (direct lub merge) pipeline uruchamia reguły bez LLM (`buildDeterministi
 |---|----------|---------|
 | 1 | `stripEnrichBeatsInSlowSegments` | usuwa beaty enrich w wolnych segmentach L2 |
 | 2 | `enrichRecipeColdOpenSegment` | cold open z hintów L3 |
-| 3 | `enrichRecipeAiHook` | segment `ai_hook` z `05e-ai-video.json` |
+| 3 | `enrichRecipeAiHook` | segment `ai_hook` gdy `aiHookDecision.accept` + zgodny `clipId` |
 | 4 | `enrichRecipeFillerCuts` | wycinanie słów-fillerów |
 | 5 | `enrichRecipeProfanity` | bleep/mute/cut wg `profanityPolicy` |
 | 6 | `enrichRecipeVoiceDirectives` | meta-komendy → cuts, overlaye, playback |
@@ -394,7 +395,7 @@ Ponowne uruchomienie enricherów bez GPT:
 node src/cli.js enrich --batch-id <id> --source draft --target final --force
 ```
 
-Komenda `enrich` ładuje artefakt `05e-ai-video.json` (gdy istnieje) przez `loadAiVideoArtifact()` — enricher `enrichRecipeAiHook` może wstawić segment hooka bez ponownego wywołania Kling.
+Komenda `enrich` ładuje artefakt `05e-ai-video.json` (gdy istnieje) przez `loadAiVideoArtifact()` — enricher `enrichRecipeAiHook` wstawia segment hooka tylko przy `aiHookDecision.accept` i zgodnym `clipId` (bez ponownego wywołania Kling).
 
 ---
 

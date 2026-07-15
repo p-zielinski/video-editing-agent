@@ -177,6 +177,74 @@ describe("segment-director brief parity", () => {
     assert.equal(brief.twelveLabsMoments[0].clipId, "clip01");
     assert.match(brief.twelveLabsMoments[0].clipSummary, /pasta/i);
   });
+
+  it("includes aiHook only for canonical first segment", () => {
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    const aiVideoArtifact = {
+      status: "succeeded",
+      clipId: "ai_hook_01",
+      sceneId: "ai_hook_01_scene001",
+      durationSec: 5,
+      prompt: "test",
+      plan: { generateAudio: false },
+    };
+    const superPlan = {
+      segmentOrder: ["seg002", "seg001"],
+      canonicalSegmentOrder: ["seg002", "seg001"],
+      segmentPicks: [
+        { segmentId: "seg001", priority: 2 },
+        { segmentId: "seg002", priority: 1 },
+      ],
+      creativityProfile: { level: "balanced" },
+    };
+
+    const firstBrief = buildSegmentDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry: [{ clipId: "clip01", sortIndex: 0 }],
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      audioIndex: null,
+      audioMixDefaults: null,
+      perClipAnalysis: null,
+      wordIndexes: [],
+      userContext: "",
+      requiredFormats: ["9:16"],
+      batchContext: {},
+      keyframesByClip: {},
+      aiVideoArtifact,
+    }, {
+      segmentId: "seg002",
+      sceneIds: ["clip01_scene001"],
+      superPlan,
+    });
+
+    const secondBrief = buildSegmentDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry: [{ clipId: "clip01", sortIndex: 0 }],
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      audioIndex: null,
+      audioMixDefaults: null,
+      perClipAnalysis: null,
+      wordIndexes: [],
+      userContext: "",
+      requiredFormats: ["9:16"],
+      batchContext: {},
+      keyframesByClip: {},
+      aiVideoArtifact,
+    }, {
+      segmentId: "seg001",
+      sceneIds: ["clip01_scene002"],
+      superPlan,
+    });
+
+    assert.ok(firstBrief.aiHook);
+    assert.equal(firstBrief.aiHook.clipId, "ai_hook_01");
+    assert.equal(secondBrief.aiHook, undefined);
+  });
 });
 
 describe("runSegmentDirector", () => {
