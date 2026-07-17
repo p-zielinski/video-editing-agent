@@ -529,6 +529,7 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
     case "music_drop":
     case "silence_beat":
     case "voice_pitch_shift":
+    case "voice_emphasis_boost":
       return { filter: null, outputLabel: inputLabel };
     default:
       return { filter: null, outputLabel: inputLabel };

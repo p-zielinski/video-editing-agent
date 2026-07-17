@@ -68,6 +68,8 @@ Gdy `task` to `L3_session_summary`, otrzymujesz:
 - **userContext** — notatki użytkownika / intencja montażu
 - **stats** — statystyki batcha (np. liczba scen, fillerów)
 - **segmentSummaries** — tablica streszczeń L2
+- **audioQualitySummary** (opcjonalnie) — skrót jakości audio per klip: `clipId`, `audioQualityGrade`, `audioQualityScore`, `estimatedSnrDb`, `windScore`, `enhancementCandidateId`
+- **deliverySummary** (opcjonalnie) — prozodia i tempo mowy per klip: `clipId`, `deliveryGrade` (`engaging|neutral|flat`), `deliveryScore`, `deliveryDominantIssues`, `flatDeliveryWindowCount`
 - **outputSchema** — pola wyjściowe sesji
 
 Zwróć obiekt L3:
@@ -78,6 +80,22 @@ Zwróć obiekt L3:
 - **formatFit** — opcjonalnie `{ "16:9": 0.0–1.0, "9:16": 0.0–1.0 }` — jak dobrze materiał nadaje się do każdego formatu (niższy score = słabszy deliverable)
 - **estimatedKeepRatio** (0–1) — jaki ułamek materiału warto zachować przy `qualityOverQuantity`
 - **hasSeparateNarration** (`boolean`) — `true`, gdy w batchu jest osobna ścieżka narracji (patrz sekcja Voice-over); inaczej `false`
+- **editorialAssessment** (opcjonalnie, ale zalecane) — krytyczna ocena materiału pod kątem montażu:
+  - `editabilityScore` (0–1) — jak łatwo złożyć dobry film
+  - `verdict` — `strong` | `viable` | `salvageable` | `not_viable`
+  - `storyCoherenceScore`, `visualCoverageScore`, `dialogueValueScore` (0–1, opcjonalnie)
+  - `strengths` — mocne strony materiału
+  - `constraints` — ograniczenia: `weak_story`, `missing_context`, `weak_ending`, `insufficient_visuals`, `poor_dialogue_audio`, `excess_dead_air`, `repetitive_material`, `flat_delivery`
+  - `recommendedSalvageModes` — propozycje ratunku: `voice_over`, `broll_montage`, `audio_enhancement`, `aggressive_trim`, `short_only`, `decline_output`
+  - `reasoning` — krótkie uzasadnienie po polsku
+- **deliveryAssessment** (opcjonalnie, zalecane gdy jest `deliverySummary`) — ocena **prozodii** (nie jakości nagrania):
+  - `verdict` — `engaging` | `neutral` | `flat`
+  - `engagementScore` (0–1, opcjonalnie)
+  - `blockingForRetention` — `true` gdy płaska prozodia realnie szkodzi retencji
+  - `recommendedRepairs` — `editorial_pacing`, `dsp_polish`, `localized_emphasis`, `filler_cuts`, `voice_resynthesis` (ostatnie tylko punktowo, z QC)
+  - `reasoning` — krótkie uzasadnienie po polsku
+
+Gdy `audioQualitySummary` wskazuje `poor`/`unusable` lub wysoki `windScore` na klipach z mową — rozważ `poor_dialogue_audio` w `constraints` i `audio_enhancement` lub `voice_over` w `recommendedSalvageModes`. Gdy `deliverySummary` wskazuje `flat` na klipach z mową — rozważ `flat_delivery` w `constraints` i `editorial_pacing` / `dsp_polish` w `deliveryAssessment.recommendedRepairs` (nie myl z jakością SNR/wiatru). Gdy historia jest słaba, ale obrazy mocne — `voice_over` lub `broll_montage`. Gdy materiał nie nadaje się na żaden sensowny deliverable — `decline_output` i `not_viable`.
 - **openLoops** (opcjonalnie) — strukturalne pętle narracyjne dla cold open / callback:
   - `loopId` — stabilny identyfikator (`loop_01`, …)
   - `kind` — `cold_open` | `payoff_tease` | `callback`

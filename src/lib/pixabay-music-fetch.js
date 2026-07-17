@@ -3,17 +3,60 @@ const CLOUDFLARE_MARKERS = /Just a moment|challenge-platform|cf_chl|Enable JavaS
 /** Domyślny czas na captcha w widocznym Chromium (ms). */
 export const HEADED_CAPTCHA_WAIT_MS = 180_000;
 
+const PIXABAY_LOCALE_PREFIX = /^\/[a-z]{2}\/(music|sound-effects|photos|videos|illustrations)\//i;
+
 /** @type {Record<string, { metadataMarkers: RegExp, waitTexts: string[] }>} */
 export const PIXABAY_PAGE_PROFILES = {
   music: {
-    metadataMarkers: /Genre|Mood|Movement|Theme/i,
-    waitTexts: ["Genre", "Mood"],
+    metadataMarkers: /Genre|Mood|Movement|Theme|Gatunek|Nastrój|Nastroj|Ruch|Motyw|Temat/i,
+    waitTexts: ["Genre", "Mood", "Gatunek", "Nastrój", "Nastroj"],
   },
   sfx: {
-    metadataMarkers: /Tags|Tag|Category|Sound effects|sound-effects|Media type|Free download/i,
-    waitTexts: ["Tags", "Tag", "Free download", "Sound Effect", "Media type"],
+    metadataMarkers: /Tags|Tag|Tagi|Category|Sound effects|sound-effects|Media type|Free download|Darmowe do użycia/i,
+    waitTexts: ["Tags", "Tag", "Tagi", "Free download", "Darmowe do użycia", "Sound Effect", "Media type"],
   },
 };
+
+/**
+ * Pixabay locale URLs (/pl/music/…) serve translated labels; ingest expects English metadata keys.
+ * @param {string} url
+ */
+export function normalizePixabayUrl(url) {
+  try {
+    const parsed = new URL(String(url ?? ""));
+    if (!PIXABAY_LOCALE_PREFIX.test(parsed.pathname)) {
+      return String(url);
+    }
+    parsed.pathname = parsed.pathname.replace(/^\/[a-z]{2}\//i, "/");
+    return parsed.toString();
+  } catch {
+    return String(url ?? "");
+  }
+}
+
+function extractNextDataJson(html) {
+  const match = String(html ?? "").match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) {
+    return null;
+  }
+  try {
+    return match[1];
+  } catch {
+    return null;
+  }
+}
+
+/** React payload keeps English section keys even on localized pages. */
+export function hasNextDataSectionMarkers(html, profileName = "music") {
+  const json = extractNextDataJson(html);
+  if (!json) {
+    return false;
+  }
+  if (profileName === "sfx") {
+    return /"tags"\s*:\s*\[/i.test(json);
+  }
+  return /"genre"\s*:\s*\[/i.test(json) || /"mood"\s*:\s*\[/i.test(json);
+}
 
 export function isBlockedPixabayHtml(html, profileName = "music") {
   const profile = PIXABAY_PAGE_PROFILES[profileName] ?? PIXABAY_PAGE_PROFILES.music;
@@ -33,10 +76,11 @@ export function hasPixabayMetadata(html, profileName = "music") {
     return false;
   }
   if (profileName === "sfx") {
-    return /<dt[^>]*>\s*Tags\s*<\/dt>/i.test(html);
+    return /<dt[^>]*>\s*(Tags|Tagi)\s*<\/dt>/i.test(html);
   }
-  return /<dt[^>]*>\s*Genre\s*<\/dt>/i.test(html)
-    || /<dt[^>]*>\s*Mood\s*<\/dt>/i.test(html);
+  return /<dt[^>]*>\s*(Genre|Gatunek)\s*<\/dt>/i.test(html)
+    || /<dt[^>]*>\s*(Mood|Nastrój|Nastroj)\s*<\/dt>/i.test(html)
+    || hasNextDataSectionMarkers(html, profileName);
 }
 
 /** Browser fetch: accept live React HTML when markers visible and page not blocked. */
@@ -45,6 +89,9 @@ export function isReadyPixabayHtml(html, profileName = "music") {
     return false;
   }
   if (hasPixabayMetadata(html, profileName)) {
+    return true;
+  }
+  if (hasNextDataSectionMarkers(html, profileName)) {
     return true;
   }
   return !isBlockedPixabayHtml(html, profileName);
@@ -56,7 +103,8 @@ export function isTransientPixabayPageError(error) {
 }
 
 async function fetchPixabayPageWithHttp(url, profileName) {
-  const response = await fetch(url, {
+  const resolvedUrl = normalizePixabayUrl(url);
+  const response = await fetch(resolvedUrl, {
     headers: {
       "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       accept: "text/html,application/xhtml+xml",
@@ -66,7 +114,7 @@ async function fetchPixabayPageWithHttp(url, profileName) {
   });
 
   if (!response.ok) {
-    const error = new Error(`HTTP ${response.status} przy pobieraniu ${url}`);
+    const error = new Error(`HTTP ${response.status} przy pobieraniu ${resolvedUrl}`);
     error.code = "PIXABAY_HTTP_ERROR";
     error.status = response.status;
     throw error;
@@ -138,13 +186,24 @@ export async function pageLooksBlocked(page) {
 export async function pageHasVisibleMetadata(page, profileName = "music") {
   const profile = PIXABAY_PAGE_PROFILES[profileName] ?? PIXABAY_PAGE_PROFILES.music;
   try {
-    return await page.evaluate((texts) => {
+    return await page.evaluate(({ texts, profile: pageProfile }) => {
       const body = document.body?.innerText ?? "";
       if (/Just a moment|Enable JavaScript and cookies/i.test(body)) {
         return false;
       }
-      return texts.some((text) => body.includes(text));
-    }, profile.waitTexts);
+      if (texts.some((text) => body.includes(text))) {
+        return true;
+      }
+      const nextEl = document.getElementById("__NEXT_DATA__");
+      if (!nextEl?.textContent) {
+        return false;
+      }
+      const json = nextEl.textContent;
+      if (pageProfile === "sfx") {
+        return /"tags"\s*:\s*\[/i.test(json);
+      }
+      return /"genre"\s*:\s*\[/i.test(json) || /"mood"\s*:\s*\[/i.test(json);
+    }, { texts: profile.waitTexts, profile: profileName });
   } catch {
     return false;
   }
@@ -180,11 +239,15 @@ export async function waitForPixabayMetadataHtml(page, profileName, {
       }
     }
 
-    if (headed && blocked) {
+    if (headed) {
       const elapsedSec = Math.floor((Date.now() - started) / 1000);
       if (elapsedSec >= 10 && elapsedSec % 10 === 0 && elapsedSec !== lastStatusLogSec) {
         lastStatusLogSec = elapsedSec;
-        console.log(`  … nadal czekam na captcha (${elapsedSec}s)`);
+        console.log(
+          blocked
+            ? `  … nadal czekam na captcha (${elapsedSec}s)`
+            : `  … czekam na metadane strony (${elapsedSec}s)`,
+        );
       }
     }
 
@@ -207,6 +270,10 @@ export async function fetchPixabayPageWithBrowser(url, {
   captchaWaitMs = HEADED_CAPTCHA_WAIT_MS,
 } = {}) {
   const profile = PIXABAY_PAGE_PROFILES[profileName] ?? PIXABAY_PAGE_PROFILES.music;
+  const resolvedUrl = normalizePixabayUrl(url);
+  if (resolvedUrl !== url) {
+    console.log(`  URL bez locale: ${resolvedUrl}`);
+  }
   const { chromium } = await loadPlaywright();
   const browser = await chromium.launch({ headless: !headed });
   const navigationTimeoutMs = headed ? Math.max(timeoutMs, 90_000) : timeoutMs;
@@ -220,7 +287,7 @@ export async function fetchPixabayPageWithBrowser(url, {
     });
     const page = await context.newPage();
 
-    await page.goto(url, {
+    await page.goto(resolvedUrl, {
       waitUntil: "domcontentloaded",
       timeout: navigationTimeoutMs,
     }).catch((error) => {

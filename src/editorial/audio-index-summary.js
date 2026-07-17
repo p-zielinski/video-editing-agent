@@ -1,4 +1,5 @@
 import { summarizeMusicLibraryForIndex } from "./music-library.js";
+import { buildDeliveryHints, buildFlatDeliveryWindows } from "../lib/delivery-analysis.js";
 
 export const DEFAULT_AUDIO_CAPS = {
   cutSuggestions: 8,
@@ -6,6 +7,7 @@ export const DEFAULT_AUDIO_CAPS = {
   energyPeaks: 5,
   audioEvents: 6,
   deadAirHints: 6,
+  flatDeliveryWindows: 6,
 };
 
 /** Higher caps for director brief — critic/fixer keep DEFAULT_AUDIO_CAPS. */
@@ -15,6 +17,7 @@ export const DIRECTOR_AUDIO_CAPS = {
   energyPeaks: 8,
   audioEvents: 10,
   deadAirHints: 10,
+  flatDeliveryWindows: 8,
 };
 
 const MIN_DEAD_AIR_GAP_SEC = 0.5;
@@ -455,6 +458,11 @@ export function buildAudioIndexSummary(
         narrativeProfile,
       });
       const enriched = enrichClipFromAnalysis(clip, perClipAnalysis, caps);
+      const deliveryHints = buildDeliveryHints(analysis?.deliveryAnalysis, {
+        limit: caps.flatDeliveryWindows ?? DEFAULT_AUDIO_CAPS.flatDeliveryWindows,
+      });
+      const flatDeliveryWindows = deliveryHints?.flatDeliveryWindows
+        ?? buildFlatDeliveryWindows(analysis?.deliveryAnalysis, caps.flatDeliveryWindows);
 
       return {
         clipId: clip.clipId,
@@ -467,6 +475,10 @@ export function buildAudioIndexSummary(
         estimatedBpm: clip.estimatedBpm,
         audioEventCount: clip.audioEventCount ?? 0,
         editorialTags: clip.editorialTags ?? [],
+        deliveryGrade: clip.deliveryGrade ?? deliveryHints?.engagementGrade ?? null,
+        deliveryScore: clip.deliveryScore ?? deliveryHints?.engagementScore ?? null,
+        ...(deliveryHints ? { deliveryHints } : {}),
+        ...(flatDeliveryWindows.length > 0 ? { flatDeliveryWindows } : {}),
         ...(deadAirHints.length > 0 ? { deadAirHints } : {}),
         ...enriched,
       };

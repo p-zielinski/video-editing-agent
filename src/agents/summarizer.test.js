@@ -6,7 +6,7 @@ import {
   isSilentSceneInput,
 } from "./summarizer.js";
 import { sceneSummaryInput } from "../lib/abstraction-chunking.js";
-import { AbstractL1Schema, HookCreativeBriefSchema } from "../schemas/edit-recipe.js";
+import { AbstractL1Schema, HookCreativeBriefSchema, EditorialAssessmentSchema } from "../schemas/edit-recipe.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 import { MODELS } from "./openai-client.js";
 
@@ -259,6 +259,50 @@ describe("summarizer agent", () => {
       .map((r) => JSON.parse(r.messages[1].content))
       .find((payload) => payload.task === "L3_session_summary");
     assert.ok(l3Request.outputSchema.hookCreativeBrief);
+  });
+
+  it("AbstractionBundle accepts optional editorialAssessment on L3", async () => {
+    const timelineIndex = loadFixture("timeline-index.json");
+    const l1 = loadFixture("summarizer-l1.json");
+    const l2 = loadFixture("summarizer-l2.json");
+    const l3WithAssessment = {
+      ...loadFixture("summarizer-l3.json"),
+      editorialAssessment: {
+        editabilityScore: 0.45,
+        verdict: "salvageable",
+        storyCoherenceScore: 0.5,
+        visualCoverageScore: 0.7,
+        dialogueValueScore: 0.3,
+        strengths: ["mocne ujęcia otoczenia"],
+        constraints: ["poor_dialogue_audio", "weak_story"],
+        recommendedSalvageModes: ["voice_over", "audio_enhancement"],
+        reasoning: "Dialog trudny do zrozumienia, ale materiał wizualny wart montażu z VO.",
+      },
+    };
+
+    const client = createMockOpenAIClient([l1, l1, l2, l3WithAssessment], { captureRequests: true });
+    const bundle = await buildAbstractionBundle(client, timelineIndex, {
+      audioIndex: {
+        clips: [{
+          clipId: "clip01",
+          voiceLufs: -28,
+          audioQualityGrade: "poor",
+          audioQualityScore: 0.4,
+          estimatedSnrDb: 8,
+          windScore: 0.6,
+          enhancementCandidateId: "enh_clip01",
+        }],
+      },
+    });
+
+    assert.equal(bundle.L3.editorialAssessment.verdict, "salvageable");
+    EditorialAssessmentSchema.parse(bundle.L3.editorialAssessment);
+
+    const l3Request = client.getCapturedRequests()
+      .map((r) => JSON.parse(r.messages[1].content))
+      .find((payload) => payload.task === "L3_session_summary");
+    assert.ok(l3Request.audioQualitySummary?.length > 0);
+    assert.ok(l3Request.outputSchema.editorialAssessment);
   });
 
   it("HookCreativeBriefSchema requires unexpectedElement for intentionally_unexpected", () => {

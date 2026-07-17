@@ -1,0 +1,52 @@
+{
+  "id": "voice_emphasis_boost",
+  "version": "1.0",
+  "category": "audio",
+  "label": "Voice emphasis boost",
+  "description": "Krótki akcent prozodii na słowie kluczowym — lekki pitch + micro-kompresja (0.5–2 s).",
+  "platforms": [
+    "youtube",
+    "shorts"
+  ],
+  "trendTags": [
+    "retention",
+    "audio_mix"
+  ],
+  "params": {
+    "semitones": {
+      "type": "number",
+      "min": 0.5,
+      "max": 3,
+      "default": 1.5
+    },
+    "durationSec": {
+      "type": "number",
+      "min": 0.5,
+      "max": 2,
+      "default": 1.2
+    },
+    "gainDb": {
+      "type": "number",
+      "min": 0,
+      "max": 4,
+      "default": 2
+    }
+  },
+  "constraints": {
+    "minGapFromSameTechniqueSec": 30,
+    "maxPerOutputMinutes": 0.05,
+    "requiresSpatialAnchor": false,
+    "forbiddenOnSegmentRole": [
+      "broll"
+    ],
+    "requiresCreativityLevel": "bold"
+  },
+  "whenToUse": "Płaska prozodia na ważnym słowie/frazie; kotwicz na anchorWordId z flatDeliveryWindows.",
+  "whenToAvoid": "Cały klip, narracja poważna, więcej niż 3× na output.",
+  "syncHints": [
+    "keyword",
+    "punchline",
+    "emphasis"
+  ],
+  "renderSupport": "audio_only"
+}

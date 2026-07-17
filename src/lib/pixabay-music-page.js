@@ -6,6 +6,32 @@ import fs from "node:fs";
 import path from "node:path";
 
 const SECTION_ORDER = ["genre", "mood", "movement", "theme"];
+const SECTION_LABEL_ALIASES = {
+  genre: ["genre", "gatunek"],
+  mood: ["mood", "nastroj"],
+  movement: ["movement", "ruch", "tempo"],
+  theme: ["theme", "motyw", "temat"],
+};
+const SECTION_LABEL_PATTERN = "Genre|Mood|Movement|Theme|Gatunek|Nastrój|Nastroj|Ruch|Motyw|Temat";
+const SECTION_BOUNDARY_PATTERN = "Genre|Mood|Movement|Theme|Gatunek|Nastrój|Nastroj|Ruch|Motyw|Temat|Free for use|Darmowe do użytku|Comments|Komentarze|Media type|Typ multimediów";
+
+function normalizeLabelKey(key) {
+  return String(key ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\s+/g, "");
+}
+
+function labelToSectionBucket(label) {
+  const normalized = normalizeLabelKey(label);
+  for (const [bucket, aliases] of Object.entries(SECTION_LABEL_ALIASES)) {
+    if (aliases.includes(normalized)) {
+      return bucket;
+    }
+  }
+  return normalized;
+}
 
 function decodeHtmlEntities(value) {
   return String(value)
@@ -118,10 +144,13 @@ function parseNextData(html) {
 
 function parseLabeledSectionsFromText(text) {
   const sections = {};
-  const pattern = /(?:^|\n)\s*(Genre|Mood|Movement|Theme)\s*\n\s*([\s\S]*?)(?=\n\s*(?:Genre|Mood|Movement|Theme|Free for use|Comments|Media type)\b|$)/gi;
+  const pattern = new RegExp(
+    `(?:^|\\n)\\s*(${SECTION_LABEL_PATTERN})\\s*\\n\\s*([\\s\\S]*?)(?=\\n\\s*(?:${SECTION_BOUNDARY_PATTERN})\\b|$)`,
+    "gi",
+  );
   let match = pattern.exec(text);
   while (match) {
-    const bucket = normalizeSectionKey(match[1]);
+    const bucket = labelToSectionBucket(match[1]);
     sections[bucket] = splitPixabayTagLine(match[2].replace(/\s+/g, " "));
     match = pattern.exec(text);
   }
@@ -130,10 +159,13 @@ function parseLabeledSectionsFromText(text) {
 
 function parseLabeledSectionsFromHtml(html) {
   const sections = {};
-  const dtPattern = /<dt[^>]*>\s*(Genre|Mood|Movement|Theme)\s*<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi;
+  const dtPattern = new RegExp(
+    `<dt[^>]*>\\s*(${SECTION_LABEL_PATTERN})\\s*<\\/dt>\\s*<dd[^>]*>([\\s\\S]*?)<\\/dd>`,
+    "gi",
+  );
   let match = dtPattern.exec(html);
   while (match) {
-    const bucket = normalizeSectionKey(match[1]);
+    const bucket = labelToSectionBucket(match[1]);
     sections[bucket] = splitPixabayTagLine(match[2]);
     match = dtPattern.exec(html);
   }

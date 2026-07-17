@@ -94,6 +94,24 @@ describe("pixabay-music-page", () => {
     ]);
   });
 
+  it("parses polish section labels from html", () => {
+    const polishHtml = `<!DOCTYPE html><html><body><dl>
+      <dt>Gatunek</dt><dd><a href="#">Rock</a><a href="#">Indie</a></dd>
+      <dt>Nastrój</dt><dd><a href="#">Energetic</a><a href="#">Bright</a></dd>
+      <dt>Ruch</dt><dd><a href="#">Running</a></dd>
+      <dt>Motyw</dt><dd><a href="#">Vlog Music</a></dd>
+    </dl></body></html>`;
+    const parsed = parsePixabayMusicPage(polishHtml, {
+      url: "https://pixabay.com/pl/music/g%C5%82az-indie-rock-518575/",
+      title: "Głaz",
+    });
+
+    assert.deepEqual(parsed.pixabay.genre, ["Rock", "Indie"]);
+    assert.deepEqual(parsed.pixabay.mood, ["Energetic", "Bright"]);
+    assert.deepEqual(parsed.pixabay.movement, ["Running"]);
+    assert.deepEqual(parsed.pixabay.theme, ["Vlog Music"]);
+  });
+
   it("derives curator-facing tags", () => {
     const parsed = parsePixabayMusicPage(FIXTURE_HTML, {
       url: "https://pixabay.com/music/upbeat-club-party-dance-music-560133/",

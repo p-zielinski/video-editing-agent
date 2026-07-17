@@ -53,6 +53,7 @@ const TECHNIQUE_RENDER_SUPPORT = {
   music_drop: "audio_only",
   silence_beat: "audio_only",
   voice_pitch_shift: "audio_only",
+  voice_emphasis_boost: "audio_only",
   // graphics — overlay pass
   hook_title_overlay: "graphics_only",
   emphasis_text: "graphics_only",

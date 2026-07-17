@@ -74,6 +74,61 @@
                   "stub",
                   "none"
                 ]
+              },
+              "audioQualityGrade": {
+                "type": "string",
+                "enum": [
+                  "good",
+                  "usable",
+                  "poor",
+                  "unusable"
+                ]
+              },
+              "audioQualityScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "estimatedSnrDb": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "windScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "enhancementCandidateId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "deliveryGrade": {
+                "type": "string",
+                "enum": [
+                  "engaging",
+                  "neutral",
+                  "flat"
+                ]
+              },
+              "deliveryScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "deliveryDominantIssues": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "flatDeliveryWindowCount": {
+                "type": "integer",
+                "minimum": 0
               }
             },
             "required": [

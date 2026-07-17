@@ -70,7 +70,7 @@ const TIMELINE_SEGMENT_EXAMPLE = {
 };
 
 export const EDIT_RECIPE_DIRECTOR_OUTPUT_SCHEMA = {
-  version: "2.4",
+  version: "2.5",
   batchId: "string",
   batchContext: {
     inputMode: "single_clip|multi_clip_day|multi_clip_collection",
@@ -206,6 +206,40 @@ export const EDIT_RECIPE_DIRECTOR_OUTPUT_SCHEMA = {
       setupSceneId: "string",
       payoffSceneId: "string",
       teaseText: "string?",
+    },
+  ],
+  editorialAssessment: {
+    verdict: "publishable_as_is|salvage_required|not_recommended",
+    confidence: "0-1 (optional)",
+    summary: "string — krytyczna ocena materiału",
+    strengths: ["string"],
+    blockingIssues: ["string"],
+  },
+  salvagePlan: {
+    status: "not_needed|proposed|materializable|blocked",
+    primaryStrategy: "voice_over|broll_montage|audio_enhancement|hybrid|short_only|decline_output",
+    reason: "string",
+    targetOutputIds: ["outputId"],
+    requiresHumanApproval: true,
+    voiceOverProposal: {
+      purpose: "string",
+      scriptOutline: ["string — punkty narracji"],
+      estimatedDurationSec: 45,
+      coverageSceneIds: ["sceneId"],
+      preferredSource: "user_recorded|existing_narration|tts",
+      materializationStatus: "available|missing_narration|out_of_scope",
+    },
+  },
+  audioEnhancementDecisions: [
+    {
+      candidateId: "enh_clip01 — from audioQuality.enhancementCandidateId",
+      clipId: "clip01",
+      action: "accept|reject",
+      dialogueValue: "essential|useful|dispensable",
+      reason: "string",
+      providerPreference: "auto|local|paid",
+      targetDialogueLufs: -18,
+      retranscribePolicy: "never|if_material_improvement|always",
     },
   ],
   clipRegistry: [],

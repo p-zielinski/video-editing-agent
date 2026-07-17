@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { validateRecipeV2, validateBrollTopicIndex, validateAudioMixPlan, validatePacingGuard, validateSfxPlan, validateSfxDensityOnMain, validateRenderStylePresets, validateVoiceoverSegments, hasNarrationSegments } from "./recipe-v2.js";
+import { validateRecipeV2, validateBrollTopicIndex, validateAudioMixPlan, validatePacingGuard, validateSfxPlan, validateSfxDensityOnMain, validateRenderStylePresets, validateVoiceoverSegments, hasNarrationSegments, validateDeliveryEngagement } from "./recipe-v2.js";
 import { validateVoicePitchMoments } from "./creative-moments.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import { resetMusicCatalogCache } from "../editorial/music-library.js";
@@ -482,6 +482,22 @@ describe("recipe v2 validator", () => {
     const issues = validateVoicePitchMoments(recipe);
     assert.ok(issues.some((i) => i.code === "V26-VOICE-01"));
     assert.ok(issues.some((i) => i.code === "V26-VOICE-02"));
+  });
+
+  it("errors V27-DELIVERY-03 for voice_resynthesis without consent flags", () => {
+    const issues = validateDeliveryEngagement({
+      engagementRepairMoments: [{
+        momentId: "repair_01",
+        clipId: "clip01",
+        action: "voice_resynthesis",
+        startSec: 1,
+        endSec: 5,
+        reason: "test",
+        consentRequired: false,
+        needsHumanReview: false,
+      }],
+    });
+    assert.ok(issues.some((i) => i.code === "V27-DELIVERY-03"));
   });
 
   it("parses v2.4 recipe with sfxPlan, colorGrade, and renderStylePresets", () => {
@@ -1560,5 +1576,36 @@ describe("recipe v2 montage quality validators", () => {
     assert.ok(result.issues.some((i) => i.code === "V22-VLOG-06" && i.severity === "error"));
     assert.equal(result.issues.filter((i) => i.code === "V22-VLOG-01").length, 0);
     assert.equal(result.issues.filter((i) => i.code === "V22-VLOG-02").length, 0);
+  });
+});
+
+describe("validateSalvageAndAudioQuality", () => {
+  it("flags SALVAGE-01 when salvage_required without salvagePlan", () => {
+    const recipe = {
+      ...baseRecipe,
+      version: "2.5",
+      editorialAssessment: {
+        verdict: "salvage_required",
+        summary: "Materiał wymaga ratunku",
+      },
+    };
+    const result = validateRecipeV2(recipe);
+    assert.ok(result.issues.some((issue) => issue.code === "SALVAGE-01"));
+  });
+
+  it("flags AUD-QUAL-01 when accept without enhancement manifest", () => {
+    const recipe = {
+      ...baseRecipe,
+      version: "2.5",
+      audioEnhancementDecisions: [{
+        candidateId: "enh_clip01",
+        clipId: "clip01",
+        action: "accept",
+        dialogueValue: "essential",
+        reason: "Wiatr na dialogu",
+      }],
+    };
+    const result = validateRecipeV2(recipe, { audioEnhancementIndex: { clips: [] } });
+    assert.ok(result.issues.some((issue) => issue.code === "AUD-QUAL-01"));
   });
 });

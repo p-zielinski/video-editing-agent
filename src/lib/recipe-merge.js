@@ -205,6 +205,29 @@ function mergeAiHookDecisions(orderedPartials, superPlan, templateOutputs) {
   return decisionsByOutputId;
 }
 
+function mergeRecipeSalvageFromCanonical(orderedPartials, superPlan) {
+  const canonicalFirst = superPlan.canonicalSegmentOrder?.[0]
+    ?? orderedPartials[0]?.segmentId;
+  const firstPartial = orderedPartials.find((partial) => partial.segmentId === canonicalFirst)
+    ?? orderedPartials[0];
+
+  if (!firstPartial) {
+    return {};
+  }
+
+  return {
+    ...(firstPartial.editorialAssessment
+      ? { editorialAssessment: firstPartial.editorialAssessment }
+      : {}),
+    ...(firstPartial.salvagePlan ? { salvagePlan: firstPartial.salvagePlan } : {}),
+    ...(firstPartial.audioEnhancementDecisions?.length
+      ? { audioEnhancementDecisions: firstPartial.audioEnhancementDecisions }
+      : {}),
+    ...(firstPartial.needsHumanReview ? { needsHumanReview: firstPartial.needsHumanReview } : {}),
+    ...(firstPartial.reviewNotes ? { reviewNotes: firstPartial.reviewNotes } : {}),
+  };
+}
+
 function mergeSfxPlan(partials, outputId, mainOutputId, outputTimelineOffsets) {
   const merged = [];
 
@@ -347,6 +370,8 @@ export function mergeSegmentRecipes(superPlan, partials, options = {}) {
   if (superPlan.crossSegmentCallbacks?.length) {
     base.structuredCallbacks = superPlan.crossSegmentCallbacks;
   }
+
+  Object.assign(base, mergeRecipeSalvageFromCanonical(effectivePartials, superPlan));
 
   return base;
 }

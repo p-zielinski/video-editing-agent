@@ -27,6 +27,7 @@ import { runTopicIndexStep } from "./steps/topic-index.js";
 import { runSpatialIndexStep } from "./steps/spatial-index.js";
 import { runAiVideoStep } from "./steps/ai-video.js";
 import { runAbstractStep, runDirectStep, runReviewStep, ensureSpatialIndex } from "./steps/agents.js";
+import { runAudioEnhancementStep } from "./steps/audio-enhancement.js";
 import { runThumbnailsStep } from "./steps/thumbnails.js";
 import { runPublishStep } from "./steps/publish.js";
 import {
@@ -472,7 +473,7 @@ export async function runPipeline(options) {
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.aiVideo, ARTIFACTS.sceneCatalog, ARTIFACTS.clipRegistry]);
     }
 
-    if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
+    if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("audio_enhancement", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
       const effectiveFormats = applyEffectiveRequiredFormats(context, {
         requiredFormatsExplicit,
         userContext,
@@ -489,6 +490,13 @@ export async function runPipeline(options) {
       await runDirectStep({ ...context, requiredFormats: context.requiredFormats, faceStub });
       log.stepDone();
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.recipeDraft]);
+    }
+
+    if (shouldRunStep("audio_enhancement", fromStep, toStep)) {
+      log.step("audio_enhancement", stepIndex("audio_enhancement") + 1, TOTAL_STEPS);
+      await runAudioEnhancementStep({ workDir, force });
+      log.stepDone();
+      recordManifestArtifactMtimes(workDir, [ARTIFACTS.audioEnhancementIndex, ARTIFACTS.recipeDraft]);
     }
 
     if (shouldRunStep("review", fromStep, toStep)) {

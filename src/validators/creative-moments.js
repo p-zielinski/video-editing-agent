@@ -1238,3 +1238,65 @@ export function validateVoicePitchMoments(recipe) {
 
   return issues;
 }
+
+const VOICE_EMPHASIS_BOOST_ID = "voice_emphasis_boost";
+const VOICE_EMPHASIS_SEMITONE_MIN = 0.5;
+const VOICE_EMPHASIS_SEMITONE_MAX = 3;
+const VOICE_EMPHASIS_MAX_PER_OUTPUT = 3;
+const VOICE_EMPHASIS_MAX_DURATION_SEC = 2;
+
+/**
+ * V27-DELIVERY-01/02 — voice_emphasis_boost range and density per output.
+ */
+export function validateVoiceEmphasisMoments(recipe) {
+  const moments = (recipe.creativeMoments ?? []).filter(
+    (moment) => moment.techniqueId === VOICE_EMPHASIS_BOOST_ID,
+  );
+  if (moments.length === 0) {
+    return [];
+  }
+
+  const issues = [];
+  const countByOutput = new Map();
+
+  for (const moment of moments) {
+    const outputId = moment.outputId ?? recipe.outputs?.[0]?.outputId ?? "unknown";
+    countByOutput.set(outputId, (countByOutput.get(outputId) ?? 0) + 1);
+
+    const semitones = moment.params?.semitones ?? 1.5;
+    if (semitones < VOICE_EMPHASIS_SEMITONE_MIN || semitones > VOICE_EMPHASIS_SEMITONE_MAX) {
+      issues.push({
+        severity: "warning",
+        code: "V27-DELIVERY-01",
+        message: `voice_emphasis_boost semitones ${semitones} poza zakresem ${VOICE_EMPHASIS_SEMITONE_MIN}…${VOICE_EMPHASIS_SEMITONE_MAX}`,
+        outputId,
+        momentId: moment.momentId,
+      });
+    }
+
+    const durationSec = moment.params?.durationSec
+      ?? ((moment.outputEndSec ?? 0) - (moment.outputStartSec ?? 0));
+    if (durationSec > VOICE_EMPHASIS_MAX_DURATION_SEC) {
+      issues.push({
+        severity: "warning",
+        code: "V27-DELIVERY-02",
+        message: `voice_emphasis_boost duration ${durationSec}s > ${VOICE_EMPHASIS_MAX_DURATION_SEC}s`,
+        outputId,
+        momentId: moment.momentId,
+      });
+    }
+  }
+
+  for (const [outputId, count] of countByOutput) {
+    if (count > VOICE_EMPHASIS_MAX_PER_OUTPUT) {
+      issues.push({
+        severity: "warning",
+        code: "V27-DELIVERY-02",
+        message: `${count}× voice_emphasis_boost na output ${outputId} (max ${VOICE_EMPHASIS_MAX_PER_OUTPUT})`,
+        outputId,
+      });
+    }
+  }
+
+  return issues;
+}

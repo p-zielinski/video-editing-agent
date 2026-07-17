@@ -27,6 +27,7 @@ import {
   resolveSfxFileForPixabayUrl,
 } from "../src/lib/pixabay-sfx-page.js";
 import { extractPixabayIdFromUrl } from "../src/lib/pixabay-music-page.js";
+import { enrichSfxAfterIngest } from "../src/lib/catalog-post-ingest-enrich.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SFX_DIR = path.join(REPO_ROOT, "assets", "sfx");
@@ -52,9 +53,14 @@ Options:
   --title <text>       Nadpisz tytuł
   --sfx-id <id>        Nadpisz sfxId
   --dry-run            Bez zapisu
-  --force              Nadpisz istniejący sfxId
+  --force              Nadpisz istniejący sfxId (i wymuś ponowny AI enrich)
+  --skip-enrich        Pomiń automatyczny AI enrich po ingeście
+  --enrich-with-audio  AI enrich z odsłuchem pliku (wymaga modelu *-audio-preview)
   --captcha-wait-sec <n>  Czas na captcha w widocznym Chromium (domyślnie 180s)
   --help               Pomoc
+
+Po udanym ingeście (bez --dry-run) automatycznie uruchamia AI enrich dla nowego wpisu.
+Wymaga OPENAI_API_KEY w .env. Batch re-enrich: npm run enrich:sfx-catalog
 `);
 }
 
@@ -68,6 +74,8 @@ function parseArgs(argv) {
     sfxId: null,
     dryRun: false,
     force: false,
+    skipEnrich: false,
+    enrichWithAudio: false,
     help: false,
     browserHeadless: false,
     httpOnly: false,
@@ -101,6 +109,12 @@ function parseArgs(argv) {
         break;
       case "--force":
         args.force = true;
+        break;
+      case "--skip-enrich":
+        args.skipEnrich = true;
+        break;
+      case "--enrich-with-audio":
+        args.enrichWithAudio = true;
         break;
       case "--headless":
         args.browserHeadless = true;
@@ -334,6 +348,27 @@ async function main() {
   });
   console.log(`\n✓ Dopisano ${entry.sfxId} do ${path.relative(REPO_ROOT, CATALOG_PATH)}`);
   console.log("  (wiersz w LICENSES.md — jeśli nowy plik)");
+
+  if (!args.skipEnrich) {
+    console.log(`\n→ AI enrich: ${entry.sfxId}${args.enrichWithAudio ? " (with-audio)" : " (text-only)"}`);
+    const enrichResult = await enrichSfxAfterIngest({
+      sfxId: entry.sfxId,
+      catalogPath: CATALOG_PATH,
+      sfxDir: SFX_DIR,
+      force: args.force,
+      textOnly: !args.enrichWithAudio,
+      onUsage: ({ model, usage }) => {
+        const tokens = usage?.total_tokens ?? "?";
+        console.log(`  [${entry.sfxId}] ${model} tokens=${tokens}`);
+      },
+    });
+
+    if (enrichResult.skipped) {
+      console.log(`  skip: ${enrichResult.reason}`);
+    } else {
+      console.log(`  ok: ${enrichResult.description}`);
+    }
+  }
 }
 
 main().catch((error) => {

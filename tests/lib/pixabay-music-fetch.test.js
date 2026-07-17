@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isBlockedPixabayHtml, hasPixabayMetadata, isReadyPixabayHtml, isTransientPixabayPageError, HEADED_CAPTCHA_WAIT_MS } from "../../src/lib/pixabay-music-fetch.js";
+import { isBlockedPixabayHtml, hasPixabayMetadata, isReadyPixabayHtml, isTransientPixabayPageError, HEADED_CAPTCHA_WAIT_MS, normalizePixabayUrl, hasNextDataSectionMarkers } from "../../src/lib/pixabay-music-fetch.js";
 
 describe("pixabay-music-fetch", () => {
   it("detects cloudflare challenge pages", () => {
@@ -13,6 +13,23 @@ describe("pixabay-music-fetch", () => {
       isBlockedPixabayHtml("<html><body><dt>Genre</dt><dd>Dance</dd><dt>Mood</dt></body></html>"),
       false,
     );
+    assert.equal(
+      isBlockedPixabayHtml("<html><body><dt>Gatunek</dt><dd>Rock</dd><dt>Nastrój</dt></body></html>"),
+      false,
+    );
+  });
+
+  it("strips pixabay locale prefix from urls", () => {
+    assert.equal(
+      normalizePixabayUrl("https://pixabay.com/pl/music/g%C5%82az-indie-rock-518575/"),
+      "https://pixabay.com/music/g%C5%82az-indie-rock-518575/",
+    );
+  });
+
+  it("accepts __NEXT_DATA__ genre/mood markers on localized pages", () => {
+    const html = `<html><body><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"genre":["Rock"],"mood":["Energetic"]}}}</script></body></html>`;
+    assert.equal(hasNextDataSectionMarkers(html, "music"), true);
+    assert.equal(isReadyPixabayHtml(html, "music"), true);
   });
 
   it("accepts sfx pages with tags markers", () => {

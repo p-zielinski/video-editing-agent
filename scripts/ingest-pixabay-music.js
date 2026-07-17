@@ -27,6 +27,7 @@ import {
   parsePixabayMusicPage,
   resolveMusicFileForPixabayUrl,
 } from "../src/lib/pixabay-music-page.js";
+import { enrichMusicAfterIngest } from "../src/lib/catalog-post-ingest-enrich.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MUSIC_DIR = path.join(REPO_ROOT, "assets", "music");
@@ -51,9 +52,13 @@ Options:
   --title <text>       Nadpisz tytuł
   --track-id <id>      Nadpisz trackId
   --dry-run            Bez zapisu catalog.json
-  --force              Nadpisz istniejący trackId
+  --force              Nadpisz istniejący trackId (i wymuś ponowny AI enrich)
+  --skip-enrich        Pomiń automatyczny AI enrich po ingeście
   --captcha-wait-sec <n>  Czas na captcha w widocznym Chromium (domyślnie 180s)
   --help               Pomoc
+
+Po udanym ingeście (bez --dry-run) automatycznie uruchamia AI enrich dla nowego wpisu.
+Wymaga OPENAI_API_KEY w .env. Batch re-enrich: npm run enrich:music-catalog
 `);
 }
 
@@ -67,6 +72,7 @@ function parseArgs(argv) {
     trackId: null,
     dryRun: false,
     force: false,
+    skipEnrich: false,
     help: false,
     browserHeadless: false,
     httpOnly: false,
@@ -100,6 +106,9 @@ function parseArgs(argv) {
         break;
       case "--force":
         args.force = true;
+        break;
+      case "--skip-enrich":
+        args.skipEnrich = true;
         break;
       case "--headless":
         args.browserHeadless = true;
@@ -301,6 +310,25 @@ async function main() {
 
   upsertCatalogTrack(CATALOG_PATH, entry, { force: args.force });
   console.log(`\n✓ Dopisano ${entry.trackId} do ${path.relative(REPO_ROOT, CATALOG_PATH)}`);
+
+  if (!args.skipEnrich) {
+    console.log(`\n→ AI enrich: ${entry.trackId}`);
+    const enrichResult = await enrichMusicAfterIngest({
+      trackId: entry.trackId,
+      catalogPath: CATALOG_PATH,
+      force: args.force,
+      onUsage: ({ model, usage }) => {
+        const tokens = usage?.total_tokens ?? "?";
+        console.log(`  [${entry.trackId}] ${model} tokens=${tokens}`);
+      },
+    });
+
+    if (enrichResult.skipped) {
+      console.log(`  skip: ${enrichResult.reason}`);
+    } else {
+      console.log(`  ok: ${enrichResult.description}`);
+    }
+  }
 }
 
 main().catch((error) => {

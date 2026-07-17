@@ -557,8 +557,110 @@ export const StructuredCallbackSchema = z.object({
   teaseText: z.string().optional(),
 });
 
+export const RecipeEditorialVerdictSchema = z.enum([
+  "publishable_as_is",
+  "salvage_required",
+  "not_recommended",
+]);
+
+export const RecipeEditorialAssessmentSchema = z.object({
+  verdict: RecipeEditorialVerdictSchema,
+  confidence: z.number().min(0).max(1).optional(),
+  summary: z.string().min(1),
+  strengths: z.array(z.string()).default([]),
+  blockingIssues: z.array(z.string()).default([]),
+});
+
+export const SalvagePlanStatusSchema = z.enum([
+  "not_needed",
+  "proposed",
+  "materializable",
+  "blocked",
+]);
+
+export const SalvagePrimaryStrategySchema = z.enum([
+  "voice_over",
+  "broll_montage",
+  "audio_enhancement",
+  "hybrid",
+  "short_only",
+  "decline_output",
+]);
+
+export const VoiceOverMaterializationStatusSchema = z.enum([
+  "available",
+  "missing_narration",
+  "out_of_scope",
+]);
+
+export const VoiceOverProposalSchema = z.object({
+  purpose: z.string().min(1),
+  scriptOutline: z.array(z.string()).default([]),
+  estimatedDurationSec: z.number().positive().optional(),
+  coverageSceneIds: z.array(z.string()).default([]),
+  preferredSource: z.enum(["user_recorded", "existing_narration", "tts"]).optional(),
+  materializationStatus: VoiceOverMaterializationStatusSchema,
+});
+
+export const SalvagePlanSchema = z.object({
+  status: SalvagePlanStatusSchema,
+  primaryStrategy: SalvagePrimaryStrategySchema,
+  reason: z.string().min(1),
+  targetOutputIds: z.array(z.string()).default([]),
+  requiresHumanApproval: z.boolean().default(true),
+  voiceOverProposal: VoiceOverProposalSchema.optional(),
+});
+
+export const AudioEnhancementActionSchema = z.enum(["accept", "reject"]);
+
+export const DialogueValueSchema = z.enum(["essential", "useful", "dispensable"]);
+
+export const AudioEnhancementProviderPreferenceSchema = z.enum(["auto", "local", "paid"]);
+
+export const RetranscribePolicySchema = z.enum(["never", "if_material_improvement", "always"]);
+
+export const AudioEnhancementPolishPresetSchema = z.enum([
+  "none",
+  "repair_only",
+  "engagement_polish",
+  "podcast_polish",
+]);
+
+export const AudioEnhancementDecisionSchema = z.object({
+  candidateId: z.string().min(1),
+  clipId: z.string().min(1),
+  action: AudioEnhancementActionSchema,
+  dialogueValue: DialogueValueSchema,
+  reason: z.string().min(1),
+  providerPreference: AudioEnhancementProviderPreferenceSchema.default("auto"),
+  targetDialogueLufs: z.number().min(-30).max(-12).default(-18).optional(),
+  retranscribePolicy: RetranscribePolicySchema.default("never").optional(),
+  polishPreset: AudioEnhancementPolishPresetSchema.default("none").optional(),
+});
+
+export const EngagementRepairActionSchema = z.enum([
+  "editorial_pacing",
+  "dsp_polish",
+  "voice_emphasis_boost",
+  "voice_pitch_shift",
+  "voice_resynthesis",
+]);
+
+export const EngagementRepairMomentSchema = z.object({
+  momentId: z.string().min(1),
+  clipId: z.string().min(1),
+  action: EngagementRepairActionSchema,
+  startSec: z.number().nonnegative(),
+  endSec: z.number().positive(),
+  anchorWordId: z.string().optional(),
+  reason: z.string().min(1),
+  consentRequired: z.boolean().default(false),
+  needsHumanReview: z.boolean().default(false),
+  params: z.record(z.unknown()).optional(),
+});
+
 export const EditRecipeV2Schema = z.object({
-  version: z.enum(["2.0", "2.1", "2.2", "2.3", "2.4"]),
+  version: z.enum(["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]),
   batchId: z.string(),
   batchContext: BatchContextV2Schema,
   clipRegistry: z.array(ClipRegistryEntrySchema).default([]),
@@ -585,6 +687,10 @@ export const EditRecipeV2Schema = z.object({
     text: z.string().optional(),
   }).optional(),
   structuredCallbacks: z.array(StructuredCallbackSchema).default([]).optional(),
+  editorialAssessment: RecipeEditorialAssessmentSchema.optional(),
+  salvagePlan: SalvagePlanSchema.optional(),
+  audioEnhancementDecisions: z.array(AudioEnhancementDecisionSchema).default([]).optional(),
+  engagementRepairMoments: z.array(EngagementRepairMomentSchema).default([]).optional(),
   needsHumanReview: z.boolean().default(false),
   reviewNotes: z.string().optional(),
 });

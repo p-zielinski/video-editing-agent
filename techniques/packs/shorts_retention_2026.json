@@ -23,6 +23,7 @@
     "cinematic_frame",
     "reframe_follow_subject",
     "voice_pitch_shift",
+    "voice_emphasis_boost",
     "music_swell",
     "music_drop",
     "cut_on_beat",
@@ -37,6 +38,7 @@
   },
   "paramOverrides": {},
   "constraintOverrides": {
-    "voice_pitch_shift": { "requiresCreativityLevel": "shorts" }
+    "voice_pitch_shift": { "requiresCreativityLevel": "shorts" },
+    "voice_emphasis_boost": { "requiresCreativityLevel": "shorts" }
   }
 }

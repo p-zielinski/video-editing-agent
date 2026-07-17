@@ -6,7 +6,7 @@ import {
   mergeCreativityProfile,
 } from "../editorial/technique-budget.js";
 import { mergeShortsRetentionProfile, mergeVlogRetentionProfile, shouldRunShortsRetentionValidation } from "../editorial/shorts-retention.js";
-import { validateCreativeMoments, validateVoicePitchMoments } from "./creative-moments.js";
+import { validateCreativeMoments, validateVoicePitchMoments, validateVoiceEmphasisMoments } from "./creative-moments.js";
 import { validateRenderFidelity } from "./render-fidelity.js";
 import { validateShortsRetention } from "./shorts-retention.js";
 import { validateVlogRetention, shouldRunVlogRetentionValidation } from "./vlog-retention.js";
@@ -951,6 +951,191 @@ export function validatePacingGuard(recipe, { estimatedKeepRatio } = {}) {
   return issues;
 }
 
+function hasNarrationTrack(clipRegistry = []) {
+  return clipRegistry.some(
+    (clip) => clip.clipRole === "narration_track"
+      || (clip.mediaType === "audio_only" && clip.hasSpeech),
+  );
+}
+
+export function validateSalvageAndAudioQuality(recipe, {
+  audioEnhancementIndex = null,
+  perClipAnalysis = null,
+} = {}) {
+  const issues = [];
+  const clipRegistryMap = buildClipRegistryMap(recipe.clipRegistry);
+  const narrationAvailable = hasNarrationTrack(recipe.clipRegistry);
+
+  if (recipe.editorialAssessment?.verdict === "salvage_required" && !recipe.salvagePlan) {
+    issues.push({
+      severity: "error",
+      code: "SALVAGE-01",
+      message: "editorialAssessment.salvage_required wymaga salvagePlan",
+    });
+  }
+
+  if (recipe.editorialAssessment?.verdict === "not_recommended" && !recipe.needsHumanReview) {
+    issues.push({
+      severity: "warning",
+      code: "SALVAGE-04",
+      message: "Materiał not_recommended powinien ustawić needsHumanReview: true",
+    });
+  }
+
+  const voProposal = recipe.salvagePlan?.voiceOverProposal;
+  if (
+    voProposal?.materializationStatus === "missing_narration"
+    && !recipe.needsHumanReview
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "SALVAGE-04",
+      message: "Propozycja voice-over bez narration_track wymaga needsHumanReview",
+    });
+  }
+
+  for (const output of recipe.outputs ?? []) {
+    for (const segment of output.timeline ?? []) {
+      if (segment.audioPolicy !== "from_audio_ref") {
+        continue;
+      }
+      const audioClipId = segment.audioRef?.clipId;
+      const clip = audioClipId ? clipRegistryMap.get(audioClipId) : null;
+      if (!clip || !clipHasSpeech(clip)) {
+        if (!narrationAvailable && voProposal?.materializationStatus === "missing_narration") {
+          issues.push({
+            severity: "error",
+            code: "SALVAGE-02",
+            message: `Segment ${segment.segmentId}: from_audio_ref bez istniejącego narration asset`,
+            outputId: output.outputId,
+          });
+        }
+      }
+    }
+  }
+
+  const enhancementByClip = new Map(
+    (audioEnhancementIndex?.clips ?? []).map((entry) => [entry.clipId, entry]),
+  );
+  const analysisByClip = new Map(
+    (Array.isArray(perClipAnalysis) ? perClipAnalysis : [])
+      .map((entry) => [entry.clipId, entry]),
+  );
+
+  for (const decision of recipe.audioEnhancementDecisions ?? []) {
+    if (decision.action !== "accept") {
+      continue;
+    }
+    const manifest = enhancementByClip.get(decision.clipId);
+    if (!manifest || (manifest.status !== "succeeded" && manifest.status !== "stubbed")) {
+      issues.push({
+        severity: "error",
+        code: "AUD-QUAL-01",
+        message: `accept dla ${decision.clipId} bez udanego artefaktu audio_enhancement`,
+      });
+    } else if (!manifest.normalization?.finalIntegratedLufs) {
+      issues.push({
+        severity: "warning",
+        code: "AUD-QUAL-05",
+        message: `Brak pomiaru post-enhancement dla ${decision.clipId}`,
+      });
+    }
+  }
+
+  for (const [clipId, analysis] of analysisByClip.entries()) {
+    const grade = analysis.audioQuality?.grade;
+    if (grade !== "poor" && grade !== "unusable") {
+      continue;
+    }
+    const hasDecision = (recipe.audioEnhancementDecisions ?? []).some(
+      (entry) => entry.clipId === clipId,
+    );
+    const usedAsDialogue = (recipe.outputs ?? []).some((output) =>
+      (output.timeline ?? []).some((segment) => {
+        const audioClipId = segment.audioRef?.clipId ?? segment.videoRef?.clipId;
+        return audioClipId === clipId
+          && segment.audioPolicy !== "mute"
+          && segment.segmentRole !== "broll";
+      }),
+    );
+    if (usedAsDialogue && !hasDecision) {
+      issues.push({
+        severity: "warning",
+        code: "AUD-QUAL-02",
+        message: `Klip ${clipId} ma audioQuality=${grade} bez decyzji enhancement/exclusion`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function validateDeliveryEngagement(recipe, { perClipAnalysis = null } = {}) {
+  const issues = [];
+  const analysisByClip = new Map(
+    (Array.isArray(perClipAnalysis) ? perClipAnalysis : [])
+      .map((entry) => [entry.clipId, entry]),
+  );
+
+  for (const moment of recipe.engagementRepairMoments ?? []) {
+    if (moment.action !== "voice_resynthesis") {
+      continue;
+    }
+    if (!moment.consentRequired || !moment.needsHumanReview) {
+      issues.push({
+        severity: "error",
+        code: "V27-DELIVERY-03",
+        message: `engagementRepairMoments ${moment.momentId}: voice_resynthesis wymaga consentRequired i needsHumanReview`,
+        momentId: moment.momentId,
+      });
+    }
+    const duration = (moment.endSec ?? 0) - (moment.startSec ?? 0);
+    if (duration > 30) {
+      issues.push({
+        severity: "warning",
+        code: "V27-DELIVERY-04",
+        message: `engagementRepairMoments ${moment.momentId}: fragment re-syntezy ${duration.toFixed(1)}s > 30s`,
+        momentId: moment.momentId,
+      });
+    }
+  }
+
+  for (const decision of recipe.audioEnhancementDecisions ?? []) {
+    if (decision.action !== "accept") {
+      continue;
+    }
+    const preset = decision.polishPreset ?? "none";
+    if (preset === "none" || preset === "repair_only") {
+      continue;
+    }
+    const analysis = analysisByClip.get(decision.clipId);
+    const windScore = analysis?.audioQuality?.windScore ?? 0;
+    if (windScore >= 0.45) {
+      issues.push({
+        severity: "warning",
+        code: "V27-DELIVERY-05",
+        message: `Klip ${decision.clipId}: polishPreset ${preset} przy wysokim windScore (${windScore})`,
+        clipId: decision.clipId,
+      });
+    }
+  }
+
+  const emphasisCount = (recipe.creativeMoments ?? []).filter(
+    (moment) => moment.techniqueId === "voice_emphasis_boost"
+      || moment.techniqueId === "voice_pitch_shift",
+  ).length;
+  const repairCount = (recipe.engagementRepairMoments ?? []).length;
+  if (emphasisCount + repairCount > 8) {
+    issues.push({
+      severity: "warning",
+      code: "V27-DELIVERY-02",
+      message: `Zbyt wiele interwencji prozodii (${emphasisCount + repairCount}) — ryzyko utraty naturalności głosu`,
+    });
+  }
+
+  return issues;
+}
+
 export function validateRecipeV2(recipe, {
   requiredFormats,
   topicIndex,
@@ -967,6 +1152,7 @@ export function validateRecipeV2(recipe, {
   abstraction = null,
   timelineIndex = null,
   perClipAnalysis = null,
+  audioEnhancementIndex = null,
   qualityProfile = "lenient",
 } = {}) {
   const parsed = EditRecipeV2Schema.parse(recipe);
@@ -1045,6 +1231,8 @@ export function validateRecipeV2(recipe, {
       wordIndexes,
     }),
     ...validateVoicePitchMoments(parsed),
+    ...validateVoiceEmphasisMoments(parsed),
+    ...validateDeliveryEngagement(parsed, { perClipAnalysis }),
     ...validateRenderFidelity(parsed, { qualityProfile }),
     ...validateShortsRetention(parsed, catalog, {
       creativityLevel: profile.level,
@@ -1067,6 +1255,10 @@ export function validateRecipeV2(recipe, {
     }),
     ...validateAiVideoSegments(parsed, parsed.batchContext ?? {}),
     ...validateBrandSafetyText(parsed),
+    ...validateSalvageAndAudioQuality(parsed, {
+      audioEnhancementIndex,
+      perClipAnalysis,
+    }),
   ];
 
   for (const output of parsed.outputs) {

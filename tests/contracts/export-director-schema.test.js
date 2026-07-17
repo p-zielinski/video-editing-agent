@@ -12,4 +12,12 @@ describe("export-director-schema ai hook contract", () => {
     assert.ok(outputShape.aiHookDecision.clipId);
     assert.ok(outputShape.aiHookDecision.reason);
   });
+
+  it("includes salvage and audio enhancement fields on recipe root", () => {
+    const schema = EDIT_RECIPE_DIRECTOR_OUTPUT_SCHEMA;
+    assert.equal(schema.version, "2.5");
+    assert.ok(schema.editorialAssessment.verdict);
+    assert.ok(schema.salvagePlan.primaryStrategy);
+    assert.ok(schema.audioEnhancementDecisions[0].action);
+  });
 });

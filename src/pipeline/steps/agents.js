@@ -2,6 +2,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { createOpenAIClient } from "../../agents/openai-client.js";
 import { buildAbstractionBundle } from "../../agents/summarizer.js";
+import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
+import { loadAudioEnhancementIndex } from "./audio-enhancement.js";
 import {
   runDirector,
   directorDrillDown,
@@ -29,7 +31,6 @@ import { validateRecipeV2, buildSceneUsageRegistryV2 } from "../../validators/re
 import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { shouldUseCachedArtifact, isArtifactStale } from "../artifact-deps.js";
 import { runSpatialIndexStep } from "./spatial-index.js";
-import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/audio-mix-plan.js";
 import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
 import { enrichRecipeChapterCards, buildChapterCardHints, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
@@ -601,10 +602,12 @@ export async function runAbstractStep({
 
   const timelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
   const clipRegistry = loadClipRegistry(workDir);
+  const audioIndex = loadAudioIndex(workDir);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
   const bundle = await buildAbstractionBundle(client, timelineIndex, {
     userContext,
     clipRegistry,
+    audioIndex,
     onUsage: createUsageRecorder(gptUsageTracker, "abstract"),
   });
 
@@ -721,6 +724,7 @@ function buildRecipeValidationOptions({
   perClipAnalysis,
   keyframeArtifacts,
   batchContext,
+  audioEnhancementIndex,
 }) {
   const mergedBatchContext = { ...batchContext, ...recipe.batchContext };
   return {
@@ -729,6 +733,7 @@ function buildRecipeValidationOptions({
     spatialIndex,
     wordIndexes,
     audioIndex,
+    audioEnhancementIndex,
     abstraction,
     timelineIndex,
     perClipAnalysis,
@@ -998,6 +1003,7 @@ export async function runReviewStep({
   const topicIndex = loadTopicIndex(workDir);
   const spatialIndex = await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
   const audioIndex = loadAudioIndex(workDir);
+  const audioEnhancementIndex = loadAudioEnhancementIndex(workDir);
   const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const wordIndexes = loadWordIndexes(workDir, catalog);
   const metaCommandsByClip = loadMetaCommandsByClip(workDir, catalog);
@@ -1018,6 +1024,7 @@ export async function runReviewStep({
       perClipAnalysis,
       keyframeArtifacts,
       batchContext,
+      audioEnhancementIndex,
     }));
     if (validation.valid) {
       const reviewPath = path.join(workDir, ARTIFACTS.review);
@@ -1055,6 +1062,7 @@ export async function runReviewStep({
     perClipAnalysis,
     keyframeArtifacts,
     batchContext,
+    audioEnhancementIndex,
   };
 
   while (iteration < maxIterations) {

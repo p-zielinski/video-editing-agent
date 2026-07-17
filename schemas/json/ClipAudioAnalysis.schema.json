@@ -6,7 +6,10 @@
       "properties": {
         "version": {
           "type": "string",
-          "const": "1.0"
+          "enum": [
+            "1.0",
+            "1.1"
+          ]
         },
         "clipId": {
           "type": "string"
@@ -256,6 +259,281 @@
             "stub",
             "none"
           ]
+        },
+        "audioQuality": {
+          "type": "object",
+          "properties": {
+            "assessmentVersion": {
+              "type": "string",
+              "const": "1.0"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "heuristic",
+                "ml",
+                "hybrid",
+                "stub"
+              ]
+            },
+            "hasSpeech": {
+              "type": "boolean"
+            },
+            "speechPresenceRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "estimatedSnrDb": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "noiseFloorDbfs": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "clippingRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "windScore": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "humScore": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "speechClarityScore": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "qualityScore": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "grade": {
+              "type": "string",
+              "enum": [
+                "good",
+                "usable",
+                "poor",
+                "unusable"
+              ]
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "enhancementRecommended": {
+              "type": "boolean"
+            },
+            "enhancementCandidateId": {
+              "type": "string"
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "assessmentVersion",
+            "mode",
+            "hasSpeech",
+            "qualityScore",
+            "grade",
+            "enhancementRecommended"
+          ],
+          "additionalProperties": false
+        },
+        "deliveryAnalysis": {
+          "type": "object",
+          "properties": {
+            "assessmentVersion": {
+              "type": "string",
+              "const": "1.0"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "heuristic",
+                "hybrid",
+                "stub"
+              ]
+            },
+            "windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "startSec": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "endSec": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "f0SemitoneSd": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "loudnessModulation": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "wpm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "pauseRatio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "voicedRatio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "engagementScore": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "issues": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "flat_pitch",
+                        "steady_energy",
+                        "steady_pace",
+                        "high_fillers"
+                      ]
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "startSec",
+                  "endSec",
+                  "engagementScore"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "clipSummary": {
+              "type": "object",
+              "properties": {
+                "engagementGrade": {
+                  "type": "string",
+                  "enum": [
+                    "engaging",
+                    "neutral",
+                    "flat"
+                  ]
+                },
+                "engagementScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "dominantIssues": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "flatWindowCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 0
+                },
+                "flatDeliveryWindows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "startSec": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "endSec": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "engagementScore": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "issues": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "flat_pitch",
+                            "steady_energy",
+                            "steady_pace",
+                            "high_fillers"
+                          ]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "startSec",
+                      "endSec",
+                      "engagementScore"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "engagementGrade",
+                "engagementScore"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "assessmentVersion",
+            "mode",
+            "clipSummary"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

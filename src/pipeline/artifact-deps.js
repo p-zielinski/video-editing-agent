@@ -95,8 +95,19 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     ARTIFACTS.aiVideo,
     CLIP_ARTIFACT_PATTERNS.metaCommands,
   ],
+  [ARTIFACTS.audioEnhancementIndex]: [
+    ARTIFACTS.recipeDraft,
+    ARTIFACTS.sceneCatalog,
+    CLIP_ARTIFACT_PATTERNS.audioAnalysis,
+  ],
+  "07a-audio-enhancement-*": [
+    ARTIFACTS.recipeDraft,
+    ARTIFACTS.sceneCatalog,
+    CLIP_ARTIFACT_PATTERNS.audioAnalysis,
+  ],
   [ARTIFACTS.review]: [
     ARTIFACTS.recipeDraft,
+    ARTIFACTS.audioEnhancementIndex,
     ARTIFACTS.abstraction,
     ARTIFACTS.timelineIndex,
     ARTIFACTS.topicIndex,

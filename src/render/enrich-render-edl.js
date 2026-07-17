@@ -16,12 +16,15 @@ function resolveVideoSourcePath(segment, context) {
 }
 
 function resolveAudioSourcePath(segment, context) {
+  const enhancedForClip = (clipId) => context.enhancedAudioPaths?.[clipId] ?? null;
+
   switch (segment.audioPolicy) {
     case "external":
       return context.musicBed?.trackFilePath ?? null;
     case "from_audio_ref": {
       const clipId = segment.audioRef?.clipId;
-      return clipId ? context.clips[clipId]?.sourcePath ?? null : null;
+      return enhancedForClip(clipId)
+        ?? (clipId ? context.clips[clipId]?.sourcePath ?? null : null);
     }
     case "mute":
       return null;
@@ -30,7 +33,8 @@ function resolveAudioSourcePath(segment, context) {
     case "from_video_ref":
     default: {
       const clipId = segment.videoRef?.clipId ?? segment.audioRef?.clipId;
-      return clipId ? context.clips[clipId]?.sourcePath ?? null : null;
+      return enhancedForClip(clipId)
+        ?? (clipId ? context.clips[clipId]?.sourcePath ?? null : null);
     }
   }
 }

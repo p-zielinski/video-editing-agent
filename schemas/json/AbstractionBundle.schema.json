@@ -300,6 +300,134 @@
                   "additionalProperties": false
                 }
               ]
+            },
+            "editorialAssessment": {
+              "type": "object",
+              "properties": {
+                "editabilityScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "strong",
+                    "viable",
+                    "salvageable",
+                    "not_viable"
+                  ]
+                },
+                "storyCoherenceScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "visualCoverageScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "dialogueValueScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "strengths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "constraints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "weak_story",
+                      "missing_context",
+                      "weak_ending",
+                      "insufficient_visuals",
+                      "poor_dialogue_audio",
+                      "excess_dead_air",
+                      "repetitive_material",
+                      "flat_delivery"
+                    ]
+                  },
+                  "default": []
+                },
+                "recommendedSalvageModes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "voice_over",
+                      "broll_montage",
+                      "audio_enhancement",
+                      "aggressive_trim",
+                      "short_only",
+                      "decline_output"
+                    ]
+                  },
+                  "default": []
+                },
+                "reasoning": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "editabilityScore",
+                "verdict",
+                "reasoning"
+              ],
+              "additionalProperties": false
+            },
+            "deliveryAssessment": {
+              "type": "object",
+              "properties": {
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "engaging",
+                    "neutral",
+                    "flat"
+                  ]
+                },
+                "engagementScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "blockingForRetention": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "recommendedRepairs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "editorial_pacing",
+                      "dsp_polish",
+                      "localized_emphasis",
+                      "filler_cuts",
+                      "voice_resynthesis"
+                    ]
+                  },
+                  "default": []
+                },
+                "reasoning": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "verdict",
+                "reasoning"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [

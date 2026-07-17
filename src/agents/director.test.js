@@ -476,7 +476,7 @@ describe("director agent v2", () => {
       batchContext: { brollMatchThreshold: 0.55 },
     });
 
-    assert.equal(brief.version, "2.4");
+    assert.equal(brief.version, "2.5");
     assert.equal(brief.inputMode, "single_clip");
     assert.equal(brief.clipRegistry.length, 1);
     assert.equal(brief.topicIndex.topics.length, 0);
@@ -1258,6 +1258,68 @@ describe("director agent v2", () => {
     assert.ok(brief.sceneRanks.length <= 10);
     assert.equal(brief.sceneRanks[0].sceneId, "clip01_scene002");
     assert.ok(brief.sceneRanks[0].rank >= brief.sceneRanks[1].rank);
+  });
+
+  it("includes enhancementCandidates from perClipAnalysis audioQuality", () => {
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+      perClipAnalysis: [{
+        clipId: "clip01",
+        audioQuality: {
+          assessmentVersion: "1.0",
+          mode: "heuristic",
+          hasSpeech: true,
+          qualityScore: 0.4,
+          grade: "poor",
+          enhancementRecommended: true,
+          enhancementCandidateId: "enh_clip01",
+          reasons: ["low_snr"],
+          issues: ["low_snr"],
+        },
+      }],
+    });
+
+    assert.equal(brief.version, "2.5");
+    assert.equal(brief.enhancementCandidates.length, 1);
+    assert.equal(brief.enhancementCandidates[0].candidateId, "enh_clip01");
+  });
+
+  it("includes engagementRepairCandidates from deliveryAnalysis", () => {
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+      topicIndex,
+      requiredFormats: ["16:9"],
+      perClipAnalysis: [{
+        clipId: "clip01",
+        deliveryAnalysis: {
+          assessmentVersion: "1.0",
+          mode: "heuristic",
+          windows: [],
+          clipSummary: {
+            engagementGrade: "flat",
+            engagementScore: 0.32,
+            dominantIssues: ["flat_pitch"],
+            flatWindowCount: 1,
+            flatDeliveryWindows: [{
+              startSec: 10,
+              endSec: 15,
+              engagementScore: 0.28,
+              issues: ["flat_pitch"],
+            }],
+          },
+        },
+      }],
+    });
+
+    assert.equal(brief.engagementRepairCandidates.length, 1);
+    assert.equal(brief.engagementRepairCandidates[0].candidateId, "delivery_clip01");
+    assert.ok(brief.engagementRepairCandidates[0].recommendedRepairs.includes("editorial_pacing"));
   });
 
   it("derives narrativeProfile from L2 narrativeRole when not explicitly set", () => {

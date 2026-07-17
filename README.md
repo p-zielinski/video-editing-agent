@@ -46,8 +46,8 @@ inbox/*.MOV  →  [analiza + reżyseria]  →  output/.work/<batchId>/
 - Node.js 20+
 - ffmpeg / ffprobe (ścieżki opcjonalnie w `.env`)
 - `OPENAI_API_KEY` w `.env`
-- Python 3.9+ z `pip install -r python/requirements.txt`
-  - **mlx-vlm** (vision), **Florence-2** (objects), **librosa** (audio), **opencv-python-headless** (face)
+- Python 3.9+ z `pip3 install -r python/requirements.txt`
+  - **mlx-vlm** (vision), **Florence-2** (objects), **librosa** (audio), **parselmouth** (prozodia / F0), **opencv-python-headless** (face)
   - **panns_inference** (opcjonalnie) — tagi śmiechu/uderzeń w analizie audio
 
 ## Szybki start
@@ -55,7 +55,7 @@ inbox/*.MOV  →  [analiza + reżyseria]  →  output/.work/<batchId>/
 ```bash
 cp .env.example .env   # uzupełnij OPENAI_API_KEY
 npm install
-pip install -r python/requirements.txt
+pip3 install -r python/requirements.txt
 ```
 
 Umieść pliki wideo w `inbox/<folder>/`:
@@ -102,6 +102,63 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 
 **Domyślnie vision, face i audio są LIVE** — pełna analiza Python. Stuby (`--vision-stub`, `--face-stub`, `--audio-stub`) tylko w testach CI.
 
+## Biblioteka audio (muzyka i SFX)
+
+Pipeline korzysta z lokalnych katalogów `assets/music/` i `assets/sfx/` (muzyka tła, efekty w `sfxPlan`). Nowe utwory i efekty dodajesz z Pixabay jednym skryptem ingest — metadane strony (Playwright), analiza audio (BPM/LUFS) i **automatyczny AI enrich** (opis, use cases) w jednym przebiegu.
+
+**Setup (raz):**
+
+```bash
+npm install
+npm run setup:playwright   # Chromium do metadanych Pixabay
+cp .env.example .env       # OPENAI_API_KEY — wymagany przy ingeście (auto enrich)
+pip3 install -r python/requirements.txt   # librosa — BPM/beat grid dla muzyki
+```
+
+**Workflow (muzyka):**
+
+1. Pobierz MP3 z Pixabay → `assets/music/`
+2. Uruchom ingest (interaktywnie lub z URL):
+
+```bash
+npm run ingest:pixabay-music
+# lub:
+npm run ingest:pixabay-music -- --url https://pixabay.com/music/...
+```
+
+Skrypt: widoczne Chromium → Genre/Mood/Movement/Theme → analiza audio → zapis `catalog.json` → **AI enrich** nowego wpisu.
+
+**Workflow (SFX):**
+
+1. Pobierz WAV/MP3 z Pixabay → `assets/sfx/`
+2. Uruchom ingest:
+
+```bash
+npm run ingest:pixabay-sfx
+# lub:
+npm run ingest:pixabay-sfx -- --url https://pixabay.com/sound-effects/...
+```
+
+Skrypt: metadane Pixabay → LUFS → `catalog.json` + wiersz w `LICENSES.md` → **AI enrich** (domyślnie text-only z tytułu i tagów).
+
+**Przydatne flagi ingest:**
+
+| Flaga | Opis |
+|-------|------|
+| `--skip-enrich` | Tylko metadane Pixabay + analiza audio, bez AI |
+| `--dry-run` | Podgląd wpisu bez zapisu i bez enrich |
+| `--force` | Nadpisz istniejący wpis i wymuś ponowny AI enrich |
+| `--enrich-with-audio` | *(tylko SFX)* AI z odsłuchem pliku (`*-audio-preview`) |
+
+**Batch re-enrich całego katalogu** (gdy zmienisz prompty lub dodasz wiele plików ręcznie):
+
+```bash
+npm run enrich:music-catalog
+npm run enrich:sfx-catalog
+```
+
+Szczegóły pól katalogu: [`assets/music/README.md`](assets/music/README.md), [`assets/sfx/README.md`](assets/sfx/README.md).
+
 **Profile analizy:** `--analysis-profile preview|production|ci` ustawia zestaw stubów (jawne flagi `--vision-stub` itd. mają pierwszeństwo). `ci` = preview + wyłączony globalny cache.
 
 **AI video:** `--ai-video` włącza krok `ai_video` (Kling VIDEO 3.0); po wygenerowaniu live klip jest analizowany przez TwelveLabs i trafia do briefu Directora jako rzeczywisty asset. Błąd analizy nie usuwa hooka, ale oznacza go jako niezweryfikowany. `--ai-video-stub` sam włącza krok w jawnym trybie placeholdera lavfi. Brak kluczy nie uruchamia stuba automatycznie.
@@ -122,7 +179,8 @@ Artefakty: `output/.work/<batchId>/`. Finalna receptura: `09-edit-recipe-final.j
 | `schemas/json/` | Schematy JSON (EditRecipe, indeksy, …) |
 | `python/` | Skrypty scene_detect, vision, objects, face_detect, audio_analyze |
 | `src/` | Orchestrator, kroki pipeline, agenci, walidatory, render |
-| `assets/sfx/` | Katalog SFX dla `sfxPlan` — pliki w repo to testowe stuby |
+| `assets/music/` | Biblioteka muzyki tła — `catalog.json` + pliki MP3 (Pixabay) |
+| `assets/sfx/` | Biblioteka efektów dźwiękowych — `catalog.json` + pliki audio (Pixabay) |
 
 ## Context DSL
 

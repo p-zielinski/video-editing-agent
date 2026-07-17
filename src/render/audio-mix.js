@@ -17,7 +17,7 @@ const SFX_DIR = path.join(ROOT, "assets", "sfx");
 const DEFAULT_VOICE_TARGET_LUFS = -16;
 export const DEFAULT_DUCKING_DB = -12;
 export const MUSIC_BED_AUDIO_TECHNIQUES = new Set(["music_swell", "music_drop"]);
-export const VOICE_AUDIO_TECHNIQUES = new Set(["silence_beat", "voice_pitch_shift"]);
+export const VOICE_AUDIO_TECHNIQUES = new Set(["silence_beat", "voice_pitch_shift", "voice_emphasis_boost"]);
 const DEFAULT_VOICE_SAMPLE_RATE = 44100;
 const DEFAULT_SWELL_GAIN_DB = 3;
 const DEFAULT_DROP_GAIN_DB = -6;
@@ -172,9 +172,41 @@ export function buildVoicePitchShiftFilter(inputLabel, outputLabel, moment, { id
   ];
 }
 
+/**
+ * Short emphasis window: mild pitch lift + gain boost on voice.
+ */
+export function buildVoiceEmphasisBoostFilter(inputLabel, outputLabel, moment, { id = 0 } = {}) {
+  const { outputStartSec, outputEndSec, params = {} } = moment;
+  const start = outputStartSec;
+  const end = params.durationSec != null
+    ? outputStartSec + params.durationSec
+    : outputEndSec;
+  const semitones = params.semitones ?? 1.5;
+  const gainDb = params.gainDb ?? 2;
+  const rate = computePitchShiftSampleRate(semitones);
+  const gainFactor = Math.pow(10, gainDb / 20);
+  const dryLabel = `[ve${id}d]`;
+  const wetInLabel = `[ve${id}w]`;
+  const pitchedLabel = `[ve${id}p]`;
+  const dryMixLabel = `[ve${id}dm]`;
+  const wetMixLabel = `[ve${id}wm]`;
+  const windowExpr = `between(t\\,${start}\\,${end})`;
+
+  return [
+    `${inputLabel}asplit=2${dryLabel}${wetInLabel}`,
+    `${wetInLabel}asetrate=${rate},aresample=${DEFAULT_VOICE_SAMPLE_RATE},volume=${gainFactor}${pitchedLabel}`,
+    `${pitchedLabel}volume='if(${windowExpr}\\,1\\,0)':eval=frame${wetMixLabel}`,
+    `${dryLabel}volume='if(${windowExpr}\\,0\\,1)':eval=frame${dryMixLabel}`,
+    `${dryMixLabel}${wetMixLabel}amix=inputs=2:duration=first:dropout_transition=0${outputLabel}`,
+  ];
+}
+
 function buildVoiceAudioMomentFilters(inputLabel, outputLabel, moment, index) {
   if (moment.techniqueId === "voice_pitch_shift") {
     return buildVoicePitchShiftFilter(inputLabel, outputLabel, moment, { id: index });
+  }
+  if (moment.techniqueId === "voice_emphasis_boost") {
+    return buildVoiceEmphasisBoostFilter(inputLabel, outputLabel, moment, { id: index });
   }
   return [buildVoiceMomentVolumeFilter(inputLabel, outputLabel, moment)];
 }

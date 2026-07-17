@@ -13,6 +13,13 @@ import {
   rollupEditorialTags,
   topEditorialTagNames,
 } from "../../editorial/audio-event-tags.js";
+import {
+  finalizeAudioQuality,
+  summarizeAudioQualityForIndex,
+} from "../../lib/audio-quality.js";
+import {
+  summarizeDeliveryForIndex,
+} from "../../lib/delivery-analysis.js";
 import { resolveClipContentHash } from "../../lib/clip-artifact-cache.js";
 import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
 import {
@@ -57,6 +64,8 @@ function buildClipSummary(clipId, analysis) {
   return {
     clipId,
     voiceLufs: analysis.voiceLufs,
+    ...summarizeAudioQualityForIndex(analysis.audioQuality),
+    ...summarizeDeliveryForIndex(analysis.deliveryAnalysis),
     beatCount: analysis.beats?.length ?? 0,
     silenceGapCount: analysis.silenceGaps?.length ?? 0,
     totalSilenceSec: Math.round(totalSilenceSec * 1000) / 1000,
@@ -103,13 +112,55 @@ function buildBatchSummary(clips, perClipAnalysis) {
   };
 }
 
+export async function runDeliveryAnalysisForClip({
+  workDir,
+  clip,
+  words = null,
+  stub = false,
+}) {
+  const audioPath = analysisAudioPath(workDir, clip.clipId);
+  const useStub = stub || !fs.existsSync(audioPath);
+  const payload = {
+    audioPath: fs.existsSync(audioPath) ? audioPath : null,
+    durationSec: clip.durationSec,
+    stub: useStub,
+    ...(words?.words?.length ? { words: words.words } : {}),
+  };
+  return runPythonScript("delivery_analysis.py", payload);
+}
+
+export async function enrichClipWithDeliveryAnalysis(analysis, {
+  workDir,
+  clip,
+  words = null,
+  stub = false,
+}) {
+  const deliveryResult = await runDeliveryAnalysisForClip({
+    workDir,
+    clip,
+    words,
+    stub,
+  });
+
+  const enriched = ClipAudioAnalysisSchema.parse({
+    ...analysis,
+    deliveryAnalysis: deliveryResult,
+  });
+
+  const outPath = path.join(workDir, ARTIFACTS.audioAnalysis(clip.clipId));
+  writeJson(outPath, enriched);
+  return enriched;
+}
+
 export async function analyzeClipAudio({
   workDir,
   clip,
   manifest = null,
+  words = null,
   stub = false,
   force = false,
   globalCacheDisabled = false,
+  skipDeliveryAnalysis = false,
 }) {
   const outPath = path.join(workDir, ARTIFACTS.audioAnalysis(clip.clipId));
   const configFingerprint = buildStepConfigFingerprint("audioAnalysis", { stub });
@@ -163,13 +214,28 @@ export async function analyzeClipAudio({
     stub: useStub,
   };
 
-  const [pythonResult, eventResult] = await Promise.all([
+  const [pythonResult, eventResult, qualityResult] = await Promise.all([
     runPythonScript("audio_analyze.py", pythonPayload),
     runPythonScript("audio_events.py", pythonPayload),
+    runPythonScript("audio_quality.py", {
+      ...pythonPayload,
+      voiceLufs,
+    }),
   ]);
 
   const audioEvents = enrichAudioEvents(eventResult.audioEvents ?? []);
   const editorialTags = rollupEditorialTags(audioEvents);
+
+  const clipHasSpeech = Boolean(
+    manifest?.clips?.find((entry) => entry.clipId === clip.clipId)?.hasSpeech
+      ?? clip.hasSpeech,
+  );
+  const audioQuality = finalizeAudioQuality(qualityResult, {
+    clipId: clip.clipId,
+    durationSec: clip.durationSec,
+    hasSpeech: clipHasSpeech,
+    audioEvents,
+  });
 
   const estimatedBpm = pythonResult.estimatedBpm;
   const mood = inferMoodFromAnalysis({
@@ -179,7 +245,7 @@ export async function analyzeClipAudio({
   const track = pickByMood(mood, { bpm: estimatedBpm });
 
   const analysis = ClipAudioAnalysisSchema.parse({
-    version: "1.0",
+    version: "1.1",
     clipId: clip.clipId,
     durationSec: clip.durationSec,
     voiceLufs,
@@ -200,9 +266,28 @@ export async function analyzeClipAudio({
     audioEvents,
     editorialTags,
     eventDetectionMode: eventResult.eventDetectionMode ?? (useStub ? "stub" : "none"),
+    audioQuality,
   });
 
-  const artifact = sourceContentHash ? { ...analysis, sourceContentHash } : analysis;
+  let artifact = sourceContentHash ? { ...analysis, sourceContentHash } : analysis;
+
+  if (!skipDeliveryAnalysis) {
+    try {
+      const deliveryResult = await runDeliveryAnalysisForClip({
+        workDir,
+        clip,
+        words,
+        stub: useStub,
+      });
+      artifact = ClipAudioAnalysisSchema.parse({
+        ...artifact,
+        deliveryAnalysis: deliveryResult,
+      });
+    } catch {
+      // Delivery analysis is best-effort; keep core audio analysis.
+    }
+  }
+
   writeJson(outPath, artifact);
 
   if (sourceContentHash) {

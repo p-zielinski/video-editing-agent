@@ -140,13 +140,22 @@ export async function summarizeSegment(client, segment, l1Summaries, { onUsage }
   return AbstractL2Schema.parse(raw);
 }
 
-export async function summarizeSession(client, { l2Summaries, userContext, stats, clipRegistry = [] }, { onUsage } = {}) {
+export async function summarizeSession(client, {
+  l2Summaries,
+  userContext,
+  stats,
+  clipRegistry = [],
+  audioQualitySummary = [],
+  deliverySummary = [],
+}, { onUsage } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L3_session_summary",
     userContext,
     stats,
     clipHints: buildClipHints(clipRegistry),
+    audioQualitySummary,
+    deliverySummary,
     segmentSummaries: l2Summaries,
     outputSchema: {
       sessionSummary: "string",
@@ -155,6 +164,24 @@ export async function summarizeSession(client, { l2Summaries, userContext, stats
       formatFit: { "16:9": "0-1", "9:16": "0-1" },
       estimatedKeepRatio: "0-1",
       hasSeparateNarration: "boolean — true gdy narracja nagrana osobno (narration_track / audio_only z mową, oddzielnie od B-roll)",
+      editorialAssessment: {
+        editabilityScore: "0-1 — jak łatwo złożyć dobry film z materiału",
+        verdict: "strong|viable|salvageable|not_viable",
+        storyCoherenceScore: "0-1 (opcjonalnie)",
+        visualCoverageScore: "0-1 (opcjonalnie)",
+        dialogueValueScore: "0-1 (opcjonalnie)",
+        strengths: ["string"],
+        constraints: ["weak_story|missing_context|weak_ending|insufficient_visuals|poor_dialogue_audio|excess_dead_air|repetitive_material|flat_delivery"],
+        recommendedSalvageModes: ["voice_over|broll_montage|audio_enhancement|aggressive_trim|short_only|decline_output"],
+        reasoning: "krótkie uzasadnienie po polsku",
+      },
+      deliveryAssessment: {
+        verdict: "engaging|neutral|flat — prozodia i tempo mowy (nie jakość nagrania)",
+        engagementScore: "0-1 (opcjonalnie)",
+        blockingForRetention: "boolean — true gdy płaska prozodia blokuje retencję",
+        recommendedRepairs: ["editorial_pacing|dsp_polish|localized_emphasis|filler_cuts|voice_resynthesis"],
+        reasoning: "krótkie uzasadnienie po polsku",
+      },
       openLoops: [{
         loopId: "loop_01",
         kind: "cold_open|payoff_tease|callback",
@@ -176,9 +203,40 @@ export async function summarizeSession(client, { l2Summaries, userContext, stats
   return chatJson(client, { model: MODELS.summarizerL3, system, user, temperature: 0.3, onUsage });
 }
 
+function buildAudioQualitySummary(audioIndex) {
+  if (!audioIndex?.clips?.length) {
+    return [];
+  }
+
+  return audioIndex.clips.map((clip) => ({
+    clipId: clip.clipId,
+    voiceLufs: clip.voiceLufs ?? null,
+    audioQualityGrade: clip.audioQualityGrade ?? null,
+    audioQualityScore: clip.audioQualityScore ?? null,
+    estimatedSnrDb: clip.estimatedSnrDb ?? null,
+    windScore: clip.windScore ?? null,
+    enhancementCandidateId: clip.enhancementCandidateId ?? null,
+  }));
+}
+
+function buildDeliverySummary(audioIndex) {
+  if (!audioIndex?.clips?.length) {
+    return [];
+  }
+
+  return audioIndex.clips.map((clip) => ({
+    clipId: clip.clipId,
+    deliveryGrade: clip.deliveryGrade ?? null,
+    deliveryScore: clip.deliveryScore ?? null,
+    deliveryDominantIssues: clip.deliveryDominantIssues ?? [],
+    flatDeliveryWindowCount: clip.flatDeliveryWindowCount ?? 0,
+  }));
+}
+
 export async function buildAbstractionBundle(client, timelineIndex, {
   userContext = "",
   clipRegistry = [],
+  audioIndex = null,
   onUsage,
 } = {}) {
   const l1 = [];
@@ -217,6 +275,8 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     userContext: userContext || timelineIndex.userContext || "",
     stats: timelineIndex.stats,
     clipRegistry,
+    audioQualitySummary: buildAudioQualitySummary(audioIndex),
+    deliverySummary: buildDeliverySummary(audioIndex),
   }, { onUsage });
 
   return AbstractionBundleSchema.parse({

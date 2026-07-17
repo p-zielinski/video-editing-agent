@@ -9,7 +9,7 @@ import { buildStepConfigFingerprint } from "../lib/config-fingerprint.js";
 import { readJson, ARTIFACTS, shouldRunStep } from "./work-paths.js";
 import { transcribeClip } from "./steps/transcribe.js";
 import { runMetaCommandsStep } from "./steps/meta-commands.js";
-import { analyzeClipAudio, buildAudioIndexFromAnalyses } from "./steps/audio-analysis.js";
+import { analyzeClipAudio, buildAudioIndexFromAnalyses, enrichClipWithDeliveryAnalysis } from "./steps/audio-analysis.js";
 import { processClipKeyframes } from "./steps/keyframes.js";
 import { processClipTwelveLabs } from "./steps/twelvelabs.js";
 import { processClipVision, processClipObjects } from "./steps/vision.js";
@@ -169,7 +169,31 @@ export async function runAnalysisPhase({
       });
     }
     if (runAudio) {
-      const perClipAnalysis = waveAResults.map((entry) => entry.audio).filter(Boolean);
+      let perClipAnalysis = waveAResults.map((entry) => entry.audio).filter(Boolean);
+      perClipAnalysis = await runWithConcurrency(
+        clips.map((clip, index) => ({
+          clip,
+          audio: waveAResults[index]?.audio,
+          words: waveAResults[index]?.words
+            ?? (() => {
+              const wordsPath = path.join(workDir, ARTIFACTS.words(clip.clipId));
+              return fs.existsSync(wordsPath) ? readJson(wordsPath) : null;
+            })(),
+        })),
+        async ({ clip, audio, words }) => {
+          if (!audio || !words?.words?.length) {
+            return audio;
+          }
+          return enrichClipWithDeliveryAnalysis(audio, {
+            workDir,
+            clip,
+            words,
+            stub: audioStub,
+          });
+        },
+        { limit: getClipConcurrencyLimit(), label: "delivery_analysis" },
+      );
+      perClipAnalysis = perClipAnalysis.filter(Boolean);
       result.audioIndex = buildAudioIndexFromAnalyses(workDir, catalog, perClipAnalysis, { force });
     }
     if (runTwelve) {

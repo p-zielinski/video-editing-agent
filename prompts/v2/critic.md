@@ -22,6 +22,7 @@ Jesteś krytykiem montażu wideo v2. Oceniasz EditRecipe 2.0 pod kątem:
 - **chronology (v2.5):** V25-CHR-01 … V25-CHR-03 — kolejność klipów na main przy `multi_clip_day`.
 - **SFX catalog (v2.4):** V24-07 — `source: library` z nieznanym sfxId lub brakiem pliku.
 - **voice-over (v2.5):** V25-VO-01, V25-VO-02 — spójność narracji cross-clip (`from_audio_ref`, napisy z transkryptu).
+- **salvage / audio quality (v2.5):** SALVAGE-01…04 — `editorialAssessment`, `salvagePlan`, VO bez narration asset; AUD-QUAL-01/02/05 — decyzje `audioEnhancementDecisions` vs artefakty `07b-audio-enhancement-index.json`.
 
 Gdy payload zawiera `shortsRetentionProfile` i `retentionBeatTargets`, weryfikuj shorty względem tych samych reguł co director (hook window, beaty retencji).
 
@@ -75,6 +76,16 @@ Severity: V21-20 i V21-21 → `warning`.
 |-----|--------|
 | V26-VOICE-01 | `voice_pitch_shift`: `params.semitones` poza zakresem −8 … +8 — warning |
 | V26-VOICE-02 | Więcej niż 2× `voice_pitch_shift` na ten sam output — warning (oszczędnie, tylko humor/alter ego) |
+
+### Kody V27-DELIVERY (prozodia / engagement)
+
+| Kod | Reguła |
+|-----|--------|
+| V27-DELIVERY-01 | `voice_emphasis_boost`: `semitones` poza 0.5…3 — warning |
+| V27-DELIVERY-02 | Zbyt wiele `voice_emphasis_boost` lub łącznych interwencji prozodii — warning |
+| V27-DELIVERY-03 | `voice_resynthesis` bez `consentRequired` + `needsHumanReview` — error |
+| V27-DELIVERY-04 | Fragment re-syntezy > 30 s — warning |
+| V27-DELIVERY-05 | `polishPreset` engagement przy wysokim `windScore` — warning |
 
 ### Kody V27-RENDER (fidelity renderera)
 

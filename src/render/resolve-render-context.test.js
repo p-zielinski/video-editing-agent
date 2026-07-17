@@ -28,6 +28,7 @@ describe("resolveRenderContext", () => {
       assert.ok(context.wordIndexes.clip02);
       assert.equal(context.wordIndexes.clip01.words.length, 13);
       assert.equal(context.sceneCatalog.clips.length, 2);
+      assert.deepEqual(context.enhancedAudioPaths, {});
     } finally {
       cleanupWorkDir(workDir);
     }

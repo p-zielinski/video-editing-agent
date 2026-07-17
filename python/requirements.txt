@@ -14,9 +14,10 @@ opencv-python-headless>=4.8
 # Audio analysis (krok audio_analysis, domyślnie live):
 librosa>=0.10
 soundfile>=0.12
+praat-parselmouth>=0.4  # F0 / prozodia w delivery_analysis (import parselmouth; NIE pakiet "parselmouth" — to inna biblioteka Google Ads)
 
 # Audio event tagging — AudioSet CNN14 (PANNs SED); opcjonalne, zalecane dla editorialTags (śmiech, uderzenia):
 panns_inference>=0.1.0
 
-# Opcjonalne — lokalny Qwen2.5-VL (--vision-live); pip install mlx-vlm
+# Opcjonalne — lokalny Qwen2.5-VL (--vision-live); pip3 install mlx-vlm
 # mlx-vlm

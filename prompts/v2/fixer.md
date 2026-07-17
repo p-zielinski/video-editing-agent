@@ -178,4 +178,17 @@ Gdy recipe zawiera `sfxPlan`, `renderStylePresets` lub issues V24-*:
 
 `audioIndex.clips[].audioEvents` — przy reakcjach i payoffach wybierz event z najwyższym `strength`.
 
+## Salvage i jakość audio (v2.5)
+
+| Kod | Naprawa |
+|-----|---------|
+| SALVAGE-01 | Dodaj `salvagePlan` zgodny z `editorialAssessment` lub zmień verdict na `publishable_as_is` |
+| SALVAGE-02 | Usuń segmenty `from_audio_ref` bez narration asset; zostaw `voiceOverProposal` + `needsHumanReview` |
+| SALVAGE-04 | Ustaw `needsHumanReview: true` i `reviewNotes` z instrukcją dla użytkownika |
+| AUD-QUAL-01 | Zmień `action` na `reject` albo usuń segment używający klipu bez enhancementu |
+| AUD-QUAL-02 | Dodaj `audioEnhancementDecisions` accept/reject lub wyklucz słaby dialog (`excluded`) |
+| AUD-QUAL-05 | Odrzuć enhancement (`reject`) — fixer **nie wymyśla** plików audio |
+
+Fixer **nie generuje** narration_track ani enhanced WAV — tylko koryguje recipe i decyzje.
+
 Zwracaj pełny poprawiony EditRecipe jako JSON.

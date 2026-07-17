@@ -196,6 +196,61 @@ export const HookCreativeBriefSchema = z.discriminatedUnion("strategy", [
   }),
 ]);
 
+export const EditorialAssessmentVerdictSchema = z.enum([
+  "strong",
+  "viable",
+  "salvageable",
+  "not_viable",
+]);
+
+export const EditorialConstraintSchema = z.enum([
+  "weak_story",
+  "missing_context",
+  "weak_ending",
+  "insufficient_visuals",
+  "poor_dialogue_audio",
+  "excess_dead_air",
+  "repetitive_material",
+  "flat_delivery",
+]);
+
+export const DeliveryRepairModeSchema = z.enum([
+  "editorial_pacing",
+  "dsp_polish",
+  "localized_emphasis",
+  "filler_cuts",
+  "voice_resynthesis",
+]);
+
+export const DeliveryAssessmentSchema = z.object({
+  verdict: z.enum(["engaging", "neutral", "flat"]),
+  engagementScore: z.number().min(0).max(1).optional(),
+  blockingForRetention: z.boolean().default(false),
+  recommendedRepairs: z.array(DeliveryRepairModeSchema).default([]),
+  reasoning: z.string().min(1),
+});
+
+export const SalvageModeSchema = z.enum([
+  "voice_over",
+  "broll_montage",
+  "audio_enhancement",
+  "aggressive_trim",
+  "short_only",
+  "decline_output",
+]);
+
+export const EditorialAssessmentSchema = z.object({
+  editabilityScore: z.number().min(0).max(1),
+  verdict: EditorialAssessmentVerdictSchema,
+  storyCoherenceScore: z.number().min(0).max(1).optional(),
+  visualCoverageScore: z.number().min(0).max(1).optional(),
+  dialogueValueScore: z.number().min(0).max(1).optional(),
+  strengths: z.array(z.string()).default([]),
+  constraints: z.array(EditorialConstraintSchema).default([]),
+  recommendedSalvageModes: z.array(SalvageModeSchema).default([]),
+  reasoning: z.string().min(1),
+});
+
 export const AbstractL3Schema = z.object({
   sessionSummary: z.string(),
   narrativeArc: z.string().optional(),
@@ -205,6 +260,8 @@ export const AbstractL3Schema = z.object({
   hasSeparateNarration: z.boolean().default(false),
   openLoops: z.array(OpenLoopSchema).default([]),
   hookCreativeBrief: HookCreativeBriefSchema.optional(),
+  editorialAssessment: EditorialAssessmentSchema.optional(),
+  deliveryAssessment: DeliveryAssessmentSchema.optional(),
 });
 
 export const AbstractionBundleSchema = z.object({

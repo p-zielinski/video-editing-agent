@@ -46,3 +46,7 @@ Record the source and license for every file in `assets/sfx/`. Use CC0 or other 
 | lazychillzone-simple-drum-kick-loop-230756.mp3 | pixabay_sfx_230756 | https://pixabay.com/sound-effects/musical-simple-drum-kick-loop-230756/ | pixabay-content-license | 2026-07-09 |
 | freesound_community-lyckad-bana-v1-93358.mp3 | pixabay_sfx_93358 | https://pixabay.com/sound-effects/musical-lyckad-bana-v1-93358/ | pixabay-content-license | 2026-07-09 |
 | idoberg-funky-bassline-02-308711.mp3 | pixabay_sfx_308711 | https://pixabay.com/sound-effects/musical-funky-bassline-02-308711/ | pixabay-content-license | 2026-07-09 |
+| brvhrtz-stab-f-01-brvhrtz-224599.mp3 | pixabay_sfx_224599 | https://pixabay.com/pl/sound-effects/musical-stab-f-01-brvhrtz-224599/ | pixabay-content-license | 2026-07-17 |
+| u_ecyjl18pfk-wait-a-minute-who-are-you-425166.mp3 | pixabay_sfx_425166 | https://pixabay.com/pl/sound-effects/ludzie-wait-a-minute-who-are-you-425166/ | pixabay-content-license | 2026-07-17 |
+| artificiallyinspired-90s-laugh-track-to-clapping-outro-564194.mp3 | pixabay_sfx_564194 | https://pixabay.com/pl/sound-effects/ludzie-90s-laugh-track-to-clapping-outro-564194/ | pixabay-content-license | 2026-07-17 |
+| universfield-crowd-shocked-reaction-352766.mp3 | pixabay_sfx_352766 | https://pixabay.com/pl/sound-effects/ludzie-crowd-shocked-reaction-352766/ | pixabay-content-license | 2026-07-17 |

@@ -60,6 +60,8 @@ import {
   resolveEffectiveNarrativeProfile,
 } from "../lib/narrative-profile.js";
 import { buildTopSceneRanks } from "../editorial/scene-rank.js";
+import { buildEnhancementCandidatesBrief } from "../lib/audio-quality.js";
+import { buildEngagementRepairCandidates } from "../lib/delivery-analysis.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 import { measureBriefPayload } from "../lib/brief-metrics.js";
 
@@ -1217,7 +1219,7 @@ export function buildDirectorBrief({
   const audioEventAnchors = buildAudioEventAnchors(timelineIndex, perClipAnalysis);
 
   const brief = {
-    version: "2.4",
+    version: "2.5",
     batchContext: {
       ...batchContext,
       inputMode,
@@ -1228,6 +1230,14 @@ export function buildDirectorBrief({
     userContext: userContext || timelineIndex.userContext || "",
     sessionSummary: abstraction.L3,
     ...(abstraction.L3?.hasSeparateNarration ? { hasSeparateNarration: true } : {}),
+    ...(abstraction.L3?.editorialAssessment
+      ? { editorialAssessment: abstraction.L3.editorialAssessment }
+      : {}),
+    ...(abstraction.L3?.deliveryAssessment
+      ? { deliveryAssessment: abstraction.L3.deliveryAssessment }
+      : {}),
+    enhancementCandidates: buildEnhancementCandidatesBrief(perClipAnalysis, sortedClipRegistry),
+    engagementRepairCandidates: buildEngagementRepairCandidates(perClipAnalysis, sortedClipRegistry),
     segmentSummaries: abstraction.L2,
     clipRegistry: enrichClipRegistryForBrief(sortedClipRegistry, abstraction, timelineIndex),
     sceneRanks,

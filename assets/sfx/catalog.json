@@ -1005,6 +1005,101 @@
       "isLoop": true,
       "aiEnrichedAt": "2026-07-09T21:58:54.383Z",
       "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_224599",
+      "fileName": "brvhrtz-stab-f-01-brvhrtz-224599.mp3",
+      "title": "Stab F# 01 - BRVHRTZ",
+      "tags": [
+        "impact",
+        "alert"
+      ],
+      "category": "foley",
+      "durationSec": 1.646,
+      "license": "pixabay-content-license",
+      "integratedLufs": -8.3,
+      "sourceUrl": "https://pixabay.com/pl/sound-effects/musical-stab-f-01-brvhrtz-224599/",
+      "description": "Krótki, ostrzejszy „stab” syntezatorowy w tonie F#, z wyraźnym atakiem i szybkim wybrzmieniem. Brzmi nowocześnie i dynamicznie, jak akcent do rytmu w tempie montażowym (jednorazowy hit).",
+      "useCases": [
+        "akcent na cięciu w shortsie",
+        "podkreślenie wejścia nowej sceny",
+        "zaznaczenie punktu kulminacyjnego w montażu"
+      ],
+      "loudnessCharacter": "loud",
+      "aiEnrichedAt": "2026-07-17T21:22:26.142Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_425166",
+      "fileName": "u_ecyjl18pfk-wait-a-minute-who-are-you-425166.mp3",
+      "title": "wait a minute who are you_",
+      "tags": [
+        "alert",
+        "bleep"
+      ],
+      "category": "reaction",
+      "durationSec": 3.96,
+      "license": "pixabay-content-license",
+      "integratedLufs": -15.5,
+      "sourceUrl": "https://pixabay.com/pl/sound-effects/ludzie-wait-a-minute-who-are-you-425166/",
+      "description": "Krótki, wyraźny efekt głosowy/reakcyjny w stylu „wait a minute…”, z lekkim napięciem i szybkim narastaniem emocji; brzmi jak urwana fraza do wstawki w dialogu. Tempo jest dynamiczne, bez długiego wybrzmienia.",
+      "useCases": [
+        "wstawka reakcji w dialogu (zaskoczenie)",
+        "podkreślenie momentu, gdy ktoś coś sobie uświadamia",
+        "transition do kolejnej sceny z napięciem"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-17T21:23:24.911Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_564194",
+      "fileName": "artificiallyinspired-90s-laugh-track-to-clapping-outro-564194.mp3",
+      "title": "90s Laugh Track To Clapping Outro",
+      "tags": [
+        "laughter",
+        "notification",
+        "alert",
+        "applause"
+      ],
+      "category": "reaction",
+      "durationSec": 9.552,
+      "license": "pixabay-content-license",
+      "integratedLufs": -22.6,
+      "sourceUrl": "https://pixabay.com/pl/sound-effects/ludzie-90s-laugh-track-to-clapping-outro-564194/",
+      "description": "Gęsta, rytmiczna śmiechowa podkładka w stylu lat 90., która płynnie przechodzi w krótkie, coraz bardziej wyraźne klaskanie publiczności. Tempo jest umiarkowane, z wyraźnymi „pakietami” śmiechu i klaśnięć pod koniec.",
+      "useCases": [
+        "zakończenie żartu lub segmentu w stylu sitcomu",
+        "podbicie momentu sukcesu/reakcji publiczności",
+        "transition do outro z energią lat 90."
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-17T21:24:19.585Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "sfxId": "pixabay_sfx_352766",
+      "fileName": "universfield-crowd-shocked-reaction-352766.mp3",
+      "title": "Crowd Shocked Reaction",
+      "tags": [
+        "crowd",
+        "alert",
+        "impact"
+      ],
+      "category": "reaction",
+      "durationSec": 2.616,
+      "license": "pixabay-content-license",
+      "integratedLufs": -21.4,
+      "sourceUrl": "https://pixabay.com/pl/sound-effects/ludzie-crowd-shocked-reaction-352766/",
+      "description": "Gęsty, zbiorowy okrzyk tłumu: krótkie, zaskoczone wykrzykniki z narastającym szmerem i energią, jakby ludzie gwałtownie zareagowali na coś nagłego. Barwa jest tłusta i „na blisko”, z wyraźnym charakterem reakcji, trwająca około 2,6 s.",
+      "useCases": [
+        "reakcja tłumu na nagłe wydarzenie",
+        "podbicie momentu zwrotnego w shortsie",
+        "przejście do sceny po zaskoczeniu"
+      ],
+      "loudnessCharacter": "medium",
+      "aiEnrichedAt": "2026-07-17T21:24:55.594Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     }
   ]
 }

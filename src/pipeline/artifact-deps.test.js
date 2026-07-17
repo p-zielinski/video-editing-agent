@@ -71,6 +71,14 @@ describe("artifact-deps", () => {
     );
   });
 
+  it("review depends on audioEnhancementIndex", () => {
+    assert.ok(
+      ARTIFACT_DEPENDENCY_GRAPH[ARTIFACTS.review].includes(
+        ARTIFACTS.audioEnhancementIndex,
+      ),
+    );
+  });
+
   it("isArtifactStale returns true when artifact is missing", () => {
     assert.equal(isArtifactStale(workDir, ARTIFACTS.timelineIndex), true);
     assert.equal(isArtifactStale(workDir, ARTIFACTS.words("clip01")), true);
@@ -540,7 +548,7 @@ describe("artifact-deps", () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-words-hash-stale-"));
       try {
         const { manifest, outPath } = setupFreshWordsArtifact(dir, {
-          version: "1.0",
+          version: "1.1",
           clipId: "clip01",
           sourceContentHash: "old-hash",
           words: [],
@@ -560,7 +568,7 @@ describe("artifact-deps", () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-words-hash-fresh-"));
       try {
         const { manifest, outPath } = setupFreshWordsArtifact(dir, {
-          version: "1.0",
+          version: "1.1",
           clipId: "clip01",
           sourceContentHash: "manifest-hash",
           words: [],

@@ -2,7 +2,7 @@ import { buildTechniqueFilter } from "./technique-to-ffmpeg.js";
 import { findCutMidSentenceAtBoundary } from "./ffmpeg-concat.js";
 import { BOUNDARY_TRANSITION_TECHNIQUE_SET } from "./xfade-transitions.js";
 
-const AUDIO_ONLY_TECHNIQUES = new Set(["music_swell", "music_drop", "silence_beat", "voice_pitch_shift"]);
+const AUDIO_ONLY_TECHNIQUES = new Set(["music_swell", "music_drop", "silence_beat", "voice_pitch_shift", "voice_emphasis_boost"]);
 const CONCAT_DEFERRED_TECHNIQUES = BOUNDARY_TRANSITION_TECHNIQUE_SET;
 const CONCAT_HANDLED_TECHNIQUES = new Set([
   "cut_on_beat",

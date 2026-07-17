@@ -35,7 +35,7 @@ Orchestrator (`src/pipeline/orchestrator.js`) wykonuje kroki w kolejności z `PI
 
 ```
 ingest → transcribe → meta_commands → audio_analysis → keyframes → twelvelabs → vision → objects
-  → index → clip_profile → abstract → topic_index → spatial_index → ai_video → direct → review
+  → index → clip_profile → abstract → topic_index → spatial_index → ai_video → direct → audio_enhancement → review
   → thumbnails → publish
 ```
 
@@ -179,7 +179,7 @@ flowchart TD
 | 1 | `ingest` | folder `--input` | `00-manifest.json`, `00-scene-catalog.json` | FFmpeg + detekcja scen (Python); hash SHA-256 per klip |
 | 2 | `transcribe` | scene catalog, manifest (`expectedTerms`, `profanityPolicy`) | `01-words-<clipId>.json` | OpenAI Whisper; loudnorm -18 LUFS; filler + profanity tagging |
 | 3 | `meta_commands` | words, scene catalog | `01c-meta-commands-<clipId>.json` | reguły PL: overlay, boomerang, reverse |
-| 4 | `audio_analysis` | catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json` | librosa (beaty, energia, cisza) lub fallback `ffmpeg_astats` |
+| 4 | `audio_analysis` | catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json` | librosa (beaty, energia, cisza, **audioQuality**) lub fallback `ffmpeg_astats`; PANNs dla wiatru |
 | 5 | `keyframes` | catalog, words | `02-keyframes-<clipId>.json` | hybrydowy sampling + FFmpeg |
 | 6 | `twelvelabs` | catalog, manifest | `03b-twelvelabs-<clipId>.json` | TwelveLabs API (rozdziały, momenty) lub stub |
 | 7 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (mlx-vlm) |
@@ -190,10 +190,11 @@ flowchart TD
 | 12 | `topic_index` | abstraction, timeline, clip registry, twelvelabs | `05b-topic-index.json` | embeddingi OpenAI + keyword — dopasowanie tematów mowy do scen B-roll |
 | 13 | `spatial_index` | timeline, objects | `05c-spatial-index.json`, `04a-faces-<clipId>.json` | face detect (OpenCV) + kotwice przestrzenne |
 | 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json`, `03b-twelvelabs-ai_hook_01.json` | Kling API (`kling-v3`) + analiza wygenerowanego hooka (opcjonalnie; jawny stub: lavfi) |
-| 15 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne) |
-| 16 | `review` | draft + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop (GPT + walidatory Zod) |
-| 17 | `thumbnails` | final recipe, indeksy | `11-thumbnail-plan.json`, `12-thumbnail-review.json`, `thumbnails/<outputId>/*.png` | GPT strategist + critic; render PNG (Sharp) |
-| 18 | `publish` | final recipe, thumbnail plan, indeksy | `15-publish-package-<outputId>.json` | metadane publikacji (tytuł, opis, tagi, rozdziały) |
+| 15 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne); `editorialAssessment`, `salvagePlan`, `audioEnhancementDecisions` |
+| 16 | `audio_enhancement` | recipe draft, scene catalog | `07a-audio-enhancement-<clipId>.json`, `07b-audio-enhancement-index.json`, `enhanced-audio/<clipId>.wav` | denoise (DeepFilterNet / ffmpeg afftdn / stub) + LUFS + `sourceVolumeDb` |
+| 17 | `review` | draft + enhancement index + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop (GPT + walidatory Zod) |
+| 18 | `thumbnails` | final recipe, indeksy | `11-thumbnail-plan.json`, `12-thumbnail-review.json`, `thumbnails/<outputId>/*.png` | GPT strategist + critic; render PNG (Sharp) |
+| 19 | `publish` | final recipe, thumbnail plan, indeksy | `15-publish-package-<outputId>.json` | metadane publikacji (tytuł, opis, tagi, rozdziały) |
 
 ### Dlaczego ta kolejność
 
@@ -205,6 +206,8 @@ flowchart TD
 - **Spatial_index przed direct** — director i `creativeMoments` potrzebują kotwic (twarz, subject, bbox) do zoomów i reframe 9:16.
 - **Ai_video przed direct** — Director widzi rzeczywisty hook i analizę TwelveLabs; enricher wstawia go tylko gdy Director go nie użył.
 - **Music curator przed direct** — nano wybiera `trackId` z shortlisty katalogu (`05f-music-selection.json`); reżyser dostaje `musicSelection` + `musicBeatGrid`, nie cały katalog.
+- **Direct przed audio_enhancement** — Director decyduje `accept|reject` per klip (`audioEnhancementDecisions`); enhancement wykonuje się tylko dla `accept`.
+- **Audio_enhancement przed review** — critic/fixer widzi manifesty i zaktualizowany draft z `sourceVolumeDb`.
 - **Direct przed review** — GPT planuje montaż; deterministyczne walidatory i critic łapią błędy strukturalne.
 - **Thumbnails po review** — plan miniatur z finalnej receptury; publish konsumuje plan + review.
 
@@ -503,6 +506,19 @@ Katalog: `techniques/catalog.meta.json` + JSON per technika. Domyślny pack vlog
 ### Voice-over i narracja
 
 Do `inbox/` można dodać plik `.mp3` / `.wav` / `.m4a` obok wideo. Ingest ustawia `mediaType: audio_only`, `clipRole: narration_track`. W jednym outputcie mogą współistnieć segmenty `from_video_ref` (A-roll) i `from_audio_ref` (B-roll wizualny + audio narracji). Fixture: `fixtures/batches/voiceover-day/`.
+
+Gdy Director uzna, że materiał wymaga voice-over, ale użytkownik nie dostarczył pliku narracji, receptura zawiera `salvagePlan.voiceOverProposal` (`scriptOutline`, `materializationStatus: missing_narration`) i `needsHumanReview: true` — **bez TTS** i bez fikcyjnych segmentów `from_audio_ref`.
+
+### Poprawa jakości audio (`audio_enhancement`)
+
+Po `direct`, gdy `audioEnhancementDecisions[].action === "accept"`:
+
+1. Denoise (domyślnie DeepFilterNet lokalnie; fallback `ffmpeg afftdn`; stub w CI: `AUDIO_ENHANCEMENT_STUB=1`)
+2. Pomiar LUFS przed/po i normalizacja do `targetDialogueLufs` (domyślnie -18)
+3. Ustawienie `sourceVolumeDb` na segmentach używających klipu
+4. Render używa `enhanced-audio/<clipId>.wav` jako `audioSourcePath` (wideo z oryginału)
+
+Env: `AUDIO_ENHANCEMENT_PROVIDER`, `DEEPFILTERNET_BIN`, `AUDIO_ENHANCEMENT_STUB` — patrz `.env.example`.
 
 ### Pionowe wstawki w main 16:9
 

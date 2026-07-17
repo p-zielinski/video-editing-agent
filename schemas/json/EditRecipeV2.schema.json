@@ -11,7 +11,9 @@
             "2.1",
             "2.2",
             "2.3",
-            "2.4"
+            "2.4",
+            "2.5",
+            "2.6"
           ]
         },
         "batchId": {
@@ -1925,6 +1927,282 @@
               "callbackId",
               "setupSceneId",
               "payoffSceneId"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "editorialAssessment": {
+          "type": "object",
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "publishable_as_is",
+                "salvage_required",
+                "not_recommended"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "strengths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "blockingIssues": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "verdict",
+            "summary"
+          ],
+          "additionalProperties": false
+        },
+        "salvagePlan": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_needed",
+                "proposed",
+                "materializable",
+                "blocked"
+              ]
+            },
+            "primaryStrategy": {
+              "type": "string",
+              "enum": [
+                "voice_over",
+                "broll_montage",
+                "audio_enhancement",
+                "hybrid",
+                "short_only",
+                "decline_output"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "targetOutputIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "requiresHumanApproval": {
+              "type": "boolean",
+              "default": true
+            },
+            "voiceOverProposal": {
+              "type": "object",
+              "properties": {
+                "purpose": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "scriptOutline": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "estimatedDurationSec": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "coverageSceneIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "preferredSource": {
+                  "type": "string",
+                  "enum": [
+                    "user_recorded",
+                    "existing_narration",
+                    "tts"
+                  ]
+                },
+                "materializationStatus": {
+                  "type": "string",
+                  "enum": [
+                    "available",
+                    "missing_narration",
+                    "out_of_scope"
+                  ]
+                }
+              },
+              "required": [
+                "purpose",
+                "materializationStatus"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "status",
+            "primaryStrategy",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "audioEnhancementDecisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "candidateId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "clipId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "reject"
+                ]
+              },
+              "dialogueValue": {
+                "type": "string",
+                "enum": [
+                  "essential",
+                  "useful",
+                  "dispensable"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "providerPreference": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "local",
+                  "paid"
+                ],
+                "default": "auto"
+              },
+              "targetDialogueLufs": {
+                "type": "number",
+                "minimum": -30,
+                "maximum": -12,
+                "default": -18
+              },
+              "retranscribePolicy": {
+                "type": "string",
+                "enum": [
+                  "never",
+                  "if_material_improvement",
+                  "always"
+                ],
+                "default": "never"
+              },
+              "polishPreset": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "repair_only",
+                  "engagement_polish",
+                  "podcast_polish"
+                ],
+                "default": "none"
+              }
+            },
+            "required": [
+              "candidateId",
+              "clipId",
+              "action",
+              "dialogueValue",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "engagementRepairMoments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "momentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "clipId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "editorial_pacing",
+                  "dsp_polish",
+                  "voice_emphasis_boost",
+                  "voice_pitch_shift",
+                  "voice_resynthesis"
+                ]
+              },
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "anchorWordId": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "consentRequired": {
+                "type": "boolean",
+                "default": false
+              },
+              "needsHumanReview": {
+                "type": "boolean",
+                "default": false
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "momentId",
+              "clipId",
+              "action",
+              "startSec",
+              "endSec",
+              "reason"
             ],
             "additionalProperties": false
           },

@@ -24,7 +24,7 @@ def analyze_with_florence(frames: list[dict], model_id: str) -> list[dict]:
     except ImportError as exc:
         raise ImportError(
             "Florence-2 wymaga pakietu torch. Zainstaluj zależności Python:\n"
-            "  pip install torch torchvision transformers pillow\n"
+            "  pip3 install torch torchvision transformers pillow\n"
             "Lub ustaw PYTHON_VENV na venv z tymi pakietami. "
             "Escape hatch: --no-objects (pomija krok detekcji)."
         ) from exc

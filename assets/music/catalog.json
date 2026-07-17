@@ -2795,6 +2795,230 @@
       "suggestedBedVolumeDb": -16,
       "aiEnrichedAt": "2026-07-09T22:01:44.946Z",
       "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_518575",
+      "fileName": "alexgrohl-indie-rock-518575.mp3",
+      "title": "Indie Rock",
+      "mood": [
+        "energetyczny",
+        "napięty",
+        "pobudzający",
+        "epicki",
+        "jasny",
+        "optymistyczny",
+        "dynamiczny"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 100.859,
+      "integratedLufs": -8.1,
+      "pixabay": {
+        "genre": [
+          "Rock",
+          "Hard",
+          "Rock",
+          "Upbeat",
+          "Alternative"
+        ],
+        "mood": [
+          "Restless",
+          "Suspense",
+          "Energetic",
+          "Epic",
+          "Bright",
+          "Uplifting"
+        ],
+        "movement": [
+          "Chasing",
+          "Running",
+          "Heavy &",
+          "Ponderous",
+          "Medium",
+          "Fast"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Film",
+          "Music",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/pl/music/g%C5%82az-indie-rock-518575/",
+      "description": "Dynamiczny indie rock z mocnym, gitarowym drive’em i szybką, napędzającą perkusją. Brzmienie jest jasne i podnoszące na duchu, z napięciem budowanym przez „chasing/running” energię — idealne do scen ruchu i szybkiego montażu. Utwór ma wyraźny, rockowy charakter i momenty bardziej ciężkie, ale pozostaje upbeat.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "szybkie ujęcia w biegu i dynamiczne przejścia",
+        "montaż z napięciem: start, pościg, przebudzenie energii",
+        "rockowe intro/outro do vlogów i kanałów na YouTube"
+      ],
+      "suggestedBedVolumeDb": -14,
+      "aiEnrichedAt": "2026-07-17T21:16:27.837Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_274975",
+      "fileName": "kulakovka-indie-rock-274975.mp3",
+      "title": "Indie Rock",
+      "mood": [
+        "energetyczny",
+        "optymistyczny",
+        "jasny",
+        "pobudzający",
+        "niepokojąco-napędzający",
+        "filmowy",
+        "wznoszący"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 163.657,
+      "integratedLufs": -9.4,
+      "pixabay": {
+        "genre": [
+          "Build",
+          "Up",
+          "Scenes",
+          "Beautiful",
+          "Plays",
+          "Main",
+          "Title",
+          "Adventure",
+          "Upbeat",
+          "Indie",
+          "Pop"
+        ],
+        "mood": [
+          "Dreamy",
+          "Laid",
+          "Back",
+          "Restless",
+          "Energetic",
+          "Uplifting",
+          "Bright",
+          "Hopeful"
+        ],
+        "movement": [
+          "Chasing",
+          "Fast",
+          "Heavy &",
+          "Ponderous",
+          "Elegant"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Film",
+          "Music",
+          "Cinematic",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/pl/music/budowa%C4%87-sceny-indie-rock-274975/",
+      "description": "Indie rockowy music bed z jasnymi gitarami, sprężystą perkusją i dynamicznym, „chasing” rytmem. Brzmienie jest energiczne i podnoszące, z lekkim, filmowym zabarwieniem oraz narastaniem pod sceny wideo. Idealnie pasuje do szybkich ujęć i momentów, które mają dać wrażenie przygody i nadziei.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne intro i montaż przygodowy",
+        "sceny „chasing”/szybkie ujęcia w vlogu",
+        "podkład pod budowanie napięcia i zwrot akcji"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-17T21:17:00.469Z",
+      "aiEnrichModel": "gpt-5.4-nano"
+    },
+    {
+      "trackId": "pixabay_130012",
+      "fileName": "the_mountain-soft-loop-130012.mp3",
+      "title": "Soft Loop",
+      "mood": [
+        "uplifting",
+        "bright",
+        "energetic",
+        "restless",
+        "funky",
+        "upbeat",
+        "glamorous"
+      ],
+      "useCase": [
+        "shorts",
+        "vlog",
+        "youtube"
+      ],
+      "energy": "high",
+      "durationSec": 93.492,
+      "integratedLufs": -10.7,
+      "pixabay": {
+        "genre": [
+          "Funk",
+          "Upbeat",
+          "Corporate"
+        ],
+        "mood": [
+          "Uplifting",
+          "Bright",
+          "Restless",
+          "Laid",
+          "Back",
+          "Glamorous",
+          "Energetic"
+        ],
+        "movement": [
+          "Chasing",
+          "Smooth",
+          "Fast",
+          "Running",
+          "Elegant"
+        ],
+        "theme": [
+          "Music For Videos",
+          "Music For Youtube",
+          "Videos",
+          "Vlog",
+          "Music",
+          "Background",
+          "Music",
+          "Podcast",
+          "Music"
+        ]
+      },
+      "sourceUrl": "https://pixabay.com/pl/music/boj-soft-loop-130012/",
+      "description": "Funkowy, upbeatowy loop z lekką, sprężystą perkusją i gładkimi, rytmicznymi liniami basu oraz klawiszami. Tempo i energia są wysokie, a brzmienie ma elegancki, „glamorous” sznyt—idealne do dynamicznych ujęć w ruchu. Całość niesie nastrój chasing/running: lekko niespokojny, ale bardzo pozytywny i motywujący.",
+      "goodFor": [
+        "short",
+        "main"
+      ],
+      "hasVocals": false,
+      "directorUseCases": [
+        "dynamiczne ujęcia w biegu i „chasing”",
+        "intro/outro do vlogów o szybkim tempie",
+        "tła do materiałów corporate i prezentacji"
+      ],
+      "suggestedBedVolumeDb": -16,
+      "aiEnrichedAt": "2026-07-17T21:17:30.056Z",
+      "aiEnrichModel": "gpt-5.4-nano"
     }
   ]
 }

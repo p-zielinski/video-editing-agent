@@ -99,6 +99,24 @@ function loadAudioIndex(workDir) {
   return JSON.parse(fs.readFileSync(audioIndexPath, "utf8"));
 }
 
+function loadAudioEnhancementIndex(workDir) {
+  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
+  if (!fs.existsSync(indexPath)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(indexPath, "utf8"));
+}
+
+function buildEnhancedAudioPaths(workDir, enhancementIndex) {
+  const paths = {};
+  for (const entry of enhancementIndex?.clips ?? []) {
+    if ((entry.status === "succeeded" || entry.status === "stubbed") && entry.outputPath) {
+      paths[entry.clipId] = path.resolve(workDir, entry.outputPath);
+    }
+  }
+  return paths;
+}
+
 export function resolveRenderContext(workDir, recipe) {
   const sceneCatalogPath = path.join(workDir, SCENE_CATALOG_FILE);
   const sceneCatalog = JSON.parse(fs.readFileSync(sceneCatalogPath, "utf8"));
@@ -113,5 +131,6 @@ export function resolveRenderContext(workDir, recipe) {
     spatialIndex: loadSpatialIndex(workDir),
     sceneCatalog,
     audioIndex: loadAudioIndex(workDir),
+    enhancedAudioPaths: buildEnhancedAudioPaths(workDir, loadAudioEnhancementIndex(workDir)),
   };
 }
