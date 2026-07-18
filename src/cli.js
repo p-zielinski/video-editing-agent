@@ -6,6 +6,10 @@ import { runPipeline } from "./pipeline/orchestrator.js";
 import { checkPythonPreflight } from "./lib/python-bridge.js";
 import { writeBatchQualityReport } from "./lib/batch-quality-report.js";
 import { runBatchDoctor } from "./lib/batch-doctor.js";
+import {
+  formatRecoveryPlanReport,
+  readRecoveryPlan,
+} from "./lib/recovery/plan-writer.js";
 import { QUALITY_PROFILES } from "./lib/quality-gate-config.js";
 import { executeRender } from "./render/execute-render.js";
 import { buildExecuteRenderOptions } from "./render/render-config.js";
@@ -168,6 +172,8 @@ function parseArgs(argv) {
       args.noAiVideo = true;
     } else if (arg === "--twelvelabs-live") {
       args.twelvelabsLive = true;
+    } else if (arg === "--run") {
+      args.runRecovery = true;
     } else if (arg === "--force") {
       args.force = true;
     } else if (arg === "--no-global-cache") {
@@ -326,6 +332,8 @@ Użycie:
   node src/cli.js direct --batch-id abc12345 --context "vlog dzień 66/100"
   node src/cli.js report --batch-id abc12345
   node src/cli.js doctor --batch-id abc12345
+  node src/cli.js recover --batch-id abc12345
+  node src/cli.js recover --batch-id abc12345 --run
   node src/cli.js render --batch-id abc12345
   node src/cli.js enrich --batch-id abc12345 --source draft --target final --force
   node src/cli.js run --input ./inbox/day-11 --context "vlog" --render --render-profile preview
@@ -338,6 +346,7 @@ Komendy:
   full|run  pełny pipeline
   report    raport jakości batcha (pre-render)
   doctor    diagnostyka work dir i artefaktów batcha
+  recover   pokaż lub uruchom plan recovery po failu pipeline
   render    montaż FFmpeg z 09-edit-recipe-final.json → MP4
   enrich    ponowny pass enricherów deterministycznych (bez GPT)
 
@@ -401,17 +410,18 @@ Render wymaga FFmpeg (+ libass dla napisów ASS)
 async function main() {
   const args = parseArgs(process.argv);
   const runnable = new Set(["run", "full", "analyze", "direct"]);
+  const recoverOnly = args.command === "recover";
   const reportOnly = args.command === "report";
   const doctorOnly = args.command === "doctor";
   const renderOnly = args.command === "render";
   const enrichOnly = args.command === "enrich";
 
-  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !doctorOnly && !renderOnly && !enrichOnly)) {
+  if (args.command === "help" || (!runnable.has(args.command) && !reportOnly && !doctorOnly && !renderOnly && !enrichOnly && !recoverOnly)) {
     printHelp();
     process.exit(args.command === "help" ? 0 : 1);
   }
 
-  if (!args.batchId && (reportOnly || doctorOnly || renderOnly || enrichOnly || !args.input)) {
+  if (!args.batchId && (reportOnly || doctorOnly || renderOnly || enrichOnly || recoverOnly || !args.input)) {
     console.error("Podaj --batch-id");
     process.exit(1);
   }
@@ -420,6 +430,22 @@ async function main() {
     const { report, exitCode } = runBatchDoctor({ batchId: args.batchId });
     console.log(report);
     process.exit(exitCode);
+  }
+
+  if (recoverOnly) {
+    const workDir = resolveWorkDir(args.batchId);
+    const plan = readRecoveryPlan(workDir);
+    if (!plan) {
+      console.error(`Brak ${"17-recovery-plan.json"} — batch nie ma oczekującego recovery`);
+      process.exit(1);
+    }
+    console.log(formatRecoveryPlanReport(plan, { workDir }));
+    if (args.runRecovery === true) {
+      const { execSync } = await import("node:child_process");
+      console.log(`\nUruchamiam: ${plan.recommendedCommand}`);
+      execSync(plan.recommendedCommand, { stdio: "inherit", cwd: process.cwd() });
+    }
+    return;
   }
 
   if (reportOnly) {
@@ -582,6 +608,9 @@ async function main() {
   });
 
   if (result.validationFailed) {
+    if (result.recoveryPlan?.recommendedCommand) {
+      console.error(`\nRecovery: ${result.recoveryPlan.recommendedCommand}`);
+    }
     console.error(
       `\nReceptura nie przeszła walidacji — draft zachowany w output/.work/${result.batchId}/${"07-edit-recipe-draft.json"}`,
     );
@@ -610,6 +639,9 @@ const isMainModule = process.argv[1]
 if (isMainModule) {
   main().catch((error) => {
     console.error(error.message);
+    if (error.recoveryPlan?.recommendedCommand) {
+      console.error(`\nRecovery: ${error.recoveryPlan.recommendedCommand}`);
+    }
     process.exit(1);
   });
 }

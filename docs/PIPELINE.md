@@ -191,7 +191,7 @@ flowchart TD
 | 13 | `spatial_index` | timeline, objects | `05c-spatial-index.json`, `04a-faces-<clipId>.json` | face detect (OpenCV) + kotwice przestrzenne |
 | 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json`, `03b-twelvelabs-ai_hook_01.json` | Kling API (`kling-v3`) + analiza wygenerowanego hooka (opcjonalnie; jawny stub: lavfi) |
 | 15 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne); `editorialAssessment`, `salvagePlan`, `audioEnhancementDecisions` |
-| 16 | `audio_enhancement` | recipe draft, scene catalog | `07a-audio-enhancement-<clipId>.json`, `07b-audio-enhancement-index.json`, `enhanced-audio/<clipId>.wav` | denoise (DeepFilterNet / ffmpeg afftdn / stub) + LUFS + `sourceVolumeDb` |
+| 16 | `audio_enhancement` | recipe draft, scene catalog | `07a-audio-enhancement-<clipId>.json`, `07b-audio-enhancement-index.json`, `enhanced-audio/<clipId>.wav`, `17-recovery-plan.json` (przy failu) | denoise (DeepFilterNet lub jawny ffmpeg/stub) + LUFS + `sourceVolumeDb` |
 | 17 | `review` | draft + enhancement index + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop (GPT + walidatory Zod) |
 | 18 | `thumbnails` | final recipe, indeksy | `11-thumbnail-plan.json`, `12-thumbnail-review.json`, `thumbnails/<outputId>/*.png` | GPT strategist + critic; render PNG (Sharp) |
 | 19 | `publish` | final recipe, thumbnail plan, indeksy | `15-publish-package-<outputId>.json` | metadane publikacji (tytuł, opis, tagi, rozdziały) |
@@ -513,10 +513,12 @@ Gdy Director uzna, że materiał wymaga voice-over, ale użytkownik nie dostarcz
 
 Po `direct`, gdy `audioEnhancementDecisions[].action === "accept"`:
 
-1. Denoise (domyślnie DeepFilterNet lokalnie; fallback `ffmpeg afftdn`; stub w CI: `AUDIO_ENHANCEMENT_STUB=1`)
+1. Denoise (domyślnie **DeepFilterNet** — fail hard bez cichego fallbacku; jawny `AUDIO_ENHANCEMENT_PROVIDER=ffmpeg` lub stub `AUDIO_ENHANCEMENT_STUB=1`)
 2. Pomiar LUFS przed/po i normalizacja do `targetDialogueLufs` (domyślnie -18)
 3. Ustawienie `sourceVolumeDb` na segmentach używających klipu
 4. Render używa `enhanced-audio/<clipId>.wav` jako `audioSourcePath` (wideo z oryginału)
+
+Przy failu providera pipeline zapisuje `17-recovery-plan.json` z komendą `node src/cli.js run --batch-id <id> --from-step audio_enhancement`. Sprawdź też `node src/cli.js recover --batch-id <id>` i `doctor`.
 
 Env: `AUDIO_ENHANCEMENT_PROVIDER`, `DEEPFILTERNET_BIN`, `AUDIO_ENHANCEMENT_STUB` — patrz `.env.example`.
 
@@ -681,7 +683,11 @@ Po kroku `direct` i `review` pipeline zapisuje `14-recipe-provenance.json`:
 
 ### Zużycie tokenów GPT
 
-Po kroku `review` pipeline zapisuje `16-gpt-usage.json` — suma tokenów per krok (`abstract`, `direct`, `drill_down`, `super_director`, `segment_director`, `super_critic`, `critic`, `fixer`).
+Pipeline zapisuje `16-gpt-usage.json` po krokach GPT (`abstract`, `direct`, `review`, `thumbnails`) oraz w `finally` przy błędzie. Suma tokenów per krok (`abstract`, `direct`, `drill_down`, `super_director`, `segment_director`, `super_critic`, `critic`, `fixer`, `fixer_escalation`, `music_curator`, `thumbnail_*`, `safety_classifier`).
+
+Gdy `OPENAI_QUOTA_TRACKING=1`, globalny licznik dzienny trafia do `output/.openai-usage/daily/YYYY-MM-DD.json` (pule premium/mini, whisper, embeddings). `batch-doctor` raportuje zużycie i ostrzeżenia przy 70/90/100% limitu.
+
+Gdy `OPENAI_MODEL_DOWNGRADE_ENABLED=1`, router wybiera model per rola i po wyczerpaniu puli premium obniża tier (bez auto-downgrade dla `fixerEscalation`).
 
 ### Diagnostyka batcha
 

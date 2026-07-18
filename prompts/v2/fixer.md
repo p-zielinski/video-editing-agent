@@ -186,6 +186,7 @@ Gdy recipe zawiera `sfxPlan`, `renderStylePresets` lub issues V24-*:
 | SALVAGE-02 | Usuń segmenty `from_audio_ref` bez narration asset; zostaw `voiceOverProposal` + `needsHumanReview` |
 | SALVAGE-04 | Ustaw `needsHumanReview: true` i `reviewNotes` z instrukcją dla użytkownika |
 | AUD-QUAL-01 | Zmień `action` na `reject` albo usuń segment używający klipu bez enhancementu |
+| AUD-QUAL-06 | `accept` + failed manifest (`status: failed`) → `reject`; napraw root cause i `recover` / `--from-step audio_enhancement` |
 | AUD-QUAL-02 | Dodaj `audioEnhancementDecisions` accept/reject lub wyklucz słaby dialog (`excluded`) |
 | AUD-QUAL-05 | Odrzuć enhancement (`reject`) — fixer **nie wymyśla** plików audio |
 

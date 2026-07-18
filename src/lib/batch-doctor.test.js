@@ -155,4 +155,28 @@ describe("batch_doctor", () => {
     const diagnosis = diagnoseBatch(workDir);
     assert.ok(diagnosis.issues.some((issue) => issue.code === "SUPER_CRITIC_NOT_APPROVED"));
   });
+
+  it("flags RECOVERY_PLAN_PENDING when recovery plan requires action", () => {
+    const workDir = copyFixtureToWorkDir("mini-day", { prefix: "vea-doctor-recovery" });
+    writeJson(path.join(workDir, ARTIFACTS.recoveryPlan), {
+      version: "1.0",
+      batchId: "miniday1",
+      pipelineRunId: "run-1",
+      status: "action_required",
+      failedStep: "audio_enhancement",
+      createdAt: new Date().toISOString(),
+      failures: [{
+        code: "AUDIO_ENH_DEEPFILTERNET_FAILED",
+        step: "audio_enhancement",
+        message: "deepFilter missing",
+        prerequisites: ["Install deepFilter"],
+        recoveryCommand: "node src/cli.js run --batch-id miniday1 --from-step audio_enhancement",
+      }],
+      recommendedCommand: "node src/cli.js run --batch-id miniday1 --from-step audio_enhancement",
+    });
+
+    const diagnosis = diagnoseBatch(workDir);
+    assert.ok(diagnosis.issues.some((issue) => issue.code === "RECOVERY_PLAN_PENDING"));
+    assert.match(diagnosis.recovery.recommendedCommand, /--from-step audio_enhancement/);
+  });
 });

@@ -165,7 +165,8 @@
             "ffmpeg_astats",
             "stub",
             "speech_onsets",
-            "musical_beats"
+            "musical_beats",
+            "musical_onsets"
           ]
         },
         "estimatedBpm": {

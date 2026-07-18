@@ -44,7 +44,10 @@
                 ]
               },
               "estimatedBpm": {
-                "type": "number",
+                "type": [
+                  "number",
+                  "null"
+                ],
                 "exclusiveMinimum": 0
               },
               "beatTimes": {
@@ -158,7 +161,10 @@
               "type": "string"
             },
             "estimatedBpm": {
-              "type": "number",
+              "type": [
+                "number",
+                "null"
+              ],
               "exclusiveMinimum": 0
             },
             "clipCount": {
@@ -209,8 +215,7 @@
                 },
                 "required": [
                   "trackId",
-                  "mood",
-                  "bpm"
+                  "mood"
                 ],
                 "additionalProperties": false
               },

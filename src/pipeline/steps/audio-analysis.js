@@ -70,7 +70,7 @@ function buildClipSummary(clipId, analysis) {
     silenceGapCount: analysis.silenceGaps?.length ?? 0,
     totalSilenceSec: Math.round(totalSilenceSec * 1000) / 1000,
     recommendedTrackId: analysis.musicBedRecommendation?.trackId ?? null,
-    estimatedBpm: analysis.estimatedBpm,
+    estimatedBpm: Number.isFinite(analysis.estimatedBpm) ? analysis.estimatedBpm : undefined,
     beatTimes: (analysis.beats ?? []).map((b) => b.timeSec),
     audioEventCount: analysis.audioEvents?.length ?? 0,
     editorialTags: topEditorialTagNames(analysis.editorialTags ?? []),
@@ -214,14 +214,13 @@ export async function analyzeClipAudio({
     stub: useStub,
   };
 
-  const [pythonResult, eventResult, qualityResult] = await Promise.all([
-    runPythonScript("audio_analyze.py", pythonPayload),
-    runPythonScript("audio_events.py", pythonPayload),
-    runPythonScript("audio_quality.py", {
-      ...pythonPayload,
-      voiceLufs,
-    }),
-  ]);
+  // Sequential — parallel librosa + PANNs per clip OOM-kills on long clips (exit code null).
+  const pythonResult = await runPythonScript("audio_analyze.py", pythonPayload);
+  const eventResult = await runPythonScript("audio_events.py", pythonPayload);
+  const qualityResult = await runPythonScript("audio_quality.py", {
+    ...pythonPayload,
+    voiceLufs,
+  });
 
   const audioEvents = enrichAudioEvents(eventResult.audioEvents ?? []);
   const editorialTags = rollupEditorialTags(audioEvents);

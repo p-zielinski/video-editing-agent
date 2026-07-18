@@ -50,11 +50,11 @@ export async function analyzeMusicBeatGrid(trackId, {
 
   if (fs.existsSync(filePath)) {
     try {
-      const analysis = await runPythonScript("audio_analyze.py", [
-        filePath,
-        "--duration",
-        String(durationSec),
-      ]);
+      const analysis = await runPythonScript("audio_analyze.py", {
+        audioPath: filePath,
+        durationSec,
+        stub: false,
+      });
       const beatsSec = (analysis.beats ?? [])
         .map((beat) => roundSec(beat.timeSec))
         .filter((timeSec) => timeSec < durationSec);

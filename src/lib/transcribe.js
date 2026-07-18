@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import OpenAI, { toFile } from "openai";
+import { createOpenAIFetch } from "../agents/openai-client.js";
 import { createLogger, formatFileSize } from "./logger.js";
 import { cleanWhisperWords } from "./srt-processor.js";
 import { formatWhisperFailure } from "./whisper-errors.js";
@@ -9,6 +10,11 @@ const whisperLog = createLogger("whisper");
 
 const WHISPER_MAX_ATTEMPTS = 4;
 const WHISPER_TIMEOUT_MS = 15 * 60 * 1000;
+
+/** @deprecated Prefer createOpenAIFetch from openai-client.js */
+export function createWhisperFetch() {
+  return createOpenAIFetch();
+}
 
 export const WHISPER_EDIT_PROMPT =
   "Transkrybuj dosłownie wszystko co zostało powiedziane po polsku. Zapisz każde słowo, włącznie z zająknięciami: yyy, eee, ooo, mmm, um, aha, ach, hm. Nie poprawiaj tekstu, nie skracaj powtórek. Zachowaj angielskie nazwy własne i marki w oryginalnej pisowni, gdy są wypowiadane w zdaniach po polsku. Zapisuj wulgaryzmy dosłownie, bez eufemizmów ani cenzury.";
@@ -54,6 +60,7 @@ async function callWhisperTranscription(audioPath, apiKey, prompt, { wordTimesta
     apiKey,
     maxRetries: 0,
     timeout: WHISPER_TIMEOUT_MS,
+    fetch: createOpenAIFetch(),
   });
 
   const request = {

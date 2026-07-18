@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  getAudioConcurrencyLimit,
   getClipConcurrencyLimit,
   getGpuConcurrencyLimit,
   runWithConcurrency,
@@ -36,6 +37,10 @@ describe("clip-concurrency", () => {
 
   it("getGpuConcurrencyLimit defaults to 1", () => {
     assert.equal(getGpuConcurrencyLimit(), 1);
+  });
+
+  it("getAudioConcurrencyLimit defaults to 1", () => {
+    assert.equal(getAudioConcurrencyLimit(), 1);
   });
 
   it("reads limits from env", () => {
@@ -89,5 +94,21 @@ describe("clip-concurrency", () => {
       ),
       /transcribe: boom/,
     );
+  });
+
+  it("runWithConcurrency collect mode returns errors without throwing", async () => {
+    const output = await runWithConcurrency(
+      [{ clipId: "clip01" }, { clipId: "clip02" }],
+      async (item) => {
+        if (item.clipId === "clip02") {
+          throw new Error("fail clip02");
+        }
+        return item.clipId;
+      },
+      { onError: "collect", label: "transcribe" },
+    );
+    assert.equal(output.errors.length, 1);
+    assert.equal(output.errors[0].item.clipId, "clip02");
+    assert.equal(output.results[0], "clip01");
   });
 });

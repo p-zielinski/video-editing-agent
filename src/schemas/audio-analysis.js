@@ -37,6 +37,7 @@ export const AudioAnalysisModeSchema = z.enum([
   "stub",
   "speech_onsets",
   "musical_beats",
+  "musical_onsets",
 ]);
 
 export const AudioEventDetectionModeSchema = z.enum(["panns", "stub", "none"]);
@@ -149,7 +150,7 @@ export const AudioIndexClipSummarySchema = z.object({
   silenceGapCount: z.number().int().nonnegative(),
   totalSilenceSec: z.number().nonnegative(),
   recommendedTrackId: z.string().nullable().optional(),
-  estimatedBpm: z.number().positive().optional(),
+  estimatedBpm: z.number().positive().nullable().optional(),
   beatTimes: z.array(z.number().nonnegative()).default([]),
   audioEventCount: z.number().int().nonnegative().default(0),
   editorialTags: z.array(z.string()).default([]),
@@ -177,7 +178,7 @@ export const AudioIndexBatchSummarySchema = z.object({
 export const MusicLibraryTrackRefSchema = z.object({
   trackId: z.string(),
   mood: z.array(z.string()),
-  bpm: z.number().positive(),
+  bpm: z.number().positive().optional(),
 });
 
 export const AudioIndexSchema = z.object({

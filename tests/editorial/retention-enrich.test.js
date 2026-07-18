@@ -18,6 +18,7 @@ import {
   DEFAULT_VLOG_RETENTION_PROFILE,
   enrichRecipeRetentionBeats,
   resolveBestHookScene,
+  resolveEnrichBeatTechniqueId,
   resolveSpatialRefForBeat,
   SHORT_HOOK_SEGMENT_ID,
   wouldHookSpoilColdOpenLoops,
@@ -98,6 +99,43 @@ describe("enrichRecipeRetentionBeats", () => {
       ],
     }],
   };
+
+  it("remaps unsafe enrich_beat techniques at safe creativity level", () => {
+    assert.equal(resolveEnrichBeatTechniqueId("ken_burns_light", "safe"), "cut_on_beat");
+    assert.equal(resolveEnrichBeatTechniqueId("music_swell", "safe"), "cut_on_beat");
+    assert.equal(resolveEnrichBeatTechniqueId("zoom_slow_push", "safe"), "cut_on_beat");
+    assert.equal(resolveEnrichBeatTechniqueId("ken_burns_light", "balanced"), "ken_burns_light");
+
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        targetDurationSec: 180,
+        timeline: [{ outputEndSec: 180, videoInSec: 0, videoOutSec: 180 }],
+      }],
+      creativityProfile: { level: "safe" },
+      vlogRetentionProfile: profile,
+      creativeMoments: [{
+        momentId: "enrich_beat_001",
+        techniqueId: "ken_burns_light",
+        outputId: "main_16x9",
+        outputStartSec: 40,
+        outputEndSec: 40.5,
+        retentionRole: "beat",
+      }],
+    };
+
+    const moments = enrichRecipeRetentionBeats(recipe, {
+      audioIndex,
+      abstraction: { L1: [], L2: [] },
+    });
+    const remapped = moments.find((m) => m.momentId === "enrich_beat_001");
+    assert.equal(remapped.techniqueId, "cut_on_beat");
+    assert.ok(moments
+      .filter((m) => m.momentId?.startsWith("enrich_beat_"))
+      .every((m) => m.techniqueId === "cut_on_beat"));
+  });
 
   it("adds enrich_beat_ moments when main lacks beats near anchors", () => {
     const recipe = {
@@ -309,7 +347,7 @@ describe("enrichRecipeRetentionBeats", () => {
     assert.equal(enriched.length, 0);
   });
 
-  it("caps new beats at max 2 when director placed zero beats", () => {
+  it("backfills up to scaled min beats when director placed zero beats", () => {
     const recipe = {
       outputs: [{
         outputId: "main_16x9",
@@ -330,7 +368,7 @@ describe("enrichRecipeRetentionBeats", () => {
     const enriched = moments.filter(
       (m) => m.outputId === "main_16x9" && m.momentId.startsWith("enrich_beat_"),
     );
-    assert.equal(enriched.length, 2);
+    assert.equal(enriched.length, 13);
   });
 
   it("fills remaining slots when director placed some beats", () => {
@@ -373,7 +411,7 @@ describe("enrichRecipeRetentionBeats", () => {
     const enriched = moments.filter(
       (m) => m.outputId === "main_16x9" && m.momentId.startsWith("enrich_beat_"),
     );
-    assert.ok(enriched.length > 2, "expected more than zero-beat cap when director placed beats");
+    assert.ok(enriched.length > 2, "expected fill beyond a small fixed cap when director placed beats");
   });
 
   it("skips enrich anchors within cooldown after energy peak with beat", () => {
@@ -684,7 +722,7 @@ describe("enrichRecipeRetentionBeats — shorts", () => {
     assert.equal(enriched.length, 0);
   });
 
-  it("caps new short beats at max 2 when director placed zero beats", () => {
+  it("backfills short beats up to scaled min when director placed zero beats", () => {
     const recipe = {
       outputs: [{
         ...shortOutput,
@@ -703,7 +741,7 @@ describe("enrichRecipeRetentionBeats — shorts", () => {
     const enriched = moments.filter(
       (m) => m.outputId === "short_9x16" && m.momentId.startsWith("enrich_beat_"),
     );
-    assert.equal(enriched.length, 2);
+    assert.equal(enriched.length, 7);
   });
 
   it("skips short enrich anchors within cooldown after energy peak with beat", () => {

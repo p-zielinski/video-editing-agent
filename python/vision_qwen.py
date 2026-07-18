@@ -17,33 +17,47 @@ def stub_caption(image_path: str, timestamp_sec: float, scene_id: str) -> dict:
 
 
 def analyze_with_mlx(frames: list[dict], model: str, prompt: str) -> list[dict]:
-    from mlx_vlm import load
-    from mlx_vlm.utils import load_image
+    from mlx_vlm import generate, load
+    from mlx_vlm.prompt_utils import apply_chat_template
+    from mlx_vlm.utils import load_config
+    from transformers import AutoImageProcessor
 
     model_obj, processor = load(model)
+    # Newer transformers default to a fast image processor that rejects non-pt tensors;
+    # mlx-vlm needs the slow path (numpy / mlx arrays).
+    try:
+        processor.image_processor = AutoImageProcessor.from_pretrained(
+            model,
+            use_fast=False,
+            trust_remote_code=True,
+        )
+    except Exception:
+        pass
+
+    config = load_config(model)
+    formatted_prompt = apply_chat_template(
+        processor,
+        config,
+        prompt,
+        add_generation_prompt=True,
+        num_images=1,
+    )
     captions = []
 
     for frame in frames:
-        image = load_image(frame["imagePath"])
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
-        prompt_text = processor.apply_chat_template(messages, add_generation_prompt=True)
-        inputs = processor(text=prompt_text, images=[image], return_tensors="np")
-        output = model_obj.generate(**inputs, max_tokens=256)
-        text = processor.decode(output[0], skip_special_tokens=True)
-
+        text = generate(
+            model_obj,
+            processor,
+            formatted_prompt,
+            frame["imagePath"],
+            verbose=False,
+            max_tokens=256,
+        )
         captions.append(
             {
                 "timestampSec": frame["timestampSec"],
                 "sceneId": frame["sceneId"],
-                "caption": text.strip(),
+                "caption": str(text).strip(),
                 "tags": [],
             }
         )

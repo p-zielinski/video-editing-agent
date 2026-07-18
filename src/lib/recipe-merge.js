@@ -372,6 +372,11 @@ export function mergeSegmentRecipes(superPlan, partials, options = {}) {
   }
 
   Object.assign(base, mergeRecipeSalvageFromCanonical(effectivePartials, superPlan));
+  const voDuration = base.salvagePlan?.voiceOverProposal?.estimatedDurationSec;
+  if (base.salvagePlan?.voiceOverProposal && !(Number.isFinite(voDuration) && voDuration > 0)) {
+    delete base.salvagePlan.voiceOverProposal.estimatedDurationSec;
+  }
+  base.sceneUsageRegistry = [];
 
   return base;
 }

@@ -26,9 +26,10 @@ Director should critically assess footage and propose salvage strategies (especi
 
 ## Decisions
 
+- 2026-07-18: DeepFilterNet fail hard (bez cichego ffmpeg fallback); recovery plan `17-recovery-plan.json` + execution ledger `00-execution-state.json`.
 - 2026-07-17: VO MVP = proposal only (`needsHumanReview`), no TTS.
 - 2026-07-17: Enhancement after `direct`, before `review` (aiHookDecision pattern).
-- 2026-07-17: Default provider DeepFilterNet with ffmpeg afftdn fallback; stub for CI.
+- 2026-07-17: Default provider DeepFilterNet; jawny ffmpeg/stub dla CI/dev.
 
 ## Progress
 

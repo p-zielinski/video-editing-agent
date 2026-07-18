@@ -114,13 +114,13 @@ def _ffmpeg_astats_result(energy_curve: list) -> dict:
     }
 
 
-def _is_likely_speech(y, sr, hop_length, duration_sec, tempo, beat_frames):
-    """Heuristic: voice audio triggers false beats from librosa beat_track."""
+def _is_likely_speech(y, sr, hop_length, duration_sec, onset_frames):
+    """Heuristic: voice audio has dense onsets vs sparse musical beats."""
     import librosa
     import numpy as np
 
-    beat_count = len(beat_frames)
-    if tempo > 180 or beat_count > duration_sec * 2:
+    onset_count = len(onset_frames)
+    if onset_count > duration_sec * 2:
         return True
 
     zcr = librosa.feature.zero_crossing_rate(y, hop_length=hop_length)[0]
@@ -128,6 +128,28 @@ def _is_likely_speech(y, sr, hop_length, duration_sec, tempo, beat_frames):
         return True
 
     return False
+
+
+def _estimate_bpm_from_onsets(marker_times, duration_sec: float):
+    if len(marker_times) < 3 or duration_sec <= 0:
+        return None
+
+    intervals = [
+        marker_times[i + 1] - marker_times[i]
+        for i in range(len(marker_times) - 1)
+        if marker_times[i + 1] > marker_times[i]
+    ]
+    if not intervals:
+        return None
+
+    median_interval = sorted(intervals)[len(intervals) // 2]
+    if median_interval <= 0:
+        return None
+
+    bpm = 60.0 / median_interval
+    if not 40 <= bpm <= 200:
+        return None
+    return round(bpm, 1)
 
 
 def analyze_with_librosa(audio_path: str, duration_sec: float) -> dict:
@@ -167,25 +189,24 @@ def analyze_with_librosa(audio_path: str, duration_sec: float) -> dict:
     silence_gaps = _silence_gaps_from_energy_curve(energy_curve)
 
     onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
-    tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, hop_length=hop_length)
-    speech_mode = _is_likely_speech(y, sr, hop_length, duration_sec, float(tempo), beat_frames)
+    # beat_track SIGSEGV on some librosa/numba builds (Apple Silicon) — use onsets only.
+    onset_frames = librosa.onset.onset_detect(
+        onset_envelope=onset_env,
+        sr=sr,
+        hop_length=hop_length,
+        backtrack=False,
+    )
+    marker_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
+    speech_mode = _is_likely_speech(y, sr, hop_length, duration_sec, onset_frames)
 
     if speech_mode:
-        onset_frames = librosa.onset.onset_detect(
-            onset_envelope=onset_env,
-            sr=sr,
-            hop_length=hop_length,
-            backtrack=False,
-        )
-        marker_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
         analysis_mode = "speech_onsets"
         cut_reason = "onset"
         estimated_bpm = None
     else:
-        marker_times = librosa.frames_to_time(beat_frames, sr=sr, hop_length=hop_length)
-        analysis_mode = "musical_beats"
-        cut_reason = "beat"
-        estimated_bpm = float(tempo) if np.isfinite(tempo) else None
+        analysis_mode = "musical_onsets"
+        cut_reason = "onset"
+        estimated_bpm = _estimate_bpm_from_onsets(marker_times, duration_sec)
 
     beats = []
     for marker_time in marker_times:

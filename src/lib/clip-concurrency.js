@@ -15,22 +15,28 @@ export function getGpuConcurrencyLimit() {
   return parseLimit("GPU_CONCURRENCY", 1);
 }
 
+/** Audio analysis spawns librosa + PANNs per clip — default 1 to avoid RAM spikes. */
+export function getAudioConcurrencyLimit() {
+  return parseLimit("AUDIO_CONCURRENCY", 1);
+}
+
 /**
  * Run async work over items with a bounded worker pool.
  *
  * @template T, R
  * @param {T[]} items
  * @param {(item: T, index: number) => Promise<R>} fn
- * @param {{ limit?: number, label?: string }} [options]
- * @returns {Promise<R[]>}
+ * @param {{ limit?: number, label?: string, onError?: "fail_fast" | "collect" }} [options]
+ * @returns {Promise<R[] | { results: R[], errors: Array<{ index: number, item: T, error: Error }> }>}
  */
-export async function runWithConcurrency(items, fn, { limit, label } = {}) {
+export async function runWithConcurrency(items, fn, { limit, label, onError = "fail_fast" } = {}) {
   const resolvedLimit = Math.max(1, limit ?? getClipConcurrencyLimit());
   if (items.length === 0) {
-    return [];
+    return onError === "collect" ? { results: [], errors: [] } : [];
   }
 
   const results = new Array(items.length);
+  const errors = [];
   let nextIndex = 0;
 
   async function worker() {
@@ -43,15 +49,24 @@ export async function runWithConcurrency(items, fn, { limit, label } = {}) {
       try {
         results[index] = await fn(items[index], index);
       } catch (error) {
-        if (label) {
-          error.message = `${label}: ${error.message}`;
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        if (onError === "collect") {
+          errors.push({ index, item: items[index], error: normalized });
+          continue;
         }
-        throw error;
+        if (label) {
+          const detail = normalized.message;
+          throw new Error(`${label}: ${detail}`, { cause: normalized });
+        }
+        throw normalized;
       }
     }
   }
 
   const workerCount = Math.min(resolvedLimit, items.length);
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  if (onError === "collect") {
+    return { results, errors };
+  }
   return results;
 }

@@ -811,10 +811,21 @@ function collectRetentionAnchorCandidates(audioIndex, abstraction, timelineIndex
 
 const ENRICH_BEAT_DURATION_MIN_SEC = 0.3;
 const ENRICH_BEAT_DURATION_MAX_SEC = 0.8;
-/** Max enrich backfill when director placed zero retention beats. */
-const ENRICH_ZERO_BEAT_BACKFILL_CAP = 2;
 /** Skip enrich anchors this long after an energy peak that already has a beat. */
 const ENRICH_PEAK_COOLDOWN_SEC = 10;
+
+/**
+ * Remap retention-beat techniques that violate the safe creativity gate.
+ * At safe, always use cut_on_beat so backfill never trips zoom density/gap budgets.
+ * @param {string} techniqueId
+ * @param {string} [creativityLevel]
+ */
+export function resolveEnrichBeatTechniqueId(techniqueId, creativityLevel = "balanced") {
+  if (creativityLevel === "safe") {
+    return "cut_on_beat";
+  }
+  return techniqueId;
+}
 
 const SPATIAL_REF_TECHNIQUE_IDS = new Set([
   "zoom_slow_push",
@@ -1459,12 +1470,13 @@ function enrichRetentionBeatsForOutput(
   const existingBeatCount = beatMoments.length;
   const maxBeats = resolveMaxRetentionBeatMoments(recipe, profile, outputKind);
 
-  if (directorBeatCount === 0 && existingEnrichBeatCount >= ENRICH_ZERO_BEAT_BACKFILL_CAP) {
+  // Fill up to the scaled min retention beat count (same as V22-VLOG-01 / shorts min).
+  if (directorBeatCount === 0 && existingEnrichBeatCount >= maxBeats) {
     return [];
   }
 
   const slots = directorBeatCount === 0
-    ? Math.min(ENRICH_ZERO_BEAT_BACKFILL_CAP, maxBeats) - existingEnrichBeatCount
+    ? maxBeats - existingEnrichBeatCount
     : Math.max(0, maxBeats - existingBeatCount);
   const effectiveSlots = Math.max(0, slots);
 
@@ -1532,7 +1544,10 @@ function enrichRetentionBeatsForOutput(
       continue;
     }
 
-    const techniqueId = anchor.suggestedTechniqueId;
+    const techniqueId = resolveEnrichBeatTechniqueId(
+      anchor.suggestedTechniqueId,
+      recipe?.creativityProfile?.level,
+    );
     if (techniqueId === "pattern_interrupt") {
       const narrativeProfile = resolveRecipeNarrativeProfile(recipe);
       const l2SegmentId = resolveAnchorL2SegmentId(
@@ -1589,7 +1604,7 @@ function enrichRetentionBeatsForOutput(
 
 /**
  * Merge retention beat creativeMoments into recipe when director omitted beats near anchors.
- * Preserves existing director moments; when director placed zero beats, adds at most 2 enrich beats.
+ * Preserves existing director moments; when director placed zero beats, fills up to scaled min.
  * When director placed some beats, caps new beats at maxRetentionBeatMoments − existingBeatCount.
  * Enriches vlog main (vlogRetentionProfile) and shorts (shortsRetentionProfile).
  *
@@ -1604,7 +1619,16 @@ export function enrichRecipeRetentionBeats(recipe, {
   spatialIndex,
   wordIndexes,
 } = {}) {
-  let moments = recipe?.creativeMoments ?? [];
+  const creativityLevel = recipe?.creativityProfile?.level ?? "balanced";
+  let moments = (recipe?.creativeMoments ?? []).map((moment) => {
+    if (!(moment.momentId ?? "").startsWith("enrich_beat_")) {
+      return moment;
+    }
+    const techniqueId = resolveEnrichBeatTechniqueId(moment.techniqueId, creativityLevel);
+    return techniqueId === moment.techniqueId
+      ? moment
+      : { ...moment, techniqueId };
+  });
   const outputs = recipe?.outputs ?? [];
   const enrichOptions = { audioIndex, abstraction, timelineIndex, spatialIndex, wordIndexes, recipe };
 

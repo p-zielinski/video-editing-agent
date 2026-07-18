@@ -311,6 +311,9 @@ export async function resolveAmbiguousSafetyContexts(words, {
   client,
   subtitleMode = "partial",
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 } = {}) {
   const candidates = buildAmbiguousCandidates(words);
   if (candidates.length === 0) {
@@ -321,6 +324,7 @@ export async function resolveAmbiguousSafetyContexts(words, {
   if (client) {
     try {
       const response = await chatJson(client, {
+        role: "safetyClassifier",
         model: MODELS.safetyClassifier ?? "gpt-5.4-mini",
         temperature: 0,
         system: [
@@ -332,6 +336,9 @@ export async function resolveAmbiguousSafetyContexts(words, {
         ].join(" "),
         user: JSON.stringify({ candidates }),
         onUsage,
+        quotaTracker,
+        batchId,
+        step,
       });
       decisions = Array.isArray(response?.decisions) ? response.decisions : [];
     } catch {

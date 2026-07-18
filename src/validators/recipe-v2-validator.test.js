@@ -1608,4 +1608,28 @@ describe("validateSalvageAndAudioQuality", () => {
     const result = validateRecipeV2(recipe, { audioEnhancementIndex: { clips: [] } });
     assert.ok(result.issues.some((issue) => issue.code === "AUD-QUAL-01"));
   });
+
+  it("flags AUD-QUAL-06 when accept has failed enhancement manifest", () => {
+    const recipe = {
+      ...baseRecipe,
+      version: "2.5",
+      audioEnhancementDecisions: [{
+        candidateId: "enh_clip01",
+        clipId: "clip01",
+        action: "accept",
+        dialogueValue: "essential",
+        reason: "Wiatr na dialogu",
+      }],
+    };
+    const result = validateRecipeV2(recipe, {
+      audioEnhancementIndex: {
+        clips: [{
+          clipId: "clip01",
+          status: "failed",
+          errorCode: "AUDIO_ENH_DEEPFILTERNET_FAILED",
+        }],
+      },
+    });
+    assert.ok(result.issues.some((issue) => issue.code === "AUD-QUAL-06"));
+  });
 });

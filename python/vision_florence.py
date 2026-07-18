@@ -33,7 +33,17 @@ def analyze_with_florence(frames: list[dict], model_id: str) -> list[dict]:
     from transformers import AutoProcessor, AutoModelForCausalLM
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
-    model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True).to(device)
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            trust_remote_code=True,
+            attn_implementation="eager",
+        ).to(device)
+    except TypeError:
+        model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True).to(device)
+    # Compat with newer transformers — Florence-2 remote code may omit this flag.
+    if not hasattr(model, "_supports_sdpa"):
+        model._supports_sdpa = False
     processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
 
     detections = []

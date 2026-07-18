@@ -88,6 +88,9 @@ export async function runMusicCurator(client, {
   userContext = "",
   catalogPath,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 } = {}) {
   if (shouldSkipMusicCurator(batchContext)) {
     return {
@@ -164,11 +167,15 @@ export async function runMusicCurator(client, {
     });
 
     const raw = await chatJson(client, {
+      role: "musicCurator",
       model: MODELS.musicCurator,
       system,
       user,
       temperature: 0.2,
       onUsage,
+      quotaTracker,
+      batchId,
+      step,
     });
 
     const validated = validateLlmSelection(raw, candidates);

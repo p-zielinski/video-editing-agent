@@ -152,7 +152,7 @@ export function summarizeMusicLibraryForIndex(catalogPath) {
     tracks: tracks.map((track) => ({
       trackId: track.trackId,
       mood: track.mood ?? [],
-      bpm: track.bpm,
+      ...(Number.isFinite(track.bpm) && track.bpm > 0 ? { bpm: track.bpm } : {}),
     })),
   };
 }

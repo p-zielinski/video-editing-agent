@@ -60,6 +60,9 @@ export async function runSuperDirector(client, {
   requiredFormats = ["16:9", "9:16"],
   aiVideoArtifact = null,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
   const rankedSegmentHints = rankSegmentsByUserContext(userContext, catalog);
@@ -90,11 +93,15 @@ export async function runSuperDirector(client, {
   });
 
   const raw = await chatJson(client, {
+    role: "superDirector",
     model: MODELS.superDirector,
     system,
     user,
     temperature: 0.35,
     onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   return {

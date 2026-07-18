@@ -27,6 +27,9 @@ export const AudioEnhancementManifestSchema = z.object({
   durationDeltaMs: z.number().optional(),
   sourceVolumeDb: z.number().optional(),
   dspChainApplied: z.string().optional(),
+  errorCode: z.string().optional(),
+  attemptedProvider: z.string().optional(),
+  failureCause: z.string().optional(),
   warnings: z.array(z.string()).default([]),
 });
 

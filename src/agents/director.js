@@ -1577,6 +1577,9 @@ export async function runDirector(client, {
   workDir = null,
   aiVideoArtifact = null,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const system = loadPrompt("director", { version: "v2" });
   const brief = buildDirectorBrief({
@@ -1612,11 +1615,15 @@ export async function runDirector(client, {
   });
 
   const raw = await chatJson(client, {
+    role: "director",
     model: MODELS.director,
     system,
     user,
     temperature: 0.5,
     onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   raw.batchId = timelineIndex.batchId;
@@ -1641,13 +1648,32 @@ export async function runDirector(client, {
   if (!raw.creativeMoments) {
     raw.creativeMoments = [];
   }
-  if (!raw.clipRegistry || raw.clipRegistry.length === 0) {
-    raw.clipRegistry = clipRegistry;
-  }
+  sanitizeDirectorDraft(raw, { clipRegistry });
 
   const recipe = EditRecipeV2Schema.parse(raw);
   persistRetentionBeatTargetsFromBrief(recipe, brief);
   return { recipe, briefMetric };
+}
+
+export function sanitizeDirectorDraft(raw, { clipRegistry } = {}) {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  if (Array.isArray(raw.outputs)) {
+    raw.outputs = raw.outputs.filter((output) => output && typeof output === "object");
+  }
+  if (Array.isArray(raw.creativeMoments)) {
+    raw.creativeMoments = raw.creativeMoments.filter((moment) => moment && typeof moment === "object");
+  }
+  if (clipRegistry) {
+    raw.clipRegistry = clipRegistry;
+  }
+  raw.sceneUsageRegistry = [];
+  const vo = raw.salvagePlan?.voiceOverProposal;
+  if (vo && !(Number.isFinite(vo.estimatedDurationSec) && vo.estimatedDurationSec > 0)) {
+    delete vo.estimatedDurationSec;
+  }
+  return raw;
 }
 
 export function filterL1ForScenes(abstraction, sceneIds) {
@@ -1792,6 +1818,9 @@ export async function directorDrillDown(client, {
   keyframesByClip = null,
   aiVideoArtifact = null,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const system = loadPrompt("director", { version: "v2" });
   const cappedSceneIds = prioritizeDrillDownSceneIds(recipe, sceneIds, abstraction, timelineIndex);
@@ -1960,11 +1989,15 @@ export async function directorDrillDown(client, {
   });
 
   const raw = await chatJson(client, {
+    role: "directorDrillDown",
     model: MODELS.directorDrillDown,
     system,
     user,
     temperature: 0.4,
     onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   raw.batchId = timelineIndex.batchId;
@@ -1981,9 +2014,8 @@ export async function directorDrillDown(client, {
   if (!raw.vlogRetentionProfile) {
     raw.vlogRetentionProfile = recipe.vlogRetentionProfile;
   }
-  if (!raw.clipRegistry || raw.clipRegistry.length === 0) {
-    raw.clipRegistry = clipRegistry;
-  }
+  // Always trust analysis clip registry — GPT drafts often omit required fields.
+  sanitizeDirectorDraft(raw, { clipRegistry });
   if (!raw.narrativeProfile) {
     const derived = recipe.narrativeProfile
       ?? resolveEffectiveNarrativeProfile({

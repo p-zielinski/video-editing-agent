@@ -1,11 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  getAudioConcurrencyLimit,
   getClipConcurrencyLimit,
   getGpuConcurrencyLimit,
   runWithConcurrency,
 } from "../lib/clip-concurrency.js";
 import { buildStepConfigFingerprint } from "../lib/config-fingerprint.js";
+import { buildAnalysisWaveFailure } from "../lib/recovery/plan-writer.js";
 import { readJson, ARTIFACTS, shouldRunStep } from "./work-paths.js";
 import { transcribeClip } from "./steps/transcribe.js";
 import { runMetaCommandsStep } from "./steps/meta-commands.js";
@@ -40,6 +42,31 @@ function loadClipRegistryEntries(workDir) {
   return data.clipRegistry ?? data;
 }
 
+function unwrapWaveResults(waveOutput) {
+  if (Array.isArray(waveOutput)) {
+    return { results: waveOutput, errors: [] };
+  }
+  return waveOutput;
+}
+
+function assertWaveSuccess(step, waveOutput, batchId, ledger = null) {
+  const { results, errors } = unwrapWaveResults(waveOutput);
+  if (errors.length === 0) {
+    return results;
+  }
+  for (const entry of errors) {
+    const clipId = entry.item?.clipId ?? `index-${entry.index}`;
+    ledger?.recordClipOutcome(step, clipId, "failed", entry.error);
+  }
+  const waveError = buildAnalysisWaveFailure(step, errors, batchId);
+  ledger?.failStep(step, waveError);
+  throw waveError;
+}
+
+async function runClipWave(items, fn, options) {
+  return runWithConcurrency(items, fn, { ...options, onError: "collect" });
+}
+
 /**
  * Wave A: transcribe + audio_analysis + twelvelabs (per clip, in parallel).
  * Wave B: keyframes per clip.
@@ -61,6 +88,10 @@ export async function runAnalysisPhase({
   globalCacheDisabled = false,
   globalCacheRoot,
   extractFrameAtFn,
+  dailyQuotaTracker = null,
+  batchId = null,
+  gptUsageTracker = null,
+  ledger = null,
 }) {
   const runTranscribe = shouldRunStep("transcribe", fromStep, toStep);
   const runMetaCommands = shouldRunStep("meta_commands", fromStep, toStep);
@@ -74,6 +105,22 @@ export async function runAnalysisPhase({
   const manifestPath = path.join(workDir, ARTIFACTS.manifest);
   const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : null;
   const clips = catalog.clips;
+  const resolvedBatchId = batchId ?? manifest?.batchId ?? catalog.batchId;
+
+  async function runTrackedAnalysisStep(step, enabled, fn) {
+    if (!enabled) {
+      return null;
+    }
+    ledger?.beginStep(step);
+    try {
+      const value = await fn();
+      ledger?.finishStep(step, "succeeded");
+      return value;
+    } catch (error) {
+      ledger?.failStep(step, error);
+      throw error;
+    }
+  }
 
   const result = {
     words: null,
@@ -97,80 +144,85 @@ export async function runAnalysisPhase({
       twelvelabsLive: !useTwelveStub,
     });
 
-    const waveAResults = await runWithConcurrency(
+    const waveALimit = runAudio
+      ? Math.min(getClipConcurrencyLimit(), getAudioConcurrencyLimit())
+      : getClipConcurrencyLimit();
+
+    if (runTranscribe) {
+      ledger?.beginStep("transcribe");
+    }
+    if (runTwelve) {
+      ledger?.beginStep("twelvelabs");
+    }
+    const waveAOutput = await runClipWave(
       clips,
       async (clip) => {
         const clipResult = {};
-        const tasks = [];
 
         if (runTranscribe) {
-          tasks.push(
-            transcribeClip({
-              workDir,
-              clip,
-              apiKey,
-              force,
-              globalCacheDisabled,
-              manifest,
-              configFingerprint: wordsFingerprint,
-            }).then((words) => {
-              clipResult.words = words;
-            }),
-          );
+          clipResult.words = await transcribeClip({
+            workDir,
+            clip,
+            apiKey,
+            force,
+            globalCacheDisabled,
+            manifest,
+            configFingerprint: wordsFingerprint,
+            dailyQuotaTracker,
+            batchId: resolvedBatchId,
+            gptUsageTracker,
+          });
         }
 
         if (runAudio) {
-          tasks.push(
-            analyzeClipAudio({
-              workDir,
-              clip,
-              manifest,
-              stub: audioStub,
-              force,
-              globalCacheDisabled,
-            }).then((audio) => {
-              clipResult.audio = audio;
-            }),
-          );
+          clipResult.audio = await analyzeClipAudio({
+            workDir,
+            clip,
+            manifest,
+            stub: audioStub,
+            force,
+            globalCacheDisabled,
+          });
         }
 
         if (runTwelve) {
-          tasks.push(
-            processClipTwelveLabs({
-              workDir,
-              clip,
-              manifest,
-              useStub: useTwelveStub,
-              force,
-              apiKey: resolvedTwelveKey,
-              configFingerprint: twelveFingerprint,
-              globalCacheDisabled,
-              globalCacheRoot,
-            }).then((twelve) => {
-              clipResult.twelve = twelve;
-            }),
-          );
+          clipResult.twelve = await processClipTwelveLabs({
+            workDir,
+            clip,
+            manifest,
+            useStub: useTwelveStub,
+            force,
+            apiKey: resolvedTwelveKey,
+            configFingerprint: twelveFingerprint,
+            globalCacheDisabled,
+            globalCacheRoot,
+          });
         }
 
-        await Promise.all(tasks);
         return clipResult;
       },
-      { limit: getClipConcurrencyLimit(), label: "analysis-wave-a" },
+      { limit: waveALimit, label: "analysis-wave-a" },
     );
 
+    const waveStep = runTranscribe
+      ? "transcribe"
+      : (runAudio ? "audio_analysis" : "twelvelabs");
+    const waveAResults = assertWaveSuccess(waveStep, waveAOutput, resolvedBatchId, ledger);
     if (runTranscribe) {
+      ledger?.finishStep("transcribe", "succeeded");
       result.words = waveAResults.map((entry) => entry.words).filter(Boolean);
     }
     if (runMetaCommands) {
-      result.metaCommands = await runMetaCommandsStep({
+      result.metaCommands = await runTrackedAnalysisStep("meta_commands", true, () => runMetaCommandsStep({
         workDir,
         force,
         wordsByClip: result.words,
-      });
+      }));
     }
     if (runAudio) {
+      ledger?.beginStep("audio_analysis");
       let perClipAnalysis = waveAResults.map((entry) => entry.audio).filter(Boolean);
-      perClipAnalysis = await runWithConcurrency(
+      const deliveryOutput = await runClipWave(
         clips.map((clip, index) => ({
           clip,
           audio: waveAResults[index]?.audio,
@@ -193,19 +245,23 @@ export async function runAnalysisPhase({
         },
         { limit: getClipConcurrencyLimit(), label: "delivery_analysis" },
       );
-      perClipAnalysis = perClipAnalysis.filter(Boolean);
+      perClipAnalysis = assertWaveSuccess("audio_analysis", deliveryOutput, resolvedBatchId, ledger)
+        .filter(Boolean);
       result.audioIndex = buildAudioIndexFromAnalyses(workDir, catalog, perClipAnalysis, { force });
+      ledger?.finishStep("audio_analysis", "succeeded");
     }
     if (runTwelve) {
+      ledger?.finishStep("twelvelabs", "succeeded");
       result.twelvelabs = waveAResults.map((entry) => entry.twelve).filter(Boolean);
     }
   } else if (runMetaCommands) {
-    result.metaCommands = await runMetaCommandsStep({ workDir, force });
+    result.metaCommands = await runTrackedAnalysisStep("meta_commands", true, () => runMetaCommandsStep({ workDir, force }));
   }
 
   if (runKf) {
+    ledger?.beginStep("keyframes");
     const clipRegistry = loadClipRegistryEntries(workDir);
-    result.keyframes = await runWithConcurrency(
+    const keyframesOutput = await runClipWave(
       clips,
       (clip) => processClipKeyframes({
         workDir,
@@ -221,16 +277,24 @@ export async function runAnalysisPhase({
       }),
       { limit: getClipConcurrencyLimit(), label: "analysis-wave-b" },
     );
+    result.keyframes = assertWaveSuccess("keyframes", keyframesOutput, resolvedBatchId, ledger);
+    ledger?.finishStep("keyframes", "succeeded");
   }
 
   if (runVision || runObjects) {
+    if (runVision) {
+      ledger?.beginStep("vision");
+    }
+    if (runObjects) {
+      ledger?.beginStep("objects");
+    }
     const visionFingerprint = buildStepConfigFingerprint("vision", { stub: visionStub });
     const objectsFingerprint = buildStepConfigFingerprint("objects", {
       stub: objectsStub,
       enabled: objectsEnabled,
     });
 
-    const waveCResults = await runWithConcurrency(
+    const waveCOutput = await runClipWave(
       clips,
       async (clip) => {
         const clipResult = {};
@@ -276,11 +340,16 @@ export async function runAnalysisPhase({
       { limit: getGpuConcurrencyLimit(), label: "analysis-wave-c" },
     );
 
+    const waveCStep = runVision ? "vision" : "objects";
+    const waveCResults = assertWaveSuccess(waveCStep, waveCOutput, resolvedBatchId, ledger);
+
     if (runVision) {
       result.vision = waveCResults.map((entry) => entry.vision).filter(Boolean);
+      ledger?.finishStep("vision", "succeeded");
     }
     if (runObjects) {
       result.objects = waveCResults.map((entry) => entry.objects).filter(Boolean);
+      ledger?.finishStep("objects", "succeeded");
     }
   }
 

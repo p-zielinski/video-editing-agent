@@ -92,6 +92,51 @@ describe("enrichRecipePayoffMoments", () => {
     assert.equal(moments[0].techniqueId, "music_swell");
   });
 
+  it("uses cut_on_beat at safe creativity level", () => {
+    const recipe = buildMainRecipe({
+      creativityProfile: { level: "safe" },
+      audioMixPlan: { musicBed: { trackId: "bed_01", volumeDb: -18, duckingDb: -12 } },
+    });
+
+    const moments = enrichRecipePayoffMoments(recipe, {
+      abstraction: abstractionWithOpenLoop,
+      timelineIndex,
+    });
+
+    assert.equal(moments[0].techniqueId, "cut_on_beat");
+  });
+
+  it("adds payoffs for each undelivered open loop", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+        { segmentId: "seg003", sceneIds: ["clip01_scene003"], startSec: 240, endSec: 360 },
+      ],
+      L3: {
+        openLoops: [
+          {
+            loopId: "loop_01",
+            kind: "cold_open",
+            payoffSceneId: "clip01_scene002",
+          },
+          {
+            loopId: "loop_02",
+            kind: "payoff_tease",
+            payoffSceneId: "clip01_scene003",
+          },
+        ],
+      },
+    };
+    const recipe = buildMainRecipe();
+
+    const moments = enrichRecipePayoffMoments(recipe, { abstraction, timelineIndex });
+    const payoffs = moments.filter((m) => m.retentionRole === "payoff");
+    assert.equal(payoffs.length, 2);
+    assert.equal(payoffs[0].momentId, "enrich_payoff_001");
+    assert.equal(payoffs[1].momentId, "enrich_payoff_002");
+  });
+
   it("skips when retentionRole payoff already exists within tolerance", () => {
     const recipe = buildMainRecipe({
       creativeMoments: [{

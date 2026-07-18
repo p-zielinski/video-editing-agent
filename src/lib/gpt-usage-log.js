@@ -21,17 +21,50 @@ export function createUsageRecorder(tracker, step) {
   if (!tracker) {
     return undefined;
   }
-  return ({ model, usage }) => {
-    tracker.record({ step, model, usage });
+  return ({ model, usage, requestedModel, callId }) => {
+    tracker.record({
+      step,
+      model,
+      usage,
+      requestedModel,
+      callId,
+    });
+  };
+}
+
+export function flushGptUsageIfNeeded(workDir, tracker, { batchId, log } = {}) {
+  const unflushed = tracker.getUnflushedRecords?.() ?? tracker.getRecords();
+  if (!tracker || unflushed.length === 0) {
+    return null;
+  }
+  const { outPath } = writeGptUsage(workDir, tracker, { batchId });
+  if (typeof log?.detail === "function") {
+    log.detail(`GPT usage: ${outPath}`);
+  }
+  return outPath;
+}
+
+export function buildAgentChatContext({
+  gptUsageTracker,
+  dailyQuotaTracker,
+  batchId,
+  step,
+}) {
+  return {
+    onUsage: createUsageRecorder(gptUsageTracker, step),
+    quotaTracker: dailyQuotaTracker ?? null,
+    batchId: batchId ?? null,
+    step: step ?? null,
   };
 }
 
 export function createGptUsageTracker() {
-  /** @type {Array<{ step: string, model: string, usage: object, recordedAt: string }>} */
+  /** @type {Array<{ step: string, model: string, usage: object, recordedAt: string, callId?: string, requestedModel?: string }>} */
   const records = [];
+  let flushedCount = 0;
 
   return {
-    record({ step, model, usage }) {
+    record({ step, model, usage, callId, requestedModel }) {
       const parsed = parseOpenAIUsage(usage);
       if (!parsed) {
         return;
@@ -41,10 +74,18 @@ export function createGptUsageTracker() {
         model: model ?? "unknown",
         usage: parsed,
         recordedAt: new Date().toISOString(),
+        ...(callId ? { callId } : {}),
+        ...(requestedModel ? { requestedModel } : {}),
       });
     },
     getRecords() {
       return [...records];
+    },
+    getUnflushedRecords() {
+      return records.slice(flushedCount);
+    },
+    markFlushed() {
+      flushedCount = records.length;
     },
     summary() {
       return summarizeGptUsageRecords(records);
@@ -99,6 +140,27 @@ export function summarizeGptUsageRecords(records) {
   return { steps, totals };
 }
 
+export function summarizeGptUsageByModel(records) {
+  /** @type {Record<string, { calls: number, promptTokens: number, completionTokens: number, totalTokens: number, models: string[] }>} */
+  const byModel = {};
+  for (const record of records) {
+    const model = record.model ?? "unknown";
+    const usage = record.usage ?? {};
+    byModel[model] = byModel[model] ?? {
+      calls: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    };
+    const bucket = byModel[model];
+    bucket.calls += 1;
+    bucket.promptTokens += usage.promptTokens ?? 0;
+    bucket.completionTokens += usage.completionTokens ?? 0;
+    bucket.totalTokens += usage.totalTokens ?? 0;
+  }
+  return byModel;
+}
+
 export function mergeGptUsageDocuments(existing, incoming, { batchId } = {}) {
   const existingRecords = existing?.records ?? [];
   const incomingRecords = incoming?.records ?? [];
@@ -114,10 +176,15 @@ export function mergeGptUsageDocuments(existing, incoming, { batchId } = {}) {
 
 export function writeGptUsage(workDir, tracker, { batchId } = {}) {
   const outPath = path.join(workDir, ARTIFACTS.gptUsage);
+  const deltaRecords = tracker.getUnflushedRecords?.() ?? tracker.getRecords();
+  if (deltaRecords.length === 0) {
+    return { outPath, document: null };
+  }
+
   const incoming = {
     batchId: batchId ?? null,
-    records: tracker.getRecords(),
-    ...tracker.summary(),
+    records: deltaRecords,
+    ...summarizeGptUsageRecords(deltaRecords),
   };
 
   let document = incoming;
@@ -141,6 +208,7 @@ export function writeGptUsage(workDir, tracker, { batchId } = {}) {
   }
 
   writeJson(outPath, document);
+  tracker.markFlushed?.();
   return { outPath, document };
 }
 

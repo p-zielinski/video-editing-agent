@@ -60,6 +60,8 @@ export const ARTIFACTS = {
   recipeProvenance: "14-recipe-provenance.json",
   publishPackage: (outputId) => `15-publish-package-${outputId}.json`,
   gptUsage: "16-gpt-usage.json",
+  executionState: "00-execution-state.json",
+  recoveryPlan: "17-recovery-plan.json",
 };
 
 export function formatToRenderSuffix(format) {

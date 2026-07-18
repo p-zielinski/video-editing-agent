@@ -220,7 +220,7 @@ export function buildSceneUsageRegistry(recipe) {
         registry.push({
           sceneId,
           outputId: output.outputId,
-          format: output.format,
+          format: output.format === "9:16" ? "9:16" : "16:9",
         });
       }
     }

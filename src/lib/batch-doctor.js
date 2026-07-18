@@ -17,6 +17,9 @@ import { readRecipeProvenance } from "./recipe-provenance.js";
 import { evaluateBriefMetricsWarnings } from "./brief-metrics.js";
 import { shouldUseSuperDirector } from "./segment-catalog.js";
 import { readGptUsageSummary } from "./gpt-usage-log.js";
+import { buildDailyQuotaWarnings, readDailyQuotaSummary } from "./openai-daily-usage.js";
+import { readRecoveryPlan } from "./recovery/plan-writer.js";
+import { ExecutionStateSchema } from "../schemas/execution-state.js";
 
 const STEP_ARTIFACT_CHECKS = [
   { step: "ingest", artifacts: [ARTIFACTS.manifest, ARTIFACTS.sceneCatalog] },
@@ -354,7 +357,13 @@ export function diagnoseBatch(workDir) {
   const directorAnalysis = analyzeDirectorMetrics(absoluteWorkDir);
   issues.push(...directorAnalysis.issues);
 
+  const recoveryAnalysis = analyzeRecoveryState(absoluteWorkDir);
+  issues.push(...recoveryAnalysis.issues);
+
   const gptUsage = readGptUsageSummary(absoluteWorkDir);
+  const dailyQuota = readDailyQuotaSummary();
+  const dailyQuotaWarnings = buildDailyQuotaWarnings(dailyQuota);
+  issues.push(...dailyQuotaWarnings);
 
   const criticalCount = issues.filter((issue) => issue.severity === "critical").length;
   const warningCount = issues.filter((issue) => issue.severity === "warning").length;
@@ -372,6 +381,48 @@ export function diagnoseBatch(workDir) {
     recipe: recipeAnalysis.state,
     superPath: superAnalysis.state,
     gptUsage,
+    dailyQuota,
+    recovery: recoveryAnalysis.state,
+    issues,
+  };
+}
+
+function analyzeRecoveryState(workDir) {
+  const issues = [];
+  const recoveryPlan = readRecoveryPlan(workDir);
+  const executionStatePath = path.join(workDir, ARTIFACTS.executionState);
+  let executionState = null;
+  if (fs.existsSync(executionStatePath)) {
+    try {
+      executionState = ExecutionStateSchema.parse(readJson(executionStatePath));
+    } catch {
+      executionState = null;
+    }
+  }
+
+  if (recoveryPlan?.status === "action_required") {
+    issues.push({
+      severity: "critical",
+      code: "RECOVERY_PLAN_PENDING",
+      message: `Oczekuje recovery: ${recoveryPlan.recommendedCommand}`,
+    });
+  }
+
+  if (executionState?.status === "failed" && !recoveryPlan) {
+    issues.push({
+      severity: "critical",
+      code: "RECOVERY_PLAN_MISSING",
+      message: `Execution state failed (${executionState.currentStep ?? "unknown"}) bez ${ARTIFACTS.recoveryPlan}`,
+    });
+  }
+
+  return {
+    state: {
+      recoveryPlanStatus: recoveryPlan?.status ?? null,
+      failedStep: recoveryPlan?.failedStep ?? executionState?.currentStep ?? null,
+      recommendedCommand: recoveryPlan?.recommendedCommand ?? null,
+      executionStatus: executionState?.status ?? null,
+    },
     issues,
   };
 }
@@ -419,6 +470,27 @@ export function formatBatchDoctorReport(diagnosis) {
       `GPT usage: ${totals.calls} wywołań, `
       + `${totals.promptTokens} prompt + ${totals.completionTokens} completion tokens`,
     );
+  }
+
+  if (diagnosis.dailyQuota?.pools) {
+    const premium = diagnosis.dailyQuota.pools.premium;
+    const mini = diagnosis.dailyQuota.pools.mini;
+    lines.push(
+      `Dzienne quota OpenAI: premium ${premium.usedTokens}/${diagnosis.dailyQuota.limits.premium}, `
+      + `mini ${mini.usedTokens}/${diagnosis.dailyQuota.limits.mini}`,
+    );
+    if (diagnosis.dailyQuota.pools.paidOther?.calls) {
+      const paid = diagnosis.dailyQuota.pools.paidOther;
+      lines.push(
+        `Poza pulami chat: ${paid.calls} wywołań`
+        + `${paid.audioSeconds ? `, whisper ${paid.audioSeconds}s` : ""}`
+        + `${paid.inputTokens ? `, embedding ${paid.inputTokens} tok` : ""}`,
+      );
+    }
+  }
+
+  if (diagnosis.recovery?.recommendedCommand) {
+    lines.push(`Recovery: ${diagnosis.recovery.recommendedCommand}`);
   }
 
   if (diagnosis.issues.length > 0) {

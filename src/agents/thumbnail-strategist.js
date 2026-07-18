@@ -185,6 +185,10 @@ export async function runThumbnailStrategist(client, {
   abstractionL3,
   userContext = "",
   publishVoice = DEFAULT_PUBLISH_VOICE,
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const system = loadPrompt("thumbnail-strategist", { version: "v2" })
     || loadPrompt("thumbnail-strategist");
@@ -223,10 +227,15 @@ export async function runThumbnailStrategist(client, {
   };
 
   const raw = await chatJson(client, {
+    role: "thumbnailStrategist",
     model: MODELS.thumbnailStrategist,
     system,
     user: JSON.stringify(userPayload),
     temperature: 0.5,
+    onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   return normalizeStrategistPlan(raw, recipe, frameShortlist, publishVoice);

@@ -23,6 +23,9 @@ import {
 import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
+import { ERROR_CODES } from "../../lib/recovery/error-codes.js";
+import { StepFailureError } from "../../lib/recovery/errors.js";
+import { classifyError } from "../../lib/recovery/classify-error.js";
 
 export function enhancedAudioPath(workDir, clipId) {
   return path.join(workDir, "enhanced-audio", `${clipId}.wav`);
@@ -63,6 +66,39 @@ async function measureQualityMetrics(audioPath, voiceLufs) {
   };
 }
 
+function buildFailedManifest({
+  decision,
+  clipId,
+  config,
+  error,
+  attemptedProvider = null,
+}) {
+  const classified = classifyError(error, { step: "audio_enhancement" });
+  return AudioEnhancementManifestSchema.parse({
+    version: "1.0",
+    candidateId: decision.candidateId,
+    clipId,
+    status: "failed",
+    provider: attemptedProvider ?? config.provider,
+    attemptedProvider: attemptedProvider ?? config.provider,
+    errorCode: classified.code ?? ERROR_CODES.AUDIO_ENHANCEMENT_CLIP_FAILED,
+    failureCause: classified.cause ?? classified.message,
+    warnings: [error instanceof Error ? error.message : String(error)],
+  });
+}
+
+function writeEnhancementIndex(workDir, catalog, manifests, recipe) {
+  const index = AudioEnhancementIndexSchema.parse({
+    version: "1.0",
+    batchId: catalog.batchId,
+    clips: manifests,
+  });
+  writeJson(path.join(workDir, ARTIFACTS.audioEnhancementIndex), index);
+  materializeSourceVolumeDb(recipe, index);
+  writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
+  return index;
+}
+
 export async function enhanceClipAudio({
   workDir,
   clip,
@@ -81,29 +117,83 @@ export async function enhanceClipAudio({
 
   const outputPath = enhancedAudioPath(workDir, clip.clipId);
   const analysisPath = analysisAudioPath(workDir, clip.clipId);
-  if (!fs.existsSync(analysisPath)) {
-    await extractAudioForAnalysis(clip.sourcePath, analysisPath);
-  }
 
-  const before = await measureQualityMetrics(analysisPath, null);
-  const rawOutputPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.raw.wav`);
-
-  let providerResult;
   try {
-    providerResult = await runEnhancementProvider({
+    if (!fs.existsSync(analysisPath)) {
+      await extractAudioForAnalysis(clip.sourcePath, analysisPath);
+    }
+
+    const before = await measureQualityMetrics(analysisPath, null);
+    const rawOutputPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.raw.wav`);
+
+    const providerResult = await runEnhancementProvider({
       inputPath: analysisPath,
       outputPath: rawOutputPath,
       config,
       providerPreference: decision.providerPreference ?? "auto",
+      clipId: clip.clipId,
     });
-  } catch (error) {
-    const failed = AudioEnhancementManifestSchema.parse({
+
+    const afterRaw = await measureQualityMetrics(rawOutputPath, null);
+    const goodLufs = [];
+    const targetLufs = resolveTargetDialogueLufs(decision, goodLufs);
+
+    let loudnormInputPath = rawOutputPath;
+    let dspChainApplied = null;
+    const polishPreset = decision.polishPreset ?? "none";
+    const polishFilter = resolvePolishPreset(decision);
+
+    if (
+      polishPreset !== "none"
+      && polishFilter
+      && !shouldSkipPolishForWind(perClipAnalysis, clip.clipId)
+    ) {
+      const polishedPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.polished.wav`);
+      const presetKey = polishPreset === "repair_only" ? "repair_only" : "engagement_polish";
+      await applyDspPolish(rawOutputPath, polishedPath, presetKey);
+      loudnormInputPath = polishedPath;
+      dspChainApplied = presetKey;
+    }
+
+    const normalization = await applyLoudnessNormalization(loudnormInputPath, outputPath, targetLufs);
+    const sourceVolumeDb = clampGainDb(normalization.gainDb);
+
+    const manifest = AudioEnhancementManifestSchema.parse({
       version: "1.0",
       candidateId: decision.candidateId,
       clipId: clip.clipId,
-      status: "failed",
-      provider: config.provider,
-      warnings: [error.message],
+      status: providerResult.status === "stubbed" ? "stubbed" : "succeeded",
+      provider: providerResult.provider,
+      model: providerResult.model,
+      outputPath: path.relative(workDir, outputPath),
+      before,
+      afterRaw,
+      normalization: {
+        targetLufs,
+        gainDb: normalization.gainDb,
+        finalIntegratedLufs: normalization.finalIntegratedLufs,
+      },
+      sourceVolumeDb,
+      ...(dspChainApplied ? { dspChainApplied } : {}),
+      warnings: [],
+    });
+
+    writeJson(manifestPath, manifest);
+    if (fs.existsSync(rawOutputPath)) {
+      fs.unlinkSync(rawOutputPath);
+    }
+    const polishedPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.polished.wav`);
+    if (fs.existsSync(polishedPath)) {
+      fs.unlinkSync(polishedPath);
+    }
+    return manifest;
+  } catch (error) {
+    const failed = buildFailedManifest({
+      decision,
+      clipId: clip.clipId,
+      config,
+      error,
+      attemptedProvider: error?.provider ?? config.provider,
     });
     writeJson(manifestPath, failed);
     if (config.required) {
@@ -111,60 +201,6 @@ export async function enhanceClipAudio({
     }
     return failed;
   }
-
-  const afterRaw = await measureQualityMetrics(rawOutputPath, null);
-  const goodLufs = [];
-  const targetLufs = resolveTargetDialogueLufs(decision, goodLufs);
-
-  let loudnormInputPath = rawOutputPath;
-  let dspChainApplied = null;
-  const polishPreset = decision.polishPreset ?? "none";
-  const polishFilter = resolvePolishPreset(decision);
-
-  if (
-    polishPreset !== "none"
-    && polishFilter
-    && !shouldSkipPolishForWind(perClipAnalysis, clip.clipId)
-  ) {
-    const polishedPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.polished.wav`);
-    const presetKey = polishPreset === "repair_only" ? "repair_only" : "engagement_polish";
-    await applyDspPolish(rawOutputPath, polishedPath, presetKey);
-    loudnormInputPath = polishedPath;
-    dspChainApplied = presetKey;
-  }
-
-  const normalization = await applyLoudnessNormalization(loudnormInputPath, outputPath, targetLufs);
-  const sourceVolumeDb = clampGainDb(normalization.gainDb);
-
-  const manifest = AudioEnhancementManifestSchema.parse({
-    version: "1.0",
-    candidateId: decision.candidateId,
-    clipId: clip.clipId,
-    status: providerResult.status === "stubbed" ? "stubbed" : "succeeded",
-    provider: providerResult.provider,
-    model: providerResult.model,
-    outputPath: path.relative(workDir, outputPath),
-    before,
-    afterRaw,
-    normalization: {
-      targetLufs,
-      gainDb: normalization.gainDb,
-      finalIntegratedLufs: normalization.finalIntegratedLufs,
-    },
-    sourceVolumeDb,
-    ...(dspChainApplied ? { dspChainApplied } : {}),
-    warnings: [],
-  });
-
-  writeJson(manifestPath, manifest);
-  if (fs.existsSync(rawOutputPath)) {
-    fs.unlinkSync(rawOutputPath);
-  }
-  const polishedPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.polished.wav`);
-  if (fs.existsSync(polishedPath)) {
-    fs.unlinkSync(polishedPath);
-  }
-  return manifest;
 }
 
 export function materializeSourceVolumeDb(recipe, enhancementIndex) {
@@ -230,14 +266,25 @@ export async function runAudioEnhancementStep({
     manifests.push(manifest);
   }
 
-  const index = AudioEnhancementIndexSchema.parse({
-    version: "1.0",
-    batchId: catalog.batchId,
-    clips: manifests,
-  });
-  writeJson(indexPath, index);
-  materializeSourceVolumeDb(recipe, index);
-  writeJson(recipePath, recipe);
+  const index = writeEnhancementIndex(workDir, catalog, manifests, recipe);
+
+  const failedManifests = manifests.filter((entry) => entry.status === "failed");
+  if (failedManifests.length > 0) {
+    throw new StepFailureError(
+      `audio_enhancement: ${failedManifests.length} klip(ów) nie powiodło się`,
+      {
+        code: ERROR_CODES.AUDIO_ENHANCEMENT_CLIP_FAILED,
+        step: "audio_enhancement",
+        failures: failedManifests.map((entry) => ({
+          clipId: entry.clipId,
+          code: entry.errorCode ?? ERROR_CODES.AUDIO_ENHANCEMENT_CLIP_FAILED,
+          message: entry.failureCause ?? entry.warnings?.[0] ?? `Enhancement failed for ${entry.clipId}`,
+          scope: { clipId: entry.clipId },
+        })),
+      },
+    );
+  }
+
   return index;
 }
 

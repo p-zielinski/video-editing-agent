@@ -51,6 +51,13 @@ describe("cli", () => {
     assert.equal(args.batchId, "abc12345");
   });
 
+  it("parseArgs sets recover command with run flag", () => {
+    const args = parseArgs(["node", "cli.js", "recover", "--batch-id", "abc12345", "--run"]);
+    assert.equal(args.command, "recover");
+    assert.equal(args.batchId, "abc12345");
+    assert.equal(args.runRecovery, true);
+  });
+
   it("parseArgs sets faceLive with --face-live alias", () => {
     const args = parseArgs([
       "node", "cli.js", "run",

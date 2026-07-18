@@ -163,7 +163,7 @@ function resolveCriticTechniquePack(recipe) {
 }
 
 function isRecipeV2(version) {
-  return version === "2.0" || version === "2.1" || version === "2.2" || version === "2.3" || version === "2.4";
+  return String(version ?? "").startsWith("2.");
 }
 
 function buildCreativityValidationContext(recipe) {
@@ -234,6 +234,9 @@ export async function runCritic(client, {
   perClipAnalysis = null,
   brollSyncHints,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
   superCriticReview = null,
 }) {
   const heuristicIssues = heuristicReview(recipe, {
@@ -328,11 +331,15 @@ export async function runCritic(client, {
   const user = JSON.stringify(userPayload);
 
   const raw = await chatJson(client, {
+    role: "critic",
     model: MODELS.critic,
     system,
     user,
     temperature: 0.2,
     onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   const mergedIssues = [...heuristicIssues];

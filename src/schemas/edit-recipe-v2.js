@@ -93,7 +93,32 @@ export const SubtitlesConfigSchema = z.object({
   style: z.string().optional(),
 });
 
-export const TextOverlayStyleSchema = z.enum([
+export const TextOverlayStyleSchema = z.preprocess((value) => {
+  const allowed = new Set([
+    "hook_large",
+    "hook_question",
+    "hook_number",
+    "emphasis",
+    "chapter_card",
+    "cta",
+    "closure_bracket",
+    "subtitle_style",
+  ]);
+  if (allowed.has(value)) {
+    return value;
+  }
+  // GPT sometimes puts TextOverlayRole values into style.
+  if (value === "payoff" || value === "retention_beat" || value === "hook") {
+    return "emphasis";
+  }
+  if (value === "chapter") {
+    return "chapter_card";
+  }
+  if (value === "closure") {
+    return "closure_bracket";
+  }
+  return value === undefined || value === null ? undefined : "emphasis";
+}, z.enum([
   "hook_large",
   "hook_question",
   "hook_number",
@@ -102,16 +127,36 @@ export const TextOverlayStyleSchema = z.enum([
   "cta",
   "closure_bracket",
   "subtitle_style",
-]);
+]).optional());
 
-export const TextOverlayRoleSchema = z.enum([
+export const TextOverlayRoleSchema = z.preprocess((value) => {
+  const allowed = new Set([
+    "hook",
+    "retention_beat",
+    "payoff",
+    "cta",
+    "chapter",
+    "closure",
+  ]);
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (allowed.has(value)) {
+    return value;
+  }
+  // GPT sometimes invents transitional roles (bridge/beat/breath).
+  if (value === "bridge" || value === "beat" || value === "breath") {
+    return "retention_beat";
+  }
+  return "retention_beat";
+}, z.enum([
   "hook",
   "retention_beat",
   "payoff",
   "cta",
   "chapter",
   "closure",
-]);
+]).optional());
 
 export const ShortsOutroBracketSchema = z.object({
   enabled: z.boolean().default(true),
@@ -145,7 +190,23 @@ export const TextOverlayV2Schema = z.object({
 });
 
 /** creativeMoments / timeline retention roles; textOverlays use TextOverlayRoleSchema (includes cta). */
-export const RetentionRoleSchema = z.enum(["hook", "beat", "payoff", "breath", "closure"]);
+export const RetentionRoleSchema = z.preprocess((value) => {
+  const allowed = new Set(["hook", "beat", "payoff", "breath", "closure"]);
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (allowed.has(value)) {
+    return value;
+  }
+  // GPT sometimes invents transitional roles or reuses overlay roles.
+  if (value === "bridge" || value === "retention_beat") {
+    return "beat";
+  }
+  if (value === "cta" || value === "chapter") {
+    return "payoff";
+  }
+  return "beat";
+}, z.enum(["hook", "beat", "payoff", "breath", "closure"]).optional());
 
 export const NarrativeIntentSchema = z.enum([
   "tension",
@@ -336,7 +397,10 @@ export const BatchContextV2Schema = z.object({
 export const SceneUsageEntrySchema = z.object({
   sceneId: z.string(),
   outputId: z.string(),
-  format: z.enum(["16:9", "9:16"]),
+  format: z.preprocess(
+    (value) => (value === "9:16" || value === "16:9" ? value : "16:9"),
+    z.enum(["16:9", "9:16"]),
+  ),
 });
 
 export const CreativityLevelSchema = z.enum(["safe", "balanced", "bold", "shorts"]);
@@ -458,7 +522,7 @@ export const AudioMixSegmentSchema = z.object({
   outputId: z.string(),
   musicInSec: z.number().nonnegative().optional(),
   musicOutSec: z.number().positive().optional(),
-  duckUnderVoice: z.boolean(),
+  duckUnderVoice: z.boolean().default(true),
   /** Per-output override; falls back to musicBed.duckingDb when omitted. */
   duckingDb: z.number().optional(),
   /** Time windows with per-window duck depth (output timeline seconds). */
@@ -596,7 +660,10 @@ export const VoiceOverMaterializationStatusSchema = z.enum([
 export const VoiceOverProposalSchema = z.object({
   purpose: z.string().min(1),
   scriptOutline: z.array(z.string()).default([]),
-  estimatedDurationSec: z.number().positive().optional(),
+  estimatedDurationSec: z.preprocess(
+    (value) => (Number.isFinite(value) && value > 0 ? value : undefined),
+    z.number().positive().optional(),
+  ),
   coverageSceneIds: z.array(z.string()).default([]),
   preferredSource: z.enum(["user_recorded", "existing_narration", "tts"]).optional(),
   materializationStatus: VoiceOverMaterializationStatusSchema,

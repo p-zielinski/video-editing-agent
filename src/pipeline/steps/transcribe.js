@@ -13,7 +13,9 @@ import {
 import { tagFillerWords, tagProfanityWords } from "../../lib/srt-processor.js";
 import { resolveAmbiguousSafetyContexts } from "../../lib/profanity-censor.js";
 import { applyExpectedTermCorrections } from "../../lib/transcript-correction.js";
+import { buildAgentChatContext } from "../../lib/gpt-usage-log.js";
 import { createOpenAIClient } from "../../agents/openai-client.js";
+import { resolveOpenAIWhisperModel } from "../../lib/transcribe.js";
 import { assignWordIds, WordIndexSchema } from "../../schemas/word-index.js";
 import { resolveClipContentHash } from "../../lib/clip-artifact-cache.js";
 import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
@@ -55,6 +57,9 @@ export async function transcribeClip({
   globalCacheDisabled = false,
   manifest = null,
   configFingerprint,
+  dailyQuotaTracker = null,
+  batchId = null,
+  gptUsageTracker = null,
 }) {
   const outPath = path.join(workDir, ARTIFACTS.words(clip.clipId));
   if (force) {
@@ -122,9 +127,25 @@ export async function transcribeClip({
     subtitleMode: profanityOptions.profanitySubtitleMode,
     brandSafetyEnabled: profanityOptions.brandSafetyEnabled,
   });
+  if (dailyQuotaTracker?.recordPaidUsage) {
+    dailyQuotaTracker.recordPaidUsage({
+      type: "whisper",
+      model: resolveOpenAIWhisperModel(),
+      audioSeconds: durationSec ?? clip.durationSec ?? 0,
+      step: "transcribe",
+      batchId: batchId ?? manifest?.batchId ?? null,
+    });
+  }
+
   const safetyResolved = await resolveAmbiguousSafetyContexts(safetyTagged, {
     client: apiKey ? createOpenAIClient(apiKey) : null,
     subtitleMode: profanityOptions.profanitySubtitleMode,
+    ...buildAgentChatContext({
+      gptUsageTracker,
+      dailyQuotaTracker,
+      batchId: batchId ?? manifest?.batchId ?? null,
+      step: "safety_classifier",
+    }),
   });
   const withIds = assignWordIds(safetyResolved, clip.clipId);
 

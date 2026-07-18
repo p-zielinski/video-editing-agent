@@ -7,6 +7,7 @@ export async function runEnhancementProvider({
   outputPath,
   config,
   providerPreference = "auto",
+  clipId = null,
 }) {
   if (config.stub) {
     return enhanceWithStub({ inputPath, outputPath });
@@ -37,6 +38,6 @@ export async function runEnhancementProvider({
     outputPath,
     deepFilterBin: config.deepFilterBin,
     deepFilterModelPath: config.deepFilterModelPath,
-    arnndnModelPath: config.arnndnModelPath,
+    clipId,
   });
 }

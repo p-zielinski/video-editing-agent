@@ -6,6 +6,8 @@ torch>=2.0
 torchvision
 transformers>=4.40
 pillow
+einops
+timm
 
 # Detekcja twarzy na keyframes (krok spatial_index, domyślnie live — OpenCV Haar):
 opencv-python-headless>=4.8

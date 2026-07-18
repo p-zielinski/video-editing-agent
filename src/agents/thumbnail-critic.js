@@ -42,6 +42,10 @@ export async function runThumbnailCritic(client, {
   abstractionL3,
   frameShortlist = {},
   publishVoice = DEFAULT_PUBLISH_VOICE,
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const system = loadPrompt("thumbnail-critic", { version: "v2" })
     || loadPrompt("thumbnail-critic");
@@ -76,10 +80,15 @@ export async function runThumbnailCritic(client, {
   };
 
   const raw = await chatJson(client, {
+    role: "thumbnailCritic",
     model: MODELS.thumbnailCritic,
     system,
     user: JSON.stringify(userPayload),
     temperature: 0.2,
+    onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   const review = ThumbnailReviewSchema.parse({

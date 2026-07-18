@@ -84,9 +84,22 @@ function momentNearOutputSec(moment, targetSec, toleranceSec) {
 function hasPayoffNearScene(recipe, mainOutput, sceneId, timelineIndex, toleranceSec, wordIndexes) {
   const clipId = sceneId.match(/^(.+)_scene\d+$/)?.[1] ?? sceneId.split("_")[0];
   const sourceMid = resolveSceneMidSourceSec(sceneId, timelineIndex);
-  const targetOutputSec = sourceMid != null
+  let targetOutputSec = sourceMid != null
     ? mapSourceTimeToOutputSec(recipe, clipId, sourceMid, { outputKind: "main", wordIndexes })
     : null;
+
+  const enrichedTimeline = buildOutputTimeline(mainOutput, { wordIndexes });
+  const segmentWithScene = enrichedTimeline.find(
+    (segment) => segment.videoRef?.sceneId === sceneId
+      || segment.audioRef?.sceneId === sceneId,
+  );
+
+  // Scene mid often falls outside trimmed in/out — use segment midpoint instead.
+  if (targetOutputSec == null && segmentWithScene) {
+    const start = segmentWithScene.outputStartSec ?? 0;
+    const end = segmentWithScene.outputEndSec ?? start;
+    targetOutputSec = (start + end) / 2;
+  }
 
   const payoffMoments = (recipe.creativeMoments ?? []).filter(
     (moment) => moment.outputId === mainOutput.outputId
@@ -94,16 +107,22 @@ function hasPayoffNearScene(recipe, mainOutput, sceneId, timelineIndex, toleranc
   );
 
   if (targetOutputSec != null) {
-    if (payoffMoments.some((moment) => momentNearOutputSec(moment, targetOutputSec, toleranceSec))) {
+    // Prefer payoffs that land on the scene's own segment when present.
+    if (segmentWithScene) {
+      const start = segmentWithScene.outputStartSec ?? 0;
+      const end = segmentWithScene.outputEndSec ?? start;
+      const onSegment = payoffMoments.some((moment) => {
+        const anchor = moment.outputStartSec ?? moment.anchorSec ?? 0;
+        return anchor >= start - 0.5 && anchor <= end + 0.5;
+      });
+      if (onSegment) {
+        return true;
+      }
+    } else if (payoffMoments.some((moment) => momentNearOutputSec(moment, targetOutputSec, toleranceSec))) {
       return true;
     }
   }
 
-  const enrichedTimeline = buildOutputTimeline(mainOutput, { wordIndexes });
-  const segmentWithScene = enrichedTimeline.find(
-    (segment) => segment.videoRef?.sceneId === sceneId
-      || segment.audioRef?.sceneId === sceneId,
-  );
   if (segmentWithScene) {
     const hasPayoffOverlay = (segmentWithScene.textOverlays ?? []).some(
       (overlay) => overlay.role === "payoff",

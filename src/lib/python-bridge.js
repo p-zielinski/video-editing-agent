@@ -212,10 +212,11 @@ export function runPythonScript(scriptName, input, { timeoutMs = 30 * 60 * 1000,
       reject(error);
     });
 
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(stderr.trim() || `Python ${scriptName} zakończone kodem ${code}`));
+        const killed = code === null ? ` (proces zabity${signal ? ` przez ${signal}` : ""} — często brak RAM)` : "";
+        reject(new Error(stderr.trim() || `Python ${scriptName} zakończone kodem ${code}${killed}`));
         return;
       }
 

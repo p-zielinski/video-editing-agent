@@ -328,7 +328,13 @@ export class TopicIndexEmbeddingError extends Error {
   }
 }
 
-export function resolveTopicIndexEmbedFn({ embedFn, apiKey, allowKeywordOnly = false } = {}) {
+export function resolveTopicIndexEmbedFn({
+  embedFn,
+  apiKey,
+  allowKeywordOnly = false,
+  quotaTracker = null,
+  batchId = null,
+} = {}) {
   if (embedFn) {
     return embedFn;
   }
@@ -339,7 +345,11 @@ export function resolveTopicIndexEmbedFn({ embedFn, apiKey, allowKeywordOnly = f
   if (!resolvedKey) {
     throw new TopicIndexEmbeddingError();
   }
-  return createOpenAIEmbedFn(resolvedKey);
+  return createOpenAIEmbedFn(resolvedKey, {
+    quotaTracker,
+    batchId,
+    step: "topic_index",
+  });
 }
 
 export async function buildTopicIndex({
@@ -410,6 +420,8 @@ export async function runTopicIndexStep({
   embedFn,
   apiKey,
   allowKeywordOnly = false,
+  dailyQuotaTracker = null,
+  batchId = null,
 }) {
   const outPath = path.join(workDir, ARTIFACTS.topicIndex);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.topicIndex, force)) {
@@ -428,7 +440,13 @@ export async function runTopicIndexStep({
   const objectDetections = collectObjectDetections(workDir, catalog);
   const timelineWithObjects = mergeTimelineObjectDetections(timelineIndex, objectDetections);
 
-  const resolvedEmbedFn = resolveTopicIndexEmbedFn({ embedFn, apiKey, allowKeywordOnly });
+  const resolvedEmbedFn = resolveTopicIndexEmbedFn({
+    embedFn,
+    apiKey,
+    allowKeywordOnly,
+    quotaTracker: dailyQuotaTracker,
+    batchId,
+  });
 
   const index = await buildTopicIndex({
     abstraction,

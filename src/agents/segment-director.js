@@ -2,6 +2,7 @@ import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import {
   buildDirectorBrief,
   filterL1ForScenes,
+  sanitizeDirectorDraft,
   EDIT_RECIPE_V2_OUTPUT_SCHEMA,
 } from "./director.js";
 import { buildActTransitionHints } from "../editorial/act-transitions.js";
@@ -207,13 +208,21 @@ export async function runSegmentDirector(client, context, {
   superPlan,
   superNotes = [],
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const {
     timelineIndex,
     clipRegistry = [],
     requiredFormats = ["16:9", "9:16"],
     batchContext = {},
+    dailyQuotaTracker,
+    batchId: contextBatchId,
   } = context;
+  const resolvedQuotaTracker = quotaTracker ?? dailyQuotaTracker ?? null;
+  const resolvedBatchId = batchId ?? contextBatchId ?? timelineIndex.batchId ?? null;
+  const resolvedStep = step ?? "segment_director";
 
   const system = loadPrompt("director", { version: "v2" });
   const brief = buildSegmentDirectorBrief(context, {
@@ -237,11 +246,15 @@ export async function runSegmentDirector(client, context, {
   });
 
   const raw = await chatJson(client, {
+    role: "segmentDirector",
     model: MODELS.segmentDirector,
     system,
     user,
     temperature: 0.45,
     onUsage,
+    quotaTracker: resolvedQuotaTracker,
+    batchId: resolvedBatchId,
+    step: resolvedStep,
   });
 
   raw.batchId = timelineIndex.batchId;
@@ -266,9 +279,7 @@ export async function runSegmentDirector(client, context, {
   if (!raw.creativeMoments) {
     raw.creativeMoments = [];
   }
-  if (!raw.clipRegistry || raw.clipRegistry.length === 0) {
-    raw.clipRegistry = clipRegistry;
-  }
+  sanitizeDirectorDraft(raw, { clipRegistry });
 
   const recipe = EditRecipeV2Schema.parse(raw);
   return { recipe: { ...recipe, segmentId }, briefMetric };

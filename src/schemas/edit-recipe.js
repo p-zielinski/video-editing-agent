@@ -90,7 +90,10 @@ export const ExcludedItemSchema = z.object({
 export const SceneUsageEntrySchema = z.object({
   sceneId: z.string(),
   outputId: z.string(),
-  format: z.enum(["16:9", "9:16"]),
+  format: z.preprocess(
+    (value) => (value === "9:16" || value === "16:9" ? value : "16:9"),
+    z.enum(["16:9", "9:16"]),
+  ),
 });
 
 export const BatchContextSchema = z.object({

@@ -1028,10 +1028,13 @@ export function validateSalvageAndAudioQuality(recipe, {
     }
     const manifest = enhancementByClip.get(decision.clipId);
     if (!manifest || (manifest.status !== "succeeded" && manifest.status !== "stubbed")) {
+      const recoveryHint = manifest?.status === "failed"
+        ? ` — sprawdź ${"17-recovery-plan.json"} (errorCode: ${manifest.errorCode ?? "unknown"})`
+        : "";
       issues.push({
         severity: "error",
-        code: "AUD-QUAL-01",
-        message: `accept dla ${decision.clipId} bez udanego artefaktu audio_enhancement`,
+        code: manifest?.status === "failed" ? "AUD-QUAL-06" : "AUD-QUAL-01",
+        message: `accept dla ${decision.clipId} bez udanego artefaktu audio_enhancement${recoveryHint}`,
       });
     } else if (!manifest.normalization?.finalIntegratedLufs) {
       issues.push({

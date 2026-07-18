@@ -117,6 +117,62 @@ export function recipeHasCreativeLayer(recipe) {
   return (recipe?.creativeMoments?.length ?? 0) > 0;
 }
 
+/** Keep complete format presets; ignore fixer stubs missing width/height. */
+export function mergeRenderStylePresets(base, override) {
+  if (!override || typeof override !== "object" || Array.isArray(override)) {
+    return base;
+  }
+  const formats = { ...(base?.formats ?? {}) };
+  for (const key of ["16:9", "9:16"]) {
+    const format = override.formats?.[key];
+    if (
+      format
+      && typeof format === "object"
+      && Number.isFinite(Number(format.width))
+      && Number.isFinite(Number(format.height))
+    ) {
+      formats[key] = {
+        ...(formats[key] ?? {}),
+        ...format,
+        width: Number(format.width),
+        height: Number(format.height),
+      };
+    }
+  }
+  const merged = {
+    ...(base ?? {}),
+    ...override,
+  };
+  if (Object.keys(formats).length > 0) {
+    merged.formats = formats;
+  } else {
+    delete merged.formats;
+  }
+  return Object.keys(merged).length > 0 ? merged : base;
+}
+
+/** Drop cut stubs missing required wordIds/reason before Zod parse. */
+export function sanitizeFixerCuts(outputs) {
+  for (const output of outputs ?? []) {
+    for (const segment of output.timeline ?? []) {
+      if (!Array.isArray(segment.cuts)) {
+        continue;
+      }
+      segment.cuts = segment.cuts.filter((cut) => (
+        cut
+        && typeof cut === "object"
+        && !Array.isArray(cut)
+        && typeof cut.startWordId === "string"
+        && cut.startWordId.length > 0
+        && typeof cut.endWordId === "string"
+        && cut.endWordId.length > 0
+        && typeof cut.reason === "string"
+      ));
+    }
+  }
+  return outputs;
+}
+
 function buildTechniqueCatalog(recipe) {
   const creativityProfile = mergeCreativityProfile(recipe.creativityProfile ?? {}, {});
   const packId = creativityProfile.techniquePack ?? "youtube_vlog_2026";
@@ -257,6 +313,9 @@ export async function runFixer(client, {
   perClipAnalysis = null,
   brollSyncHints = null,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
   superCriticReview = null,
   attempt = 1,
 }) {
@@ -313,18 +372,32 @@ export async function runFixer(client, {
   });
 
   const raw = await chatJson(client, {
+    role: attempt > 1 ? "fixerEscalation" : "fixer",
     model: attempt > 1 ? MODELS.fixerEscalation : MODELS.fixer,
     system,
     user,
     temperature: 0.3,
     onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   raw.batchId = recipe.batchId;
   raw.version = raw.version ?? recipe.version ?? "2.0";
 
-  const version = raw.version;
-  if (version === "2.0" || version === "2.1" || version === "2.2" || version === "2.3" || version === "2.4") {
+  const version = String(raw.version ?? "");
+  if (version.startsWith("2.")) {
+    const rawOutputs = Array.isArray(raw.outputs)
+      ? raw.outputs.filter((output) => (
+        output
+        && typeof output === "object"
+        && !Array.isArray(output)
+        && typeof output.outputId === "string"
+        && (output.format === "16:9" || output.format === "9:16")
+        && Array.isArray(output.timeline)
+      ))
+      : [];
     const merged = {
       ...structuredClone(recipe),
       ...raw,
@@ -332,10 +405,36 @@ export async function runFixer(client, {
         ...(recipe.batchContext ?? {}),
         ...(raw.batchContext ?? {}),
       },
-      outputs: raw.outputs ?? recipe.outputs,
-      clipRegistry: raw.clipRegistry ?? recipe.clipRegistry,
-      creativeMoments: raw.creativeMoments ?? recipe.creativeMoments,
+      // Prefer fixer outputs only when they are structurally complete; otherwise keep draft.
+      outputs: rawOutputs.length > 0 ? sanitizeFixerCuts(rawOutputs) : recipe.outputs,
+      // Always keep analysis clip registry — fixer drafts often omit required fields.
+      clipRegistry: recipe.clipRegistry,
+      // Prefer draft mix plan when fixer returns incomplete segment stubs.
+      audioMixPlan: (() => {
+        const plan = raw.audioMixPlan;
+        if (!plan || typeof plan !== "object" || !Array.isArray(plan.segments)) {
+          return recipe.audioMixPlan;
+        }
+        const segments = plan.segments.filter((segment) => (
+          segment
+          && typeof segment === "object"
+          && typeof segment.outputId === "string"
+        ));
+        return segments.length > 0
+          ? { ...plan, segments }
+          : recipe.audioMixPlan;
+      })(),
+      // Drop incomplete format presets from fixer (e.g. 9:16 without width/height).
+      renderStylePresets: mergeRenderStylePresets(recipe.renderStylePresets, raw.renderStylePresets),
+      creativeMoments: Array.isArray(raw.creativeMoments)
+        ? raw.creativeMoments.filter((moment) => moment && typeof moment === "object" && !Array.isArray(moment))
+        : (recipe.creativeMoments ?? []),
+      sceneUsageRegistry: [],
     };
+    const vo = merged.salvagePlan?.voiceOverProposal;
+    if (vo && !(Number.isFinite(vo.estimatedDurationSec) && vo.estimatedDurationSec > 0)) {
+      delete vo.estimatedDurationSec;
+    }
     return EditRecipeV2Schema.parse(merged);
   }
 

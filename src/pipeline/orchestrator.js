@@ -37,7 +37,15 @@ import {
 } from "./artifact-deps.js";
 import { buildSceneCatalogFromDetection } from "./steps/ingest.js";
 import { writeBatchQualityReport } from "../lib/batch-quality-report.js";
-import { createGptUsageTracker, writeGptUsage } from "../lib/gpt-usage-log.js";
+import { createGptUsageTracker, flushGptUsageIfNeeded } from "../lib/gpt-usage-log.js";
+import { createDailyQuotaTrackerIfEnabled } from "../lib/openai-daily-usage.js";
+import {
+  createPipelineLedger,
+  finalizePipelineSuccess,
+  persistPipelineFailure,
+  runTrackedStep,
+} from "../lib/recovery/orchestrator-hooks.js";
+import { formatRecoveryPlanReport } from "../lib/recovery/plan-writer.js";
 
 const log = createLogger("pipeline");
 const TOTAL_STEPS = PIPELINE_STEP_COUNT;
@@ -217,6 +225,7 @@ export async function runPipeline(options) {
   );
   const resolvedAiVideoStub = aiVideoStub === true || process.env.AI_VIDEO_STUB === "1";
   const gptUsageTracker = createGptUsageTracker();
+  const dailyQuotaTracker = createDailyQuotaTrackerIfEnabled({ batchId });
   const context = {
     workDir,
     batchId,
@@ -234,12 +243,17 @@ export async function runPipeline(options) {
     aiVideoStub: resolvedAiVideoStub,
     strictReview,
     gptUsageTracker,
+    dailyQuotaTracker,
   };
   let reviewResult = null;
+  const ledger = createPipelineLedger(workDir, batchId);
+  let currentStep = null;
 
   try {
     if (shouldRunStep("ingest", fromStep, toStep)) {
+      currentStep = "ingest";
       if (!inputDir && shouldUseCachedArtifact(workDir, ARTIFACTS.manifest, force)) {
+        await runTrackedStep(ledger, "ingest", async () => {
         log.step("ingest", stepIndex("ingest") + 1, TOTAL_STEPS);
         const catalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
         const clipCount = fs.existsSync(catalogPath)
@@ -251,7 +265,9 @@ export async function runPipeline(options) {
         );
         ensureManifestBatchContext(workDir, context.batchContext);
         log.stepDone("pominięto (istnieje manifest)");
+        });
       } else {
+        await runTrackedStep(ledger, "ingest", async () => {
         if (!inputDir) {
           throw new Error("Krok ingest wymaga --input <folder>");
         }
@@ -300,10 +316,12 @@ export async function runPipeline(options) {
         ensureManifestBatchContext(workDir, context.batchContext);
         log.stepDone(`${ingestResult.catalog.clips.length} klipów (inputMode: ${context.batchContext.inputMode})`);
         recordManifestArtifactMtimes(workDir, [ARTIFACTS.manifest, ARTIFACTS.sceneCatalog]);
+        });
       }
     }
 
     if (shouldUseAnalysisPhase(fromStep, toStep, { twelvelabsEnabled })) {
+      currentStep = "transcribe";
       const needsVisionPreflight = shouldRunStep("vision", fromStep, toStep) && !visionStub;
       const needsObjectsPreflight = objectsEnabled
         && shouldRunStep("objects", fromStep, toStep)
@@ -326,6 +344,10 @@ export async function runPipeline(options) {
         extractKeyframes,
         force,
         globalCacheDisabled,
+        dailyQuotaTracker,
+        batchId,
+        gptUsageTracker,
+        ledger,
       });
 
       if (shouldRunStep("transcribe", fromStep, toStep)) {
@@ -402,20 +424,28 @@ export async function runPipeline(options) {
     }
 
     if (shouldRunStep("index", fromStep, toStep)) {
+      currentStep = "index";
+      await runTrackedStep(ledger, "index", async () => {
       log.step("index", stepIndex("index") + 1, TOTAL_STEPS);
       await runIndexStep({ workDir, userContext, force });
       log.stepDone();
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.timelineIndex, ARTIFACTS.sceneCatalog]);
+      });
     }
 
     if (shouldRunStep("clip_profile", fromStep, toStep)) {
+      currentStep = "clip_profile";
+      await runTrackedStep(ledger, "clip_profile", async () => {
       log.step("clip_profile", stepIndex("clip_profile") + 1, TOTAL_STEPS);
       const registry = await runClipProfileStep({ workDir, userContext, force });
       log.stepDone(`${registry.clipRegistry?.length ?? 0} klipów w rejestrze`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.clipRegistry]);
+      });
     }
 
     if (shouldRunStep("abstract", fromStep, toStep)) {
+      currentStep = "abstract";
+      await runTrackedStep(ledger, "abstract", async () => {
       log.step("abstract", stepIndex("abstract") + 1, TOTAL_STEPS);
       await runAbstractStep(context);
       log.stepDone();
@@ -425,9 +455,16 @@ export async function runPipeline(options) {
         ARTIFACTS.abstractionL2,
         ARTIFACTS.abstractionL3,
       ]);
+      const usagePath = flushGptUsageIfNeeded(workDir, gptUsageTracker, { batchId, log });
+      if (usagePath) {
+        recordManifestArtifactMtimes(workDir, [ARTIFACTS.gptUsage]);
+      }
+      });
     }
 
     if (shouldRunStep("topic_index", fromStep, toStep)) {
+      currentStep = "topic_index";
+      await runTrackedStep(ledger, "topic_index", async () => {
       log.step("topic_index", stepIndex("topic_index") + 1, TOTAL_STEPS);
       const topicIndex = await runTopicIndexStep({
         workDir,
@@ -435,12 +472,17 @@ export async function runPipeline(options) {
         force,
         apiKey: context.apiKey,
         embedFn: context.topicIndexEmbedFn,
+        dailyQuotaTracker,
+        batchId,
       });
       log.stepDone(`${topicIndex.topics?.length ?? 0} tematów`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.topicIndex]);
+      });
     }
 
     if (shouldRunStep("spatial_index", fromStep, toStep)) {
+      currentStep = "spatial_index";
+      await runTrackedStep(ledger, "spatial_index", async () => {
       log.step("spatial_index", stepIndex("spatial_index") + 1, TOTAL_STEPS);
       if (!faceStub) {
         await ensurePythonPreflight({ visionStub, faceStub, objectsStub, objectsEnabled, audioStub });
@@ -454,9 +496,12 @@ export async function runPipeline(options) {
       });
       log.stepDone(`${spatialIndex.scenes?.filter((s) => s.anchors.length > 0).length ?? 0} scen z kotwicami${spatialStale && !force ? " (odświeżono — stale)" : ""}`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.spatialIndex]);
+      });
     }
 
     if (shouldRunStep("ai_video", fromStep, toStep)) {
+      currentStep = "ai_video";
+      await runTrackedStep(ledger, "ai_video", async () => {
       log.step("ai_video", stepIndex("ai_video") + 1, TOTAL_STEPS);
       const aiVideoResult = await runAiVideoStep({
         workDir,
@@ -471,6 +516,7 @@ export async function runPipeline(options) {
       const statusLabel = aiVideoResult.status ?? "unknown";
       log.stepDone(statusLabel);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.aiVideo, ARTIFACTS.sceneCatalog, ARTIFACTS.clipRegistry]);
+      });
     }
 
     if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("audio_enhancement", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
@@ -485,21 +531,33 @@ export async function runPipeline(options) {
     }
 
     if (shouldRunStep("direct", fromStep, toStep)) {
+      currentStep = "direct";
+      await runTrackedStep(ledger, "direct", async () => {
       log.step("direct", stepIndex("direct") + 1, TOTAL_STEPS);
       await ensureSpatialIndex(workDir, { force, faceStub, globalCacheDisabled });
       await runDirectStep({ ...context, requiredFormats: context.requiredFormats, faceStub });
       log.stepDone();
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.recipeDraft]);
+      const usagePath = flushGptUsageIfNeeded(workDir, gptUsageTracker, { batchId, log });
+      if (usagePath) {
+        recordManifestArtifactMtimes(workDir, [ARTIFACTS.gptUsage]);
+      }
+      });
     }
 
     if (shouldRunStep("audio_enhancement", fromStep, toStep)) {
+      currentStep = "audio_enhancement";
+      await runTrackedStep(ledger, "audio_enhancement", async () => {
       log.step("audio_enhancement", stepIndex("audio_enhancement") + 1, TOTAL_STEPS);
       await runAudioEnhancementStep({ workDir, force });
       log.stepDone();
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.audioEnhancementIndex, ARTIFACTS.recipeDraft]);
+      });
     }
 
     if (shouldRunStep("review", fromStep, toStep)) {
+      currentStep = "review";
+      await runTrackedStep(ledger, "review", async () => {
       log.step("review", stepIndex("review") + 1, TOTAL_STEPS);
       reviewResult = await runReviewStep({
         ...context,
@@ -510,14 +568,16 @@ export async function runPipeline(options) {
       });
       log.stepDone(reviewResult.review?.approved ? "zatwierdzono" : "wymaga przeglądu");
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.review, ARTIFACTS.recipeFinal]);
-      if (gptUsageTracker.summary().totals.calls > 0) {
-        const { outPath } = writeGptUsage(workDir, gptUsageTracker, { batchId });
-        log.detail(`GPT usage: ${outPath}`);
+      const usagePath = flushGptUsageIfNeeded(workDir, gptUsageTracker, { batchId, log });
+      if (usagePath) {
         recordManifestArtifactMtimes(workDir, [ARTIFACTS.gptUsage]);
       }
+      });
     }
 
     if (shouldRunStep("thumbnails", fromStep, toStep)) {
+      currentStep = "thumbnails";
+      await runTrackedStep(ledger, "thumbnails", async () => {
       log.step("thumbnails", stepIndex("thumbnails") + 1, TOTAL_STEPS);
       const thumbnailResult = await runThumbnailsStep({
         ...context,
@@ -530,9 +590,16 @@ export async function runPipeline(options) {
       );
       log.stepDone(`${variantCount} wariantów${thumbnailResult.review.approved ? "" : " (wymaga przeglądu)"}`);
       recordManifestArtifactMtimes(workDir, [ARTIFACTS.thumbnailPlan, ARTIFACTS.thumbnailReview]);
+      const usagePath = flushGptUsageIfNeeded(workDir, gptUsageTracker, { batchId, log });
+      if (usagePath) {
+        recordManifestArtifactMtimes(workDir, [ARTIFACTS.gptUsage]);
+      }
+      });
     }
 
     if (shouldRunStep("publish", fromStep, toStep)) {
+      currentStep = "publish";
+      await runTrackedStep(ledger, "publish", async () => {
       log.step("publish", stepIndex("publish") + 1, TOTAL_STEPS);
       const publishResult = await runPublishStep({ workDir, force });
       const packageCount = Object.keys(publishResult.packages ?? {}).length;
@@ -543,6 +610,7 @@ export async function runPipeline(options) {
           (output) => ARTIFACTS.publishPackage(output.outputId),
         ),
       );
+      });
     }
 
     if (shouldRunStep("review", fromStep, toStep) || toStep === "review" || !toStep) {
@@ -556,6 +624,7 @@ export async function runPipeline(options) {
     }
 
     log.pipelineDone();
+    finalizePipelineSuccess(ledger, workDir);
 
     return {
       batchId,
@@ -565,6 +634,15 @@ export async function runPipeline(options) {
       validationFailed: false,
     };
   } catch (error) {
+    flushGptUsageIfNeeded(workDir, gptUsageTracker, { batchId, log });
+    const recoveryPlan = persistPipelineFailure({
+      error,
+      batchId,
+      workDir,
+      ledger,
+      step: currentStep,
+    });
+    log.detail(formatRecoveryPlanReport(recoveryPlan, { workDir }));
     if (error.code === "RECIPE_VALIDATION_FAILED") {
       log.pipelineFailed(error);
       return {
@@ -574,9 +652,11 @@ export async function runPipeline(options) {
         review: error.review,
         validation: error.validation,
         validationFailed: true,
+        recoveryPlan,
       };
     }
     log.pipelineFailed(error);
+    error.recoveryPlan = recoveryPlan;
     throw error;
   }
 }

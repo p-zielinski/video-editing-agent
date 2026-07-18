@@ -214,6 +214,9 @@ node src/cli.js run --input ./inbox/gaming --context '{"expectedTerms":["Elden R
 | `OPENAI_MODEL_SEGMENT_DIRECTOR` / `OPENAI_MODEL_DIRECTOR_DRILLDOWN` | Lokalne drafty i dopracowanie; domyślnie mini |
 | `OPENAI_MODEL_CRITIC` / `OPENAI_MODEL_FIXER` / `OPENAI_MODEL_FIXER_ESCALATION` | Review i naprawa: mini, a druga próba Fixera — flagship |
 | `OPENAI_MODEL_SAFETY_CLASSIFIER` | Klasyfikacja tylko niejednoznacznych kontekstów brand-safety (domyślnie mini) |
+| `OPENAI_QUOTA_TRACKING` | Włącza dzienny licznik tokenów w `output/.openai-usage/daily/` |
+| `OPENAI_MODEL_DOWNGRADE_ENABLED` | Runtime router: po wyczerpaniu puli premium obniża tier (np. director → mini) |
+| `OPENAI_DAILY_PREMIUM_LIMIT` / `OPENAI_DAILY_MINI_LIMIT` | Limity darmowych pul (domyślnie 250k / 2.5M tokenów) |
 | `OPENAI_WHISPER_MODEL` | Model Whisper (domyślnie `whisper-1`) |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | Opcjonalne ścieżki do binarek |
 | `TWELVELABS_API_KEY` | Opcjonalny — rozdziały i momenty klipu (stub: `--twelvelabs-stub`) |

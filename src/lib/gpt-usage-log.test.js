@@ -6,11 +6,13 @@ import path from "node:path";
 import {
   createGptUsageTracker,
   createUsageRecorder,
+  flushGptUsageIfNeeded,
   mergeGptUsageDocuments,
   parseOpenAIUsage,
+  readGptUsageSummary,
   writeGptUsage,
 } from "./gpt-usage-log.js";
-import { ARTIFACTS } from "../pipeline/work-paths.js";
+import { ARTIFACTS, readJson } from "../pipeline/work-paths.js";
 
 describe("gpt_usage_log", () => {
   it("parseOpenAIUsage reads prompt and completion tokens", () => {
@@ -92,5 +94,59 @@ describe("gpt_usage_log", () => {
     );
     assert.equal(merged.records.length, 2);
     assert.equal(merged.totals.totalTokens, 6);
+  });
+
+  it("flushGptUsageIfNeeded appends only new records across multiple flushes in one run", () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-gpt-usage-flush-"));
+    const tracker = createGptUsageTracker();
+    tracker.record({
+      step: "abstract",
+      model: "gpt-5.5-nano",
+      usage: { prompt_tokens: 10, completion_tokens: 2 },
+    });
+    flushGptUsageIfNeeded(workDir, tracker, { batchId: "batch01" });
+
+    tracker.record({
+      step: "direct",
+      model: "gpt-5.5-mini",
+      usage: { prompt_tokens: 40, completion_tokens: 8 },
+    });
+    flushGptUsageIfNeeded(workDir, tracker, { batchId: "batch01" });
+
+    const document = readJson(path.join(workDir, ARTIFACTS.gptUsage));
+    assert.equal(document.records.length, 2);
+    assert.equal(document.totals.promptTokens, 50);
+    assert.equal(document.totals.calls, 2);
+
+    const noop = flushGptUsageIfNeeded(workDir, tracker, { batchId: "batch01" });
+    assert.equal(noop, null);
+    const summary = readGptUsageSummary(workDir);
+    assert.equal(summary.totals.promptTokens, 50);
+
+    fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("flushGptUsageIfNeeded merges across separate tracker instances (recovery resume)", () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-gpt-usage-resume-"));
+    const firstRun = createGptUsageTracker();
+    firstRun.record({
+      step: "abstract",
+      model: "gpt-5.5-nano",
+      usage: { prompt_tokens: 10, completion_tokens: 2 },
+    });
+    flushGptUsageIfNeeded(workDir, firstRun, { batchId: "batch01" });
+
+    const resumedRun = createGptUsageTracker();
+    resumedRun.record({
+      step: "direct",
+      model: "gpt-5.5-mini",
+      usage: { prompt_tokens: 40, completion_tokens: 8 },
+    });
+    flushGptUsageIfNeeded(workDir, resumedRun, { batchId: "batch01" });
+
+    const document = readJson(path.join(workDir, ARTIFACTS.gptUsage));
+    assert.equal(document.records.length, 2);
+    assert.equal(document.totals.promptTokens, 50);
+    fs.rmSync(workDir, { recursive: true, force: true });
   });
 });

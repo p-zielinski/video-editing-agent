@@ -17,7 +17,7 @@ import {
 } from "../work-paths.js";
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { ThumbnailPlanSchema, ThumbnailReviewSchema } from "../../schemas/thumbnail-plan.js";
-import { resolvePublishVoice } from "../../editorial/publish-voice.js";
+import { buildAgentChatContext } from "../../lib/gpt-usage-log.js";
 
 function resolveOpenAIClient({ apiKey, openaiClient }) {
   if (openaiClient) {
@@ -159,6 +159,9 @@ export async function runThumbnailsStep({
   force = false,
   thumbnailStub = false,
   renderImages = true,
+  gptUsageTracker,
+  dailyQuotaTracker,
+  batchId,
 }) {
   const planPath = path.join(workDir, ARTIFACTS.thumbnailPlan);
   const reviewPath = path.join(workDir, ARTIFACTS.thumbnailReview);
@@ -201,6 +204,12 @@ export async function runThumbnailsStep({
       abstractionL3: abstraction.L3 ?? abstraction,
       userContext: manifest.userContext ?? "",
       publishVoice,
+      ...buildAgentChatContext({
+        gptUsageTracker,
+        dailyQuotaTracker,
+        batchId: batchId ?? recipe.batchId,
+        step: "thumbnail_strategist",
+      }),
     });
   }
 
@@ -222,6 +231,12 @@ export async function runThumbnailsStep({
       abstractionL3: abstraction.L3 ?? abstraction,
       frameShortlist: frameShortlistByOutput,
       publishVoice,
+      ...buildAgentChatContext({
+        gptUsageTracker,
+        dailyQuotaTracker,
+        batchId: batchId ?? recipe.batchId,
+        step: "thumbnail_critic",
+      }),
     });
     review = criticResult.review;
     plan = criticResult.plan;

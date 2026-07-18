@@ -35,6 +35,7 @@ import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/a
 import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
 import { enrichRecipeChapterCards, buildChapterCardHints, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
 import { enrichRecipeRetentionBeats, stripEnrichBeatsInSlowSegments } from "../../editorial/shorts-retention.js";
+import { sanitizeRecipeHardErrors } from "../../editorial/recipe-hard-error-sanitize.js";
 import { enrichRecipeActTransitions } from "../../editorial/act-transitions.js";
 import {
   buildBrollSyncHintsForRecipe,
@@ -72,7 +73,7 @@ import {
   readRecipeProvenance,
   stripRecipeProvenanceFields,
 } from "../../lib/recipe-provenance.js";
-import { createUsageRecorder } from "../../lib/gpt-usage-log.js";
+import { buildAgentChatContext } from "../../lib/gpt-usage-log.js";
 import { mapWithConcurrency } from "../../lib/map-with-concurrency.js";
 import { createBriefMetricsAccumulator } from "../../lib/brief-metrics.js";
 
@@ -161,6 +162,8 @@ export async function runSuperDirectorDirectPath(client, context) {
     batchContext,
     requiredFormats,
     gptUsageTracker,
+    dailyQuotaTracker,
+    batchId,
   } = context;
 
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
@@ -173,7 +176,12 @@ export async function runSuperDirectorDirectPath(client, context) {
     batchContext,
     requiredFormats,
     aiVideoArtifact: context.aiVideoArtifact,
-    onUsage: createUsageRecorder(gptUsageTracker, "super_director"),
+    ...buildAgentChatContext({
+      gptUsageTracker,
+      dailyQuotaTracker,
+      batchId,
+      step: "super_director",
+    }),
   });
   const superPlan = superDirectorResult.plan;
   briefMetricsAcc.record(superDirectorResult.briefMetric);
@@ -198,7 +206,12 @@ export async function runSuperDirectorDirectPath(client, context) {
         sceneIds: pick.catalogCard.sceneIds,
         superPlan,
         superNotes: superPlan.crossSegmentNotes ?? [],
-        onUsage: createUsageRecorder(gptUsageTracker, "segment_director"),
+        ...buildAgentChatContext({
+          gptUsageTracker,
+          dailyQuotaTracker,
+          batchId,
+          step: "segment_director",
+        }),
       });
       briefMetricsAcc.record(segmentResult.briefMetric);
       return segmentResult.recipe;
@@ -225,7 +238,12 @@ export async function runSuperDirectorDirectPath(client, context) {
       ...context,
       recipe,
       sceneIds,
-      onUsage: createUsageRecorder(gptUsageTracker, "drill_down"),
+      ...buildAgentChatContext({
+        gptUsageTracker,
+        dailyQuotaTracker,
+        batchId,
+        step: "drill_down",
+      }),
     });
     recipe = drillDownResult.recipe;
     directorMetrics = drillDownResult.directorMetrics;
@@ -290,7 +308,12 @@ export async function runSuperDirectorDirectPath(client, context) {
     audioIndex: context.audioIndex,
     perClipAnalysis: context.perClipAnalysis,
     wordIndexes: context.wordIndexes,
-    onUsage: createUsageRecorder(gptUsageTracker, "super_critic"),
+    ...buildAgentChatContext({
+      gptUsageTracker,
+      dailyQuotaTracker,
+      batchId,
+      step: "super_critic",
+    }),
   });
   recipe.superCriticReview = superCritic;
   if (superCritic.crossSegmentNotes?.length) {
@@ -561,6 +584,12 @@ function buildDeterministicEnricherSteps(recipe, {
         enrichRecipeDisableColorGrade(recipe, effectiveBatchContext);
       },
     },
+    {
+      name: "sanitizeRecipeHardErrors",
+      apply: () => {
+        sanitizeRecipeHardErrors(recipe, { topicIndex });
+      },
+    },
   ];
 }
 
@@ -594,6 +623,8 @@ export async function runAbstractStep({
   userContext = "",
   force = false,
   gptUsageTracker,
+  dailyQuotaTracker,
+  batchId,
 }) {
   const abstractPath = path.join(workDir, ARTIFACTS.abstraction);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.abstraction, force)) {
@@ -608,7 +639,12 @@ export async function runAbstractStep({
     userContext,
     clipRegistry,
     audioIndex,
-    onUsage: createUsageRecorder(gptUsageTracker, "abstract"),
+    ...buildAgentChatContext({
+      gptUsageTracker,
+      dailyQuotaTracker,
+      batchId,
+      step: "abstract",
+    }),
   });
 
   writeJson(path.join(workDir, ARTIFACTS.abstractionL1), bundle.L1);
@@ -799,6 +835,8 @@ export async function runDirectStep({
   faceStub = false,
   globalCacheDisabled = false,
   gptUsageTracker,
+  dailyQuotaTracker,
+  batchId,
 }) {
   const draftPath = path.join(workDir, ARTIFACTS.recipeDraft);
   if (shouldUseCachedArtifact(workDir, ARTIFACTS.recipeDraft, force)) {
@@ -834,7 +872,12 @@ export async function runDirectStep({
     },
     requiredFormats,
     userContext,
-    onUsage: createUsageRecorder(gptUsageTracker, "music_curator"),
+    ...buildAgentChatContext({
+      gptUsageTracker,
+      dailyQuotaTracker,
+      batchId,
+      step: "music_curator",
+    }),
   });
   const musicSelection = curatorResult.musicSelection;
   writeJson(path.join(workDir, ARTIFACTS.musicSelection), {
@@ -887,6 +930,8 @@ export async function runDirectStep({
       requiredFormats,
     },
     gptUsageTracker,
+    dailyQuotaTracker,
+    batchId,
   };
 
   let recipe;
@@ -904,7 +949,12 @@ export async function runDirectStep({
   } else {
     const directorResult = await runDirector(client, {
       ...context,
-      onUsage: createUsageRecorder(gptUsageTracker, "direct"),
+      ...buildAgentChatContext({
+        gptUsageTracker,
+        dailyQuotaTracker,
+        batchId,
+        step: "direct",
+      }),
     });
     recipe = directorResult.recipe;
     briefMetricsAcc.record(directorResult.briefMetric);
@@ -916,7 +966,12 @@ export async function runDirectStep({
         ...context,
         recipe,
         sceneIds,
-        onUsage: createUsageRecorder(gptUsageTracker, "drill_down"),
+        ...buildAgentChatContext({
+          gptUsageTracker,
+          dailyQuotaTracker,
+          batchId,
+          step: "drill_down",
+        }),
       });
       recipe = drillDownResult.recipe;
       directorMetrics = {
@@ -998,6 +1053,8 @@ export async function runReviewStep({
   faceStub = false,
   globalCacheDisabled = false,
   gptUsageTracker,
+  dailyQuotaTracker,
+  batchId,
 }) {
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const topicIndex = loadTopicIndex(workDir);
@@ -1088,7 +1145,12 @@ export async function runReviewStep({
       perClipAnalysis,
       brollSyncHints,
       superCriticReview,
-      onUsage: createUsageRecorder(gptUsageTracker, "critic"),
+      ...buildAgentChatContext({
+        gptUsageTracker,
+        dailyQuotaTracker,
+        batchId,
+        step: "critic",
+      }),
     });
 
     writeJson(path.join(workDir, ARTIFACTS.review), lastReview);
@@ -1115,10 +1177,12 @@ export async function runReviewStep({
         brollSyncHints,
         superCriticReview,
         attempt: iteration,
-        onUsage: createUsageRecorder(
+        ...buildAgentChatContext({
           gptUsageTracker,
-          iteration > 1 ? "fixer_escalation" : "fixer",
-        ),
+          dailyQuotaTracker,
+          batchId,
+          step: iteration > 1 ? "fixer_escalation" : "fixer",
+        }),
       }),
     );
     applyDeterministicRecipeEnrichers(recipe, {
@@ -1152,7 +1216,12 @@ export async function runReviewStep({
         audioIndex,
         perClipAnalysis,
         wordIndexes,
-        onUsage: createUsageRecorder(gptUsageTracker, "super_critic"),
+        ...buildAgentChatContext({
+          gptUsageTracker,
+          dailyQuotaTracker,
+          batchId,
+          step: "super_critic",
+        }),
       });
       recipe.superCriticReview = superCriticReview;
       if (superCriticReview.crossSegmentNotes?.length) {

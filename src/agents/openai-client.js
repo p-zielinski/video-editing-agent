@@ -2,11 +2,34 @@ import fs from "node:fs";
 import path from "node:path";
 import OpenAI from "openai";
 import { fileURLToPath } from "node:url";
+import { executeRoutedChatJson, shouldUseRouter } from "./openai-model-router.js";
+import { isQuotaTrackingEnabled } from "../lib/openai-daily-usage.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-export function createOpenAIClient(apiKey) {
-  return new OpenAI({ apiKey, maxRetries: 2, timeout: 5 * 60 * 1000 });
+/** Work around Node 24.9–24.17 keep-alive false ERR_STREAM_PREMATURE_CLOSE. */
+export function createOpenAIFetch() {
+  return (url, init = {}) => {
+    const next = { ...init, keepalive: false };
+    if (
+      init.body
+      && typeof init.body !== "string"
+      && !(init.body instanceof Buffer)
+      && init.duplex === undefined
+    ) {
+      next.duplex = "half";
+    }
+    return fetch(url, next);
+  };
+}
+
+export function createOpenAIClient(apiKey, options = {}) {
+  return new OpenAI({
+    apiKey,
+    maxRetries: options.maxRetries ?? 2,
+    timeout: options.timeout ?? 5 * 60 * 1000,
+    fetch: options.fetch ?? createOpenAIFetch(),
+  });
 }
 
 export function loadPrompt(name, { version } = {}) {
@@ -29,13 +52,36 @@ export function getPromptVersion({ version } = {}) {
 
 export async function chatJson(client, {
   model,
+  role,
   system,
   user,
   temperature = 0.4,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
+  if (shouldUseRouter() && (role || quotaTracker || isQuotaTrackingEnabled())) {
+    return executeRoutedChatJson(client, {
+      role,
+      model,
+      system,
+      user,
+      temperature,
+      onUsage,
+      quotaTracker,
+      batchId,
+      step,
+    });
+  }
+
+  const resolvedModel = model ?? (role ? undefined : null);
+  if (!resolvedModel) {
+    throw new Error("chatJson requires model when routing is disabled");
+  }
+
   const response = await client.chat.completions.create({
-    model,
+    model: resolvedModel,
     temperature,
     response_format: { type: "json_object" },
     messages: [
@@ -57,7 +103,7 @@ export async function chatJson(client, {
     return JSON.parse(content);
   } catch {
     const retryResponse = await client.chat.completions.create({
-      model,
+      model: resolvedModel,
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
@@ -114,7 +160,12 @@ export const MODELS = resolveAgentModels(process.env);
 
 export const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
 
-export async function embedTexts(client, texts) {
+export async function embedTexts(client, texts, {
+  onUsage,
+  quotaTracker,
+  batchId,
+  step = "topic_index",
+} = {}) {
   if (texts.length === 0) {
     return [];
   }
@@ -124,12 +175,25 @@ export async function embedTexts(client, texts) {
     input: texts,
   });
 
+  if (typeof onUsage === "function" && response.usage) {
+    onUsage({ model: EMBEDDING_MODEL, usage: response.usage });
+  }
+  if (quotaTracker?.recordPaidUsage) {
+    quotaTracker.recordPaidUsage({
+      type: "embedding",
+      model: EMBEDDING_MODEL,
+      usage: response.usage,
+      step,
+      batchId,
+    });
+  }
+
   return response.data
     .sort((a, b) => a.index - b.index)
     .map((entry) => entry.embedding);
 }
 
-export function createOpenAIEmbedFn(apiKey) {
+export function createOpenAIEmbedFn(apiKey, { quotaTracker, batchId, step } = {}) {
   const client = createOpenAIClient(apiKey);
-  return async (texts) => embedTexts(client, texts);
+  return async (texts) => embedTexts(client, texts, { quotaTracker, batchId, step });
 }

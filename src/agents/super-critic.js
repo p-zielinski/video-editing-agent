@@ -17,6 +17,9 @@ export async function runSuperCritic(client, {
   perClipAnalysis,
   wordIndexes,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 }) {
   const system = loadPrompt("super-critic", { version: "v2" })
     || loadPrompt("super-critic");
@@ -69,11 +72,15 @@ export async function runSuperCritic(client, {
   spreadEditorialToPayload(userPayload, editorialContext);
 
   const raw = await chatJson(client, {
+    role: "superCritic",
     model: MODELS.critic,
     system,
     user: JSON.stringify(userPayload),
     temperature: 0.2,
     onUsage,
+    quotaTracker,
+    batchId,
+    step,
   });
 
   const issues = raw.issues ?? [];

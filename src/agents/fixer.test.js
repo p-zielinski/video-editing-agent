@@ -5,8 +5,11 @@ import {
   shouldInvokeFixer,
   resolveFixerPromptVersion,
   recipeHasCreativeLayer,
+  mergeRenderStylePresets,
+  sanitizeFixerCuts,
   FIXABLE_NAR_WARNING_CODES,
 } from "./fixer.js";
+import { TextOverlayRoleSchema, RetentionRoleSchema } from "../schemas/edit-recipe-v2.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 import { MODELS } from "./openai-client.js";
 
@@ -448,6 +451,79 @@ describe("fixer agent", () => {
     assert.equal(payload.openLoops.length, 1);
     assert.equal(payload.narrativeProfile.mode, "internet_documentary");
     assert.equal(payload.issues.length, 2);
+  });
+
+  it("mergeRenderStylePresets drops incomplete format stubs", () => {
+    assert.equal(
+      mergeRenderStylePresets(undefined, { formats: { "9:16": {} } }),
+      undefined,
+    );
+    const base = { formats: { "16:9": { width: 1920, height: 1080 } } };
+    const merged = mergeRenderStylePresets(base, {
+      formats: { "9:16": { width: 1080, height: 1920 } },
+    });
+    assert.equal(merged.formats["16:9"].width, 1920);
+    assert.equal(merged.formats["9:16"].height, 1920);
+  });
+
+  it("sanitizeFixerCuts drops cuts missing wordIds", () => {
+    const outputs = [{
+      timeline: [{
+        cuts: [
+          {},
+          { startWordId: "clip01_w00001", endWordId: "clip01_w00002", reason: "trim" },
+        ],
+      }],
+    }];
+    sanitizeFixerCuts(outputs);
+    assert.equal(outputs[0].timeline[0].cuts.length, 1);
+  });
+
+  it("TextOverlayRoleSchema coerces bridge to retention_beat", () => {
+    assert.equal(TextOverlayRoleSchema.parse("bridge"), "retention_beat");
+    assert.equal(TextOverlayRoleSchema.parse("hook"), "hook");
+  });
+
+  it("RetentionRoleSchema coerces bridge to beat", () => {
+    assert.equal(RetentionRoleSchema.parse("bridge"), "beat");
+    assert.equal(RetentionRoleSchema.parse("retention_beat"), "beat");
+    assert.equal(RetentionRoleSchema.parse("payoff"), "payoff");
+  });
+
+  it("runFixer keeps draft outputs when fixer returns incomplete output stubs", async () => {
+    const recipe = {
+      ...loadFixture("recipe-draft.json"),
+      version: "2.5",
+    };
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = loadFixture("timeline-index.json");
+    const review = {
+      version: "1.0",
+      batchId: "testbatch",
+      iteration: 1,
+      approved: false,
+      issues: [{ severity: "error", code: "CUT_WORDID_WRONG_CLIP", message: "bad wordId" }],
+      summary: "needs fix",
+    };
+    const client = createMockOpenAIClient([{
+      version: "2.5",
+      batchId: recipe.batchId,
+      outputs: [{}, { outputId: "broken" }],
+      renderStylePresets: { formats: { "9:16": {} } },
+      creativeMoments: [],
+    }]);
+
+    const fixed = await runFixer(client, {
+      recipe,
+      review,
+      abstraction,
+      timelineIndex,
+      audioIndex,
+    });
+
+    assert.equal(fixed.outputs.length, recipe.outputs.length);
+    assert.equal(fixed.outputs[0].outputId, recipe.outputs[0].outputId);
+    assert.equal(fixed.renderStylePresets, undefined);
   });
 
   it("shouldInvokeFixer returns true for V24-05 and V25 chronology/broll warnings", () => {

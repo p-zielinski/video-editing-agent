@@ -100,7 +100,25 @@ export function groupScenesForL1Summarization(scenes, words, visionCaptions, {
   return groups;
 }
 
-export async function summarizeScene(client, sceneInput, { onUsage } = {}) {
+function normalizeL1Summary(raw) {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const visualQuality = raw.visualQuality;
+  return {
+    ...raw,
+    visualQuality:
+      visualQuality === "low" || visualQuality === "medium" || visualQuality === "high"
+        ? visualQuality
+        : "medium",
+    stability:
+      raw.stability === "stable" || raw.stability === "shaky" || raw.stability === "unknown"
+        ? raw.stability
+        : "unknown",
+  };
+}
+
+export async function summarizeScene(client, sceneInput, { onUsage, quotaTracker, batchId, step } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L1_scene_summary",
@@ -108,10 +126,31 @@ export async function summarizeScene(client, sceneInput, { onUsage } = {}) {
     outputSchema: L1_OUTPUT_SCHEMA,
   });
 
-  return chatJson(client, { model: MODELS.summarizerL1, system, user, temperature: 0.3, onUsage });
+  const raw = await chatJson(client, {
+    role: "summarizerL1",
+    model: MODELS.summarizerL1,
+    system,
+    user,
+    temperature: 0.3,
+    onUsage,
+    quotaTracker,
+    batchId,
+    step,
+  });
+  let candidate = raw;
+  if (raw && typeof raw === "object") {
+    if (typeof raw.sceneId === "string" && typeof raw.summary === "string") {
+      candidate = raw;
+    } else if (Array.isArray(raw.scenes) && raw.scenes[0]) {
+      candidate = raw.scenes[0];
+    }
+  } else if (Array.isArray(raw) && raw[0]) {
+    candidate = raw[0];
+  }
+  return normalizeL1Summary(candidate);
 }
 
-export async function summarizeSceneBatch(client, scenesInputs, { onUsage } = {}) {
+export async function summarizeSceneBatch(client, scenesInputs, { onUsage, quotaTracker, batchId, step } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L1_batch_summary",
@@ -121,11 +160,51 @@ export async function summarizeSceneBatch(client, scenesInputs, { onUsage } = {}
     },
   });
 
-  const raw = await chatJson(client, { model: MODELS.summarizerL1, system, user, temperature: 0.3, onUsage });
-  return Array.isArray(raw) ? raw : raw.scenes ?? [];
+  const raw = await chatJson(client, {
+    role: "summarizerL1",
+    model: MODELS.summarizerL1,
+    system,
+    user,
+    temperature: 0.3,
+    onUsage,
+    quotaTracker,
+    batchId,
+    step,
+  });
+  const candidates = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.scenes)
+      ? raw.scenes
+      : Array.isArray(raw?.summaries)
+        ? raw.summaries
+        : [];
+
+  const bySceneId = new Map();
+  for (const item of candidates) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const sceneId = item.sceneId ?? item.scene_id ?? item.id;
+    const summary = item.summary ?? item.text ?? item.caption;
+    if (typeof sceneId === "string" && typeof summary === "string") {
+      bySceneId.set(sceneId, normalizeL1Summary({ ...item, sceneId, summary }));
+    }
+  }
+
+  const resolved = [];
+  for (const sceneInput of scenesInputs) {
+    const sceneId = sceneInput.sceneId;
+    if (bySceneId.has(sceneId)) {
+      resolved.push(bySceneId.get(sceneId));
+      continue;
+    }
+    // Batch response missing this scene — fall back to single-scene call.
+    resolved.push(await summarizeScene(client, sceneInput, { onUsage, quotaTracker, batchId, step }));
+  }
+  return resolved;
 }
 
-export async function summarizeSegment(client, segment, l1Summaries, { onUsage } = {}) {
+export async function summarizeSegment(client, segment, l1Summaries, { onUsage, quotaTracker, batchId, step } = {}) {
   const system = loadSummarizerPrompt();
   const scenes = l1Summaries.filter((s) => segment.sceneIds.includes(s.sceneId));
 
@@ -136,7 +215,17 @@ export async function summarizeSegment(client, segment, l1Summaries, { onUsage }
     outputSchema: L2_OUTPUT_SCHEMA,
   });
 
-  const raw = await chatJson(client, { model: MODELS.summarizerL2, system, user, temperature: 0.3, onUsage });
+  const raw = await chatJson(client, {
+    role: "summarizerL2",
+    model: MODELS.summarizerL2,
+    system,
+    user,
+    temperature: 0.3,
+    onUsage,
+    quotaTracker,
+    batchId,
+    step,
+  });
   return AbstractL2Schema.parse(raw);
 }
 
@@ -147,7 +236,7 @@ export async function summarizeSession(client, {
   clipRegistry = [],
   audioQualitySummary = [],
   deliverySummary = [],
-}, { onUsage } = {}) {
+}, { onUsage, quotaTracker, batchId, step } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L3_session_summary",
@@ -200,7 +289,17 @@ export async function summarizeSession(client, {
     },
   });
 
-  return chatJson(client, { model: MODELS.summarizerL3, system, user, temperature: 0.3, onUsage });
+  return chatJson(client, {
+    role: "summarizerL3",
+    model: MODELS.summarizerL3,
+    system,
+    user,
+    temperature: 0.3,
+    onUsage,
+    quotaTracker,
+    batchId,
+    step,
+  });
 }
 
 function buildAudioQualitySummary(audioIndex) {
@@ -238,6 +337,9 @@ export async function buildAbstractionBundle(client, timelineIndex, {
   clipRegistry = [],
   audioIndex = null,
   onUsage,
+  quotaTracker,
+  batchId,
+  step,
 } = {}) {
   const l1 = [];
   const groups = groupScenesForL1Summarization(
@@ -252,12 +354,12 @@ export async function buildAbstractionBundle(client, timelineIndex, {
 
   for (const group of groups) {
     if (group.type === "batch") {
-      const summaries = await summarizeSceneBatch(client, group.inputs, { onUsage });
+      const summaries = await summarizeSceneBatch(client, group.inputs, { onUsage, quotaTracker, batchId, step });
       for (const summary of summaries) {
         l1.push(AbstractL1Schema.parse(summary));
       }
     } else {
-      const summary = await summarizeScene(client, group.input, { onUsage });
+      const summary = await summarizeScene(client, group.input, { onUsage, quotaTracker, batchId, step });
       l1.push(AbstractL1Schema.parse(summary));
     }
   }
@@ -266,7 +368,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
   const l2 = [];
 
   for (const segment of segmentDefs) {
-    const summary = await summarizeSegment(client, segment, l1, { onUsage });
+    const summary = await summarizeSegment(client, segment, l1, { onUsage, quotaTracker, batchId, step });
     l2.push(AbstractL2Schema.parse(summary));
   }
 
@@ -277,7 +379,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     clipRegistry,
     audioQualitySummary: buildAudioQualitySummary(audioIndex),
     deliverySummary: buildDeliverySummary(audioIndex),
-  }, { onUsage });
+  }, { onUsage, quotaTracker, batchId, step });
 
   return AbstractionBundleSchema.parse({
     version: "1.0",

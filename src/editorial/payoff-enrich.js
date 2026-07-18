@@ -42,16 +42,60 @@ function hasPayoffNearOutputSec(moments, outputId, targetSec, toleranceSec) {
   );
 }
 
+/** True when a payoff moment lands on the timeline segment for this scene. */
+function hasPayoffOnSceneSegment(moments, outputId, sceneId, mainOutput, wordIndexes) {
+  if (!sceneId || !mainOutput) {
+    return false;
+  }
+  const enrichedTimeline = buildOutputTimeline(mainOutput, { wordIndexes });
+  const segment = enrichedTimeline.find(
+    (entry) => entry.videoRef?.sceneId === sceneId
+      || entry.audioRef?.sceneId === sceneId,
+  );
+  if (!segment) {
+    return false;
+  }
+  const start = segment.outputStartSec ?? 0;
+  const end = segment.outputEndSec ?? start;
+  return moments.some((moment) => {
+    if (moment.outputId !== outputId || moment.retentionRole !== "payoff") {
+      return false;
+    }
+    const anchor = moment.outputStartSec ?? moment.anchorSec ?? 0;
+    return anchor >= start - 0.5 && anchor <= end + 0.5;
+  });
+}
+
 function mapSceneToOutputSec(recipe, sceneId, timelineIndex, wordIndexes) {
   const clipId = sceneId.match(/^(.+)_scene\d+$/)?.[1] ?? sceneId.split("_")[0];
   const sourceMid = resolveSceneMidSourceSec(sceneId, timelineIndex);
-  if (sourceMid == null) {
+  if (sourceMid != null) {
+    const mapped = mapSourceTimeToOutputSec(recipe, clipId, sourceMid, {
+      outputKind: "main",
+      wordIndexes,
+    });
+    if (mapped != null) {
+      return mapped;
+    }
+  }
+
+  // Scene mid may fall outside the trimmed in/out window — use segment output midpoint.
+  const mainOutput = findMainOutput(recipe?.outputs ?? []);
+  if (!mainOutput) {
     return null;
   }
-  return mapSourceTimeToOutputSec(recipe, clipId, sourceMid, {
-    outputKind: "main",
-    wordIndexes,
-  });
+  const enrichedTimeline = buildOutputTimeline(mainOutput, { wordIndexes });
+  for (const segment of enrichedTimeline) {
+    const segmentSceneId = segment.videoRef?.sceneId ?? segment.audioRef?.sceneId;
+    if (segmentSceneId !== sceneId) {
+      continue;
+    }
+    const start = segment.outputStartSec ?? 0;
+    const end = segment.outputEndSec ?? start;
+    return Math.round(((start + end) / 2) * 10) / 10;
+  }
+
+  return null;
 }
 
 function resolveL2SegmentForScene(abstraction, sceneId) {
@@ -129,6 +173,9 @@ function collectPayoffCandidates(recipe, abstraction, timelineIndex, wordIndexes
   }
 
   for (const loop of abstraction?.L3?.openLoops ?? []) {
+    if (loop.kind !== "cold_open" && loop.kind !== "payoff_tease") {
+      continue;
+    }
     if (!loop.payoffSceneId) {
       continue;
     }
@@ -191,13 +238,49 @@ function collectPayoffCandidates(recipe, abstraction, timelineIndex, wordIndexes
   return candidates;
 }
 
-function resolvePayoffTechniqueId(recipe) {
+function resolvePayoffTechniqueId(recipe, enrichIndex = 1) {
+  if (recipe?.creativityProfile?.level === "safe") {
+    return "cut_on_beat";
+  }
+  // First payoff can use music bed techniques; later ones avoid V21 density/gap on music_drop
+  // and avoid stacking camera zoom duty with retention beats.
+  if (enrichIndex > 1) {
+    return "silence_beat";
+  }
   return recipe?.audioMixPlan?.musicBed ? "music_drop" : "music_swell";
 }
 
+function countPayoffEnrichMoments(moments = []) {
+  let maxIndex = 0;
+  for (const moment of moments) {
+    const match = /^enrich_payoff_(\d+)$/.exec(moment.momentId ?? "");
+    if (match) {
+      maxIndex = Math.max(maxIndex, Number(match[1]));
+    }
+  }
+  return maxIndex;
+}
+
+function buildPayoffMoment(recipe, mainOutput, candidate, enrichIndex) {
+  const outputStartSec = candidate.outputSec;
+  return {
+    momentId: `enrich_payoff_${String(enrichIndex).padStart(3, "0")}`,
+    techniqueId: resolvePayoffTechniqueId(recipe, enrichIndex),
+    outputId: mainOutput.outputId,
+    outputStartSec,
+    outputEndSec: Math.round((outputStartSec + PAYOFF_DURATION_SEC) * 10) / 10,
+    retentionRole: "payoff",
+    params: {},
+    reason: candidate.sceneId
+      ? `Enriched payoff near scene ${candidate.sceneId} (${candidate.source})`
+      : `Enriched payoff at ${outputStartSec}s (${candidate.source})`,
+    confidence: 0.7,
+  };
+}
+
 /**
- * Add at most one enrich_payoff_001 when structural open loops or climax/payoff L2
- * lack a retentionRole: payoff creativeMoment near the mapped scene time.
+ * Add enrich_payoff_* moments for undelivered open loops (and at most one structural
+ * L2/emotional gap when no open-loop payoffs are missing).
  *
  * @param {object} recipe - EditRecipe v2 draft (mutated in place)
  * @param {{ abstraction?: object, timelineIndex?: object, wordIndexes?: object[], audioIndex?: object, emotionalBeatHints?: object[] }} [options]
@@ -218,10 +301,6 @@ export function enrichRecipePayoffMoments(recipe, {
     return moments;
   }
 
-  if (moments.some((moment) => moment.momentId === PAYOFF_ENRICH_MOMENT_ID)) {
-    return moments;
-  }
-
   const toleranceSec = NAR_PAYOFF_TOLERANCE_SEC;
   const candidates = collectPayoffCandidates(
     recipe,
@@ -234,44 +313,78 @@ export function enrichRecipePayoffMoments(recipe, {
     return moments;
   }
 
-  const gapCandidate = candidates.find(
-    (candidate) => !hasPayoffNearOutputSec(
-      moments,
+  const openLoopCandidates = candidates.filter((candidate) => (
+    String(candidate.source ?? "").startsWith("openLoop:")
+  ));
+  const structuralCandidates = candidates.filter((candidate) => (
+    !String(candidate.source ?? "").startsWith("openLoop:")
+  ));
+
+  let enrichIndex = countPayoffEnrichMoments(moments);
+  const coverageMoments = [...moments];
+
+  function tryAddPayoff(candidate, { requireSceneSegment = false } = {}) {
+    if (candidate.outputSec == null || !Number.isFinite(candidate.outputSec)) {
+      return false;
+    }
+    if (requireSceneSegment && candidate.sceneId) {
+      const onScene = hasPayoffOnSceneSegment(
+        coverageMoments,
+        mainOutput.outputId,
+        candidate.sceneId,
+        mainOutput,
+        wordIndexes,
+      );
+      // When the scene id is not present as a labeled segment (common in tests /
+      // single-clip timelines), fall back to proximity on the mapped output time.
+      const sceneLabeled = buildOutputTimeline(mainOutput, { wordIndexes }).some(
+        (entry) => entry.videoRef?.sceneId === candidate.sceneId
+          || entry.audioRef?.sceneId === candidate.sceneId,
+      );
+      if (onScene || (!sceneLabeled && hasPayoffNearOutputSec(
+        coverageMoments,
+        mainOutput.outputId,
+        candidate.outputSec,
+        toleranceSec,
+      ))) {
+        return false;
+      }
+    } else if (hasPayoffNearOutputSec(
+      coverageMoments,
       mainOutput.outputId,
       candidate.outputSec,
       toleranceSec,
-    ),
-  );
-  if (!gapCandidate) {
-    return moments;
+    )) {
+      return false;
+    }
+    if (shouldSkipPayoffAtOutputSec(
+      recipe,
+      abstraction,
+      timelineIndex,
+      candidate.outputSec,
+      wordIndexes,
+    )) {
+      return false;
+    }
+    enrichIndex += 1;
+    const moment = buildPayoffMoment(recipe, mainOutput, candidate, enrichIndex);
+    coverageMoments.push(moment);
+    return true;
   }
 
-  if (shouldSkipPayoffAtOutputSec(
-    recipe,
-    abstraction,
-    timelineIndex,
-    gapCandidate.outputSec,
-    wordIndexes,
-  )) {
-    return moments;
+  for (const candidate of openLoopCandidates) {
+    tryAddPayoff(candidate, { requireSceneSegment: true });
   }
 
-  const outputStartSec = gapCandidate.outputSec;
-  const techniqueId = resolvePayoffTechniqueId(recipe);
-  const newMoment = {
-    momentId: PAYOFF_ENRICH_MOMENT_ID,
-    techniqueId,
-    outputId: mainOutput.outputId,
-    outputStartSec,
-    outputEndSec: Math.round((outputStartSec + PAYOFF_DURATION_SEC) * 10) / 10,
-    retentionRole: "payoff",
-    params: {},
-    reason: gapCandidate.sceneId
-      ? `Enriched payoff near scene ${gapCandidate.sceneId} (${gapCandidate.source})`
-      : `Enriched payoff at ${outputStartSec}s (${gapCandidate.source})`,
-    confidence: 0.7,
-  };
+  const addedOpenLoopPayoff = coverageMoments.length > moments.length;
+  if (!addedOpenLoopPayoff) {
+    for (const candidate of structuralCandidates) {
+      if (tryAddPayoff(candidate)) {
+        break;
+      }
+    }
+  }
 
-  recipe.creativeMoments = [...moments, newMoment];
+  recipe.creativeMoments = coverageMoments;
   return recipe.creativeMoments;
 }

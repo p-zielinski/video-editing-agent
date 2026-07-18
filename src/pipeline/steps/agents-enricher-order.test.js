@@ -31,6 +31,7 @@ describe("deterministic enricher order", () => {
       "enrichJumpCutsAsTimeCuts",
       "enrichRecipeBrandSafetyText",
       "enrichRecipeDisableColorGrade",
+      "sanitizeRecipeHardErrors",
     ]);
   });
 });
