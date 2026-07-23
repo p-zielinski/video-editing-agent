@@ -1,8 +1,18 @@
 import { DEFAULT_AUDIO_CAPS, DIRECTOR_AUDIO_CAPS } from "./audio-index-summary.js";
 
+/**
+ * Estimated-token budget for a single segment director user payload (jsonBytes/4).
+ * Aligns with director-quality audit target <40k prompt tokens/segment.
+ */
+export const SEGMENT_BRIEF_ESTIMATED_TOKEN_BUDGET = 40_000;
+
 /** Caps for director initial brief and shared editorial context limits. */
 export const DIRECTOR_BRIEF_CAPS = {
   maxWordsPerScene: 120,
+  /** When L1 covers enough scenes, prefer summaries over long word dumps. */
+  maxWordsPerSceneWhenL1Good: 40,
+  /** Unique L1 sceneIds / timeline scenes ≥ this → use maxWordsPerSceneWhenL1Good. */
+  L1_GOOD_COVERAGE_RATIO: 0.7,
   spatialAnchorLimit: 3,
   includeFullTopicIndex: true,
   audioCaps: DIRECTOR_AUDIO_CAPS,
@@ -15,6 +25,8 @@ export const DIRECTOR_BRIEF_CAPS = {
   TOPIC_INDEX_FULL_THRESHOLD: 15,
   MATCHING_SCENES_CAP: 12,
   SCENE_MAP_LARGE_BATCH_SCENE_COUNT: 80,
+  /** Hard char budget for technique catalog JSON in director/segment briefs. */
+  TECHNIQUE_CATALOG_MAX_CHARS: 4_500,
 };
 
 /** Drill-down uses the same caps as the initial director brief (not critic defaults). */

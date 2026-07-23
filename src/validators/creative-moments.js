@@ -4,7 +4,10 @@ import {
   meetsCreativityLevel,
   SAFE_ALLOWED_TECHNIQUE_IDS,
 } from "../editorial/technique-budget.js";
-import { isRetentionBeatMoment } from "../editorial/shorts-retention.js";
+import {
+  countsTowardTechniqueCap,
+  isRetentionBeatMoment,
+} from "../editorial/shorts-retention.js";
 import {
   findL2SegmentIdForSourceTime,
   resolveRecipeNarrativeProfile,
@@ -759,7 +762,7 @@ function validateOutputBudgetLimits(moments, outputBudget, catalog, outputLabel)
   }
 
   const beatMoments = moments.filter(isRetentionBeatMoment);
-  const nonBeatMoments = moments.filter((moment) => !isRetentionBeatMoment(moment));
+  const cappedMoments = moments.filter(countsTowardTechniqueCap);
 
   const zoomMoments = moments.filter((moment) => countsTowardZoomBudget(moment.techniqueId, catalog));
   if (zoomMoments.length > outputBudget.maxZoomMoments) {
@@ -794,11 +797,11 @@ function validateOutputBudgetLimits(moments, outputBudget, catalog, outputLabel)
     });
   }
 
-  if (nonBeatMoments.length > outputBudget.maxTotalTechniqueMoments) {
+  if (cappedMoments.length > outputBudget.maxTotalTechniqueMoments) {
     issues.push({
       severity: "error",
       code: "V21-05",
-      message: `Output ${outputLabel}: ${nonBeatMoments.length} momentów (bez beat pool) > maxTotalTechniqueMoments=${outputBudget.maxTotalTechniqueMoments}`,
+      message: `Output ${outputLabel}: ${cappedMoments.length} momentów (bez beat pool) > maxTotalTechniqueMoments=${outputBudget.maxTotalTechniqueMoments}`,
     });
   }
 
@@ -977,7 +980,7 @@ export function validateCreativeMoments(
 
   const issues = [];
   const profile = recipe.creativityProfile ?? {};
-  const { default: levelBudget } = resolveBudgetEnvelope(budget);
+  const { byOutputId, default: levelBudget } = resolveBudgetEnvelope(budget);
   const byTechnique = new Map();
   const byTechniqueOutput = new Map();
   const seenMomentIds = new Set();
@@ -1025,7 +1028,10 @@ export function validateCreativeMoments(
     }
 
     issues.push(...validateParams(moment, technique));
-    issues.push(...validateCreativityLevelGate(moment, technique, levelBudget));
+    const outputBudget = moment.outputId && byOutputId?.[moment.outputId]
+      ? byOutputId[moment.outputId]
+      : levelBudget;
+    issues.push(...validateCreativityLevelGate(moment, technique, outputBudget));
     const maxDurationSec = technique.constraints?.maxDurationSec;
     if (maxDurationSec != null && momentDuration(moment) > maxDurationSec) {
       issues.push({
@@ -1051,7 +1057,7 @@ export function validateCreativeMoments(
     if (
       technique.constraints?.allowMidSentenceCuts
       && !profile.allowMidSentenceCuts
-      && !levelBudget?.allowMidSentenceCuts
+      && !outputBudget?.allowMidSentenceCuts
     ) {
       issues.push({
         severity: "error",

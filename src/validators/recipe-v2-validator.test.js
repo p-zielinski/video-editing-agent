@@ -1129,6 +1129,110 @@ describe("recipe v2 montage quality validators", () => {
     assert.equal(result.valid, false);
   });
 
+  it("validateRecipeV2 errors V25-SPEECH-COVERAGE when dominant speech aroll is omitted", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.clipRegistry = [
+      {
+        clipId: "clip01",
+        fileName: "a.mov",
+        durationSec: 60,
+        sortIndex: 0,
+        clipRole: "aroll_primary",
+        hasSpeech: true,
+        speechWordCount: 40,
+      },
+      {
+        clipId: "clip16",
+        fileName: "long-talk.mov",
+        durationSec: 300,
+        sortIndex: 15,
+        clipRole: "aroll_primary",
+        hasSpeech: true,
+        speechWordCount: 200,
+      },
+      {
+        clipId: "clip02",
+        fileName: "b.mov",
+        durationSec: 50,
+        sortIndex: 1,
+        clipRole: "broll_pool",
+        hasSpeech: false,
+        speechWordCount: 0,
+      },
+    ];
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 30,
+        audioInSec: 0,
+        audioOutSec: 30,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+
+    const result = validateRecipeV2(recipe);
+    const issue = result.issues.find((i) => i.code === "V25-SPEECH-COVERAGE");
+    assert.ok(issue);
+    assert.equal(issue.severity, "error");
+    assert.equal(issue.clipId, "clip16");
+    assert.equal(result.valid, false);
+  });
+
+  it("validateRecipeV2 passes V25-SPEECH-COVERAGE when top speech clip is on main", () => {
+    const recipe = structuredClone(baseRecipe);
+    recipe.clipRegistry = [
+      {
+        clipId: "clip01",
+        fileName: "a.mov",
+        durationSec: 60,
+        sortIndex: 0,
+        clipRole: "aroll_primary",
+        hasSpeech: true,
+        speechWordCount: 40,
+      },
+      {
+        clipId: "clip16",
+        fileName: "long-talk.mov",
+        durationSec: 300,
+        sortIndex: 15,
+        clipRole: "aroll_primary",
+        hasSpeech: true,
+        speechWordCount: 200,
+      },
+    ];
+    recipe.outputs[0].timeline = [
+      {
+        segmentId: "s1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 20,
+        audioInSec: 0,
+        audioOutSec: 20,
+        audioPolicy: "from_video_ref",
+      },
+      {
+        segmentId: "s2",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip16", sceneId: "clip16_scene001" },
+        audioRef: { clipId: "clip16", sceneId: "clip16_scene001" },
+        videoInSec: 0,
+        videoOutSec: 40,
+        audioInSec: 0,
+        audioOutSec: 40,
+        audioPolicy: "from_video_ref",
+      },
+    ];
+
+    const result = validateRecipeV2(recipe);
+    assert.ok(!result.issues.some((i) => i.code === "V25-SPEECH-COVERAGE"));
+  });
+
   it("validateRecipeV2 emits V25-AR-02 with sceneAspectById", () => {
     const recipe = structuredClone(baseRecipe);
     recipe.outputs[0].timeline[0].videoRef = { clipId: "clip01", sceneId: "clip01_scene001" };

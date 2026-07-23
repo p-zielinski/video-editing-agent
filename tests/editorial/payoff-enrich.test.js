@@ -283,6 +283,73 @@ describe("enrichRecipePayoffMoments", () => {
     assert.ok(Math.abs(moments[0].outputStartSec - 180) <= 30);
   });
 
+  it("skips silence_beat when music_drop exists within tolerance on same output", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+        { segmentId: "seg003", sceneIds: ["clip01_scene003"], startSec: 240, endSec: 360 },
+      ],
+      L3: {
+        openLoops: [
+          { loopId: "loop_01", kind: "cold_open", payoffSceneId: "clip01_scene002" },
+          { loopId: "loop_02", kind: "payoff_tease", payoffSceneId: "clip01_scene003" },
+        ],
+      },
+    };
+    const recipe = buildMainRecipe({
+      audioMixPlan: { musicBed: { trackId: "bed_01", volumeDb: -18, duckingDb: -12 } },
+      creativeMoments: [{
+        momentId: "director_payoff",
+        techniqueId: "music_drop",
+        outputId: "main_16x9",
+        outputStartSec: 300,
+        outputEndSec: 303,
+        retentionRole: "payoff",
+        reason: "Director payoff",
+        confidence: 0.8,
+      }],
+    });
+
+    const moments = enrichRecipePayoffMoments(recipe, { abstraction, timelineIndex });
+    assert.equal(moments.filter((moment) => moment.techniqueId === "silence_beat").length, 0);
+  });
+
+  it("skips silence_beat when source clip voiceLufs is very low", () => {
+    const abstraction = {
+      L2: [
+        { segmentId: "seg001", sceneIds: ["clip01_scene001"], startSec: 0, endSec: 120 },
+        { segmentId: "seg002", sceneIds: ["clip01_scene002"], startSec: 120, endSec: 240 },
+        { segmentId: "seg003", sceneIds: ["clip01_scene003"], startSec: 240, endSec: 360 },
+      ],
+      L3: {
+        openLoops: [
+          { loopId: "loop_01", kind: "cold_open", payoffSceneId: "clip01_scene002" },
+          { loopId: "loop_02", kind: "payoff_tease", payoffSceneId: "clip01_scene003" },
+        ],
+      },
+    };
+    const recipe = buildMainRecipe({
+      creativeMoments: [{
+        momentId: "enrich_payoff_001",
+        techniqueId: "music_drop",
+        outputId: "main_16x9",
+        outputStartSec: 180,
+        outputEndSec: 183,
+        retentionRole: "payoff",
+        reason: "First payoff",
+        confidence: 0.7,
+      }],
+    });
+
+    const moments = enrichRecipePayoffMoments(recipe, {
+      abstraction,
+      timelineIndex,
+      audioIndex: { clips: [{ clipId: "clip01", voiceLufs: -32 }] },
+    });
+    assert.equal(moments.filter((moment) => moment.techniqueId === "silence_beat").length, 0);
+  });
+
   it("clears NAR-PAYOFF-UNDELIVERED for structural open loop", () => {
     const recipe = buildMainRecipe({
       audioMixPlan: { musicBed: { trackId: "bed_01", volumeDb: -18, duckingDb: -12 } },

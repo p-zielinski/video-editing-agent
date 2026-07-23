@@ -1,6 +1,7 @@
 import { buildAudioIndexSummary } from "./audio-index-summary.js";
 import { buildTopicIndexSummary } from "./topic-index-summary.js";
 import { resolveRecipeNarrativeProfile } from "../lib/narrative-profile.js";
+import { filterWordsForScene } from "../lib/timeline-index.js";
 
 const MAX_WORDS_PER_SCENE = 80;
 
@@ -35,13 +36,12 @@ export function buildTranscriptExcerpts(
   timelineIndex,
   { maxWordsPerScene = MAX_WORDS_PER_SCENE, sceneIds = null } = {},
 ) {
-  const idSet = sceneIds ? new Set(sceneIds) : null;
+  const idSet = sceneIds?.length ? new Set(sceneIds) : null;
 
   return (timelineIndex.scenes ?? [])
     .filter((scene) => scene.hasSpeech && (!idSet || idSet.has(scene.sceneId)))
     .map((scene) => {
-      const words = (timelineIndex.words ?? [])
-        .filter((w) => w.start >= scene.startSec && w.start < scene.endSec)
+      const words = filterWordsForScene(scene, timelineIndex.words ?? [])
         .slice(0, maxWordsPerScene)
         .map((w) => ({
           wordId: w.wordId,
@@ -79,11 +79,13 @@ export function buildEditorialContext({
   perClipAnalysis,
   wordIndexes,
 }) {
-  const resolvedSceneIds = sceneIds ?? (recipe ? extractSceneIdsFromRecipe(recipe) : null);
+  const extracted = sceneIds ?? (recipe ? extractSceneIdsFromRecipe(recipe) : null);
+  // Empty recipe timelines → no scene filter (segment director needs all speech)
+  const resolvedSceneIds = extracted?.length ? extracted : null;
 
   const transcriptExcerpts = timelineIndex
     ? buildTranscriptExcerpts(timelineIndex, {
-        sceneIds: resolvedSceneIds ?? undefined,
+        sceneIds: resolvedSceneIds,
         maxWordsPerScene,
       })
     : [];

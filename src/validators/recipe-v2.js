@@ -23,6 +23,7 @@ import { validateDeadAirCoverage } from "./dead-air-coverage.js";
 import { validateClosureCta } from "./closure-cta.js";
 import { deriveTeaseSceneIdFromRecipe } from "../editorial/chapter-hints.js";
 import { validateMultiClipChronology } from "./chronology.js";
+import { validateSpeechCoverage } from "./speech-coverage.js";
 import { validateBrollStrategy } from "./broll-strategy.js";
 import { validateNarrative } from "./narrative.js";
 import { validateAiVideoSegments } from "../editorial/ai-hook-enrich.js";
@@ -1223,6 +1224,7 @@ export function validateRecipeV2(recipe, {
     ...validateMultiClipChronology(parsed, {
       teaseSceneId: deriveTeaseSceneIdFromRecipe(parsed),
     }),
+    ...validateSpeechCoverage(parsed),
     ...validateBrollStrategy(parsed, { topicIndex }),
     ...(hasV24PresetFields(parsed) ? validateRenderStylePresets(parsed) : []),
     ...validateCreativeMoments(parsed, catalog, budget, {

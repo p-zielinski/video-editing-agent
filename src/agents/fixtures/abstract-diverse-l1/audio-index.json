@@ -1,0 +1,977 @@
+{
+  "version": "1.0",
+  "batchId": "abstract-diverse-l1",
+  "clips": [
+    {
+      "clipId": "clip01",
+      "voiceLufs": -18,
+      "beatCount": 8,
+      "beatTimes": [
+        0,
+        2.5,
+        5,
+        7.5,
+        10,
+        12.5,
+        15,
+        17.5
+      ],
+      "silenceGapCount": 4,
+      "totalSilenceSec": 6,
+      "recommendedTrackId": "upbeat_vlog_01",
+      "estimatedBpm": 118,
+      "cutSuggestions": [
+        {
+          "startSec": 0,
+          "endSec": 0.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 3,
+          "endSec": 3.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 6,
+          "endSec": 6.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 9,
+          "endSec": 9.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 12,
+          "endSec": 12.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 15,
+          "endSec": 15.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 18,
+          "endSec": 18.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 21,
+          "endSec": 21.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 24,
+          "endSec": 24.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 27,
+          "endSec": 27.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 30,
+          "endSec": 30.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 33,
+          "endSec": 33.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 36,
+          "endSec": 36.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 39,
+          "endSec": 39.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 42,
+          "endSec": 42.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 45,
+          "endSec": 45.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 48,
+          "endSec": 48.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 51,
+          "endSec": 51.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 54,
+          "endSec": 54.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 57,
+          "endSec": 57.4,
+          "reason": "filler"
+        }
+      ],
+      "silenceGaps": [
+        {
+          "startSec": 10,
+          "endSec": 11.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 15,
+          "endSec": 16.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 20,
+          "endSec": 21.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 25,
+          "endSec": 26.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 30,
+          "endSec": 31.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 35,
+          "endSec": 36.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 40,
+          "endSec": 41.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 45,
+          "endSec": 46.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 50,
+          "endSec": 51.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 55,
+          "endSec": 56.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 60,
+          "endSec": 61.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 65,
+          "endSec": 66.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 70,
+          "endSec": 71.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 75,
+          "endSec": 76.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 80,
+          "endSec": 81.2,
+          "durationSec": 1.2
+        }
+      ],
+      "energyPeaks": [
+        {
+          "startSec": 0,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 8,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 16,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 24,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 32,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 40,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 48,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 56,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 64,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 72,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 80,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 88,
+          "rmsDb": -16
+        }
+      ],
+      "audioEvents": [
+        {
+          "type": "traffic",
+          "startSec": 0,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 6,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 12,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 18,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 24,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 30,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 36,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 42,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 48,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 54,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 60,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 66,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 72,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 78,
+          "confidence": 0.7
+        }
+      ]
+    },
+    {
+      "clipId": "clip02",
+      "voiceLufs": -18,
+      "beatCount": 8,
+      "beatTimes": [
+        0,
+        2.5,
+        5,
+        7.5,
+        10,
+        12.5,
+        15,
+        17.5
+      ],
+      "silenceGapCount": 4,
+      "totalSilenceSec": 6,
+      "recommendedTrackId": "upbeat_vlog_01",
+      "estimatedBpm": 118,
+      "cutSuggestions": [
+        {
+          "startSec": 0,
+          "endSec": 0.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 3,
+          "endSec": 3.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 6,
+          "endSec": 6.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 9,
+          "endSec": 9.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 12,
+          "endSec": 12.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 15,
+          "endSec": 15.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 18,
+          "endSec": 18.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 21,
+          "endSec": 21.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 24,
+          "endSec": 24.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 27,
+          "endSec": 27.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 30,
+          "endSec": 30.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 33,
+          "endSec": 33.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 36,
+          "endSec": 36.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 39,
+          "endSec": 39.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 42,
+          "endSec": 42.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 45,
+          "endSec": 45.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 48,
+          "endSec": 48.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 51,
+          "endSec": 51.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 54,
+          "endSec": 54.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 57,
+          "endSec": 57.4,
+          "reason": "filler"
+        }
+      ],
+      "silenceGaps": [
+        {
+          "startSec": 10,
+          "endSec": 11.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 15,
+          "endSec": 16.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 20,
+          "endSec": 21.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 25,
+          "endSec": 26.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 30,
+          "endSec": 31.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 35,
+          "endSec": 36.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 40,
+          "endSec": 41.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 45,
+          "endSec": 46.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 50,
+          "endSec": 51.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 55,
+          "endSec": 56.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 60,
+          "endSec": 61.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 65,
+          "endSec": 66.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 70,
+          "endSec": 71.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 75,
+          "endSec": 76.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 80,
+          "endSec": 81.2,
+          "durationSec": 1.2
+        }
+      ],
+      "energyPeaks": [
+        {
+          "startSec": 0,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 8,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 16,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 24,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 32,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 40,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 48,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 56,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 64,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 72,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 80,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 88,
+          "rmsDb": -16
+        }
+      ],
+      "audioEvents": [
+        {
+          "type": "traffic",
+          "startSec": 0,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 6,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 12,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 18,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 24,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 30,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 36,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 42,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 48,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 54,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 60,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 66,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 72,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 78,
+          "confidence": 0.7
+        }
+      ]
+    },
+    {
+      "clipId": "clip03",
+      "voiceLufs": -18,
+      "beatCount": 8,
+      "beatTimes": [
+        0,
+        2.5,
+        5,
+        7.5,
+        10,
+        12.5,
+        15,
+        17.5
+      ],
+      "silenceGapCount": 4,
+      "totalSilenceSec": 6,
+      "recommendedTrackId": "upbeat_vlog_01",
+      "estimatedBpm": 118,
+      "cutSuggestions": [
+        {
+          "startSec": 0,
+          "endSec": 0.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 3,
+          "endSec": 3.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 6,
+          "endSec": 6.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 9,
+          "endSec": 9.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 12,
+          "endSec": 12.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 15,
+          "endSec": 15.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 18,
+          "endSec": 18.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 21,
+          "endSec": 21.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 24,
+          "endSec": 24.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 27,
+          "endSec": 27.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 30,
+          "endSec": 30.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 33,
+          "endSec": 33.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 36,
+          "endSec": 36.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 39,
+          "endSec": 39.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 42,
+          "endSec": 42.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 45,
+          "endSec": 45.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 48,
+          "endSec": 48.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 51,
+          "endSec": 51.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 54,
+          "endSec": 54.4,
+          "reason": "filler"
+        },
+        {
+          "startSec": 57,
+          "endSec": 57.4,
+          "reason": "filler"
+        }
+      ],
+      "silenceGaps": [
+        {
+          "startSec": 10,
+          "endSec": 11.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 15,
+          "endSec": 16.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 20,
+          "endSec": 21.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 25,
+          "endSec": 26.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 30,
+          "endSec": 31.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 35,
+          "endSec": 36.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 40,
+          "endSec": 41.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 45,
+          "endSec": 46.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 50,
+          "endSec": 51.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 55,
+          "endSec": 56.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 60,
+          "endSec": 61.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 65,
+          "endSec": 66.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 70,
+          "endSec": 71.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 75,
+          "endSec": 76.2,
+          "durationSec": 1.2
+        },
+        {
+          "startSec": 80,
+          "endSec": 81.2,
+          "durationSec": 1.2
+        }
+      ],
+      "energyPeaks": [
+        {
+          "startSec": 0,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 8,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 16,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 24,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 32,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 40,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 48,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 56,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 64,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 72,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 80,
+          "rmsDb": -16
+        },
+        {
+          "startSec": 88,
+          "rmsDb": -16
+        }
+      ],
+      "audioEvents": [
+        {
+          "type": "traffic",
+          "startSec": 0,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 6,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 12,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 18,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 24,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 30,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 36,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 42,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 48,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 54,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 60,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 66,
+          "confidence": 0.7
+        },
+        {
+          "type": "traffic",
+          "startSec": 72,
+          "confidence": 0.7
+        },
+        {
+          "type": "bird",
+          "startSec": 78,
+          "confidence": 0.7
+        }
+      ]
+    }
+  ],
+  "batchSummary": {
+    "avgVoiceLufs": -18,
+    "totalSilenceSec": 18,
+    "dominantMood": "vlog",
+    "estimatedBpm": 118,
+    "clipCount": 3
+  },
+  "musicLibrary": {
+    "trackCount": 0,
+    "tracks": []
+  }
+}

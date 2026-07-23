@@ -422,8 +422,10 @@ function resolveCutSourceMidSec(cut, segment, wordIndex) {
 }
 
 function isDramaticPauseHint(hint) {
-  return hint.kind === "dramatic_pause"
-    || hint.silenceKind === "dramatic_pause";
+  return Boolean(
+    hint
+    && (hint.kind === "dramatic_pause" || hint.silenceKind === "dramatic_pause"),
+  );
 }
 
 function deadAirHintsForCutValidation(clipId, audioIndex, taggedClipsById) {
@@ -621,8 +623,7 @@ function resolveResolutionL2Segment(abstraction) {
   if (!l2.length) {
     return null;
   }
-  const resolutionSegment = l2.find((entry) => entry.narrativeRole === "resolution");
-  return resolutionSegment ?? l2[l2.length - 1];
+  return l2.find((entry) => entry.narrativeRole === "resolution") ?? null;
 }
 
 /**

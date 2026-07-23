@@ -32,7 +32,7 @@ describe("clip-artifact-cache", () => {
 
   it("exports expected artifact versions", () => {
     assert.equal(EXPECTED_ARTIFACT_VERSIONS.twelvelabs, "1.1");
-    assert.equal(EXPECTED_ARTIFACT_VERSIONS.words, "1.0");
+    assert.equal(EXPECTED_ARTIFACT_VERSIONS.words, "1.1");
   });
 
   it("getManifestClipHash reads contentHash by clipId or clip index", () => {
@@ -224,6 +224,29 @@ describe("clip-artifact-cache", () => {
       }),
       false,
       "stub artifact should be stale in live mode",
+    );
+
+    writeJson(outPath, {
+      version: "1.1",
+      clipId: "clip01",
+      indexingStatus: "frame_analysis",
+      sourceContentHash: "manifest-hash",
+      chapters: [{ startSec: 0, endSec: 2, title: "Peak" }],
+      moments: [],
+    });
+    touch(outPath, 5000);
+
+    assert.equal(
+      shouldUseCachedClipArtifactExtended({
+        workDir,
+        outPath,
+        force: false,
+        manifest,
+        clipId: "clip01",
+        liveModeHints: { useStub: false, twelvelabsLive: true },
+      }),
+      true,
+      "frame_analysis artifact should be reusable in live mode",
     );
 
     writeJson(outPath, {

@@ -42,4 +42,27 @@ describe("super-director agent", () => {
     assert.equal(payload.task, "super_director_route");
     assert.ok(Array.isArray(payload.segmentCatalog));
   });
+
+  it("coerces nested crossSegmentNotes from mocked GPT response", async () => {
+    const mockPlan = {
+      segmentOrder: ["seg001"],
+      segmentPicks: [{ segmentId: "seg001", priority: 1 }],
+      crossSegmentNotes: ["intro", ["bridge seg001", "bridge seg002"], "outro"],
+      shortsSources: [],
+      excludedClips: [],
+    };
+
+    const client = createMockOpenAIClient([mockPlan]);
+    const { plan } = await runSuperDirector(client, {
+      abstraction,
+      timelineIndex,
+      clipRegistry,
+    });
+
+    assert.deepEqual(plan.crossSegmentNotes, [
+      "intro",
+      "bridge seg001; bridge seg002",
+      "outro",
+    ]);
+  });
 });

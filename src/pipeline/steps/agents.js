@@ -1,7 +1,11 @@
 import path from "node:path";
 import fs from "node:fs";
+import { createLogger } from "../../lib/logger.js";
 import { createOpenAIClient } from "../../agents/openai-client.js";
-import { buildAbstractionBundle } from "../../agents/summarizer.js";
+import { buildAbstractionBundle, assertAbstractL1Integrity, expectedL1SceneIds } from "../../agents/summarizer.js";
+import { clearSummarizerAbstractLlmCache } from "../../lib/llm-response-cache.js";
+import { StepFailureError } from "../../lib/recovery/errors.js";
+import { ERROR_CODES } from "../../lib/recovery/error-codes.js";
 import { loadAudioIndex, loadPerClipAudioAnalysisForCatalog } from "./audio-analysis.js";
 import { loadAudioEnhancementIndex } from "./audio-enhancement.js";
 import {
@@ -32,10 +36,16 @@ import { readJson, writeJson, ARTIFACTS } from "../work-paths.js";
 import { shouldUseCachedArtifact, isArtifactStale } from "../artifact-deps.js";
 import { runSpatialIndexStep } from "./spatial-index.js";
 import { deriveAudioMixPlanDefaults, mergeAudioMixPlan } from "../../editorial/audio-mix-plan.js";
+import {
+  enrichAudioEnhancementSpeechAccepts,
+  enrichRecipeSpeechDucking,
+} from "../../editorial/speech-ducking.js";
+import { enrichIntentionalAmbient } from "../../editorial/intentional-ambient.js";
 import { enrichRecipeSfxPlan } from "../../editorial/sfx-plan.js";
 import { enrichRecipeChapterCards, buildChapterCardHints, buildColdOpenSegmentHint, enrichRecipeColdOpenSegment } from "../../editorial/chapter-hints.js";
 import { enrichRecipeRetentionBeats, stripEnrichBeatsInSlowSegments } from "../../editorial/shorts-retention.js";
 import { sanitizeRecipeHardErrors } from "../../editorial/recipe-hard-error-sanitize.js";
+import { runConsistencyAuditor } from "../../validators/recipe-consistency.js";
 import { enrichRecipeActTransitions } from "../../editorial/act-transitions.js";
 import {
   buildBrollSyncHintsForRecipe,
@@ -78,6 +88,7 @@ import { mapWithConcurrency } from "../../lib/map-with-concurrency.js";
 import { createBriefMetricsAccumulator } from "../../lib/brief-metrics.js";
 
 const MAX_REVIEW_ITERATIONS = 3;
+const log = createLogger("agents");
 
 function parseSegmentDirectorConcurrency() {
   const raw = process.env.SEGMENT_DIRECTOR_CONCURRENCY;
@@ -146,6 +157,14 @@ export function reconstructSuperPlanFromRecipe(recipe, abstraction) {
 
 export { shouldUseSuperDirector, shouldRunDirectorDrillDown };
 
+const directLog = createLogger("direct");
+
+function summarizeRecipeDraft(recipe) {
+  const outputs = recipe?.outputs ?? [];
+  const segments = outputs.reduce((sum, output) => sum + (output.timeline?.length ?? 0), 0);
+  return `${outputs.length} output(ów), ${segments} segmentów`;
+}
+
 function finalizeDirectorMetrics(directorMetrics, briefMetricsAcc) {
   return {
     ...directorMetrics,
@@ -168,6 +187,7 @@ export async function runSuperDirectorDirectPath(client, context) {
 
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
   const briefMetricsAcc = createBriefMetricsAccumulator();
+  directLog.detail(`Ścieżka super-director, formaty: ${requiredFormats.join(", ")}`);
   const superDirectorResult = await runSuperDirector(client, {
     abstraction,
     timelineIndex,
@@ -176,11 +196,13 @@ export async function runSuperDirectorDirectPath(client, context) {
     batchContext,
     requiredFormats,
     aiVideoArtifact: context.aiVideoArtifact,
+    workDir: context.workDir,
     ...buildAgentChatContext({
       gptUsageTracker,
       dailyQuotaTracker,
       batchId,
       step: "super_director",
+      workDir: context.workDir,
     }),
   });
   const superPlan = superDirectorResult.plan;
@@ -190,6 +212,9 @@ export async function runSuperDirectorDirectPath(client, context) {
   if (picks.length === 0) {
     throw new Error("Super Director nie wybrał żadnego segmentu L2");
   }
+  directLog.detail(
+    `Super Director: ${picks.length} segment(ów) — ${picks.map((pick) => pick.segmentId).join(", ")}`,
+  );
 
   superPlan.canonicalSegmentOrder = resolveCanonicalSegmentOrder(
     superPlan,
@@ -201,6 +226,7 @@ export async function runSuperDirectorDirectPath(client, context) {
     picks,
     concurrency,
     async (pick) => {
+      directLog.detail(`→ segment_director ${pick.segmentId} (${pick.catalogCard.sceneIds.length} scen)`);
       const segmentResult = await runSegmentDirector(client, context, {
         segmentId: pick.segmentId,
         sceneIds: pick.catalogCard.sceneIds,
@@ -211,9 +237,12 @@ export async function runSuperDirectorDirectPath(client, context) {
           dailyQuotaTracker,
           batchId,
           step: "segment_director",
+          cacheKey: pick.segmentId,
+          workDir: context.workDir,
         }),
       });
       briefMetricsAcc.record(segmentResult.briefMetric);
+      directLog.detail(`← segment_director ${pick.segmentId} (${summarizeRecipeDraft(segmentResult.recipe)})`);
       return segmentResult.recipe;
     },
   );
@@ -234,6 +263,7 @@ export async function runSuperDirectorDirectPath(client, context) {
 
   const sceneIds = extractSceneIdsFromRecipe(recipe);
   if (sceneIds.length > 0 && shouldRunDirectorDrillDown(recipe, batchContext, buildDrillDownOptions(context))) {
+    directLog.detail(`→ drill_down (${sceneIds.length} scen)`);
     const drillDownResult = await directorDrillDown(client, {
       ...context,
       recipe,
@@ -243,11 +273,14 @@ export async function runSuperDirectorDirectPath(client, context) {
         dailyQuotaTracker,
         batchId,
         step: "drill_down",
+        cacheKey: "drill_down",
+        workDir: context.workDir,
       }),
     });
     recipe = drillDownResult.recipe;
     directorMetrics = drillDownResult.directorMetrics;
     briefMetricsAcc.record(drillDownResult.directorMetrics?.briefMetric);
+    directLog.detail(`← drill_down (${summarizeRecipeDraft(recipe)})`);
   }
 
   const stitchIssues = validateStitchContinuity(recipe, {
@@ -350,7 +383,15 @@ function buildDeterministicEnricherSteps(recipe, {
   const effectiveBatchContext = {
     ...batchContext,
     ...(recipe.batchContext ?? {}),
+    // Orchestrator/manifest inputMode always wins over LLM draft.
+    ...(batchContext.inputMode ? { inputMode: batchContext.inputMode } : {}),
   };
+  if (batchContext.inputMode) {
+    if (!recipe.batchContext) {
+      recipe.batchContext = {};
+    }
+    recipe.batchContext.inputMode = batchContext.inputMode;
+  }
 
   const emotionalBeatHints = buildEmotionalBeatHints(abstraction, timelineIndex);
 
@@ -471,6 +512,18 @@ function buildDeterministicEnricherSteps(recipe, {
       },
     },
     {
+      name: "enrichRecipeSpeechDucking",
+      apply: () => {
+        enrichRecipeSpeechDucking(recipe, { wordIndexes });
+      },
+    },
+    {
+      name: "enrichAudioEnhancementSpeechAccepts",
+      apply: () => {
+        enrichAudioEnhancementSpeechAccepts(recipe, { wordIndexes });
+      },
+    },
+    {
       name: "enrichRecipeRetentionBeats",
       apply: () => {
         recipe.creativeMoments = enrichRecipeRetentionBeats(recipe, {
@@ -585,9 +638,20 @@ function buildDeterministicEnricherSteps(recipe, {
       },
     },
     {
+      // After speech accepts + silence_beat enrichers; before sanitize.
+      name: "enrichIntentionalAmbient",
+      apply: () => {
+        enrichIntentionalAmbient(recipe, { wordIndexes });
+      },
+    },
+    {
       name: "sanitizeRecipeHardErrors",
       apply: () => {
-        sanitizeRecipeHardErrors(recipe, { topicIndex });
+        sanitizeRecipeHardErrors(recipe, {
+          topicIndex,
+          abstraction,
+          wordIndexes,
+        });
       },
     },
   ];
@@ -627,25 +691,87 @@ export async function runAbstractStep({
   batchId,
 }) {
   const abstractPath = path.join(workDir, ARTIFACTS.abstraction);
-  if (shouldUseCachedArtifact(workDir, ARTIFACTS.abstraction, force)) {
-    return readJson(abstractPath);
-  }
-
   const timelineIndex = readJson(path.join(workDir, ARTIFACTS.timelineIndex));
   const clipRegistry = loadClipRegistry(workDir);
+  const expectedSceneIds = expectedL1SceneIds(timelineIndex, clipRegistry);
+
+  if (shouldUseCachedArtifact(workDir, ARTIFACTS.abstraction, force)) {
+    const cached = readJson(abstractPath);
+    try {
+      assertAbstractL1Integrity(cached.L1, expectedSceneIds);
+      log.log("abstract: pomijam krok — świeży artefakt w cache (L1 integrity OK)");
+      return cached;
+    } catch (error) {
+      if (error?.code !== "ABSTRACT_L1_INTEGRITY") {
+        throw error;
+      }
+      log.warn(
+        `Cached abstract failed L1 integrity (${error.message}). `
+        + "Invalidating summarizer L1/L2 LLM cache and rebuilding without --force.",
+      );
+      clearSummarizerAbstractLlmCache(workDir);
+    }
+  }
+
+  if (force) {
+    const deleted = clearSummarizerAbstractLlmCache(workDir);
+    if (deleted.length > 0) {
+      log.detail(`--force: cleared summarizer L1/L2 LLM cache (${deleted.length} file(s))`);
+    }
+  }
+
   const audioIndex = loadAudioIndex(workDir);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
-  const bundle = await buildAbstractionBundle(client, timelineIndex, {
+  const chatContext = buildAgentChatContext({
+    gptUsageTracker,
+    dailyQuotaTracker,
+    batchId,
+    step: "abstract",
+    workDir,
+  });
+
+  const buildOnce = () => buildAbstractionBundle(client, timelineIndex, {
     userContext,
     clipRegistry,
     audioIndex,
-    ...buildAgentChatContext({
-      gptUsageTracker,
-      dailyQuotaTracker,
-      batchId,
-      step: "abstract",
-    }),
+    ...chatContext,
   });
+
+  let bundle = await buildOnce();
+  try {
+    assertAbstractL1Integrity(bundle.L1, expectedSceneIds);
+  } catch (error) {
+    if (error?.code !== "ABSTRACT_L1_INTEGRITY") {
+      throw error;
+    }
+    log.warn(
+      `Fresh abstract failed L1 integrity (${error.message}). `
+      + "Clearing summarizer L1/L2 LLM cache and retrying once.",
+    );
+    clearSummarizerAbstractLlmCache(workDir);
+    bundle = await buildOnce();
+    try {
+      assertAbstractL1Integrity(bundle.L1, expectedSceneIds);
+    } catch (retryError) {
+      throw new StepFailureError(
+        `Abstract L1 integrity failed after cache invalidation retry: ${retryError.message}`,
+        {
+          code: ERROR_CODES.PIPELINE_STEP_FAILED,
+          step: "abstract",
+          cause: retryError,
+          failures: [{
+            code: retryError.code ?? "ABSTRACT_L1_INTEGRITY",
+            message: retryError.message,
+            recoveryHint:
+              "Delete llm-cache/abstract__summarizerL1*.json (and L2 if needed), "
+              + "then re-run: node src/cli.js run --batch-id <id> "
+              + "--from-step abstract --to-step abstract "
+              + "(bez --force; dodaj --force tylko dla pełnego przeliczenia mimo OK integrity)",
+          }],
+        },
+      );
+    }
+  }
 
   writeJson(path.join(workDir, ARTIFACTS.abstractionL1), bundle.L1);
   writeJson(path.join(workDir, ARTIFACTS.abstractionL2), bundle.L2);
@@ -762,7 +888,18 @@ function buildRecipeValidationOptions({
   batchContext,
   audioEnhancementIndex,
 }) {
-  const mergedBatchContext = { ...batchContext, ...recipe.batchContext };
+  const mergedBatchContext = {
+    ...batchContext,
+    ...recipe.batchContext,
+    // Orchestrator/manifest inputMode always wins over LLM draft.
+    ...(batchContext.inputMode ? { inputMode: batchContext.inputMode } : {}),
+  };
+  if (batchContext.inputMode) {
+    if (!recipe.batchContext) {
+      recipe.batchContext = {};
+    }
+    recipe.batchContext.inputMode = batchContext.inputMode;
+  }
   return {
     requiredFormats,
     topicIndex,
@@ -862,6 +999,10 @@ export async function runDirectStep({
   const keyframeArtifacts = loadKeyframesByClip(workDir, catalog);
   const keyframesByClip = buildKeyframesByClip(timelineIndex, keyframeArtifacts);
   const client = resolveOpenAIClient({ apiKey, openaiClient });
+  const directorPath = shouldUseSuperDirector(timelineIndex, abstraction, batchContext)
+    ? "super"
+    : "classic";
+  directLog.detail(`Ścieżka direct: ${directorPath}, formaty: ${requiredFormats.join(", ")}`);
 
   const curatorResult = await runMusicCurator(client, {
     abstraction,
@@ -880,6 +1021,7 @@ export async function runDirectStep({
     }),
   });
   const musicSelection = curatorResult.musicSelection;
+  directLog.detail(`Music curator: ${musicSelection?.trackId ?? "brak trackId"}`);
   writeJson(path.join(workDir, ARTIFACTS.musicSelection), {
     version: "1.0",
     ...curatorResult,
@@ -943,10 +1085,13 @@ export async function runDirectStep({
     directorPath: null,
   };
   if (shouldUseSuperDirector(timelineIndex, abstraction, batchContext)) {
+    directLog.detail("→ super_director path");
     const superResult = await runSuperDirectorDirectPath(client, context);
     recipe = superResult.recipe;
     directorMetrics = superResult.directorMetrics;
+    directLog.detail(`← super_director path (${summarizeRecipeDraft(recipe)})`);
   } else {
+    directLog.detail("→ classic director");
     const directorResult = await runDirector(client, {
       ...context,
       ...buildAgentChatContext({
@@ -954,14 +1099,17 @@ export async function runDirectStep({
         dailyQuotaTracker,
         batchId,
         step: "direct",
+        workDir: context.workDir,
       }),
     });
     recipe = directorResult.recipe;
     briefMetricsAcc.record(directorResult.briefMetric);
     directorMetrics.directorPath = "classic";
+    directLog.detail(`← classic director (${summarizeRecipeDraft(recipe)})`);
 
     const sceneIds = extractSceneIdsFromRecipe(recipe);
     if (sceneIds.length > 0 && shouldRunDirectorDrillDown(recipe, context.batchContext, buildDrillDownOptions(context))) {
+      directLog.detail(`→ drill_down (${sceneIds.length} scen)`);
       const drillDownResult = await directorDrillDown(client, {
         ...context,
         recipe,
@@ -971,6 +1119,8 @@ export async function runDirectStep({
           dailyQuotaTracker,
           batchId,
           step: "drill_down",
+          cacheKey: "drill_down",
+          workDir: context.workDir,
         }),
       });
       recipe = drillDownResult.recipe;
@@ -979,6 +1129,7 @@ export async function runDirectStep({
         ...drillDownResult.directorMetrics,
       };
       briefMetricsAcc.record(drillDownResult.directorMetrics?.briefMetric);
+      directLog.detail(`← drill_down (${summarizeRecipeDraft(recipe)})`);
     }
 
     directorMetrics = finalizeDirectorMetrics(directorMetrics, briefMetricsAcc);
@@ -1038,6 +1189,7 @@ export async function runDirectStep({
 
   recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
   writeJson(draftPath, recipe);
+  directLog.detail(`Draft zapisany: ${draftPath} (${summarizeRecipeDraft(recipe)})`);
   return recipe;
 }
 
@@ -1177,11 +1329,13 @@ export async function runReviewStep({
         brollSyncHints,
         superCriticReview,
         attempt: iteration,
+        workDir,
         ...buildAgentChatContext({
           gptUsageTracker,
           dailyQuotaTracker,
           batchId,
           step: iteration > 1 ? "fixer_escalation" : "fixer",
+          workDir,
         }),
       }),
     );
@@ -1236,11 +1390,33 @@ export async function runReviewStep({
     writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
   }
 
+  // Final deterministic pass — fixer/LLM cache often leaves hard errors that block final.
+  sanitizeRecipeHardErrors(recipe, {
+    topicIndex,
+    abstraction,
+    wordIndexes,
+  });
+  recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
+
+  // Consistency Auditor — timing/layout/text mechanical checks + safe sanitize (not GPT critic).
+  const consistency = runConsistencyAuditor(recipe, { wordIndexes });
+  writeJson(path.join(workDir, ARTIFACTS.consistencyAudit), {
+    approved: consistency.approved,
+    issues: consistency.issues,
+    fixes: consistency.fixes,
+    reviewedAt: new Date().toISOString(),
+  });
+  recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
+
   const validation = validateRecipeV2(recipe, buildRecipeValidationOptions({
     recipe,
     ...validationBase,
   }));
-  recipe.sceneUsageRegistry = buildSceneUsageRegistryV2(recipe);
+  const consistencyErrors = consistency.issues.filter((issue) => issue.severity === "error");
+  if (consistencyErrors.length > 0) {
+    validation.issues.push(...consistencyErrors);
+    validation.valid = false;
+  }
   recipe.needsHumanReview = !lastReview?.approved || !validation.valid;
   if (recipe.needsHumanReview && lastReview?.summary) {
     recipe.reviewNotes = lastReview.summary;

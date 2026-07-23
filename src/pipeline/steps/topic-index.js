@@ -8,9 +8,23 @@ import { collectObjectDetections } from "./spatial-index.js";
 import { loadTwelveLabsByClip, mergeTwelveLabsIntoVisualText } from "../../lib/twelvelabs-merge.js";
 import { ensureClipRegistry, runClipRegistryRefineStep } from "./clip-profile.js";
 
-const STOP_WORDS = new Set([
+/** Polish discourse fillers + particles that must never become topic labels. */
+export const STOP_WORDS = new Set([
+  // short PL function words (also length-filtered, kept for consistency)
   "i", "a", "w", "z", "na", "do", "to", "że", "się", "nie", "jak", "co", "ten", "ta",
-  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "is",
+  "o", "u", "we", "ze", "od", "po", "za", "ku", "by", "ni",
+  // discourse fillers / connectives (length ≥ 3 — previously became topics)
+  "ale", "no", "więc", "bo", "już", "tylko", "może", "bardzo", "tego", "tej", "tym",
+  "tych", "też", "jeszcze", "czy", "lub", "oraz", "lecz", "albo", "ani", "zaś",
+  "zatem", "dlatego", "przecież", "właśnie", "nawet", "dopiero", "nadal", "wciąż",
+  "potem", "teraz", "wtedy", "tutaj", "tam", "tak", "sobie", "przez", "przy",
+  "bez", "pod", "nad", "przed", "między",
+  // common auxiliaries / copula forms
+  "jest", "być", "było", "była", "były", "byli", "będzie", "będą", "będę",
+  "jesteś", "jestem", "jesteśmy", "są",
+  // EN baseline
+  "the", "an", "and", "or", "but", "in", "on", "at", "for", "of", "is", "was",
+  "were", "be", "been", "being", "this", "that", "with", "from", "as", "so",
 ]);
 
 const SEMANTIC_BLEND = { keyword: 0.5, embedding: 0.5 };
@@ -30,20 +44,25 @@ export async function embedTextsInChunks(texts, embedFn) {
   if (!embedFn || texts.length === 0) {
     return [];
   }
-  if (texts.length <= EMBED_CHUNK_THRESHOLD) {
-    return embedFn(texts);
+  // OpenAI embeddings reject empty strings (400 Invalid 'input[N]').
+  const sanitized = texts.map((text, index) => {
+    const trimmed = String(text ?? "").trim();
+    return trimmed.length > 0 ? trimmed : `embed_placeholder_${index}`;
+  });
+  if (sanitized.length <= EMBED_CHUNK_THRESHOLD) {
+    return embedFn(sanitized);
   }
 
   const embeddings = [];
-  for (let i = 0; i < texts.length; i += EMBED_CHUNK_SIZE) {
-    const chunk = texts.slice(i, i + EMBED_CHUNK_SIZE);
+  for (let i = 0; i < sanitized.length; i += EMBED_CHUNK_SIZE) {
+    const chunk = sanitized.slice(i, i + EMBED_CHUNK_SIZE);
     const chunkEmbeddings = await embedFn(chunk);
     embeddings.push(...chunkEmbeddings);
   }
   return embeddings;
 }
 
-function tokenize(text) {
+export function tokenize(text) {
   return (text ?? "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
@@ -89,7 +108,9 @@ export function createTokenVectorEmbedFn(dimensions = 64) {
 
 export function buildTopicEmbedText(topic, abstraction) {
   const l3Context = `${abstraction.L3?.sessionSummary ?? ""} ${abstraction.L3?.narrativeArc ?? ""}`.trim();
-  return [topic.label, l3Context].filter(Boolean).join(" — ");
+  const label = String(topic?.label ?? "").trim();
+  const text = [label, l3Context].filter(Boolean).join(" — ");
+  return text || `topic:${topic?.topicId ?? "unknown"}`;
 }
 
 export function buildSceneVisualText(scene, l1, timelineIndex, workDir = null) {
@@ -113,7 +134,8 @@ export function buildSceneVisualText(scene, l1, timelineIndex, workDir = null) {
     clipSummary,
   ].filter(Boolean).join(" ");
 
-  return [...baseParts, visualText].filter(Boolean).join(" ");
+  const text = [...baseParts, visualText].filter(Boolean).join(" ").trim();
+  return text || `scene:${scene.sceneId} clip:${scene.clipId ?? "unknown"}`;
 }
 
 export function blendSemanticScore(keywordScore, embeddingScore) {
@@ -368,6 +390,9 @@ export async function buildTopicIndex({
   const topics = extractTopicsFromAbstraction(abstraction, timelineIndex, clipRegistry);
   const brollScenes = timelineIndex.scenes.filter((scene) => {
     const clipEntry = clipRegistry.find((c) => c.clipId === scene.clipId);
+    if (clipEntry?.clipRole === "ai_generated" || clipEntry?.mediaType === "ai_generated") {
+      return false;
+    }
     return clipEntry?.clipRole === "broll_pool" || !scene.hasSpeech;
   });
 

@@ -1,5 +1,6 @@
 import { ERROR_CODES } from "./error-codes.js";
 import { AnalysisWaveFailure, AudioEnhancementProviderError, StepFailureError } from "./errors.js";
+import { ZodError } from "zod";
 
 function extractCause(error) {
   if (!error) {
@@ -65,6 +66,23 @@ export function classifyError(error, { step = null, batchId = null } = {}) {
       cause: error.stderr ?? extractCause(error),
       scope: error.clipId ? { clipId: error.clipId } : undefined,
       recoveryHint: error.recoveryHint ?? undefined,
+    };
+  }
+
+  if (error instanceof ZodError) {
+    const prerequisites = [];
+    if (error.llmRejectionPath) {
+      prerequisites.push(`Artefakt odrzucenia LLM: ${error.llmRejectionPath}`);
+    }
+    if (error.llmCacheHint) {
+      prerequisites.push(error.llmCacheHint);
+    }
+    return {
+      code: ERROR_CODES.PIPELINE_STEP_FAILED,
+      step: step ?? "direct",
+      message: JSON.stringify(error.issues ?? []),
+      cause: extractCause(error),
+      prerequisites: prerequisites.length > 0 ? prerequisites : undefined,
     };
   }
 

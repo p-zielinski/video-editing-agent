@@ -63,7 +63,7 @@ describe("enrichRecipeClosureCta", () => {
     assert.equal(cta.overlayId, CLOSURE_CTA_OVERLAY_ID);
     assert.equal(cta.style, "cta");
     assert.equal(cta.role, "cta");
-    assert.equal(cta.text, "Vlog o restauracji i jedzeniu w mieście.");
+    assert.equal(cta.text, "Subskrybuj");
     assert.equal(cta.outputEndSec, 360);
     assert.equal(cta.outputStartSec, 350);
   });
@@ -191,7 +191,42 @@ describe("enrichRecipeClosureCta", () => {
 
     const overlays = collectOverlays(recipe);
     assert.equal(overlays.length, 1);
-    assert.equal(overlays[0].text, "Subscribe for more");
+    assert.equal(overlays[0].text, "Subskrybuj");
+  });
+
+  it("skips when tail has payoff overlay in last 15s", () => {
+    const recipe = buildMainRecipe({
+      narrativeProfile: { mode: "internet_documentary" },
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg_body",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01" },
+          audioRef: { clipId: "clip01" },
+          videoInSec: 0,
+          videoOutSec: 360,
+          audioInSec: 0,
+          audioOutSec: 360,
+          audioPolicy: "from_video_ref",
+          cuts: [],
+          textOverlays: [{
+            overlayId: "payoff_overlay",
+            text: "To był mój dzień",
+            outputStartSec: 348,
+            outputEndSec: 360,
+            style: "emphasis",
+            role: "payoff",
+          }],
+        }],
+      }],
+    });
+
+    enrichRecipeClosureCta(recipe, { abstraction: abstractionDocumentary });
+    assert.equal(collectOverlays(recipe).length, 1);
+    assert.equal(collectOverlays(recipe)[0].overlayId, "payoff_overlay");
   });
 
   it("is idempotent when enrich_cta_001 already exists", () => {
@@ -214,7 +249,7 @@ describe("enrichRecipeClosureCta", () => {
           cuts: [],
           textOverlays: [{
             overlayId: CLOSURE_CTA_OVERLAY_ID,
-            text: "Subscribe for more",
+            text: "Subskrybuj",
             outputStartSec: 350,
             outputEndSec: 360,
             style: "cta",

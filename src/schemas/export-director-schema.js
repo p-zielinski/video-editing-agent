@@ -65,6 +65,7 @@ const TIMELINE_SEGMENT_EXAMPLE = {
     fitMode: "pillarbox|pillarbox_blur|fill?",
   },
   sourceVolumeDb: 0,
+  preserveAmbientAudio: "boolean?",
   intent: "string?",
   retentionRole: "hook|beat|payoff|breath|closure?",
 };

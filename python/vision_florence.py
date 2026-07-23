@@ -3,7 +3,54 @@
 
 import json
 import sys
-from pathlib import Path
+
+from vlm_image_utils import get_vision_max_side, load_rgb_resized, scale_bbox_to_original
+
+# transformers>=4.50 changed KV cache semantics; Florence-2 remote code crashes with use_cache=True.
+FLORENCE_GENERATE_KWARGS = {
+    "max_new_tokens": 256,
+    "num_beams": 3,
+    "use_cache": False,
+}
+
+
+def _generate_florence(model, inputs):
+    pixel_values = inputs.get("pixel_values")
+    if pixel_values is None:
+        raise ValueError("Florence-2 processor returned no pixel_values for image input")
+    return model.generate(
+        input_ids=inputs["input_ids"],
+        pixel_values=pixel_values,
+        **FLORENCE_GENERATE_KWARGS,
+    )
+
+
+def _iter_od_detections(parsed: dict, task: str = "<OD>") -> list[dict]:
+    od = parsed.get(task, {})
+    if not isinstance(od, dict):
+        return []
+
+    raw_bboxes = od.get("bboxes", [])
+    raw_labels = od.get("labels", [])
+    detections: list[dict] = []
+
+    for index, bbox_entry in enumerate(raw_bboxes):
+        if isinstance(bbox_entry, dict):
+            detections.append({
+                "bbox": bbox_entry.get("bbox"),
+                "label": bbox_entry.get("label", "object"),
+                "score": float(bbox_entry.get("score", 0.5)),
+            })
+            continue
+
+        label = raw_labels[index] if index < len(raw_labels) else "object"
+        detections.append({
+            "bbox": bbox_entry,
+            "label": label,
+            "score": 0.5,
+        })
+
+    return detections
 
 
 def stub_detection(image_path: str, timestamp_sec: float, scene_id: str) -> list[dict]:
@@ -29,8 +76,7 @@ def analyze_with_florence(frames: list[dict], model_id: str) -> list[dict]:
             "Escape hatch: --no-objects (pomija krok detekcji)."
         ) from exc
 
-    from PIL import Image
-    from transformers import AutoProcessor, AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM, AutoProcessor
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     try:
@@ -48,27 +94,31 @@ def analyze_with_florence(frames: list[dict], model_id: str) -> list[dict]:
 
     detections = []
     task = "<OD>"
+    max_side = get_vision_max_side()
 
     for frame in frames:
-        image = Image.open(frame["imagePath"]).convert("RGB")
+        image, orig_w, orig_h = load_rgb_resized(frame["imagePath"], max_side=max_side)
+        resized_w, resized_h = image.size
         inputs = processor(text=task, images=image, return_tensors="pt").to(device)
-        generated = model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
-            max_new_tokens=256,
-            num_beams=3,
-        )
+        generated = _generate_florence(model, inputs)
         text = processor.batch_decode(generated, skip_special_tokens=False)[0]
         parsed = processor.post_process_generation(text, task=task, image_size=image.size)
 
-        for item in parsed.get("<OD>", {}).get("bboxes", []):
+        for item in _iter_od_detections(parsed, task=task):
+            bbox = scale_bbox_to_original(
+                item.get("bbox"),
+                resized_w,
+                resized_h,
+                orig_w,
+                orig_h,
+            )
             detections.append(
                 {
                     "timestampSec": frame["timestampSec"],
                     "sceneId": frame["sceneId"],
                     "label": item.get("label", "object"),
                     "confidence": float(item.get("score", 0.5)),
-                    "bbox": item.get("bbox"),
+                    "bbox": bbox,
                 }
             )
 

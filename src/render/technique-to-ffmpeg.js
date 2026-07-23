@@ -15,26 +15,29 @@ function bboxAnchorPx(spatialRef, dimensions) {
   };
 }
 
-function buildFollowSubjectZoompan({
+function buildFollowSubjectScaleCrop({
   spatialRef,
   spatialIndex,
   outputStartSec,
   outputEndSec,
   dimensions,
-  enable,
 }) {
+  const s = outputStartSec;
+  const e = outputEndSec;
+  const factor = 1.1;
+  const width = dimensions.width ?? 1080;
+  const height = dimensions.height ?? 1920;
+  const staticX = spatialRef?.bbox
+    ? Math.round(spatialRef.bbox[0] * width)
+    : Math.round(width / 2);
+
+  let focalPx = `${staticX}`;
+
   const sceneId = spatialRef?.sceneId;
   const entry = spatialIndex?.scenes?.find((scene) => scene.sceneId === sceneId);
   const faceAnchors = (entry?.anchors ?? [])
     .filter((anchor) => anchor.type === "face" && anchor.timestampSec != null && anchor.bbox)
     .sort((a, b) => a.timestampSec - b.timestampSec);
-
-  const width = dimensions.width ?? 1080;
-  const staticX = spatialRef?.bbox
-    ? Math.round(spatialRef.bbox[0] * width)
-    : Math.round(width / 2);
-
-  let xExpr = `if(${enable},${staticX}-(iw/zoom/2),iw/2-(iw/zoom/2))`;
 
   if (faceAnchors.length >= 2) {
     const pieces = faceAnchors.map((anchor) => {
@@ -49,19 +52,14 @@ function buildFollowSubjectZoompan({
       const span = Math.max(0.01, next.t - point.t);
       return `if(lt(t\\,${next.t})\\,${point.px}+(${next.px}-${point.px})*((t-${point.t})/${span.toFixed(3)})\\,${next.px})`;
     });
-    xExpr = `if(${enable},${clauses[0]},iw/2-(iw/zoom/2))`;
+    focalPx = clauses[0];
   }
 
-  const z = `zoompan=z='if(${enable},1.1,1)':d=1:x='${xExpr}':y='ih/2-(ih/zoom/2)':s=${dimensions.width}x${dimensions.height}`;
-  return z;
-}
-
-function zoompanCenterCoords(spatialRef, dimensions) {
-  const anchor = bboxAnchorPx(spatialRef, dimensions);
-  if (anchor) {
-    return { x: `${anchor.x}-(iw/zoom/2)`, y: `${anchor.y}-(ih/zoom/2)` };
-  }
-  return { x: "iw/2-(iw/zoom/2)", y: "ih/2-(ih/zoom/2)" };
+  const scale = `scale=w='trunc(iw*if(between(t\\,${s}\\,${e})\\,${factor}\\,1)/2)*2':h='trunc(ih*if(between(t\\,${s}\\,${e})\\,${factor}\\,1)/2)*2':eval=frame`;
+  const cropX = `if(between(t\\,${s}\\,${e})\\,(${focalPx})*${factor}-${width}/2\\,(iw-${width})/2)`;
+  const cropY = `(ih-${height})/2`;
+  const crop = `crop=${width}:${height}:x='${cropX}':y='${cropY}'`;
+  return `${scale},${crop}`;
 }
 
 function resolveNormalizedAnchor(spatialRef) {
@@ -154,15 +152,12 @@ function buildCinematicFrameFilter({
 function buildScalePunchFilter({ outputStartSec, outputEndSec, factor, spatialRef, dimensions, inputLabel, outputLabel }) {
   const s = outputStartSec;
   const e = outputEndSec;
-  const anchor = bboxAnchorPx(spatialRef, dimensions);
-
-  if (anchor) {
-    const z = `zoompan=z='if(between(t\\,${s}\\,${e})\\,${factor}\\,1)':d=1:x='${anchor.x}-(iw/zoom/2)':y='${anchor.y}-(ih/zoom/2)':s=${dimensions.width}x${dimensions.height}`;
-    return `${inputLabel}${z}${outputLabel}`;
-  }
-
-  const scale = `scale=w='if(between(t\\,${s}\\,${e})\\,iw*${factor}\\,iw)':h='if(between(t\\,${s}\\,${e})\\,ih*${factor}\\,ih)':eval=frame`;
-  return `${inputLabel}${scale}${outputLabel}`;
+  const width = dimensions.width ?? 1080;
+  const height = dimensions.height ?? 1920;
+  const anchor = resolveNormalizedAnchor(spatialRef);
+  const scale = `scale=w='trunc(iw*if(between(t\\,${s}\\,${e})\\,${factor}\\,1)/2)*2':h='trunc(ih*if(between(t\\,${s}\\,${e})\\,${factor}\\,1)/2)*2':eval=frame`;
+  const crop = `crop=${width}:${height}:x='(iw-${width})*${anchor.x.toFixed(4)}':y='(ih-${height})*${anchor.y.toFixed(4)}'`;
+  return `${inputLabel}${scale},${crop}${outputLabel}`;
 }
 
 function buildWhipPanFilter({ outputStartSec, params, inputLabel, outputLabel }) {
@@ -298,7 +293,6 @@ function buildPatternInterruptFilter(moment, { dimensions, inputLabel, outputLab
 
 export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context, inputLabel = "[0:v]", outputLabel = "[vout]" }) {
   const { techniqueId, params = {}, spatialRef, outputStartSec, outputEndSec } = moment;
-  const enable = `between(t,${outputStartSec},${outputEndSec})`;
 
   switch (techniqueId) {
     case "zoom_punch_in":
@@ -341,9 +335,16 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
       return { filter, outputLabel };
     }
     case "ken_burns_light": {
-      const { x, y } = zoompanCenterCoords(spatialRef, dimensions);
-      const z = `zoompan=z='if(${enable},min(zoom+0.0005,1.08),1)':d=125:x='${x}':y='${y}':s=${dimensions.width}x${dimensions.height}`;
-      return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
+      const filter = buildSlowPushFilter({
+        outputStartSec,
+        outputEndSec,
+        params: { factor: 1.08, durationSec: Math.max(0.1, outputEndSec - outputStartSec) },
+        spatialRef,
+        dimensions,
+        inputLabel,
+        outputLabel,
+      });
+      return { filter, outputLabel };
     }
     case "reframe_follow_subject": {
       if (!spatialRef?.bbox && !spatialRef?.sceneId) {
@@ -359,15 +360,14 @@ export function buildTechniqueFilter(moment, { dimensions, spatialIndex, context
       const effectiveRef = tracked
         ? { ...spatialRef, bbox: tracked.bbox, anchorType: tracked.type }
         : spatialRef;
-      const z = buildFollowSubjectZoompan({
+      const followFilter = buildFollowSubjectScaleCrop({
         spatialRef: effectiveRef,
         spatialIndex,
         outputStartSec,
         outputEndSec,
         dimensions,
-        enable,
       });
-      return { filter: `${inputLabel}${z}${outputLabel}`, outputLabel };
+      return { filter: `${inputLabel}${followFilter}${outputLabel}`, outputLabel };
     }
     case "hard_cut_energy":
     case "jump_cut": {

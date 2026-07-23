@@ -12,6 +12,8 @@ import { NAR_PAYOFF_TOLERANCE_SEC } from "../validators/narrative.js";
 
 export const PAYOFF_ENRICH_MOMENT_ID = "enrich_payoff_001";
 const PAYOFF_DURATION_SEC = 3;
+const PAYOFF_AUDIO_STACK_TOLERANCE_SEC = 0.5;
+const LOW_VOICE_LUFS_THRESHOLD = -30;
 
 function findMainOutput(outputs = []) {
   return outputs.find(
@@ -32,6 +34,59 @@ function resolveSceneMidSourceSec(sceneId, timelineIndex) {
 function momentNearOutputSec(moment, targetSec, toleranceSec) {
   const anchor = moment.outputStartSec ?? moment.anchorSec ?? 0;
   return Math.abs(anchor - targetSec) <= toleranceSec;
+}
+
+function momentAnchorSec(moment) {
+  return moment.outputStartSec ?? moment.anchorSec ?? 0;
+}
+
+function hasMusicDropNearOutputSec(moments, outputId, targetSec, toleranceSec) {
+  return moments.some(
+    (moment) => moment.outputId === outputId
+      && moment.techniqueId === "music_drop"
+      && Math.abs(momentAnchorSec(moment) - targetSec) <= toleranceSec,
+  );
+}
+
+function resolveClipIdAtOutputSec(mainOutput, outputSec, wordIndexes) {
+  const enrichedTimeline = buildOutputTimeline(mainOutput, { wordIndexes });
+  const segment = enrichedTimeline.find(
+    (entry) => outputSec >= (entry.outputStartSec ?? 0)
+      && outputSec < (entry.outputEndSec ?? Infinity),
+  );
+  if (!segment) {
+    return null;
+  }
+  return segment.audioRef?.clipId ?? segment.videoRef?.clipId ?? null;
+}
+
+function resolveClipVoiceLufs(audioIndex, clipId) {
+  if (!clipId || !audioIndex?.clips) {
+    return null;
+  }
+  const clip = audioIndex.clips.find((entry) => entry.clipId === clipId);
+  return clip?.voiceLufs ?? null;
+}
+
+function shouldSkipSilenceBeatPayoff(mainOutput, candidate, moments, audioIndex, wordIndexes) {
+  if (hasMusicDropNearOutputSec(
+    moments,
+    mainOutput.outputId,
+    candidate.outputSec,
+    PAYOFF_AUDIO_STACK_TOLERANCE_SEC,
+  )) {
+    return true;
+  }
+
+  if (audioIndex) {
+    const clipId = resolveClipIdAtOutputSec(mainOutput, candidate.outputSec, wordIndexes);
+    const voiceLufs = resolveClipVoiceLufs(audioIndex, clipId);
+    if (voiceLufs != null && voiceLufs < LOW_VOICE_LUFS_THRESHOLD) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function hasPayoffNearOutputSec(moments, outputId, targetSec, toleranceSec) {
@@ -261,11 +316,11 @@ function countPayoffEnrichMoments(moments = []) {
   return maxIndex;
 }
 
-function buildPayoffMoment(recipe, mainOutput, candidate, enrichIndex) {
+function buildPayoffMoment(recipe, mainOutput, candidate, enrichIndex, techniqueId = null) {
   const outputStartSec = candidate.outputSec;
   return {
     momentId: `enrich_payoff_${String(enrichIndex).padStart(3, "0")}`,
-    techniqueId: resolvePayoffTechniqueId(recipe, enrichIndex),
+    techniqueId: techniqueId ?? resolvePayoffTechniqueId(recipe, enrichIndex),
     outputId: mainOutput.outputId,
     outputStartSec,
     outputEndSec: Math.round((outputStartSec + PAYOFF_DURATION_SEC) * 10) / 10,
@@ -290,10 +345,9 @@ export function enrichRecipePayoffMoments(recipe, {
   abstraction,
   timelineIndex,
   wordIndexes = null,
-  audioIndex: _audioIndex = null,
+  audioIndex = null,
   emotionalBeatHints = null,
 } = {}) {
-  void _audioIndex;
 
   const moments = [...(recipe?.creativeMoments ?? [])];
   const mainOutput = findMainOutput(recipe?.outputs ?? []);
@@ -367,7 +421,18 @@ export function enrichRecipePayoffMoments(recipe, {
       return false;
     }
     enrichIndex += 1;
-    const moment = buildPayoffMoment(recipe, mainOutput, candidate, enrichIndex);
+    const techniqueId = resolvePayoffTechniqueId(recipe, enrichIndex);
+    if (techniqueId === "silence_beat" && shouldSkipSilenceBeatPayoff(
+      mainOutput,
+      candidate,
+      coverageMoments,
+      audioIndex,
+      wordIndexes,
+    )) {
+      enrichIndex -= 1;
+      return false;
+    }
+    const moment = buildPayoffMoment(recipe, mainOutput, candidate, enrichIndex, techniqueId);
     coverageMoments.push(moment);
     return true;
   }

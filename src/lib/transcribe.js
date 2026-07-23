@@ -4,6 +4,7 @@ import OpenAI, { toFile } from "openai";
 import { createOpenAIFetch } from "../agents/openai-client.js";
 import { createLogger, formatFileSize } from "./logger.js";
 import { cleanWhisperWords } from "./srt-processor.js";
+import { stripWhisperPromptEchoes } from "./whisper-prompt-echo.js";
 import { formatWhisperFailure } from "./whisper-errors.js";
 
 const whisperLog = createLogger("whisper");
@@ -144,16 +145,16 @@ function segmentsToWords(segments) {
   return words;
 }
 
-export function wordsFromWhisperResponse(transcription) {
+export function wordsFromWhisperResponse(transcription, { prompt = WHISPER_EDIT_PROMPT } = {}) {
+  let words = [];
+
   if (Array.isArray(transcription.words) && transcription.words.length > 0) {
-    return cleanWhisperWords(transcription.words, transcription.segments ?? []);
+    words = cleanWhisperWords(transcription.words, transcription.segments ?? []);
+  } else if (Array.isArray(transcription.segments) && transcription.segments.length > 0) {
+    words = cleanWhisperWords(segmentsToWords(transcription.segments), transcription.segments);
   }
 
-  if (Array.isArray(transcription.segments) && transcription.segments.length > 0) {
-    return cleanWhisperWords(segmentsToWords(transcription.segments), transcription.segments);
-  }
-
-  return [];
+  return stripWhisperPromptEchoes(words, prompt);
 }
 
 export async function transcribeForEdit(

@@ -5,6 +5,7 @@ import {
   collectCrossfadesAtBoundaries,
   buildTwoSegmentXfadeFilterComplex,
   buildMultiSegmentXfadeFilterComplex,
+  buildHardConcatFilterComplex,
   computeXfadeOffsetAtBoundary,
   isTwoSegmentCrossfadeEligible,
   isMultiSegmentCrossfadeEligible,
@@ -390,6 +391,18 @@ describe("ffmpeg-concat", () => {
     assert.ok(built.filterComplex.includes("[m1a][s3a]concat=n=2:v=0:a=1[m2a]"));
     assert.equal(built.videoMap, "[m2v]");
     assert.equal(built.audioMap, "[m2a]");
+  });
+
+  it("buildHardConcatFilterComplex resets PTS and chains concat for mixed FPS", () => {
+    const built = buildHardConcatFilterComplex(3);
+
+    assert.ok(built.filterComplex.includes("[0:v]setpts=PTS-STARTPTS[s0v]"));
+    assert.ok(built.filterComplex.includes("[1:a]asetpts=PTS-STARTPTS[s1a]"));
+    assert.ok(built.filterComplex.includes("[s0v][s1v]concat=n=2:v=1:a=0[hc1v]"));
+    assert.ok(built.filterComplex.includes("[hc1v][s2v]concat=n=2:v=1:a=0[hc2v]"));
+    assert.ok(built.filterComplex.includes("[s0a][s1a]concat=n=2:v=0:a=1[hc1a]"));
+    assert.equal(built.videoMap, "[hc2v]");
+    assert.equal(built.audioMap, "[hc2a]");
   });
 
   it("getCrossfadeNotAppliedReason null for partial crossfade on 4 segments", () => {

@@ -115,6 +115,57 @@ describe("twelvelabs-client", () => {
       assert.deepEqual(summary[0].topics, ["travel", "street"]);
       assert.equal(summary[0].moments[0].editUse, "hook");
     });
+
+    it("includes frame_analysis and chunked statuses in brief", () => {
+      const summary = summarizeTwelveLabsForBrief({
+        clip01: {
+          indexingStatus: "frame_analysis",
+          clipSummary: "Quick B-roll",
+          moments: [{ startSec: 0, endSec: 1.5, description: "Peak" }],
+          chapters: [{ startSec: 0, endSec: 1.5, title: "Peak" }],
+        },
+        clip02: {
+          indexingStatus: "chunked",
+          clipSummary: "Long hike",
+          chunkCount: 3,
+          moments: [{ startSec: 310, endSec: 320, description: "Summit" }],
+          chapters: [],
+        },
+      });
+      assert.equal(summary?.length, 2);
+      assert.equal(summary[0].indexingStatus, "frame_analysis");
+      assert.equal(summary[1].indexingStatus, "chunked");
+    });
+  });
+
+  describe("mergeChunkInsights", () => {
+    it("offsets moments and merges segments", async () => {
+      const { mergeChunkInsights } = await import("./twelvelabs-client.js");
+      const merged = mergeChunkInsights([
+        {
+          startSec: 0,
+          insights: {
+            twelveLabsAssetId: "v1",
+            moments: [{ startSec: 10, endSec: 15, description: "A" }],
+            chapters: [{ startSec: 0, endSec: 100, title: "Part1" }],
+            clipSummary: "First",
+          },
+        },
+        {
+          startSec: 300,
+          insights: {
+            twelveLabsAssetId: "v2",
+            moments: [{ startSec: 5, endSec: 12, description: "B" }],
+            chapters: [{ startSec: 0, endSec: 100, title: "Part2" }],
+            clipSummary: "Second",
+          },
+        },
+      ]);
+      assert.equal(merged.indexingStatus, "chunked");
+      assert.equal(merged.chunkCount, 2);
+      assert.equal(merged.moments.find((m) => m.description === "B").startSec, 305);
+      assert.equal(merged.chapters[1].startSec, 300);
+    });
   });
 
   describe("refreshVideoInsightsFromAsset", () => {

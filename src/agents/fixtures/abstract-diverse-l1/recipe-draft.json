@@ -1,0 +1,213 @@
+{
+  "version": "2.4",
+  "batchId": "abstract-diverse-l1",
+  "batchContext": {
+    "inputMode": "multi_clip_day",
+    "requiredFormats": [
+      "16:9",
+      "9:16"
+    ],
+    "brollStrategy": "match_speech_topics"
+  },
+  "creativityProfile": {
+    "level": "balanced",
+    "techniquePack": "youtube_vlog_2026",
+    "maxTechniqueDensityPerMin": 0.35
+  },
+  "creativeMoments": [
+    {
+      "id": "cm1",
+      "techniqueId": "zoom_punch_in",
+      "outputId": "main_16x9",
+      "atSec": 12
+    },
+    {
+      "id": "cm2",
+      "techniqueId": "cut_on_beat",
+      "outputId": "main_16x9",
+      "atSec": 40
+    }
+  ],
+  "outputs": [
+    {
+      "outputId": "main_16x9",
+      "format": "16:9",
+      "outputKind": "main",
+      "targetDurationSec": 90,
+      "title": "Dzień w mieście",
+      "synopsis": "Park, ptaki, kawa",
+      "timeline": [
+        {
+          "segmentId": "seg_h1",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene001"
+          },
+          "audioRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene001"
+          },
+          "videoInSec": 0,
+          "videoOutSec": 15,
+          "audioInSec": 0,
+          "audioOutSec": 15,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": [
+            {
+              "text": "dzień w mieście",
+              "startSec": 0,
+              "endSec": 2
+            }
+          ],
+          "debugNotes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "segmentId": "seg_h2",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene002"
+          },
+          "audioRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene002"
+          },
+          "videoInSec": 45,
+          "videoOutSec": 60,
+          "audioInSec": 45,
+          "audioOutSec": 60,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [
+            {
+              "cutId": "c1",
+              "atSec": 50
+            }
+          ],
+          "textOverlays": [],
+          "debugNotes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "segmentId": "seg_h3",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene003"
+          },
+          "audioRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene003"
+          },
+          "videoInSec": 90,
+          "videoOutSec": 105,
+          "audioInSec": 90,
+          "audioOutSec": 105,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": [],
+          "debugNotes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "segmentId": "seg_h4",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene004"
+          },
+          "audioRef": {
+            "clipId": "clip01",
+            "sceneId": "clip01_scene004"
+          },
+          "videoInSec": 140,
+          "videoOutSec": 155,
+          "audioInSec": 140,
+          "audioOutSec": 155,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": [],
+          "debugNotes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "segmentId": "seg_h5",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip02",
+            "sceneId": "clip02_scene001"
+          },
+          "audioRef": {
+            "clipId": "clip02",
+            "sceneId": "clip02_scene001"
+          },
+          "videoInSec": 0,
+          "videoOutSec": 15,
+          "audioInSec": 0,
+          "audioOutSec": 15,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": [],
+          "debugNotes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "segmentId": "seg_h6",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip02",
+            "sceneId": "clip02_scene002"
+          },
+          "audioRef": {
+            "clipId": "clip02",
+            "sceneId": "clip02_scene002"
+          },
+          "videoInSec": 50,
+          "videoOutSec": 65,
+          "audioInSec": 50,
+          "audioOutSec": 65,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": [],
+          "debugNotes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "chapterMarkers": []
+    },
+    {
+      "outputId": "short_9x16",
+      "format": "9:16",
+      "outputKind": "short",
+      "targetDurationSec": 45,
+      "title": "Short park",
+      "synopsis": "Ptaki i CTA",
+      "timeline": [
+        {
+          "segmentId": "seg_v1",
+          "segmentRole": "aroll",
+          "videoRef": {
+            "clipId": "clip02",
+            "sceneId": "clip02_scene001"
+          },
+          "audioRef": {
+            "clipId": "clip02",
+            "sceneId": "clip02_scene001"
+          },
+          "videoInSec": 0,
+          "videoOutSec": 20,
+          "audioInSec": 0,
+          "audioOutSec": 20,
+          "audioPolicy": "from_video_ref",
+          "overlapSec": 0,
+          "cuts": [],
+          "textOverlays": [],
+          "debugNotes": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        }
+      ],
+      "chapterMarkers": []
+    }
+  ]
+}

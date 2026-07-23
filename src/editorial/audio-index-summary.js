@@ -10,14 +10,17 @@ export const DEFAULT_AUDIO_CAPS = {
   flatDeliveryWindows: 6,
 };
 
-/** Higher caps for director brief — critic/fixer keep DEFAULT_AUDIO_CAPS. */
+/**
+ * Director brief audio caps — tightened for brief-slim (was 12/8/8/10/10/8).
+ * Critic/fixer keep DEFAULT_AUDIO_CAPS.
+ */
 export const DIRECTOR_AUDIO_CAPS = {
-  cutSuggestions: 12,
-  silenceGaps: 8,
-  energyPeaks: 8,
-  audioEvents: 10,
-  deadAirHints: 10,
-  flatDeliveryWindows: 8,
+  cutSuggestions: 8,
+  silenceGaps: 5,
+  energyPeaks: 5,
+  audioEvents: 6,
+  deadAirHints: 6,
+  flatDeliveryWindows: 5,
 };
 
 const MIN_DEAD_AIR_GAP_SEC = 0.5;

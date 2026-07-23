@@ -61,6 +61,65 @@ describe("thumbnail-frame-score", () => {
     }
   });
 
+  it("scores 16:9 frames with dog/context higher than extreme face fill", () => {
+    const scene = timelineIndex.scenes.find((s) => s.sceneId === "clip01_scene001");
+    const l1 = abstraction.L1.find((entry) => entry.sceneId === "clip01_scene001");
+
+    const contextScore = scoreFrameForThumbnail({
+      scene,
+      l1,
+      subjectBbox: [0.1, 0.1, 0.5, 0.7],
+      hasDog: true,
+      hasFace: true,
+      format: "16:9",
+      isHookScene: true,
+      timelineIndex,
+    });
+    const faceFillScore = scoreFrameForThumbnail({
+      scene,
+      l1,
+      spatialAnchor: { bbox: [0.2, 0.15, 0.55, 0.5] },
+      subjectBbox: [0.2, 0.15, 0.55, 0.5],
+      hasDog: false,
+      hasFace: true,
+      format: "16:9",
+      isHookScene: true,
+      timelineIndex,
+    });
+
+    assert.ok(contextScore > faceFillScore);
+  });
+
+  it("includes detection timestamps and subjectBbox on shortlist entries", () => {
+    const detectionsByClip = {
+      clip01: [
+        {
+          sceneId: "clip01_scene001",
+          clipId: "clip01",
+          timestampSec: 3.5,
+          label: "dog",
+          type: "object",
+          bbox: [0.2, 0.55, 0.3, 0.35],
+          confidence: 0.8,
+        },
+      ],
+    };
+
+    const shortlist = shortlistThumbnailFrames({
+      recipe,
+      timelineIndex,
+      abstraction,
+      spatialIndex,
+      audioIndex,
+      outputId: "horizontal_main",
+      maxCandidates: 10,
+      detectionsByClip,
+    });
+
+    assert.ok(shortlist.some((entry) => entry.timestampSec === 3.5));
+    assert.ok(shortlist.some((entry) => entry.hasDog === true || entry.subjectBbox));
+  });
+
   it("returns unique scene/timestamp pairs sorted by score", () => {
     const shortlist = shortlistThumbnailFrames({
       recipe,

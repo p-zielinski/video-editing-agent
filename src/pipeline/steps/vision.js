@@ -11,6 +11,26 @@ import { getGpuConcurrencyLimit, runWithConcurrency } from "../../lib/clip-concu
 import { readJson, writeJson, ARTIFACTS, removeClipArtifact } from "../work-paths.js";
 import { shouldUseCachedClipArtifact } from "../artifact-deps.js";
 
+const DEFAULT_VISION_TIMEOUT_PER_FRAME_MS = 45_000;
+const DEFAULT_VISION_TIMEOUT_BASE_MS = 5 * 60 * 1000;
+const DEFAULT_VISION_TIMEOUT_MIN_MS = 30 * 60 * 1000;
+
+export function resolveVisionPythonTimeoutMs(frameCount, env = process.env) {
+  const perFrameMs = Number.parseInt(env.VISION_TIMEOUT_PER_FRAME_MS ?? String(DEFAULT_VISION_TIMEOUT_PER_FRAME_MS), 10);
+  const baseMs = Number.parseInt(env.VISION_TIMEOUT_BASE_MS ?? String(DEFAULT_VISION_TIMEOUT_BASE_MS), 10);
+  const minMs = Number.parseInt(env.VISION_TIMEOUT_MIN_MS ?? String(DEFAULT_VISION_TIMEOUT_MIN_MS), 10);
+  const resolvedPerFrame = Number.isFinite(perFrameMs) && perFrameMs > 0
+    ? perFrameMs
+    : DEFAULT_VISION_TIMEOUT_PER_FRAME_MS;
+  const resolvedBase = Number.isFinite(baseMs) && baseMs >= 0
+    ? baseMs
+    : DEFAULT_VISION_TIMEOUT_BASE_MS;
+  const resolvedMin = Number.isFinite(minMs) && minMs > 0
+    ? minMs
+    : DEFAULT_VISION_TIMEOUT_MIN_MS;
+  return Math.max(resolvedMin, resolvedBase + Math.max(0, frameCount) * resolvedPerFrame);
+}
+
 function shouldPublishSceneListArtifact({ useStub, items }) {
   if (!useStub) {
     return true;
@@ -72,6 +92,8 @@ export async function processClipVision({
   const result = await runPythonScript("vision_qwen.py", {
     frames,
     stub: useStub,
+  }, {
+    timeoutMs: resolveVisionPythonTimeoutMs(frames.length),
   });
 
   const captions = result.captions ?? [];
@@ -154,6 +176,8 @@ export async function processClipObjects({
   const result = await runPythonScript("vision_florence.py", {
     frames,
     stub,
+  }, {
+    timeoutMs: resolveVisionPythonTimeoutMs(frames.length),
   });
 
   const detections = result.detections ?? [];

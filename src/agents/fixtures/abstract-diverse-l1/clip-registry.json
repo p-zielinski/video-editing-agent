@@ -1,0 +1,35 @@
+[
+  {
+    "clipId": "clip01",
+    "fileName": "clip01.mp4",
+    "durationSec": 200,
+    "sortIndex": 0,
+    "clipRole": "aroll_primary",
+    "roleConfidence": 0.8,
+    "roleSource": "clip_profile",
+    "hasSpeech": true,
+    "speechWordCount": 440
+  },
+  {
+    "clipId": "clip02",
+    "fileName": "clip02.mp4",
+    "durationSec": 210,
+    "sortIndex": 1,
+    "clipRole": "aroll_primary",
+    "roleConfidence": 0.8,
+    "roleSource": "clip_profile",
+    "hasSpeech": true,
+    "speechWordCount": 440
+  },
+  {
+    "clipId": "clip03",
+    "fileName": "clip03.mp4",
+    "durationSec": 40,
+    "sortIndex": 2,
+    "clipRole": "broll_pool",
+    "roleConfidence": 0.8,
+    "roleSource": "clip_profile",
+    "hasSpeech": false,
+    "speechWordCount": 0
+  }
+]

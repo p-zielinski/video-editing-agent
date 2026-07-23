@@ -2,8 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import OpenAI from "openai";
 import { fileURLToPath } from "node:url";
-import { executeRoutedChatJson, shouldUseRouter } from "./openai-model-router.js";
+import { executeRoutedChatJson, executeRoutedChatJsonMultimodal, shouldUseRouter } from "./openai-model-router.js";
 import { isQuotaTrackingEnabled } from "../lib/openai-daily-usage.js";
+import {
+  tryReadLlmResponseCache,
+  writeLlmResponseCache,
+} from "../lib/llm-response-cache.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -50,43 +54,30 @@ export function getPromptVersion({ version } = {}) {
   return version ?? process.env.PROMPT_VERSION ?? "v1";
 }
 
-export async function chatJson(client, {
-  model,
-  role,
-  system,
-  user,
-  temperature = 0.4,
-  onUsage,
-  quotaTracker,
+function buildLlmCacheContext({
   batchId,
+  workDir,
   step,
+  role,
+  cacheKey,
 }) {
-  if (shouldUseRouter() && (role || quotaTracker || isQuotaTrackingEnabled())) {
-    return executeRoutedChatJson(client, {
-      role,
-      model,
-      system,
-      user,
-      temperature,
-      onUsage,
-      quotaTracker,
-      batchId,
-      step,
-    });
-  }
+  return { batchId, workDir, step, role, cacheKey };
+}
 
-  const resolvedModel = model ?? (role ? undefined : null);
-  if (!resolvedModel) {
-    throw new Error("chatJson requires model when routing is disabled");
-  }
-
+async function parseJsonChatCompletion(client, {
+  model,
+  system,
+  userContent,
+  temperature,
+  onUsage,
+}) {
   const response = await client.chat.completions.create({
-    model: resolvedModel,
+    model,
     temperature,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: system },
-      { role: "user", content: user },
+      { role: "user", content: userContent },
     ],
   });
 
@@ -100,15 +91,15 @@ export async function chatJson(client, {
   }
 
   try {
-    return JSON.parse(content);
+    return { parsed: JSON.parse(content), model };
   } catch {
     const retryResponse = await client.chat.completions.create({
-      model: resolvedModel,
+      model,
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
-        { role: "user", content: user },
+        { role: "user", content: userContent },
         { role: "assistant", content },
         {
           role: "user",
@@ -126,8 +117,149 @@ export async function chatJson(client, {
       throw new Error("Pusta odpowiedź modelu (retry JSON)");
     }
 
-    return JSON.parse(retryContent);
+    return { parsed: JSON.parse(retryContent), model };
   }
+}
+
+export async function chatJson(client, {
+  model,
+  role,
+  system,
+  user,
+  temperature = 0.4,
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
+  cacheKey,
+  workDir,
+}) {
+  const cacheContext = buildLlmCacheContext({
+    batchId,
+    workDir,
+    step,
+    role,
+    cacheKey,
+  });
+  const cached = tryReadLlmResponseCache(cacheContext);
+  if (cached) {
+    return cached.response;
+  }
+
+  if (shouldUseRouter() && (role || quotaTracker || isQuotaTrackingEnabled())) {
+    return executeRoutedChatJson(client, {
+      role,
+      model,
+      system,
+      user,
+      temperature,
+      onUsage,
+      quotaTracker,
+      batchId,
+      step,
+      cacheKey,
+      workDir,
+    });
+  }
+
+  const resolvedModel = model ?? (role ? undefined : null);
+  if (!resolvedModel) {
+    throw new Error("chatJson requires model when routing is disabled");
+  }
+
+  const { parsed, model: usedModel } = await parseJsonChatCompletion(client, {
+    model: resolvedModel,
+    system,
+    userContent: user,
+    temperature,
+    onUsage,
+  });
+  writeLlmResponseCache({
+    ...cacheContext,
+    response: parsed,
+    model: usedModel,
+  });
+  return parsed;
+}
+
+/**
+ * Multimodal JSON chat (text + image_url). Counts toward daily premium/mini pools via router.
+ * @param {import("openai").OpenAI} client
+ * @param {{
+ *   model?: string,
+ *   role?: string,
+ *   system: string,
+ *   userContent: Array<object> | string,
+ *   temperature?: number,
+ *   onUsage?: Function,
+ *   quotaTracker?: object,
+ *   batchId?: string,
+ *   step?: string,
+ * }} options
+ */
+export async function chatJsonMultimodal(client, {
+  model,
+  role = "twelvelabsShort",
+  system,
+  userContent,
+  temperature = 0.2,
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
+  cacheKey,
+  workDir,
+}) {
+  if (userContent == null) {
+    throw new Error("chatJsonMultimodal requires userContent");
+  }
+
+  const cacheContext = buildLlmCacheContext({
+    batchId,
+    workDir,
+    step,
+    role,
+    cacheKey,
+  });
+  const cached = tryReadLlmResponseCache(cacheContext);
+  if (cached) {
+    return cached.response;
+  }
+
+  if (shouldUseRouter() && (role || quotaTracker || isQuotaTrackingEnabled())) {
+    return executeRoutedChatJsonMultimodal(client, {
+      role,
+      model,
+      system,
+      userContent,
+      temperature,
+      onUsage,
+      quotaTracker,
+      batchId,
+      step,
+      cacheKey,
+      workDir,
+    });
+  }
+
+  const resolvedModel = model ?? MODELS.twelvelabsShort;
+  if (!resolvedModel) {
+    throw new Error("chatJsonMultimodal requires model when routing is disabled");
+  }
+
+  const { parsed, model: usedModel } = await parseJsonChatCompletion(client, {
+    model: resolvedModel,
+    system,
+    userContent,
+    temperature,
+    onUsage,
+  });
+  writeLlmResponseCache({
+    ...cacheContext,
+    response: parsed,
+    model: usedModel,
+  });
+  return parsed;
 }
 
 export function resolveAgentModels(env = {}) {
@@ -153,6 +285,7 @@ export function resolveAgentModels(env = {}) {
     safetyClassifier: env.OPENAI_MODEL_SAFETY_CLASSIFIER ?? mini,
     thumbnailStrategist: env.OPENAI_MODEL_THUMBNAIL_STRATEGIST ?? mini,
     thumbnailCritic: env.OPENAI_MODEL_THUMBNAIL_CRITIC ?? mini,
+    twelvelabsShort: env.OPENAI_MODEL_TWELVELABS_SHORT ?? mini,
   };
 }
 
@@ -170,9 +303,14 @@ export async function embedTexts(client, texts, {
     return [];
   }
 
+  const input = texts.map((text, index) => {
+    const trimmed = String(text ?? "").trim();
+    return trimmed.length > 0 ? trimmed : `embed_placeholder_${index}`;
+  });
+
   const response = await client.embeddings.create({
     model: EMBEDDING_MODEL,
-    input: texts,
+    input,
   });
 
   if (typeof onUsage === "function" && response.usage) {

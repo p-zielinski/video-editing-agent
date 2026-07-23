@@ -1,7 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildRenderEdl } from "./build-render-edl.js";
 import { resolveRenderContext } from "./resolve-render-context.js";
+import { ARTIFACTS } from "../pipeline/work-paths.js";
 import {
   loadFixtureArtifact,
   copyFixtureToWorkDir,
@@ -106,6 +109,69 @@ describe("buildRenderEdl", () => {
       } else {
         assert.equal(edl.segments[0].audioSourcePath, null);
       }
+    } finally {
+      cleanupWorkDir(workDir);
+    }
+  });
+
+  it("uses original audio when preserveAmbientAudio despite director accept + enhanced path", () => {
+    const workDir = copyFixtureToWorkDir("mini-day", { prefix: "vea-edl-ambient" });
+    try {
+      seedClipSourceFiles(workDir);
+      const enhancedDir = path.join(workDir, "enhanced-audio");
+      fs.mkdirSync(enhancedDir, { recursive: true });
+      fs.writeFileSync(path.join(enhancedDir, "clip01.wav"), "fake");
+      fs.writeFileSync(
+        path.join(workDir, ARTIFACTS.audioEnhancementIndex),
+        JSON.stringify({
+          version: "1.0",
+          batchId: "miniday1",
+          clips: [{
+            version: "1.0",
+            candidateId: "enh_clip01",
+            clipId: "clip01",
+            status: "succeeded",
+            provider: "dpdfnet",
+            outputPath: "enhanced-audio/clip01.wav",
+          }],
+        }, null, 2),
+      );
+
+      const recipeWithAccept = structuredClone(recipe);
+      recipeWithAccept.audioEnhancementDecisions = [{
+        candidateId: "enh_clip01",
+        clipId: "clip01",
+        action: "accept",
+        dialogueValue: "useful",
+        reason: "ok",
+        providerPreference: "auto",
+      }];
+
+      const context = resolveRenderContext(workDir, recipeWithAccept);
+      const enhancedPath = context.enhancedAudioPaths.clip01;
+      assert.ok(enhancedPath, "expected enhanced path in context for accept decision");
+
+      const output = {
+        outputId: "ambient_test",
+        format: "16:9",
+        timeline: [{
+          segmentId: "ambient_seg",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_video_ref",
+          preserveAmbientAudio: true,
+        }],
+      };
+
+      const edl = buildRenderEdl(output, recipeWithAccept, context);
+      const seg = edl.segments[0];
+      assert.equal(seg.preserveAmbientAudio, true);
+      assert.ok(seg.audioSourcePath.endsWith("01_talk.MOV"));
+      assert.notEqual(seg.audioSourcePath, enhancedPath);
     } finally {
       cleanupWorkDir(workDir);
     }

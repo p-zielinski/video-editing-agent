@@ -11,6 +11,7 @@ import {
   buildWhisperPrompt,
 } from "../../lib/transcribe.js";
 import { tagFillerWords, tagProfanityWords } from "../../lib/srt-processor.js";
+import { stripWhisperPromptEchoes } from "../../lib/whisper-prompt-echo.js";
 import { resolveAmbiguousSafetyContexts } from "../../lib/profanity-censor.js";
 import { applyExpectedTermCorrections } from "../../lib/transcript-correction.js";
 import { buildAgentChatContext } from "../../lib/gpt-usage-log.js";
@@ -47,6 +48,53 @@ function resolveProfanityOptions(manifest) {
       ?? "partial",
     brandSafetyEnabled: brandSafety.enabled !== false && brandSafety.preset !== "off",
   };
+}
+
+function republishStrippedWordIndex(cachedWords, {
+  clipId,
+  sourceContentHash,
+  outPath,
+  globalCacheDisabled,
+  configFingerprint,
+  expectedTerms,
+  profanityOptions,
+}) {
+  const stripped = stripWhisperPromptEchoes(cachedWords.words ?? []);
+  const needsReassign = stripped.length !== (cachedWords.words ?? []).length;
+  const processedWords = needsReassign
+    ? assignWordIds(
+      tagProfanityWords(
+        applyExpectedTermCorrections(tagFillerWords(stripped), expectedTerms),
+        {
+          profanityPolicy: profanityOptions.profanityPolicy,
+          subtitleMode: profanityOptions.profanitySubtitleMode,
+          brandSafetyEnabled: profanityOptions.brandSafetyEnabled,
+        },
+      ),
+      clipId,
+    )
+    : stripped;
+
+  const wordIndex = WordIndexSchema.parse({
+    ...cachedWords,
+    clipId,
+    words: processedWords,
+    ...(sourceContentHash ? { sourceContentHash } : {}),
+  });
+
+  writeJson(outPath, wordIndex);
+
+  if (sourceContentHash) {
+    publishGlobalClipArtifact({
+      step: "words",
+      contentHash: sourceContentHash,
+      configFingerprint,
+      artifact: wordIndex,
+      disabled: globalCacheDisabled,
+    });
+  }
+
+  return wordIndex;
 }
 
 export async function transcribeClip({
@@ -91,11 +139,15 @@ export async function transcribeClip({
   });
 
   if (cachedWords) {
-    const wordIndex = WordIndexSchema.parse(
-      sourceContentHash ? { ...cachedWords, sourceContentHash } : cachedWords,
-    );
-    writeJson(outPath, wordIndex);
-    return wordIndex;
+    return republishStrippedWordIndex(cachedWords, {
+      clipId: clip.clipId,
+      sourceContentHash,
+      outPath,
+      globalCacheDisabled,
+      configFingerprint: resolvedFingerprint,
+      expectedTerms,
+      profanityOptions,
+    });
   }
 
   const audioPath = whisperAudioPath(workDir, clip.clipId);

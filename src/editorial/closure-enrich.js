@@ -10,8 +10,8 @@ export const CLOSURE_CTA_OVERLAY_ID = "enrich_cta_001";
 const CTA_MIN_DURATION_SEC = 60;
 const CTA_TAIL_CHECK_SEC = 15;
 const CTA_WINDOW_SEC = 10;
-const CTA_DEFAULT_TEXT = "Subscribe for more";
-const CTA_TEXT_MAX_CHARS = 48;
+const CTA_DEFAULT_TEXT = "Subskrybuj";
+const CTA_TEXT_MAX_CHARS = 24;
 
 function truncateText(text, maxLen) {
   const s = String(text ?? "").trim();
@@ -95,19 +95,29 @@ function hasCtaInTail(overlays, durationSec, toleranceSec = CTA_TAIL_CHECK_SEC) 
   );
 }
 
+function hasTailOverlayConflict(overlays, durationSec, toleranceSec = CTA_TAIL_CHECK_SEC) {
+  const tailStart = durationSec - toleranceSec;
+  return overlays.some((overlay) => {
+    if ((overlay.outputStartSec ?? 0) < tailStart) {
+      return false;
+    }
+    const role = overlay.role;
+    if (role === "payoff" || role === "closure" || role === "cta") {
+      return true;
+    }
+    return overlay.style === "emphasis";
+  });
+}
+
 function findSegmentForOutputSec(segments, outputSec) {
   return segments.find(
     (seg) => outputSec >= seg.outputStartSec && outputSec < seg.outputEndSec,
   ) ?? segments[segments.length - 1];
 }
 
-function resolveCtaText(abstraction) {
-  const summary = abstraction?.L3?.sessionSummary;
-  if (typeof summary !== "string" || !summary.trim()) {
-    return CTA_DEFAULT_TEXT;
-  }
-  const phrase = truncateText(summary, CTA_TEXT_MAX_CHARS);
-  return phrase || CTA_DEFAULT_TEXT;
+function resolveCtaText(_abstraction) {
+  void _abstraction;
+  return truncateText(CTA_DEFAULT_TEXT, CTA_TEXT_MAX_CHARS);
 }
 
 /**
@@ -149,6 +159,10 @@ export function enrichRecipeClosureCta(recipe, { abstraction } = {}) {
   }
 
   if (hasCtaInTail(existingOverlays, durationSec)) {
+    return recipe;
+  }
+
+  if (hasTailOverlayConflict(existingOverlays, durationSec)) {
     return recipe;
   }
 

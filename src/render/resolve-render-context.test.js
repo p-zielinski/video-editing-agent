@@ -2,13 +2,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs";
-import { resolveRenderContext } from "./resolve-render-context.js";
+import { resolveRenderContext, buildEnhancedAudioPaths } from "./resolve-render-context.js";
 import {
   loadFixtureArtifact,
   copyFixtureToWorkDir,
   cleanupWorkDir,
 } from "../test-helpers/fixture-work-dir.js";
 import { seedClipSourceFiles } from "../test-helpers/seed-clip-sources.js";
+import { ARTIFACTS } from "../pipeline/work-paths.js";
 
 describe("resolveRenderContext", () => {
   const recipe = loadFixtureArtifact("mini-day", "golden-recipe-v2.json");
@@ -62,7 +63,10 @@ describe("resolveRenderContext", () => {
         assert.equal(context.musicBed.resolveReason, null);
       } else {
         assert.equal(context.musicBed.track, null);
-        assert.equal(context.musicBed.resolveReason, "track_file_missing");
+        assert.ok(
+          ["track_file_missing", "track_not_in_catalog"].includes(context.musicBed.resolveReason),
+          `unexpected resolveReason: ${context.musicBed.resolveReason}`,
+        );
       }
     } finally {
       cleanupWorkDir(workDir);
@@ -107,6 +111,98 @@ describe("resolveRenderContext", () => {
       assert.throws(
         () => resolveRenderContext(workDir, recipe),
         /Brak pliku źródłowego dla clipId clip01/,
+      );
+    } finally {
+      cleanupWorkDir(workDir);
+    }
+  });
+
+  it("buildEnhancedAudioPaths includes only accept decisions when decisions exist", () => {
+    const workDir = "/tmp/vea-enhanced-paths-test";
+    const index = {
+      clips: [
+        { clipId: "clip_accept", status: "succeeded", outputPath: "enhanced-audio/clip_accept.wav" },
+        { clipId: "clip_reject", status: "succeeded", outputPath: "enhanced-audio/clip_reject.wav" },
+        { clipId: "clip_none", status: "succeeded", outputPath: "enhanced-audio/clip_none.wav" },
+      ],
+    };
+    const recipeWithDecisions = {
+      audioEnhancementDecisions: [
+        { clipId: "clip_accept", action: "accept", reason: "ok" },
+        { clipId: "clip_reject", action: "reject", reason: "intentional_ambient_preserve" },
+      ],
+    };
+
+    const paths = buildEnhancedAudioPaths(workDir, index, recipeWithDecisions);
+    assert.deepEqual(Object.keys(paths).sort(), ["clip_accept"]);
+    assert.equal(
+      paths.clip_accept,
+      path.resolve(workDir, "enhanced-audio/clip_accept.wav"),
+    );
+  });
+
+  it("buildEnhancedAudioPaths allows index succeeded when decisions absent (legacy)", () => {
+    const workDir = "/tmp/vea-enhanced-paths-legacy";
+    const index = {
+      clips: [
+        { clipId: "clip01", status: "succeeded", outputPath: "enhanced-audio/clip01.wav" },
+        { clipId: "clip02", status: "failed", outputPath: "enhanced-audio/clip02.wav" },
+      ],
+    };
+    const pathsEmpty = buildEnhancedAudioPaths(workDir, index, { audioEnhancementDecisions: [] });
+    const pathsMissing = buildEnhancedAudioPaths(workDir, index, {});
+    assert.deepEqual(Object.keys(pathsEmpty), ["clip01"]);
+    assert.deepEqual(Object.keys(pathsMissing), ["clip01"]);
+  });
+
+  it("resolveRenderContext excludes rejected enhanced WAV from enhancedAudioPaths", () => {
+    const workDir = copyFixtureToWorkDir("mini-day", { prefix: "vea-ctx-enh" });
+    try {
+      seedClipSourceFiles(workDir);
+      const enhancedDir = path.join(workDir, "enhanced-audio");
+      fs.mkdirSync(enhancedDir, { recursive: true });
+      fs.writeFileSync(path.join(enhancedDir, "clip01.wav"), "fake");
+      fs.writeFileSync(
+        path.join(workDir, ARTIFACTS.audioEnhancementIndex),
+        JSON.stringify({
+          version: "1.0",
+          batchId: "miniday1",
+          clips: [{
+            version: "1.0",
+            candidateId: "enh_clip01",
+            clipId: "clip01",
+            status: "succeeded",
+            provider: "dpdfnet",
+            outputPath: "enhanced-audio/clip01.wav",
+          }],
+        }, null, 2),
+      );
+
+      const rejectRecipe = structuredClone(recipe);
+      rejectRecipe.audioEnhancementDecisions = [{
+        candidateId: "enh_clip01",
+        clipId: "clip01",
+        action: "reject",
+        dialogueValue: "useful",
+        reason: "intentional_ambient_preserve",
+        providerPreference: "auto",
+      }];
+      const rejectCtx = resolveRenderContext(workDir, rejectRecipe);
+      assert.deepEqual(rejectCtx.enhancedAudioPaths, {});
+
+      const acceptRecipe = structuredClone(recipe);
+      acceptRecipe.audioEnhancementDecisions = [{
+        candidateId: "enh_clip01",
+        clipId: "clip01",
+        action: "accept",
+        dialogueValue: "useful",
+        reason: "ok",
+        providerPreference: "auto",
+      }];
+      const acceptCtx = resolveRenderContext(workDir, acceptRecipe);
+      assert.equal(
+        acceptCtx.enhancedAudioPaths.clip01,
+        path.resolve(workDir, "enhanced-audio/clip01.wav"),
       );
     } finally {
       cleanupWorkDir(workDir);

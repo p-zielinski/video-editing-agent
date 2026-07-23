@@ -37,6 +37,12 @@ function printRenderResults(manifest, { dryRun = false } = {}) {
   for (const entry of manifest.outputs) {
     if (entry.skipped) {
       console.log(`Pominięto (istnieje): ${entry.outputPath}`);
+    } else if (!entry.outputPath) {
+      const firstError = entry.segmentErrors?.[0];
+      const detail = firstError
+        ? `${firstError.segmentId ?? "segment"}: ${firstError.message?.split("\n")[0] ?? firstError.message}`
+        : "nieznany błąd segmentu";
+      console.log(`Render nieudany: ${entry.outputId ?? entry.format ?? "?"} — ${detail}`);
     } else {
       console.log(`Wyrenderowano: ${entry.outputPath} (${entry.durationSec?.toFixed(1) ?? "?"}s)`);
     }
@@ -45,6 +51,17 @@ function printRenderResults(manifest, { dryRun = false } = {}) {
     console.log(`\nOstrzeżenia (${manifest.warnings.length}):`);
     for (const w of manifest.warnings.slice(0, 10)) {
       console.log(`  - ${w.code ?? "warn"}: ${w.message ?? JSON.stringify(w)}`);
+    }
+  }
+
+  const fidelityWarnings = manifest.fidelityWarnings ?? [];
+  if (fidelityWarnings.length > 0) {
+    console.log(`\nMontage fidelity (${fidelityWarnings.length}) — soft warn, render OK:`);
+    for (const w of fidelityWarnings.slice(0, 15)) {
+      console.log(`  - ${w.code}: ${w.message}`);
+    }
+    if (manifest.fidelityPath) {
+      console.log(`  → ${manifest.fidelityPath}`);
     }
   }
 }
@@ -170,6 +187,8 @@ function parseArgs(argv) {
       args.aiVideoStub = true;
     } else if (arg === "--no-ai-video") {
       args.noAiVideo = true;
+    } else if (arg === "--reuse-llm-cache") {
+      args.reuseLlmCache = true;
     } else if (arg === "--twelvelabs-live") {
       args.twelvelabsLive = true;
     } else if (arg === "--run") {
@@ -360,7 +379,7 @@ Opcje:
   --date-from <iso>        Filtruj klipy od daty (creation_time/mtime)
   --date-to <iso>          Filtruj klipy do daty
   --sort-by <field>        mtime|creation_time|name (domyślnie: creation_time przy ≥2 klipach, inaczej mtime)
-  --force                  Przelicz kroki mimo istniejących artefaktów
+  --force                  [cache artefaktów] Przelicz krok mimo świeżego artefaktu na dysku (artifact cache)
   --no-global-cache        Wyłącz globalny cache analizy (output/.cache/analysis)
   --vision-stub            Qwen2.5-VL stub zamiast live (tylko testy CI / dev)
   --face-stub              OpenCV face detect stub w spatial_index
@@ -376,6 +395,7 @@ Opcje:
   --ai-video               Włącz generowanie hooków AI (Kling 3.0) dla shortów
   --ai-video-stub          Włącz AI video jako jawny lavfi stub zamiast Kling API
   --no-ai-video            Wyłącz AI video mimo flag w --context
+  --reuse-llm-cache        [cache LLM, opt-in] Gdy krok się wykonuje — użyj llm-cache/*.json zamiast API (domyślnie: świeże wywołania)
   --twelvelabs-live        [deprecated] live jest domyślne przy ustawionym TWELVELABS_API_KEY
   --thumbnail-stub         Miniatury: plan deterministyczny bez GPT/renderu
   --no-thumbnail-render    Miniatury: plan + krytyk, bez PNG
@@ -605,6 +625,7 @@ async function main() {
     aiVideo: args.aiVideo === true,
     aiVideoStub: args.aiVideoStub === true,
     noAiVideo: args.noAiVideo === true,
+    reuseLlmCache: args.reuseLlmCache === true,
   });
 
   if (result.validationFailed) {

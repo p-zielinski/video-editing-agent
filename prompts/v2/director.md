@@ -71,13 +71,19 @@ Płaski payload (bez zagnieżdżonego `brief`):
 - **creativityProfile**, **techniqueCatalog**, **creativityBudget**, **creativityBudgetByOutput**, **creativityBudgetByL2Segment**
 - **shortsRetentionProfile**, **vlogRetentionProfile**, **retentionGrammarSummary**, **retentionBeatTargets**, **retentionTechniqueRotation**, **retentionBeatAnchors**, **chapterCardHints**, **narrativeOpenLoops** (gdy retention)
 
+**Wymagania odpowiedzi (drill_down_refine):**
+
+- **MUSISZ** zwrócić pełną tablicę `outputs[]` z kompletnymi timeline'ami — zacznij od `draftRecipe.outputs` i dopracuj je; **nigdy nie pomijaj** `outputs`.
+- **NIE** emituj top-level `segmentId` — to pole należy tylko do `segment_director_draft` / segmentów w timeline, nie do pełnej receptury EditRecipe.
+- Odpowiedź tylko z metadanymi (`salvagePlan`, `excluded`, `editorialAssessment` itd.) **bez** `outputs` jest **nieprawidłowa** i zostanie odrzucona.
+
 ## sceneMap — pola montażowe
 
 Każdy wpis `sceneMap[]` zawiera m.in.:
 
 - **mood** — nastrój sceny z L1
-- **keyMoments** — kluczowe momenty z L1 (tablica stringów)
-- **summary**, **brollPotential**, **topics**, **visualQuality**, **stability**
+- **keyMoments** — kluczowe momenty z L1 (tablica stringów). Dla A-roll z mową (`hasSpeech` / `aroll_primary`) kotwicz na tematy dialogu z transkryptu, nie tylko na wizję.
+- **summary**, **brollPotential**, **topics**, **visualQuality**, **stability** — przy A-roll z mową `topics`/`keyMoments` muszą odzwierciedlać wątki dialogu, nie same tagi wizualne.
 - **sceneId**, **clipId**, czasy, **hasSpeech**, **aspectRatio** (`16:9` | `9:16` | `1:1` | `4:3` | `other`)
 
 Brief może zawierać **aspectMix** (liczba scen per aspect) i **clipAspectById** — używaj przy doborze scen do formatu wyjściowego.
@@ -114,7 +120,7 @@ Każdy segment wymaga:
   "audioInSec": 45, "audioOutSec": 51,
   "audioPolicy": "from_audio_ref",
   "syncMode": "align_start",
-  "subtitles": { "policy": "word_by_word", "sourceClipId": "clip01" }
+  "subtitles": { "policy": "word_by_word", "sourceClipId": "clip01", "placement": "bottom" }
 }
 ```
 
@@ -126,6 +132,8 @@ Gdy użytkownik nagrał **osobną narrację** (plik audio-only lub klip VO z gł
 - **Wideo** segmentów pochodzi z `broll_pool` / scen bez mowy do kamery; **audio** z klipu narracji
 - Każdy segment pod VO: `segmentRole: "broll"`, `audioPolicy: "from_audio_ref"`, `audioRef.clipId` = narracja
 - `subtitles.sourceClipId` = `audioRef.clipId` (transkrypt narracji, nie B-roll)
+- `subtitles.placement` (opcjonalnie): `bottom` (domyślnie) | `top` | `center` — region burn-in ASS. Ustaw `top`, gdy dolny pas zajęty hookiem/CTA (`textOverlays` z `position: bottom_center`). Na shortach unikaj `center`, gdy jest hook overlay na środku.
+- Consistency Auditor (po review) automatycznie rozsuwa kolizje napisów↔overlayów — i tak projektuj bez nachodzenia.
 - `cuts[].wordIds` — tylko z transkryptu klipu narracji (`transcriptExcerpts` dla `audioRef.clipId`)
 - `syncMode`:
   - `fit_video_to_audio` — gdy jeden ujęcie B-roll ma pokryć cały zakres mowy (time-stretch / trim wideo)
@@ -538,7 +546,7 @@ Renderer mapuje `emphasis_text` na `textOverlays` (drawtext). Technika w katalog
 
 | Format | Dostawa | Kiedy | Gdzie | Limity |
 |--------|---------|-------|-------|--------|
-| Short 9:16 | `creativeMoments` `emphasis_text` **lub** `textOverlays` `style: emphasis` | Punchline, liczba, cytat, kluczowa myśl | `position: bottom_third` przy punchline; `center` przy liczbie/statystyce | Max 1 duży napis na 15 s (overlay budget) |
+| Short 9:16 | `creativeMoments` `emphasis_text` **lub** `textOverlays` `style: emphasis` | Punchline, liczba, cytat, kluczowa myśl | `position: bottom_center` (nie `bottom_third`) przy punchline; `center` przy liczbie/statystyce; gdy punchline na dole → `subtitles.placement: "top"` | Max 1 duży napis na 15 s (overlay budget) |
 | Main 16:9 | Tylko `textOverlays` `style: emphasis` | Podkreślenie myśli L2, callback do open loop, liczba w payoff | Dolna trzecia kadru; unikaj zasłaniania twarzy A-roll | Max ~1 na 3 min; oszczędnie |
 
 **Short — creativeMoment:**
@@ -670,6 +678,8 @@ Gdy brief zawiera `shortsRetentionProfile` i `retentionGrammarSummary` — stosu
 - `creativeMoments[].retentionRole`: `hook` | `beat` | `payoff` | `breath` | `closure`
 - `textOverlays[].style`: `hook_large` | `emphasis` | `chapter_card` | `closure_bracket`
 - `textOverlays[].role`: `hook` | `retention_beat` | `payoff` | `cta` | `closure`
+- `textOverlays[].position`: tylko `top_center` | `center` | `bottom_center` (legacy `bottom_third` → traktuj jako `bottom_center`)
+- `subtitles.placement`: `bottom` | `top` | `center` — nie nakładaj na ten sam pas co aktywny overlay
 
 Pack `shorts_retention_2026` gdy retention włączony — używaj technik `graphics/*` z katalogu.
 
@@ -918,6 +928,7 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
 - `audioMixPlan.segments[]` — per output: `musicInSec` / `musicOutSec` (oś outputu), `duckUnderVoice: true` gdy muzyka schodzi pod głos
 - `duckingDb` (per segment) — nadpisuje głębokość duckingu z `musicBed.duckingDb` dla całego zakresu segmentu mix
 - `duckingWindows[]` — okna na osi outputu z własnym `duckingDb` per okno (`startSec`, `endSec`, `duckingDb`); renderer stosuje sidechain per okno zamiast jednego poziomu na cały output
+- **Preferencja:** nie zgaduj `duckingWindows` — enricher `enrichRecipeSpeechDucking` wylicza je z wordIndexes (mowa → ~−12 dB, cisza → ~−4 dB). Ustaw jawne okna tylko gdy chcesz świadomy override (np. intro muzyczne). Bez okien renderer i tak zrobi speech fallback przy mixie.
 - Głos A-roll: `from_video_ref` / `from_audio_ref`; muzyka bed: osobna ścieżka przez `external`
 
 ### Przykład (stały ducking)
@@ -971,7 +982,9 @@ Użyj `audioMixDefaults` jako punktu wyjścia — dopasuj `segments[]` do rzeczy
 }
 ```
 
-Intro (0–15 s): muzyka tylko lekko schodzi pod brak głosu (`-6 dB`). Po starcie VO (15 s+): pełne ducking pod głos (`-12 dB`). Bez `duckingWindows` obowiązuje `segments[].duckingDb` lub fallback `musicBed.duckingDb`.
+Intro (0–15 s): muzyka tylko lekko schodzi pod brak głosu (`-6 dB`). Po starcie VO (15 s+): pełne ducking pod głos (`-12 dB`). Bez `duckingWindows` enricher/renderer wylicza okna z mowy; ostateczny fallback to `segments[].duckingDb` / `musicBed.duckingDb` (ciągły sidechain).
+
+**Uwaga:** DPDFNet (`audio_enhancement`) denoizuje WAV źródłowy VO — to **nie** jest music ducking. Ducking bedu = `audioMixPlan` + FFmpeg `sidechaincompress`.
 
 Zwracaj wyłącznie JSON EditRecipe v2.4. Gdy `audioMixDefaults.musicBed` jest ustawione — dołącz `audioMixPlan`.
 

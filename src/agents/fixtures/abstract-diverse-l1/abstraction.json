@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "batchId": "abstract-diverse-l1",
+  "L1": [
+    {
+      "sceneId": "clip01_scene001",
+      "summary": "Poranne powitanie przy kawie w kuchni; host mówi o planie dnia.",
+      "mood": "ciepły",
+      "keyMoments": [
+        "kawa",
+        "dzień"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "summary": "Pakowanie aparatu i plecaka przed wyjściem — checklista sprzętu.",
+      "mood": "skupiony",
+      "keyMoments": [
+        "aparat",
+        "plecak"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip01_scene003",
+      "summary": "Wyjście z mieszkania, zamykanie drzwi, zjazd windą.",
+      "mood": "dynamiczny",
+      "keyMoments": [
+        "drzwi",
+        "winda"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip01_scene004",
+      "summary": "Spacer ulicą miasta, komentarz o pogodzie i trasie do parku.",
+      "mood": "luźny",
+      "keyMoments": [
+        "ulica",
+        "pogoda"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "summary": "Park: ambient ptaków, host prosi widzów żeby posłuchali śpiewu.",
+      "mood": "spokojny",
+      "keyMoments": [
+        "ptaki",
+        "ambient"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip02_scene002",
+      "summary": "Talking-head o celu wyprawy i dlaczego ten park ma znaczenie.",
+      "mood": "refleksyjny",
+      "keyMoments": [
+        "cel",
+        "park"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip02_scene003",
+      "summary": "Kawiarnia: zamówienie kawy i rozmowa z baristą o lokalnej palarni.",
+      "mood": "towarzyski",
+      "keyMoments": [
+        "kawa",
+        "barista"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip02_scene004",
+      "summary": "Wieczorne podsumowanie dnia i CTA do subskrypcji przy zachodzie.",
+      "mood": "ciepły",
+      "keyMoments": [
+        "zachód",
+        "CTA"
+      ],
+      "isNarrationSource": true
+    },
+    {
+      "sceneId": "clip03_scene001",
+      "summary": "B-roll detali: liście, woda w fontannie, detale latarni.",
+      "mood": "wizualny",
+      "keyMoments": [
+        "detale",
+        "fontanna"
+      ],
+      "isNarrationSource": false
+    }
+  ],
+  "L2": [
+    {
+      "segmentId": "seg001",
+      "startSec": 0,
+      "endSec": 200,
+      "sceneIds": [
+        "clip01_scene001",
+        "clip01_scene002",
+        "clip01_scene003",
+        "clip01_scene004"
+      ],
+      "summary": "Poranek: kawa, pakowanie, wyjście i spacer ulicą w stronę parku."
+    },
+    {
+      "segmentId": "seg002",
+      "startSec": 200,
+      "endSec": 450,
+      "sceneIds": [
+        "clip02_scene001",
+        "clip02_scene002",
+        "clip02_scene003",
+        "clip02_scene004",
+        "clip03_scene001"
+      ],
+      "summary": "Park z ambientem ptaków, talking-head o celu, kawiarnia i wieczorne CTA; B-roll detali."
+    }
+  ],
+  "L3": {
+    "sessionSummary": "Vlog: poranne przygotowania, park z ambientem ptaków, kawiarnia i wieczorne CTA.",
+    "narrativeArc": "setup → journey → ambient payoff → close",
+    "recommendedFormats": [
+      "16:9",
+      "9:16"
+    ],
+    "estimatedKeepRatio": 0.35
+  }
+}

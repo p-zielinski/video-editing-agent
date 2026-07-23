@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { generateAssSubtitles } from "./ass-subtitles.js";
+import { generateAssSubtitles, buildWordSubtitleEvents, isBoilerplateSubtitleWord, filterSubtitleWords } from "./ass-subtitles.js";
 import { buildRenderEdl } from "./build-render-edl.js";
 import { resolveRenderContext } from "./resolve-render-context.js";
 import {
@@ -92,6 +92,67 @@ describe("ass-subtitles", () => {
 
       assert.ok(dialogue);
       assert.match(dialogue, /,0:00:0[2-5]\./);
+    });
+  });
+
+  it("uses Top ASS style when subtitles.placement is top", () => {
+    withContext((context, recipe) => {
+      const output = {
+        outputId: "test_placement_top",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_video_ref",
+          subtitles: {
+            policy: "phrase",
+            sourceClipId: "clip01",
+            placement: "top",
+          },
+        }],
+      };
+
+      const edl = buildRenderEdl(output, recipe, context);
+      const ass = generateAssSubtitles({ edl, context, stylePresets, format: "16:9" });
+
+      assert.match(ass, /Style: Top,/);
+      assert.match(ass, /Style: Top,.*,-1,8,/);
+      const dialogue = ass.split("\n").find((line) => line.startsWith("Dialogue:"));
+      assert.ok(dialogue);
+      assert.match(dialogue, /,Top,/);
+    });
+  });
+
+  it("defaults Dialogue style to Bottom when placement unset", () => {
+    withContext((context, recipe) => {
+      const output = {
+        outputId: "test_placement_default",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+          audioPolicy: "from_video_ref",
+          subtitles: { policy: "phrase", sourceClipId: "clip01" },
+        }],
+      };
+
+      const edl = buildRenderEdl(output, recipe, context);
+      const ass = generateAssSubtitles({ edl, context, stylePresets, format: "16:9" });
+      const dialogue = ass.split("\n").find((line) => line.startsWith("Dialogue:"));
+      assert.ok(dialogue);
+      assert.match(dialogue, /,Bottom,/);
     });
   });
 
@@ -323,5 +384,78 @@ describe("ass-subtitles", () => {
       assert.ok(dialogue);
       assert.match(dialogue, /,0:00:1[0-2]\./);
     });
+  });
+});
+
+describe("ass-subtitles anti-flicker", () => {
+  it("merges same-start zero-duration clusters and enforces min cue duration", () => {
+    const events = buildWordSubtitleEvents([
+      { word: "stworzone", start: 1.78, end: 1.78 },
+      { word: "przez", start: 1.78, end: 1.78 },
+      { word: "Amara", start: 1.78, end: 1.78 },
+      { word: "dalej", start: 2.5, end: 2.9 },
+    ], {
+      segment: {
+        audioInSec: 0,
+        outputStartSec: 20,
+        audioPolicy: "from_video_ref",
+      },
+      segmentIndex: 0,
+      segments: [{
+        audioInSec: 0,
+        outputStartSec: 20,
+        audioPolicy: "from_video_ref",
+      }],
+      clipStart: 20,
+      clipEnd: 25,
+    });
+
+    assert.equal(events.length, 2);
+    assert.ok(events[0].end - events[0].start >= 0.35);
+    assert.match(events[0].text, /Amara/);
+    assert.ok(!events.some((event) => event.text === "stworzone"));
+  });
+
+  it("filters boilerplate watermark words", () => {
+    assert.equal(isBoilerplateSubtitleWord({ word: "Amara.org" }), true);
+    assert.equal(isBoilerplateSubtitleWord({ word: "hej" }), false);
+  });
+
+  it("filters whisper prompt echo words as safety net", () => {
+    assert.equal(
+      isBoilerplateSubtitleWord(
+        { word: "zapisz" },
+        { neighbors: [{ word: "każde" }, { word: "słowo" }] },
+      ),
+      true,
+    );
+    assert.equal(isBoilerplateSubtitleWord({ word: "bez" }), false);
+
+    const words = [
+      { word: "Zapisz", start: 0.1, end: 0.4 },
+      { word: "każde", start: 0.4, end: 0.7 },
+      { word: "słowo", start: 0.7, end: 1.0 },
+      { word: "cześć", start: 2.0, end: 2.4 },
+    ];
+    const events = buildWordSubtitleEvents(filterSubtitleWords(words, 0, 5), {
+      segment: {
+        audioInSec: 0,
+        audioOutSec: 5,
+        outputStartSec: 0,
+        audioPolicy: "from_video_ref",
+      },
+      segmentIndex: 0,
+      segments: [{
+        audioInSec: 0,
+        audioOutSec: 5,
+        outputStartSec: 0,
+        audioPolicy: "from_video_ref",
+      }],
+      clipStart: 0,
+      clipEnd: 5,
+    });
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].text, "cześć");
   });
 });

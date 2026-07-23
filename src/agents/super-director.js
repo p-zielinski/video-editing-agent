@@ -1,11 +1,12 @@
 import { SuperDirectorPlanSchema } from "../schemas/super-director-plan.js";
+import { parseAgentSchema } from "../lib/llm-response-cache.js";
 import {
   buildSegmentCatalog,
   rankSegmentsByUserContext,
   SUPER_DIRECTOR_MAX_SEGMENT_PICKS,
 } from "../lib/segment-catalog.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
-import { measureBriefPayload } from "../lib/brief-metrics.js";
+import { measureBriefPayload, warnBriefPayloadIfLarge } from "../lib/brief-metrics.js";
 import { buildAiHookBrief } from "./director.js";
 
 const SUPER_DIRECTOR_OUTPUT_SCHEMA = {
@@ -63,6 +64,7 @@ export async function runSuperDirector(client, {
   quotaTracker,
   batchId,
   step,
+  workDir = null,
 }) {
   const catalog = buildSegmentCatalog(abstraction, timelineIndex, clipRegistry);
   const rankedSegmentHints = rankSegmentsByUserContext(userContext, catalog);
@@ -91,6 +93,7 @@ export async function runSuperDirector(client, {
     userJson: user,
     meta: { segmentCatalogCount: catalog.length },
   });
+  warnBriefPayloadIfLarge(briefMetric);
 
   const raw = await chatJson(client, {
     role: "superDirector",
@@ -105,7 +108,12 @@ export async function runSuperDirector(client, {
   });
 
   return {
-    plan: SuperDirectorPlanSchema.parse(raw),
+    plan: parseAgentSchema(SuperDirectorPlanSchema, raw, {
+      batchId,
+      workDir,
+      step: step ?? "super_director",
+      role: "superDirector",
+    }),
     briefMetric,
   };
 }

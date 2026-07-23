@@ -16,7 +16,11 @@ function resolveVideoSourcePath(segment, context) {
 }
 
 function resolveAudioSourcePath(segment, context) {
-  const enhancedForClip = (clipId) => context.enhancedAudioPaths?.[clipId] ?? null;
+  // Intentional ambient showcase: never substitute denoised WAV for this segment.
+  const allowEnhanced = segment.preserveAmbientAudio !== true;
+  const enhancedForClip = (clipId) => (
+    allowEnhanced ? (context.enhancedAudioPaths?.[clipId] ?? null) : null
+  );
 
   switch (segment.audioPolicy) {
     case "external":
@@ -37,6 +41,28 @@ function resolveAudioSourcePath(segment, context) {
         ?? (clipId ? context.clips[clipId]?.sourcePath ?? null : null);
     }
   }
+}
+
+/**
+ * Classify resolved audio path as original | enhanced for fidelity logging.
+ * @returns {"original"|"enhanced"|null}
+ */
+export function resolveAudioSourceKind(segment, context, audioSourcePath = null) {
+  const resolvedPath = audioSourcePath ?? resolveAudioSourcePath(segment, context);
+  if (!resolvedPath) {
+    return null;
+  }
+  const clipIds = [
+    segment.audioRef?.clipId,
+    segment.videoRef?.clipId,
+  ].filter(Boolean);
+  for (const clipId of clipIds) {
+    const enhanced = context.enhancedAudioPaths?.[clipId];
+    if (enhanced && enhanced === resolvedPath) {
+      return "enhanced";
+    }
+  }
+  return "original";
 }
 
 function findSpatialAnchor(spatialIndex, sceneId) {
@@ -351,11 +377,15 @@ export function clampCreativeMomentsToHookWindow(moments, hookWindowSec) {
  * Enrich a render EDL with resolved paths, spatial refs, and projected overlays.
  */
 export function enrichRenderEdl(edl, { recipe, context, output, spatialIndex }) {
-  let segments = edl.segments.map((segment) => ({
-    ...segment,
-    videoSourcePath: segment.videoSourcePath ?? resolveVideoSourcePath(segment, context),
-    audioSourcePath: segment.audioSourcePath ?? resolveAudioSourcePath(segment, context),
-  }));
+  let segments = edl.segments.map((segment) => {
+    const audioSourcePath = segment.audioSourcePath ?? resolveAudioSourcePath(segment, context);
+    return {
+      ...segment,
+      videoSourcePath: segment.videoSourcePath ?? resolveVideoSourcePath(segment, context),
+      audioSourcePath,
+      audioSource: segment.audioSource ?? resolveAudioSourceKind(segment, context, audioSourcePath),
+    };
+  });
 
   segments = segments.map((seg) => attachSpatialRef(seg, spatialIndex, edl.format));
 

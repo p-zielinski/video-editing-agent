@@ -153,6 +153,24 @@ function isTwelvelabsArtifactStub(artifact) {
   return artifact?.indexingStatus === "stub";
 }
 
+function isTwelvelabsArtifactThin(artifact) {
+  if (!artifact || artifact.indexingStatus === "stub") {
+    return false;
+  }
+  if (artifact.thinInsightsRecovered || artifact.indexingStatus === "frame_analysis_fallback") {
+    return false;
+  }
+  const chapterCount = (artifact.chapters ?? []).length;
+  const momentCount = (artifact.moments ?? []).length;
+  const hasSummary = Boolean(
+    artifact.clipSummary
+    || artifact.gist?.clipSummary
+    || artifact.editorial?.summary,
+  );
+  return artifact.thinInsights === true
+    || (artifact.indexingStatus === "indexed" && chapterCount + momentCount === 0 && !hasSummary);
+}
+
 function computeStubCoverage(workDir, catalog) {
   const clips = catalog?.clips ?? [];
   if (clips.length === 0) {
@@ -161,6 +179,7 @@ function computeStubCoverage(workDir, catalog) {
       audio: 0,
       objects: 0,
       twelvelabs: 0,
+      thinTwelvelabs: 0,
       perClip: [],
     };
   }
@@ -176,6 +195,7 @@ function computeStubCoverage(workDir, catalog) {
       audio: isAudioArtifactStub(audio),
       objects: isObjectsArtifactStub(objects),
       twelvelabs: isTwelvelabsArtifactStub(twelvelabs),
+      thinTwelvelabs: isTwelvelabsArtifactThin(twelvelabs),
     };
   });
 
@@ -186,6 +206,7 @@ function computeStubCoverage(workDir, catalog) {
     audio: percent(countFlag("audio"), clips.length),
     objects: percent(countFlag("objects"), clips.length),
     twelvelabs: percent(countFlag("twelvelabs"), clips.length),
+    thinTwelvelabs: percent(countFlag("thinTwelvelabs"), clips.length),
     perClip,
   };
 }

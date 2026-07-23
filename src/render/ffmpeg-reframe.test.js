@@ -35,8 +35,9 @@ describe("ffmpeg-reframe", () => {
 
     assert.ok(filter);
     assert.equal(filter.type, "vf");
-    assert.match(filter.filter, /crop=\d+:\d+:\d+:\d+/);
-    assert.ok(filter.filter.includes("scale=1080:1920"));
+    assert.match(filter.filter, /crop=iw\*[\d.]+:ih\*[\d.]+:iw\*[\d.]+:ih\*[\d.]+/);
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=increase"));
+    assert.ok(filter.filter.includes("crop=1080:1920"));
     assert.ok(!filter.filter.includes("pad="));
   });
 
@@ -102,8 +103,9 @@ describe("ffmpeg-reframe", () => {
 
     assert.ok(filter);
     assert.equal(filter.type, "vf");
-    assert.match(filter.filter, /crop=\d+:\d+:\d+:\d+/);
-    assert.ok(filter.filter.includes("scale=1920:1080"));
+    assert.match(filter.filter, /crop=iw\*[\d.]+:ih\*[\d.]+:iw\*[\d.]+:ih\*[\d.]+/);
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=increase"));
+    assert.ok(filter.filter.includes("crop=1920:1080"));
     assert.ok(!filter.filter.includes("pad="));
   });
 
@@ -193,5 +195,80 @@ describe("ffmpeg-reframe", () => {
     assert.ok(filter.filter.includes("pad=1920:1080"));
     assert.ok(!filter.filter.includes("split="));
     assert.ok(!filter.filter.includes("gblur="));
+  });
+
+  it("skips iw/ih crop for subject reframe on same-aspect 16:9 catalog (rotation-safe)", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip28", sceneId: "clip28_scene001" },
+        videoTransform: { reframe: "subject", fitMode: "fill" },
+      },
+      format: "16:9",
+      dimensions: { width: 1920, height: 1080 },
+      context: {
+        clips: {
+          clip28: { resolution: { w: 3840, h: 2160 } },
+        },
+      },
+    });
+
+    assert.ok(filter);
+    assert.equal(filter.type, "vf");
+    assert.ok(!filter.filter.includes("crop=3840"));
+    assert.ok(!filter.filter.includes("crop=iw*"));
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=increase"));
+    assert.ok(filter.filter.includes("crop=1920:1080"));
+  });
+
+  it("pillarboxes 9:16 when fitMode is pillarbox instead of cropping", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoTransform: { reframe: "subject", fitMode: "pillarbox" },
+      },
+      format: "9:16",
+      dimensions: { width: 1080, height: 1920 },
+      spatialIndex,
+      context,
+    });
+
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("pad=1080:1920"));
+    assert.ok(!filter.filter.includes("crop=iw*"));
+  });
+
+  it("never uses anisotropic naked scale without aspect preserve", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip28", sceneId: "clip28_scene001" },
+        videoTransform: { reframe: "subject", fitMode: "fill" },
+      },
+      format: "16:9",
+      dimensions: { width: 1920, height: 1080 },
+      context: {
+        clips: {
+          clip28: { resolution: { w: 3840, h: 2160 } },
+        },
+      },
+    });
+
+    assert.ok(filter);
+    assert.ok(!filter.filter.match(/scale=1920:1080(?!:)/));
+  });
+
+  it("uses iw/ih crop expressions for partial reframe crops", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip_vertical", sceneId: "clip_vertical_scene001" },
+        videoTransform: { fitMode: "fill" },
+      },
+      format: "16:9",
+      dimensions: { width: 1920, height: 1080 },
+      context,
+    });
+
+    assert.ok(filter?.filter.includes("crop=iw*"));
+    assert.ok(filter?.filter.includes(":ih*"));
+    assert.ok(!filter.filter.includes("crop=1080:"));
   });
 });

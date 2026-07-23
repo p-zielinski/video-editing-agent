@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import sharp from "sharp";
 import { createOpenAIClient } from "../../agents/openai-client.js";
 import {
   buildStubThumbnailPlan,
@@ -7,7 +8,10 @@ import {
 } from "../../agents/thumbnail-strategist.js";
 import { runThumbnailCritic } from "../../agents/thumbnail-critic.js";
 import { shortlistThumbnailFrames } from "../../editorial/thumbnail-frame-score.js";
-import { composeThumbnail } from "../../editorial/thumbnail-compose.js";
+import {
+  composeThumbnail,
+  resolveSubjectBboxNearTimestamp,
+} from "../../editorial/thumbnail-compose.js";
 import { extractFrameAt } from "../../lib/ffmpeg.js";
 import {
   readJson,
@@ -18,6 +22,15 @@ import {
 import { shouldUseCachedArtifact } from "../artifact-deps.js";
 import { ThumbnailPlanSchema, ThumbnailReviewSchema } from "../../schemas/thumbnail-plan.js";
 import { buildAgentChatContext } from "../../lib/gpt-usage-log.js";
+import { resolvePublishVoice } from "../../editorial/publish-voice.js";
+import {
+  collectFaceDetections,
+  loadCatalogForFaceDetect,
+} from "./face-detect.js";
+import {
+  collectObjectDetections,
+  mergeDetections,
+} from "./spatial-index.js";
 
 function resolveOpenAIClient({ apiKey, openaiClient }) {
   if (openaiClient) {
@@ -43,12 +56,36 @@ function resolveClipSourcePath({ manifest, timelineIndex, clipId }) {
   return timelineClip?.sourcePath ?? null;
 }
 
+function groupDetectionsByClip(detections = []) {
+  const byClip = {};
+  for (const detection of detections) {
+    const clipId = detection.clipId
+      ?? (detection.sceneId ? String(detection.sceneId).replace(/_scene\d+$/i, "") : null);
+    if (!clipId) {
+      continue;
+    }
+    if (!byClip[clipId]) {
+      byClip[clipId] = [];
+    }
+    byClip[clipId].push(detection);
+  }
+  return byClip;
+}
+
+function loadDetectionsByClip(workDir, timelineIndex) {
+  const catalog = loadCatalogForFaceDetect(workDir, null, timelineIndex);
+  const faces = collectFaceDetections(workDir, catalog);
+  const objects = collectObjectDetections(workDir, catalog);
+  return groupDetectionsByClip(mergeDetections(objects, faces));
+}
+
 function buildFrameShortlistByOutput({
   recipe,
   timelineIndex,
   abstraction,
   spatialIndex,
   audioIndex,
+  detectionsByClip = {},
 }) {
   const frameShortlistByOutput = {};
   for (const output of recipe.outputs ?? []) {
@@ -59,28 +96,54 @@ function buildFrameShortlistByOutput({
       spatialIndex,
       audioIndex,
       outputId: output.outputId,
+      detectionsByClip,
     });
   }
   return frameShortlistByOutput;
 }
 
-function resolveFaceBboxForVariant({ variant, frameShortlistByOutput, outputId, spatialIndex }) {
+function resolveSubjectBboxForVariant({
+  variant,
+  frameShortlistByOutput,
+  outputId,
+  spatialIndex,
+  detectionsByClip = {},
+  srcWidth,
+  srcHeight,
+}) {
   const shortlist = frameShortlistByOutput[outputId] ?? [];
   const match = shortlist.find(
     (entry) => entry.sceneId === variant.sourceRef.sceneId
       && Math.abs(entry.timestampSec - variant.sourceRef.timestampSec) < 0.5,
   );
+  if (match?.subjectBbox) {
+    return match.subjectBbox;
+  }
   if (match?.faceBbox) {
     return match.faceBbox;
+  }
+
+  const detections = detectionsByClip[variant.sourceRef.clipId] ?? [];
+  const fromDetections = resolveSubjectBboxNearTimestamp({
+    detections,
+    timestampSec: variant.sourceRef.timestampSec,
+    srcWidth,
+    srcHeight,
+    sceneId: variant.sourceRef.sceneId,
+  });
+  if (fromDetections) {
+    return fromDetections;
   }
 
   const spatialScene = (spatialIndex?.scenes ?? []).find(
     (scene) => scene.sceneId === variant.sourceRef.sceneId,
   );
-  const faceAnchor = (spatialScene?.anchors ?? []).find(
+  const subjectAnchor = (spatialScene?.anchors ?? []).find(
+    (anchor) => anchor.type === "subject" || String(anchor.label ?? "").toLowerCase().includes("dog"),
+  ) ?? (spatialScene?.anchors ?? []).find(
     (anchor) => anchor.type === "face" || anchor.label === "face",
   );
-  return faceAnchor?.bbox ?? null;
+  return subjectAnchor?.bbox ?? null;
 }
 
 async function renderThumbnailVariants({
@@ -90,6 +153,7 @@ async function renderThumbnailVariants({
   timelineIndex,
   frameShortlistByOutput,
   spatialIndex,
+  detectionsByClip = {},
   renderImages,
 }) {
   if (!renderImages) {
@@ -118,18 +182,24 @@ async function renderThumbnailVariants({
         if (!fs.existsSync(framePath)) {
           await extractFrameAt(sourcePath, variant.sourceRef.timestampSec, framePath);
         }
+        const frameMeta = await sharp(framePath).metadata();
+        const subjectBbox = resolveSubjectBboxForVariant({
+          variant,
+          frameShortlistByOutput,
+          outputId: outputPlan.outputId,
+          spatialIndex,
+          detectionsByClip,
+          srcWidth: frameMeta.width ?? 1080,
+          srcHeight: frameMeta.height ?? 1920,
+        });
         await composeThumbnail({
           framePath,
           headline: variant.style === "frame_only" ? "" : variant.headline,
           style: variant.style,
           format: outputPlan.format,
           outputPath: imagePath,
-          faceBbox: resolveFaceBboxForVariant({
-            variant,
-            frameShortlistByOutput,
-            outputId: outputPlan.outputId,
-            spatialIndex,
-          }),
+          subjectBbox,
+          faceBbox: subjectBbox,
         });
         variants.push({ ...variant, renderedPath: imagePath });
       } else {
@@ -185,12 +255,15 @@ export async function runThumbnailsStep({
     userContext: manifest.userContext ?? "",
   });
 
+  const detectionsByClip = loadDetectionsByClip(workDir, timelineIndex);
+
   const frameShortlistByOutput = buildFrameShortlistByOutput({
     recipe,
     timelineIndex,
     abstraction,
     spatialIndex,
     audioIndex,
+    detectionsByClip,
   });
 
   let plan;
@@ -249,6 +322,7 @@ export async function runThumbnailsStep({
     timelineIndex,
     frameShortlistByOutput,
     spatialIndex,
+    detectionsByClip,
     renderImages: renderImages && !thumbnailStub,
   });
   plan = renderResult.plan;

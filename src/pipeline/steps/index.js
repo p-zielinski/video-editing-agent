@@ -12,9 +12,14 @@ export async function runIndexStep({ workDir, userContext = "", force = false })
   const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
   const manifest = readJson(path.join(workDir, ARTIFACTS.manifest));
 
-  const wordIndexes = catalog.clips.map((clip) =>
-    readJson(path.join(workDir, ARTIFACTS.words(clip.clipId))),
-  );
+  const wordIndexes = catalog.clips.map((clip) => {
+    const wordsPath = path.join(workDir, ARTIFACTS.words(clip.clipId));
+    try {
+      return readJson(wordsPath);
+    } catch {
+      return { clipId: clip.clipId, words: [] };
+    }
+  });
 
   const keyframeSets = catalog.clips.map((clip) => {
     const p = path.join(workDir, ARTIFACTS.keyframes(clip.clipId));

@@ -14,6 +14,7 @@ import {
   computePitchShiftSampleRate,
   fillDuckingWindowGaps,
   resolveDuckingWindows,
+  resolveDuckingWindowsWithSource,
   resolveMusicBedMoments,
   resolveVoiceAudioMoments,
   hasAudioMixMoments,
@@ -105,6 +106,24 @@ describe("audio-mix", () => {
       { startSec: 0, endSec: 30, duckingDb: -12 },
       { startSec: 30, endSec: 60, duckingDb: -6 },
     ]);
+  });
+
+  it("resolveDuckingWindowsWithSource reports director vs fallback provenance", () => {
+    const director = resolveDuckingWindowsWithSource(
+      {
+        duckUnderVoice: true,
+        duckingWindows: [{ startSec: 0, endSec: 10, duckingDb: -12 }],
+      },
+      { musicBed: { duckingDb: -14 } },
+    );
+    assert.equal(director.source, "director");
+    assert.equal(director.windows.length, 1);
+
+    const fallback = resolveDuckingWindowsWithSource(
+      { duckUnderVoice: true },
+      { musicBed: { duckingDb: -14 } },
+    );
+    assert.equal(fallback.source, "fallback");
   });
 
   it("fillDuckingWindowGaps inserts no-duck windows for uncovered regions", () => {

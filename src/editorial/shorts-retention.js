@@ -340,6 +340,10 @@ export function resolveShortRetentionInterval(profile = {}, durationSec = 60) {
  * @param {object} profile
  */
 export function computeScaledMinRetentionBeats(durationSec, profile) {
+  if (!(durationSec > 0)) {
+    return 0;
+  }
+
   const base = profile.minRetentionBeats ?? DEFAULT_SHORTS_RETENTION_PROFILE.minRetentionBeats;
   const interval = profile.mode === "vlog"
     ? (profile.retentionBeatIntervalSec ?? DEFAULT_VLOG_RETENTION_PROFILE.retentionBeatIntervalSec)
@@ -626,6 +630,21 @@ export function isRetentionBeatMoment(moment) {
   }
   return moment.techniqueId === "retention_beat"
     || moment.techniqueId === "pattern_interrupt";
+}
+
+/**
+ * Moments exempt from maxTotalTechniqueMoments (retention grammar + beat pool).
+ * @param {object} moment
+ */
+export function countsTowardTechniqueCap(moment) {
+  if (isRetentionBeatMoment(moment)) {
+    return false;
+  }
+  const role = moment.retentionRole;
+  if (role === "hook" || role === "payoff" || role === "closure") {
+    return false;
+  }
+  return true;
 }
 
 /**

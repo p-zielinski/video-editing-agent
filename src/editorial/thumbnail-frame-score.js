@@ -1,4 +1,12 @@
 import { computeSceneRank } from "./scene-rank.js";
+import {
+  clampNormalizedBbox,
+  isDogDetection,
+  isSubjectDetection,
+  normalizeDetectionBboxToFrame,
+  resolveThumbnailSourceDimensions,
+} from "./thumbnail-compose.js";
+import { unionAnchorBbox } from "../render/reframe.js";
 
 function visualQualityScore(quality) {
   if (quality === "high") {
@@ -12,30 +20,37 @@ function visualQualityScore(quality) {
 
 /** Normalized bbox as xywh (0–1), matching spatial index. */
 function bboxArea(bbox) {
-  if (!bbox || bbox.length < 4) {
+  const clamped = clampNormalizedBbox(bbox);
+  if (!clamped) {
     return 0;
   }
-  const [x, y, w, h] = bbox;
-  return Math.min(1, Math.max(0, w) * Math.max(0, h) * 4);
+  const [, , w, h] = clamped;
+  return Math.min(1, Math.max(0, w * h));
 }
 
-function pickFaceAnchorNearTimestamp(anchors = [], timestampSec = 0) {
-  const faces = anchors.filter((a) => a.type === "face" || a.label === "face");
-  const pool = faces.length > 0 ? faces : anchors;
-  if (pool.length === 0) {
-    return null;
+function pickAnchorsNearTimestamp(anchors = [], timestampSec = 0, maxDeltaSec = 2.5) {
+  if (!anchors.length) {
+    return [];
   }
 
-  return pool
-    .slice()
-    .sort((a, b) => {
-      const deltaA = Math.abs((a.timestampSec ?? 0) - timestampSec);
-      const deltaB = Math.abs((b.timestampSec ?? 0) - timestampSec);
-      if (deltaA !== deltaB) {
-        return deltaA - deltaB;
-      }
-      return bboxArea(b.bbox) - bboxArea(a.bbox);
-    })[0];
+  return anchors
+    .map((anchor) => ({
+      anchor,
+      delta: Math.abs((anchor.timestampSec ?? 0) - timestampSec),
+    }))
+    .filter((entry) => entry.delta <= maxDeltaSec)
+    .sort((a, b) => a.delta - b.delta || bboxArea(b.anchor.bbox) - bboxArea(a.anchor.bbox))
+    .map((entry) => entry.anchor);
+}
+
+function pickSubjectAnchorsNearTimestamp(anchors = [], timestampSec = 0) {
+  const near = pickAnchorsNearTimestamp(anchors, timestampSec);
+  const subjects = near.filter((anchor) =>
+    anchor.type === "face"
+    || anchor.type === "subject"
+    || isSubjectDetection(anchor)
+    || isDogDetection(anchor));
+  return subjects.length > 0 ? subjects : near.slice(0, 1);
 }
 
 function audioTagsForClip(audioIndex, clipId) {
@@ -56,7 +71,17 @@ function sceneIdsForOutput(output) {
   return ids;
 }
 
-function timestampCandidatesForScene(scene, spatialScene, timelineIndex) {
+function detectionTimestampsForScene(detections = [], sceneId) {
+  const timestamps = new Set();
+  for (const detection of detections) {
+    if (detection.sceneId === sceneId && detection.timestampSec != null) {
+      timestamps.add(detection.timestampSec);
+    }
+  }
+  return timestamps;
+}
+
+function timestampCandidatesForScene(scene, spatialScene, timelineIndex, detections = []) {
   const timestamps = new Set();
   const mid = (scene.startSec ?? 0) + ((scene.durationSec ?? 0) / 2);
   timestamps.add(mid);
@@ -73,9 +98,70 @@ function timestampCandidatesForScene(scene, spatialScene, timelineIndex) {
     }
   }
 
+  for (const timestampSec of detectionTimestampsForScene(detections, scene.sceneId)) {
+    timestamps.add(timestampSec);
+  }
+
   return [...timestamps].filter((t) =>
     t >= (scene.startSec ?? 0) && t <= (scene.endSec ?? Number.POSITIVE_INFINITY),
   );
+}
+
+function resolveCandidateSubject({
+  spatialAnchors = [],
+  detections = [],
+  timestampSec,
+  sceneId = null,
+  srcWidth = 1,
+  srcHeight = 1,
+}) {
+  const fromDetections = detections
+    .filter((detection) => isSubjectDetection(detection))
+    .filter((detection) => !sceneId || !detection.sceneId || detection.sceneId === sceneId)
+    .map((detection) => {
+      const bbox = normalizeDetectionBboxToFrame(detection.bbox, srcWidth, srcHeight);
+      const delta = Math.abs((detection.timestampSec ?? 0) - timestampSec);
+      return { bbox, delta, detection };
+    })
+    .filter((entry) => entry.bbox && entry.delta <= 2.5)
+    .sort((a, b) => a.delta - b.delta);
+
+  if (fromDetections.length > 0) {
+    const nearest = fromDetections[0].delta;
+    const near = fromDetections.filter((entry) => entry.delta <= nearest + 0.35);
+    const union = unionAnchorBbox(near.map((entry) => ({ bbox: entry.bbox })));
+    const hasDog = near.some((entry) => isDogDetection(entry.detection));
+    const hasFace = near.some((entry) =>
+      entry.detection.type === "face"
+      || String(entry.detection.label ?? "").toLowerCase().includes("face"));
+    return {
+      subjectBbox: union
+        ? clampNormalizedBbox([union.x, union.y, union.w, union.h])
+        : near[0].bbox,
+      hasDog,
+      hasFace,
+      faceBbox: near.find((entry) =>
+        entry.detection.type === "face"
+        || String(entry.detection.label ?? "").toLowerCase().includes("face"))?.bbox
+        ?? null,
+    };
+  }
+
+  const anchors = pickSubjectAnchorsNearTimestamp(spatialAnchors, timestampSec);
+  if (anchors.length === 0) {
+    return { subjectBbox: null, hasDog: false, hasFace: false, faceBbox: null };
+  }
+  const union = unionAnchorBbox(anchors);
+  return {
+    subjectBbox: union
+      ? clampNormalizedBbox([union.x, union.y, union.w, union.h])
+      : clampNormalizedBbox(anchors[0].bbox),
+    hasDog: anchors.some((anchor) => isDogDetection(anchor)),
+    hasFace: anchors.some((anchor) => anchor.type === "face" || String(anchor.label ?? "").includes("face")),
+    faceBbox: clampNormalizedBbox(
+      anchors.find((anchor) => anchor.type === "face")?.bbox ?? null,
+    ),
+  };
 }
 
 /**
@@ -85,22 +171,37 @@ export function scoreFrameForThumbnail({
   scene,
   l1 = {},
   spatialAnchor,
+  subjectBbox = null,
   visualQuality,
   isHookScene = false,
   audioTags = [],
   timelineIndex = {},
+  format = "16:9",
+  hasDog = false,
+  hasFace = false,
 }) {
   const quality = visualQuality ?? l1.visualQuality ?? "medium";
-  const faceArea = spatialAnchor ? bboxArea(spatialAnchor.bbox) : 0;
+  const faceArea = spatialAnchor ? bboxArea(spatialAnchor.bbox) : bboxArea(subjectBbox);
+  const subjectArea = bboxArea(subjectBbox) || faceArea;
   const rank = computeSceneRank(scene, l1, timelineIndex, { audioTags });
-  const hookBoost = isHookScene ? 0.15 : 0;
+  const hookBoost = isHookScene ? 0.12 : 0;
+  const contextBoost = hasDog ? 0.18 : (hasFace && subjectArea > faceArea * 1.2 ? 0.08 : 0);
 
-  const score = 0.35 * faceArea
-    + 0.25 * visualQualityScore(quality)
-    + 0.3 * rank
-    + hookBoost;
+  // Huge face filling the frame is bad for 16:9 (usually a portrait cover-crop artifact).
+  const faceFillPenalty = format === "16:9" && faceArea > 0.22
+    ? Math.min(0.25, (faceArea - 0.22) * 0.9)
+    : 0;
 
-  return Math.min(1, Math.round(score * 1000) / 1000);
+  const faceWeight = format === "16:9" ? 0.12 : 0.28;
+  const score = faceWeight * Math.min(faceArea, 0.2)
+    + 0.2 * visualQualityScore(quality)
+    + 0.28 * rank
+    + 0.12 * Math.min(subjectArea, 0.45)
+    + hookBoost
+    + contextBoost
+    - faceFillPenalty;
+
+  return Math.min(1, Math.max(0, Math.round(score * 1000) / 1000));
 }
 
 /**
@@ -114,6 +215,7 @@ export function shortlistThumbnailFrames({
   audioIndex,
   outputId,
   maxCandidates = 10,
+  detectionsByClip = {},
 }) {
   const output = (recipe.outputs ?? []).find((entry) => entry.outputId === outputId)
     ?? recipe.outputs?.[0];
@@ -125,9 +227,11 @@ export function shortlistThumbnailFrames({
   const hookSceneId = output.timeline?.[0]?.videoRef?.sceneId
     ?? output.timeline?.[0]?.sourceRef?.sceneId
     ?? null;
+  const format = output.format ?? "16:9";
 
   const spatialByScene = new Map((spatialIndex?.scenes ?? []).map((s) => [s.sceneId, s]));
   const l1ByScene = new Map((abstraction?.L1 ?? []).map((entry) => [entry.sceneId, entry]));
+  const clipById = new Map((timelineIndex.clips ?? []).map((clip) => [clip.clipId, clip]));
 
   const candidates = [];
 
@@ -140,17 +244,45 @@ export function shortlistThumbnailFrames({
     const spatialScene = spatialByScene.get(scene.sceneId);
     const audioTags = audioTagsForClip(audioIndex, scene.clipId);
     const isHookScene = scene.sceneId === hookSceneId;
+    const detections = detectionsByClip[scene.clipId] ?? [];
+    const clip = clipById.get(scene.clipId);
+    const { srcWidth, srcHeight } = resolveThumbnailSourceDimensions({
+      scene,
+      clip,
+      detections,
+    });
 
-    for (const timestampSec of timestampCandidatesForScene(scene, spatialScene, timelineIndex)) {
-      const anchor = pickFaceAnchorNearTimestamp(spatialScene?.anchors ?? [], timestampSec);
+    for (const timestampSec of timestampCandidatesForScene(
+      scene,
+      spatialScene,
+      timelineIndex,
+      detections,
+    )) {
+      const resolved = resolveCandidateSubject({
+        spatialAnchors: spatialScene?.anchors ?? [],
+        detections,
+        timestampSec,
+        sceneId: scene.sceneId,
+        srcWidth,
+        srcHeight,
+      });
+      const faceAnchor = resolved.faceBbox
+        ? { type: "face", bbox: resolved.faceBbox }
+        : pickSubjectAnchorsNearTimestamp(spatialScene?.anchors ?? [], timestampSec)
+          .find((anchor) => anchor.type === "face") ?? null;
+
       const score = scoreFrameForThumbnail({
         scene,
         l1,
-        spatialAnchor: anchor,
+        spatialAnchor: faceAnchor,
+        subjectBbox: resolved.subjectBbox,
         visualQuality: l1.visualQuality,
         isHookScene,
         audioTags,
         timelineIndex,
+        format,
+        hasDog: resolved.hasDog,
+        hasFace: resolved.hasFace,
       });
 
       candidates.push({
@@ -158,9 +290,12 @@ export function shortlistThumbnailFrames({
         sceneId: scene.sceneId,
         timestampSec: Math.round(timestampSec * 100) / 100,
         score,
-        hasFace: Boolean(anchor && (anchor.type === "face" || anchor.label === "face")),
+        hasFace: resolved.hasFace,
+        hasDog: resolved.hasDog,
         visualQuality: l1.visualQuality ?? "medium",
-        faceBbox: anchor?.bbox ?? null,
+        faceBbox: resolved.faceBbox,
+        subjectBbox: resolved.subjectBbox,
+        format,
       });
     }
   }

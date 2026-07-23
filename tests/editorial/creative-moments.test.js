@@ -1226,4 +1226,118 @@ describe("validateCreativeMoments", () => {
     const issues = validateCreativeMoments(recipe, catalog, budget);
     assert.equal(issues.some((i) => i.code === "V21-21"), false);
   });
+
+  it("gates short hook techniques against shorts output level, not main balanced (V21-03)", () => {
+    const budget = computeCreativityBudgetForRecipe(baseRecipe, baseRecipe.creativityProfile);
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [{
+        momentId: "cm_short_hook",
+        techniqueId: "hook_visual_punch",
+        outputId: "short_9x16",
+        outputStartSec: 0.5,
+        outputEndSec: 2.5,
+        params: { intensity: "strong" },
+        spatialRef: {
+          clipId: "clip01",
+          sceneId: "clip01_scene001",
+          timestampSec: 0.5,
+          anchorType: "face",
+          bbox: [0.4, 0.2, 0.6, 0.4],
+        },
+        retentionRole: "hook",
+        reason: "Short hook at shorts level",
+      }],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    const levelErrors = issues.filter(
+      (issue) => issue.code === "V21-03" && issue.momentId === "cm_short_hook",
+    );
+    assert.equal(levelErrors.length, 0);
+  });
+
+  it("exempts hook, payoff, closure from maxTotalTechniqueMoments cap (V21-05)", () => {
+    const budget = computeCreativityBudgetForRecipe(baseRecipe, baseRecipe.creativityProfile);
+    const shortCap = budget.byOutputId.short_9x16.maxTotalTechniqueMoments;
+    const recipe = {
+      ...baseRecipe,
+      creativeMoments: [
+        {
+          momentId: "cm_hook",
+          techniqueId: "hook_visual_punch",
+          outputId: "short_9x16",
+          outputStartSec: 0.2,
+          outputEndSec: 2.2,
+          params: { intensity: "strong" },
+          spatialRef: {
+            clipId: "clip01",
+            sceneId: "clip01_scene001",
+            timestampSec: 0.2,
+            anchorType: "face",
+            bbox: [0.4, 0.2, 0.6, 0.4],
+          },
+          retentionRole: "hook",
+          reason: "Hook",
+        },
+        {
+          momentId: "cm_payoff",
+          techniqueId: "music_drop",
+          outputId: "short_9x16",
+          outputStartSec: 30,
+          outputEndSec: 32,
+          retentionRole: "payoff",
+          reason: "Payoff",
+        },
+        {
+          momentId: "cm_closure",
+          techniqueId: "music_swell",
+          outputId: "short_9x16",
+          outputStartSec: 50,
+          outputEndSec: 52,
+          retentionRole: "closure",
+          reason: "Closure",
+        },
+        ...Array.from({ length: shortCap }, (_, i) => ({
+          momentId: `cm_decor_${i}`,
+          techniqueId: "cut_on_beat",
+          outputId: "short_9x16",
+          outputStartSec: 10 + i * 3,
+          outputEndSec: 10 + i * 3 + 0.1,
+          segmentId: "seg_short",
+          reason: `Decorative ${i}`,
+        })),
+      ],
+    };
+    const issues = validateCreativeMoments(recipe, catalog, budget);
+    const capErrors = issues.filter(
+      (issue) => issue.code === "V21-05"
+        && issue.message.includes("short_9x16")
+        && issue.message.includes("bez beat pool"),
+    );
+    assert.equal(capErrors.length, 0);
+
+    const overDecor = {
+      ...recipe,
+      creativeMoments: [
+        ...recipe.creativeMoments,
+        {
+          momentId: "cm_extra_decor",
+          techniqueId: "cut_on_beat",
+          outputId: "short_9x16",
+          outputStartSec: 55,
+          outputEndSec: 55.1,
+          segmentId: "seg_short",
+          reason: "One too many decorative",
+        },
+      ],
+    };
+    const overIssues = validateCreativeMoments(overDecor, catalog, budget);
+    assert.ok(
+      overIssues.some(
+        (issue) => issue.code === "V21-05"
+          && issue.message.includes("short_9x16")
+          && issue.message.includes("bez beat pool"),
+      ),
+    );
+  });
 });

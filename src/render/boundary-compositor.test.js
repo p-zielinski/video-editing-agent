@@ -99,4 +99,19 @@ describe("boundary-compositor plan", () => {
     });
     assert.equal(plan.strategy, "multi_xfade");
   });
+
+  it("planBoundaryConcat picks hard_concat for 3 segments without crossfade", () => {
+    const segments = [
+      { outputStartSec: 0, outputEndSec: 19.1 },
+      { outputStartSec: 19.1, outputEndSec: 37.274 },
+      { outputStartSec: 37.274, outputEndSec: 58 },
+    ];
+    const plan = planBoundaryConcat({
+      segmentPaths: ["a.mp4", "b.mp4", "c.mp4"],
+      segments,
+      creativeMoments: [],
+      audioIndex: null,
+    });
+    assert.equal(plan.strategy, "hard_concat");
+  });
 });

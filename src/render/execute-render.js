@@ -39,6 +39,10 @@ import {
   loadSegmentPaths,
   PASS_FILES,
 } from "./render-resume.js";
+import {
+  collectFidelityCliWarnings,
+  recordOutputFidelity,
+} from "./montage-fidelity.js";
 
 const SPATIAL_INDEX_FILE = "05c-spatial-index.json";
 
@@ -235,6 +239,8 @@ export async function renderOutput({
     });
     warnings.push(...crossfadeWarnings);
     const passesSkipped = [];
+    let appliedCreativeMomentIds = [];
+    let appliedCreativeTechniqueIds = [];
     if (resume.resumedFromPass) {
       passesSkipped.push(`resume_from_${resume.resumedFromPass}`);
     }
@@ -252,6 +258,8 @@ export async function renderOutput({
           segments: edl.segments,
         });
         warnings.push(...(result.warnings ?? []));
+        appliedCreativeMomentIds = result.appliedMomentIds ?? [];
+        appliedCreativeTechniqueIds = result.appliedTechniqueIds ?? [];
         currentPath = creativePath;
       }
     } else if (moments.length > 0 && !shouldRunPass(fromPass, "creative")) {
@@ -307,6 +315,7 @@ export async function renderOutput({
     let audioMixApplied = false;
     let sfxApplied = false;
     let audioTechniquesApplied = false;
+    let mixResult = null;
     if ((recipe.audioMixPlan || recipe.sfxPlan?.length || outputHasAudioCensorship(output)
         || hasAudioMixMoments(outputMoments))
       && shouldRunPass(fromPass, "audio_mix")) {
@@ -314,7 +323,7 @@ export async function renderOutput({
         passesSkipped.push("audio_mix");
       } else {
         const mixPath = path.join(tmpDir, PASS_FILES.audio_mix);
-        const mixResult = await applyAudioMix(currentPath, mixPath, {
+        mixResult = await applyAudioMix(currentPath, mixPath, {
           recipe,
           output,
           context,
@@ -371,6 +380,9 @@ export async function renderOutput({
       audioMixApplied,
       sfxApplied,
       audioTechniquesApplied,
+      appliedCreativeMomentIds,
+      appliedCreativeTechniqueIds,
+      mixResult,
       encodeProfile: options.encodeProfile ?? "production",
       passesSkipped,
     };
@@ -407,6 +419,7 @@ export async function executeRender(workDir, options = {}) {
     outputs: [],
     warnings: [],
   };
+  let fidelityArtifact = null;
 
   for (const output of outputs) {
     const outPath = renderOutputPath(workDir, output.outputId, output.format);
@@ -449,6 +462,19 @@ export async function executeRender(workDir, options = {}) {
     });
     manifest.warnings.push(...(result.warnings ?? []));
     results.push(result);
+
+    if (!options.dryRun && result.outputPath && result.edl) {
+      const recorded = recordOutputFidelity(workDir, {
+        batchId: recipe.batchId,
+        output,
+        recipe,
+        edl: result.edl,
+        context,
+        result,
+        enhancementIndex: context.audioEnhancementIndex ?? null,
+      });
+      fidelityArtifact = recorded.artifact;
+    }
   }
 
   if (!options.dryRun) {
@@ -456,5 +482,10 @@ export async function executeRender(workDir, options = {}) {
     writeJson(manifestPath, manifest);
   }
 
-  return { results, manifest };
+  if (fidelityArtifact) {
+    manifest.fidelityWarnings = collectFidelityCliWarnings(fidelityArtifact);
+    manifest.fidelityPath = path.join(workDir, ARTIFACTS.montageFidelity);
+  }
+
+  return { results, manifest, fidelity: fidelityArtifact };
 }

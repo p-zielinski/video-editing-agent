@@ -19,6 +19,7 @@ import {
   shouldRunVlogRetentionValidation,
 } from "../editorial/shorts-retention.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
+import { buildRecipeReviewCacheKey } from "../lib/recipe-review-cache-key.js";
 import {
   buildEditorialContext,
   extractSceneIdsFromRecipe,
@@ -237,6 +238,8 @@ export async function runCritic(client, {
   quotaTracker,
   batchId,
   step,
+  cacheKey = null,
+  workDir = null,
   superCriticReview = null,
 }) {
   const heuristicIssues = heuristicReview(recipe, {
@@ -340,6 +343,8 @@ export async function runCritic(client, {
     quotaTracker,
     batchId,
     step,
+    cacheKey: cacheKey ?? buildRecipeReviewCacheKey(recipe),
+    workDir,
   });
 
   const mergedIssues = [...heuristicIssues];

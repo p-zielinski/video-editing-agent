@@ -8,6 +8,8 @@ import {
   createDailyQuotaTracker,
   estimateChatTokens,
   formatQuotaDateKey,
+  readDailyQuotaSummary,
+  seedDailyQuotaUsage,
   summarizeByModel,
 } from "./openai-daily-usage.js";
 
@@ -278,6 +280,66 @@ describe("openai-daily-usage", () => {
     assert.equal(snapshot.batches["batch-b"].calls, 1);
     assert.equal(snapshot.batches["batch-a"].premiumTokens, 500);
     assert.equal(snapshot.batches["batch-b"].miniTokens, 200);
+  });
+
+  it("seedDailyQuotaUsage records pre-tracker baseline and marks exhausted pools", () => {
+    seedDailyQuotaUsage({
+      usageDir: tempDir,
+      timezone: "UTC",
+      limits: { premium: 1000, mini: 10000 },
+      premiumUsedTokens: 900,
+      exhaustedPools: ["premium"],
+      note: "test seed",
+    });
+
+    const summary = readDailyQuotaSummary({
+      usageDir: tempDir,
+      timezone: "UTC",
+      limits: { premium: 1000, mini: 10000 },
+    });
+    assert.equal(summary.pools.premium.usedTokens, 900);
+    assert.equal(summary.pools.premium.exhausted, true);
+    assert.equal(summary.pools.premium.remainingTokens, 0);
+    assert.equal(summary.manualSeed.note, "test seed");
+  });
+
+  it("seedDailyQuotaUsage set-minimum does not lower existing tracked usage", () => {
+    const tracker = createDailyQuotaTracker({
+      usageDir: tempDir,
+      timezone: "UTC",
+      batchId: "batch01",
+      limits: { premium: 1000, mini: 10000 },
+    });
+    const callId = "call-seed";
+    tracker.reserve({
+      callId,
+      role: "director",
+      step: "direct",
+      model: "gpt-5.4",
+      estimatedTokens: 600,
+    });
+    tracker.commit({
+      callId,
+      model: "gpt-5.4",
+      usage: { prompt_tokens: 500, completion_tokens: 100, total_tokens: 600 },
+      step: "direct",
+      batchId: "batch01",
+    });
+
+    seedDailyQuotaUsage({
+      usageDir: tempDir,
+      timezone: "UTC",
+      limits: { premium: 1000, mini: 10000 },
+      premiumUsedTokens: 200,
+      mode: "set-minimum",
+    });
+
+    const summary = readDailyQuotaSummary({
+      usageDir: tempDir,
+      timezone: "UTC",
+      limits: { premium: 1000, mini: 10000 },
+    });
+    assert.equal(summary.pools.premium.usedTokens, 600);
   });
 
   it("emits warnings when usage crosses configured thresholds", () => {

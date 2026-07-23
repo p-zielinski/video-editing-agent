@@ -11,6 +11,9 @@ import { DIRECTOR_AUDIO_CAPS, DEFAULT_AUDIO_CAPS } from "../../src/editorial/aud
 describe("brief-caps", () => {
   it("DIRECTOR_BRIEF_CAPS consolidates director editorial limits", () => {
     assert.equal(DIRECTOR_BRIEF_CAPS.maxWordsPerScene, 120);
+    assert.equal(DIRECTOR_BRIEF_CAPS.maxWordsPerSceneWhenL1Good, 40);
+    assert.equal(DIRECTOR_BRIEF_CAPS.L1_GOOD_COVERAGE_RATIO, 0.7);
+    assert.equal(DIRECTOR_BRIEF_CAPS.TECHNIQUE_CATALOG_MAX_CHARS, 4_500);
     assert.equal(DIRECTOR_BRIEF_CAPS.spatialAnchorLimit, 3);
     assert.equal(DIRECTOR_BRIEF_CAPS.includeFullTopicIndex, true);
     assert.deepEqual(DIRECTOR_BRIEF_CAPS.audioCaps, DIRECTOR_AUDIO_CAPS);

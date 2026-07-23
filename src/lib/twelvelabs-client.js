@@ -3,6 +3,9 @@
  * Live indexing requires TWELVELABS_API_KEY and TWELVELABS_INDEX_ID.
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
 const API_BASE = "https://api.twelvelabs.io/v1.3";
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 120;
@@ -107,11 +110,24 @@ export async function resolveTwelveLabsIndexId(apiKey, indexId) {
 
 export async function createIndexingTask({ apiKey, indexId, sourcePath, clipId }) {
   const resolvedIndexId = await resolveTwelveLabsIndexId(apiKey, indexId);
+  if (!sourcePath || !fs.existsSync(sourcePath)) {
+    throw new Error(`TwelveLabs: brak pliku do uploadu: ${sourcePath}`);
+  }
+
+  const sizeBytes = fs.statSync(sourcePath).size;
+  const maxSafeBytes = Math.floor(1.8 * 1024 * 1024 * 1024);
+  if (sizeBytes > maxSafeBytes) {
+    throw new Error(
+      `TwelveLabs: plik ${(sizeBytes / (1024 ** 3)).toFixed(2)} GiB przekracza bezpieczny limit uploadu `
+      + `(~1.8 GiB). Użyj proxy lub chunkingu.`,
+    );
+  }
+
   const form = new FormData();
   form.append("index_id", resolvedIndexId);
-  const fileBuffer = await import("node:fs/promises").then((fs) => fs.readFile(sourcePath));
-  const blob = new Blob([fileBuffer]);
-  form.append("video_file", blob, `${clipId}.mp4`);
+  const fileBlob = await fs.openAsBlob(sourcePath);
+  const fileName = path.basename(sourcePath) || `${clipId}.mp4`;
+  form.append("video_file", fileBlob, fileName);
 
   const response = await fetch(`${API_BASE}/tasks`, {
     method: "POST",
@@ -374,6 +390,82 @@ export async function refreshVideoInsightsFromAsset({ apiKey, indexId, videoId }
   };
 }
 
+export function offsetInsights(insights, offsetSec) {
+  const offset = Number(offsetSec) || 0;
+  const shift = (entry) => ({
+    ...entry,
+    startSec: (entry.startSec ?? 0) + offset,
+    endSec: (entry.endSec ?? entry.startSec ?? 0) + offset,
+  });
+  return {
+    ...insights,
+    moments: (insights.moments ?? []).map(shift),
+    chapters: (insights.chapters ?? []).map(shift),
+    editorial: insights.editorial
+      ? {
+        ...insights.editorial,
+        chapters: (insights.editorial.chapters ?? []).map(shift),
+        highlights: (insights.editorial.highlights ?? []).map(shift),
+      }
+      : undefined,
+  };
+}
+
+export function mergeChunkInsights(segmentResults) {
+  const moments = [];
+  const chapters = [];
+  const editingHints = [];
+  const topics = [];
+  const videoIds = [];
+  let clipSummary;
+  let title;
+  let mood;
+  let narrativeRole;
+
+  for (const segment of segmentResults) {
+    if (!segment?.insights) {
+      continue;
+    }
+    const shifted = offsetInsights(segment.insights, segment.startSec ?? 0);
+    moments.push(...(shifted.moments ?? []));
+    chapters.push(...(shifted.chapters ?? []));
+    if (shifted.twelveLabsAssetId) {
+      videoIds.push(shifted.twelveLabsAssetId);
+    }
+    if (shifted.editorial) {
+      editingHints.push(...(shifted.editorial.editingHints ?? []));
+      topics.push(...(shifted.editorial.topics ?? []));
+      title = title ?? shifted.editorial.title;
+      mood = mood ?? shifted.editorial.mood;
+      narrativeRole = narrativeRole ?? shifted.editorial.narrativeRole;
+    }
+    clipSummary = clipSummary ?? shifted.clipSummary;
+  }
+
+  const dedupedMoments = mergeAndDedupeMoments([moments]);
+  chapters.sort((a, b) => (a.startSec ?? 0) - (b.startSec ?? 0));
+
+  return {
+    twelveLabsAssetId: videoIds[0] ?? null,
+    chunkVideoIds: videoIds,
+    chunkCount: segmentResults.length,
+    indexingStatus: "chunked",
+    moments: dedupedMoments,
+    chapters,
+    clipSummary,
+    editorial: {
+      title,
+      summary: clipSummary,
+      topics: [...new Set(topics)],
+      mood,
+      narrativeRole,
+      editingHints: [...new Set(editingHints)],
+      chapters,
+      highlights: dedupedMoments,
+    },
+  };
+}
+
 export async function indexVideoFromPath({
   apiKey,
   indexId,
@@ -381,12 +473,91 @@ export async function indexVideoFromPath({
   clipId,
   existingVideoId,
   skipUpload,
+  workDir = null,
+  durationSec = null,
+  forceChunk = false,
 }) {
   if (skipUpload && existingVideoId) {
     return refreshVideoInsightsFromAsset({ apiKey, indexId, videoId: existingVideoId });
   }
 
-  const taskId = await createIndexingTask({ apiKey, indexId, sourcePath, clipId });
+  const {
+    prepareVideoForTwelveLabsUpload,
+    splitVideoForTwelveLabsChunks,
+    resolveTwelveLabsMaxSingleDurationSec,
+    resolveTwelveLabsProxyMaxBytes,
+  } = await import("./twelvelabs-upload-prep.js");
+
+  let uploadPath = sourcePath;
+  let stillTooLarge = false;
+  let proxied = false;
+
+  if (workDir) {
+    const prepared = await prepareVideoForTwelveLabsUpload({
+      sourcePath,
+      workDir,
+      clipId,
+      durationSec,
+    });
+    uploadPath = prepared.uploadPath;
+    stillTooLarge = prepared.stillTooLarge;
+    proxied = prepared.proxied;
+  }
+
+  const maxSingleDuration = resolveTwelveLabsMaxSingleDurationSec();
+  const maxBytes = resolveTwelveLabsProxyMaxBytes();
+  const resolvedDuration = durationSec
+    ?? (await import("./ffmpeg.js").then((m) => m.probeDuration(uploadPath)).catch(() => null));
+  const uploadSize = fs.existsSync(uploadPath) ? fs.statSync(uploadPath).size : 0;
+  const shouldChunk = forceChunk
+    || stillTooLarge
+    || (resolvedDuration != null && resolvedDuration > maxSingleDuration)
+    || uploadSize > maxBytes;
+
+  if (shouldChunk && workDir) {
+    const chunks = await splitVideoForTwelveLabsChunks({
+      sourcePath: uploadPath,
+      workDir,
+      clipId,
+      durationSec: resolvedDuration,
+    });
+    const segmentResults = [];
+    for (const chunk of chunks) {
+      try {
+        const taskId = await createIndexingTask({
+          apiKey,
+          indexId,
+          sourcePath: chunk.path,
+          clipId: `${clipId}_seg${chunk.index}`,
+        });
+        const task = await pollIndexingTask(apiKey, taskId);
+        const videoId = task.video_id ?? task._source?.video_id;
+        if (!videoId) {
+          throw new Error("TwelveLabs: brak video_id po indeksacji segmentu");
+        }
+        const insights = await fetchVideoInsights(apiKey, indexId, videoId);
+        segmentResults.push({
+          startSec: chunk.startSec,
+          endSec: chunk.endSec,
+          insights: {
+            twelveLabsAssetId: videoId,
+            ...insights,
+          },
+        });
+      } catch (err) {
+        console.warn(
+          `TwelveLabs chunk ${chunk.index} failed for ${clipId}: ${err.message}`,
+        );
+      }
+    }
+
+    if (segmentResults.length === 0) {
+      throw new Error("TwelveLabs: wszystkie segmenty chunkingu zakończyły się błędem");
+    }
+    return mergeChunkInsights(segmentResults);
+  }
+
+  const taskId = await createIndexingTask({ apiKey, indexId, sourcePath: uploadPath, clipId });
   const task = await pollIndexingTask(apiKey, taskId);
   const videoId = task.video_id ?? task._source?.video_id;
   if (!videoId) {
@@ -397,6 +568,7 @@ export async function indexVideoFromPath({
     twelveLabsAssetId: videoId,
     indexingStatus: "indexed",
     taskId,
+    proxied,
     ...insights,
   };
 }
@@ -427,7 +599,37 @@ export function summarizeTwelveLabsForBrief(twelveLabsByClip, {
       editingHints: (editorial.editingHints ?? []).slice(0, maxEditingHints),
       chapters: (payload.chapters ?? []).slice(0, maxChaptersPerClip),
       moments: (payload.moments ?? []).slice(0, maxMomentsPerClip),
+      indexingStatus: payload.indexingStatus ?? null,
     });
   }
   return summary.length > 0 ? summary : undefined;
+}
+
+/**
+ * Live TwelveLabs index succeeded but returned no usable chapters/moments/summary.
+ */
+export function isThinTwelveLabsInsights(payload) {
+  if (!payload || payload.indexingStatus === "stub") {
+    return false;
+  }
+  if (payload.indexingStatus === "frame_analysis" || payload.indexingStatus === "frame_analysis_fallback") {
+    return false;
+  }
+  const chapterCount = (payload.chapters ?? []).length;
+  const momentCount = (payload.moments ?? []).length;
+  const hasSummary = Boolean(
+    payload.clipSummary
+    || payload.gist?.clipSummary
+    || payload.gist?.title
+    || payload.editorial?.summary
+    || payload.editorial?.title,
+  );
+  return chapterCount + momentCount === 0 && !hasSummary;
+}
+
+export function countTwelveLabsInsightItems(payload) {
+  if (!payload) {
+    return 0;
+  }
+  return (payload.chapters ?? []).length + (payload.moments ?? []).length;
 }

@@ -1,4 +1,5 @@
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
+import { buildRecipeReviewCacheKey } from "../lib/recipe-review-cache-key.js";
 import { buildEditorialContext, spreadEditorialToPayload } from "../editorial/editorial-context.js";
 
 /**
@@ -20,6 +21,8 @@ export async function runSuperCritic(client, {
   quotaTracker,
   batchId,
   step,
+  cacheKey = null,
+  workDir = null,
 }) {
   const system = loadPrompt("super-critic", { version: "v2" })
     || loadPrompt("super-critic");
@@ -81,6 +84,8 @@ export async function runSuperCritic(client, {
     quotaTracker,
     batchId,
     step,
+    cacheKey: cacheKey ?? buildRecipeReviewCacheKey(recipe),
+    workDir,
   });
 
   const issues = raw.issues ?? [];

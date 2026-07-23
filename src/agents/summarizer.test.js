@@ -1,14 +1,25 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
+  assertAbstractL1Integrity,
+  bindL1SceneId,
   buildAbstractionBundle,
+  buildL1BatchCacheKey,
+  buildL1SceneCacheKey,
+  expectedL1SceneIds,
   groupScenesForL1Summarization,
   isSilentSceneInput,
+  summarizeScene,
+  summarizeSceneBatch,
 } from "./summarizer.js";
 import { sceneSummaryInput } from "../lib/abstraction-chunking.js";
 import { AbstractL1Schema, HookCreativeBriefSchema, EditorialAssessmentSchema } from "../schemas/edit-recipe.js";
 import { createMockOpenAIClient, loadFixture } from "./test-helpers.js";
 import { MODELS } from "./openai-client.js";
+import { buildLlmCacheFileName, resolveLlmCacheDir } from "../lib/llm-response-cache.js";
 
 function makeSilentScene(index) {
   return {
@@ -132,7 +143,7 @@ describe("summarizer agent", () => {
       { ...makeSilentScene(4), startSec: 30, endSec: 40 },
     ];
     const words = [
-      { wordId: "w1", word: "cześć", start: 21, end: 21.5, isFiller: false },
+      { wordId: "clip01_w1", word: "cześć", start: 21, end: 21.5, isFiller: false, clipId: "clip01" },
     ];
     const visionCaptions = [];
 
@@ -154,7 +165,7 @@ describe("summarizer agent", () => {
 
     const withSpeech = sceneSummaryInput(
       { ...scene, hasSpeech: true },
-      [{ wordId: "w1", word: "hej", start: 11, end: 11.5, isFiller: false }],
+      [{ wordId: "clip01_w1", word: "hej", start: 11, end: 11.5, isFiller: false, clipId: "clip01" }],
       [],
     );
     assert.equal(isSilentSceneInput(withSpeech), false);
@@ -312,5 +323,306 @@ describe("summarizer agent", () => {
       contextualLink: "Link",
     });
     assert.equal(result.success, false);
+  });
+
+  it("buildL1SceneCacheKey differs per sceneId and maps to distinct cache files", () => {
+    const a = buildL1SceneCacheKey("clip01_scene001");
+    const b = buildL1SceneCacheKey("clip02_scene001");
+    assert.notEqual(a, b);
+    assert.notEqual(
+      buildLlmCacheFileName({ step: "abstract", role: "summarizerL1", cacheKey: a }),
+      buildLlmCacheFileName({ step: "abstract", role: "summarizerL1", cacheKey: b }),
+    );
+  });
+
+  it("buildL1BatchCacheKey is stable for sorted sceneIds and changes when membership changes", () => {
+    const keyAb = buildL1BatchCacheKey(["clip02_scene001", "clip01_scene001"]);
+    const keyBa = buildL1BatchCacheKey(["clip01_scene001", "clip02_scene001"]);
+    const keyOnlyA = buildL1BatchCacheKey(["clip01_scene001"]);
+    assert.equal(keyAb, keyBa);
+    assert.notEqual(keyAb, keyOnlyA);
+    assert.match(keyAb, /^batch_/);
+  });
+
+  it("bindL1SceneId overwrites LLM sceneId with the requesting input sceneId", () => {
+    const bound = bindL1SceneId(
+      {
+        sceneId: "clip01_scene001",
+        summary: "Spacer z psem.",
+        mood: "spokojny",
+        keyMoments: [],
+        brollPotential: 0.5,
+        topics: ["pies"],
+        visualQuality: "medium",
+        stability: "stable",
+      },
+      "clip17_scene001",
+    );
+    assert.equal(bound.sceneId, "clip17_scene001");
+    assert.equal(bound.summary, "Spacer z psem.");
+  });
+
+  it("summarizeScene rewrites wrong LLM sceneId and writes per-scene cache file", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-l1-cache-"));
+    try {
+      const sceneInput = {
+        sceneId: "clip17_scene001",
+        transcript: "hej",
+        visual: "pokój",
+      };
+      const client = createMockOpenAIClient([{
+        sceneId: "clip01_scene001",
+        summary: "Zatruta odpowiedź z clip01.",
+        mood: "neutralny",
+        keyMoments: [],
+        brollPotential: 0.2,
+        topics: ["pokój"],
+        visualQuality: "medium",
+        stability: "stable",
+      }]);
+
+      const summary = await summarizeScene(client, sceneInput, {
+        batchId: "batchl1",
+        step: "abstract",
+        workDir: tmpDir,
+      });
+
+      assert.equal(summary.sceneId, "clip17_scene001");
+      const cachePath = path.join(
+        resolveLlmCacheDir("batchl1", tmpDir),
+        buildLlmCacheFileName({
+          step: "abstract",
+          role: "summarizerL1",
+          cacheKey: buildL1SceneCacheKey("clip17_scene001"),
+        }),
+      );
+      assert.ok(fs.existsSync(cachePath), `expected cache file at ${cachePath}`);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("summarizeScene uses distinct cache files for different sceneIds", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-l1-cache-multi-"));
+    try {
+      const makeResponse = (sceneId) => ({
+        sceneId: "wrong_scene",
+        summary: `Summary for ${sceneId}`,
+        mood: "neutralny",
+        keyMoments: [],
+        brollPotential: 0.3,
+        topics: [],
+        visualQuality: "medium",
+        stability: "unknown",
+      });
+      const client = createMockOpenAIClient([
+        makeResponse("clip01_scene001"),
+        makeResponse("clip02_scene001"),
+      ]);
+
+      await summarizeScene(client, { sceneId: "clip01_scene001", transcript: "a", visual: "" }, {
+        batchId: "batchl1",
+        step: "abstract",
+        workDir: tmpDir,
+      });
+      await summarizeScene(client, { sceneId: "clip02_scene001", transcript: "b", visual: "" }, {
+        batchId: "batchl1",
+        step: "abstract",
+        workDir: tmpDir,
+      });
+
+      const cacheDir = resolveLlmCacheDir("batchl1", tmpDir);
+      const files = fs.readdirSync(cacheDir).sort();
+      assert.deepEqual(files, [
+        buildLlmCacheFileName({
+          step: "abstract",
+          role: "summarizerL1",
+          cacheKey: buildL1SceneCacheKey("clip01_scene001"),
+        }),
+        buildLlmCacheFileName({
+          step: "abstract",
+          role: "summarizerL1",
+          cacheKey: buildL1SceneCacheKey("clip02_scene001"),
+        }),
+      ]);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("summarizeSceneBatch maps wrong LLM sceneIds by index, binds input ids, and uses batch cacheKey", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-l1-batch-"));
+    try {
+      const inputs = [
+        { sceneId: "clip01_scene001", transcript: "", visual: "" },
+        { sceneId: "clip01_scene002", transcript: "", visual: "" },
+      ];
+      const client = createMockOpenAIClient([{
+        scenes: [
+          {
+            sceneId: "clip99_scene001",
+            summary: "Cicha scena A.",
+            mood: "neutralny",
+            keyMoments: [],
+            brollPotential: 0.8,
+            topics: [],
+            visualQuality: "medium",
+            stability: "unknown",
+          },
+          {
+            sceneId: "clip99_scene002",
+            summary: "Cicha scena B.",
+            mood: "neutralny",
+            keyMoments: [],
+            brollPotential: 0.8,
+            topics: [],
+            visualQuality: "medium",
+            stability: "unknown",
+          },
+        ],
+      }]);
+
+      const resolved = await summarizeSceneBatch(client, inputs, {
+        batchId: "batchl1",
+        step: "abstract",
+        workDir: tmpDir,
+      });
+      assert.deepEqual(resolved.map((s) => s.sceneId), [
+        "clip01_scene001",
+        "clip01_scene002",
+      ]);
+      assert.equal(resolved[0].summary, "Cicha scena A.");
+      assert.equal(resolved[1].summary, "Cicha scena B.");
+
+      const batchCache = path.join(
+        resolveLlmCacheDir("batchl1", tmpDir),
+        buildLlmCacheFileName({
+          step: "abstract",
+          role: "summarizerL1",
+          cacheKey: buildL1BatchCacheKey(inputs.map((s) => s.sceneId)),
+        }),
+      );
+      assert.ok(fs.existsSync(batchCache), `expected batch cache at ${batchCache}`);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("summarizeSceneBatch binds sceneIds when LLM returns matching ids with wrong labels", async () => {
+    const inputs = [
+      { sceneId: "clip01_scene001", transcript: "", visual: "" },
+      { sceneId: "clip01_scene002", transcript: "", visual: "" },
+    ];
+    const client = createMockOpenAIClient([{
+      scenes: [
+        {
+          sceneId: "clip01_scene001",
+          summary: "Scena pierwsza.",
+          mood: "neutralny",
+          keyMoments: [],
+          brollPotential: 0.8,
+          topics: [],
+          visualQuality: "medium",
+          stability: "unknown",
+        },
+        {
+          sceneId: "clip01_scene002",
+          summary: "Scena druga.",
+          mood: "neutralny",
+          keyMoments: [],
+          brollPotential: 0.8,
+          topics: [],
+          visualQuality: "medium",
+          stability: "unknown",
+        },
+      ],
+    }]);
+
+    const resolved = await summarizeSceneBatch(client, inputs, {
+      batchId: null,
+      step: null,
+    });
+    assert.equal(resolved[0].sceneId, "clip01_scene001");
+    assert.equal(resolved[1].sceneId, "clip01_scene002");
+    assert.equal(resolved[0].summary, "Scena pierwsza.");
+    assert.equal(resolved[1].summary, "Scena druga.");
+  });
+});
+
+describe("assertAbstractL1Integrity", () => {
+  it("passes when unique sceneIds and summaries match expected diversity", () => {
+    const l1 = [
+      { sceneId: "a", summary: "Pierwsza scena o domu." },
+      { sceneId: "b", summary: "Druga scena o parku." },
+      { sceneId: "c", summary: "Trzecia scena o sklepie." },
+    ];
+    const result = assertAbstractL1Integrity(l1, ["a", "b", "c"]);
+    assert.equal(result.uniqueSceneIds, 3);
+    assert.equal(result.uniqueSummaries, 3);
+  });
+
+  it("fails when unique sceneIds collapse to one with many expected", () => {
+    const l1 = Array.from({ length: 10 }, () => ({
+      sceneId: "clip01_scene001",
+      summary: "Ten sam tekst.",
+    }));
+    assert.throws(
+      () => assertAbstractL1Integrity(l1, Array.from({ length: 10 }, (_, i) => `clip${i}_scene001`)),
+      (error) => {
+        assert.equal(error.code, "ABSTRACT_L1_INTEGRITY");
+        assert.equal(error.uniqueSceneIds, 1);
+        assert.match(error.message, /integrity/i);
+        assert.match(error.message, /--from-step abstract --to-step abstract/);
+        assert.doesNotMatch(error.message, /--to-step abstract --force/);
+        return true;
+      },
+    );
+  });
+
+  it("fails when sceneIds look unique but summaries are all identical (cache poison after bind)", () => {
+    const expected = Array.from({ length: 8 }, (_, i) => `clip${String(i + 1).padStart(2, "0")}_scene001`);
+    const l1 = expected.map((sceneId) => ({
+      sceneId,
+      summary: "Identyczny opis spaceru z psem z clip01.",
+    }));
+    assert.throws(
+      () => assertAbstractL1Integrity(l1, expected),
+      (error) => {
+        assert.equal(error.code, "ABSTRACT_L1_INTEGRITY");
+        assert.equal(error.uniqueSummaries, 1);
+        assert.match(error.message, /summar/i);
+        return true;
+      },
+    );
+  });
+
+  it("fails when unique/expected ratio is below 0.5", () => {
+    const expected = Array.from({ length: 10 }, (_, i) => `s${i}`);
+    const l1 = [
+      { sceneId: "s0", summary: "A" },
+      { sceneId: "s1", summary: "B" },
+      { sceneId: "s0", summary: "C" },
+      { sceneId: "s1", summary: "D" },
+    ];
+    assert.throws(
+      () => assertAbstractL1Integrity(l1, expected),
+      (error) => error.code === "ABSTRACT_L1_INTEGRITY",
+    );
+  });
+
+  it("expectedL1SceneIds excludes ai_generated clips", () => {
+    const ids = expectedL1SceneIds(
+      {
+        scenes: [
+          { sceneId: "clip01_scene001", clipId: "clip01" },
+          { sceneId: "ai_hook_01_scene001", clipId: "ai_hook_01" },
+        ],
+      },
+      [
+        { clipId: "clip01", clipRole: "primary" },
+        { clipId: "ai_hook_01", clipRole: "ai_generated" },
+      ],
+    );
+    assert.deepEqual(ids, ["clip01_scene001"]);
   });
 });

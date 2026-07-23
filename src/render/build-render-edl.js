@@ -24,6 +24,7 @@ function mapSegmentToEdl(segment, context) {
     videoTransform: segment.videoTransform,
     sourceVolumeDb: segment.sourceVolumeDb,
     intent: segment.intent,
+    ...(segment.preserveAmbientAudio === true ? { preserveAmbientAudio: true } : {}),
   };
 }
 

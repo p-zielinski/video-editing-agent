@@ -5,6 +5,10 @@ import {
   isQuotaTrackingEnabled,
 } from "../lib/openai-daily-usage.js";
 import { parseOpenAIUsage } from "../lib/gpt-usage-log.js";
+import {
+  tryReadLlmResponseCache,
+  writeLlmResponseCache,
+} from "../lib/llm-response-cache.js";
 import { resolveAgentModels } from "./openai-client.js";
 
 /** @type {Record<string, string[]>} */
@@ -24,6 +28,7 @@ const BALANCED_ROLE_TIERS = {
   safetyClassifier: ["nano", "mini"],
   thumbnailStrategist: ["mini", "nano"],
   thumbnailCritic: ["nano", "mini"],
+  twelvelabsShort: ["mini"],
 };
 
 const ROLE_TO_MODEL_KEY = {
@@ -42,6 +47,7 @@ const ROLE_TO_MODEL_KEY = {
   safetyClassifier: "safetyClassifier",
   thumbnailStrategist: "thumbnailStrategist",
   thumbnailCritic: "thumbnailCritic",
+  twelvelabsShort: "twelvelabsShort",
 };
 
 function sleepMs(ms) {
@@ -157,7 +163,7 @@ export function classifyOpenAIError(error) {
 async function createChatCompletion(client, {
   model,
   system,
-  user,
+  userContent,
   temperature,
   extraMessages = [],
 }) {
@@ -167,7 +173,7 @@ async function createChatCompletion(client, {
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: system },
-      { role: "user", content: user },
+      { role: "user", content: userContent },
       ...extraMessages,
     ],
   });
@@ -176,7 +182,7 @@ async function createChatCompletion(client, {
 async function invokeChatJsonOnce(client, {
   model,
   system,
-  user,
+  userContent,
   temperature,
   extraMessages = [],
   onUsage,
@@ -186,7 +192,7 @@ async function invokeChatJsonOnce(client, {
   const response = await createChatCompletion(client, {
     model,
     system,
-    user,
+    userContent,
     temperature,
     extraMessages,
   });
@@ -211,7 +217,7 @@ async function invokeChatJsonOnce(client, {
     const retryResponse = await createChatCompletion(client, {
       model,
       system,
-      user,
+      userContent,
       temperature: 0,
       extraMessages: [
         { role: "assistant", content },
@@ -256,21 +262,55 @@ function getMaxDowngrades(env = process.env) {
 
 /**
  * @param {import("openai").OpenAI} client
+ * @param {{
+ *   role?: string,
+ *   system: string,
+ *   user?: string,
+ *   userContent?: string | Array<object>,
+ *   temperature?: number,
+ *   onUsage?: Function,
+ *   quotaTracker?: object | null,
+ *   batchId?: string | null,
+ *   step?: string | null,
+ *   env?: Record<string, string | undefined>,
+ *   model?: string | null,
+ * }} options
  */
 export async function executeRoutedChatJson(client, {
   role,
   system,
   user,
+  userContent,
   temperature = 0.4,
   onUsage,
   quotaTracker = null,
   batchId = null,
   step = null,
+  cacheKey = null,
+  workDir = null,
   env = process.env,
   model: explicitModel = null,
 }) {
   if (!role && !explicitModel) {
     throw new Error("executeRoutedChatJson requires role or explicit model");
+  }
+
+  const resolvedUserContent = userContent ?? user;
+  if (resolvedUserContent == null) {
+    throw new Error("executeRoutedChatJson requires user or userContent");
+  }
+
+  const cacheContext = {
+    batchId,
+    workDir,
+    step,
+    role,
+    cacheKey,
+    env,
+  };
+  const cached = tryReadLlmResponseCache(cacheContext);
+  if (cached) {
+    return cached.response;
   }
 
   const quotaSnapshot = quotaTracker?.snapshot?.() ?? null;
@@ -293,7 +333,12 @@ export async function executeRoutedChatJson(client, {
   for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
     const model = candidates[candidateIndex];
     const callId = randomUUID();
-    const estimatedTokens = estimateChatTokens({ system, user, role: role ?? "default" });
+    const estimatedTokens = estimateChatTokens({
+      system,
+      user: typeof resolvedUserContent === "string" ? resolvedUserContent : "",
+      userContent: typeof resolvedUserContent === "string" ? undefined : resolvedUserContent,
+      role: role ?? "default",
+    });
 
     if (quotaTracker && isQuotaTrackingEnabled(env)) {
       try {
@@ -341,7 +386,7 @@ export async function executeRoutedChatJson(client, {
         const { parsed, usage, model: actualModel } = await invokeChatJsonOnce(client, {
           model,
           system,
-          user,
+          userContent: resolvedUserContent,
           temperature,
           onUsage: wrappedOnUsage,
           requestedModel,
@@ -357,6 +402,13 @@ export async function executeRoutedChatJson(client, {
             batchId,
           });
         }
+
+        writeLlmResponseCache({
+          ...cacheContext,
+          response: parsed,
+          model: actualModel ?? model,
+          callId,
+        });
 
         return parsed;
       } catch (error) {
@@ -404,6 +456,16 @@ export async function executeRoutedChatJson(client, {
   }
 
   throw lastError ?? new Error("Routed chat failed without error");
+}
+
+/**
+ * Multimodal JSON chat (text + image_url parts). Same reserve/commit loop as text chat.
+ */
+export async function executeRoutedChatJsonMultimodal(client, options) {
+  if (options.userContent == null) {
+    throw new Error("executeRoutedChatJsonMultimodal requires userContent");
+  }
+  return executeRoutedChatJson(client, options);
 }
 
 export { shouldUseRouter };

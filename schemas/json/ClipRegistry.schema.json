@@ -59,7 +59,8 @@
                   "clip_profile",
                   "l1_refined",
                   "context_override",
-                  "director"
+                  "director",
+                  "ai_video"
                 ]
               },
               "hasSpeech": {

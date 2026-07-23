@@ -5,12 +5,15 @@ import os from "node:os";
 import path from "node:path";
 import {
   buildTopicIndex,
+  buildSceneVisualText,
   cosineSimilarity,
   createTokenVectorEmbedFn,
   embedTextsInChunks,
   keywordOverlap,
   normalizeVector,
   runTopicIndexStep,
+  STOP_WORDS,
+  tokenize,
   TopicIndexEmbeddingError,
 } from "./topic-index.js";
 import { ARTIFACTS, writeJson } from "../work-paths.js";
@@ -80,6 +83,68 @@ function createSemanticMockEmbedFn() {
 }
 
 describe("topic_index", () => {
+  it("STOP_WORDS blocks Polish discourse fillers from tokenize", () => {
+    const fillers = [
+      "ale", "więc", "się", "jak", "tylko", "może", "bardzo", "tego",
+      "jest", "być", "było", "będzie", "już", "przecież", "właśnie",
+    ];
+    for (const word of fillers) {
+      assert.ok(STOP_WORDS.has(word), `expected STOP_WORDS to include ${word}`);
+    }
+    const tokens = tokenize(
+      "Ale no więc że to jak się tylko może bardzo tego jest być było będzie restauracja",
+    );
+    assert.ok(!tokens.includes("ale"));
+    assert.ok(!tokens.includes("więc"));
+    assert.ok(!tokens.includes("tylko"));
+    assert.ok(tokens.includes("restauracja"));
+  });
+
+  it("does not create topic label ale from filler-heavy transcript", async () => {
+    const fillerSummary = [
+      "Ale no więc że to jak się na w z i a o bo już tylko może bardzo tego",
+      "jest być było będzie ale ale ale więc więc tylko może bardzo tego jest",
+      "ale parkiet ale restauracja ale więc ale tylko ale może",
+    ].join(" ");
+
+    const fillerWords = [];
+    let t = 0;
+    for (const word of fillerSummary.split(/\s+/)) {
+      fillerWords.push({
+        wordId: `clip01_w${String(fillerWords.length + 1).padStart(3, "0")}`,
+        word,
+        start: t,
+        end: t + 0.4,
+        isFiller: true,
+      });
+      t += 0.5;
+    }
+
+    const index = await buildTopicIndex({
+      abstraction: {
+        L2: [
+          { segmentId: "s1", summary: fillerSummary, sceneIds: ["clip01_scene001"] },
+        ],
+        L3: { sessionSummary: fillerSummary, narrativeArc: "ale więc tylko może" },
+        L1: abstraction.L1,
+      },
+      timelineIndex: {
+        ...timelineIndex,
+        words: fillerWords,
+      },
+      clipRegistry,
+      threshold: 0.55,
+      embedFn: mockEmbedFn,
+    });
+
+    const labels = index.topics.map((topic) => topic.label.toLowerCase());
+    assert.ok(!labels.includes("ale"), `unexpected topic labels: ${labels.join(", ")}`);
+    assert.ok(
+      labels.every((label) => !STOP_WORDS.has(label)),
+      `stopword leaked into labels: ${labels.join(", ")}`,
+    );
+  });
+
   it("extracts topics and scores matching broll scenes above threshold", async () => {
     const index = await buildTopicIndex({
       abstraction,
@@ -311,18 +376,72 @@ describe("topic_index", () => {
     assert.equal(partial, 1 / 3);
   });
 
-  it("embedTextsInChunks batches large embed requests", async () => {
-    let callCount = 0;
+  it("buildSceneVisualText never returns an empty string", () => {
+    const text = buildSceneVisualText(
+      { sceneId: "ai_hook_01_scene001", clipId: "ai_hook_01" },
+      {},
+      { visionCaptions: [] },
+      null,
+    );
+    assert.ok(text.trim().length > 0);
+    assert.match(text, /ai_hook_01/);
+  });
+
+  it("embedTextsInChunks replaces empty strings before calling embedFn", async () => {
+    const seen = [];
     const embedFn = async (texts) => {
-      callCount += 1;
-      assert.ok(texts.length <= 50);
+      seen.push(...texts);
       return texts.map(() => [1, 0]);
     };
 
-    const texts = Array.from({ length: 105 }, (_, i) => `text-${i}`);
-    const embeddings = await embedTextsInChunks(texts, embedFn);
+    const embeddings = await embedTextsInChunks(["ok", "", "  "], embedFn);
+    assert.equal(embeddings.length, 3);
+    assert.equal(seen[0], "ok");
+    assert.equal(seen[1], "embed_placeholder_1");
+    assert.equal(seen[2], "embed_placeholder_2");
+  });
 
-    assert.equal(embeddings.length, 105);
-    assert.equal(callCount, 3);
+  it("buildTopicIndex skips ai_generated scenes and survives empty visual text", async () => {
+    const index = await buildTopicIndex({
+      abstraction: {
+        ...abstraction,
+        L1: [
+          ...abstraction.L1,
+          { sceneId: "ai_hook_01_scene001", summary: "", topics: [], brollPotential: 0 },
+        ],
+      },
+      timelineIndex: {
+        ...timelineIndex,
+        scenes: [
+          ...timelineIndex.scenes,
+          {
+            sceneId: "ai_hook_01_scene001",
+            clipId: "ai_hook_01",
+            startSec: 0,
+            endSec: 5,
+            hasSpeech: false,
+          },
+        ],
+      },
+      clipRegistry: [
+        ...clipRegistry,
+        {
+          clipId: "ai_hook_01",
+          clipRole: "ai_generated",
+          hasSpeech: false,
+          speechWordCount: 0,
+          mediaType: "video",
+        },
+      ],
+      embedFn: mockEmbedFn,
+    });
+
+    assert.ok(index.topics.length > 0);
+    for (const topic of index.topics) {
+      assert.equal(
+        topic.matchingScenes.some((match) => match.sceneId === "ai_hook_01_scene001"),
+        false,
+      );
+    }
   });
 });

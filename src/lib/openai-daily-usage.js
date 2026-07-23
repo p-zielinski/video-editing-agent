@@ -27,6 +27,7 @@ const OUTPUT_RESERVE_BY_ROLE = {
   thumbnailStrategist: 4000,
   thumbnailCritic: 2000,
   sfxTextEnrich: 800,
+  twelvelabsShort: 4000,
   default: 2000,
 };
 
@@ -90,10 +91,44 @@ export function formatQuotaDateKey(date, timezone = "UTC") {
 }
 
 /**
- * @param {{ system?: string, user?: string, role?: string }} params
+ * Flatten multimodal user content to a text string for token estimation.
+ * @param {string | Array<{ type?: string, text?: string }> | undefined} userContent
  */
-export function estimateChatTokens({ system = "", user = "", role = "default" }) {
-  const inputChars = String(system).length + String(user).length;
+export function flattenUserContentForEstimate(userContent) {
+  if (userContent == null) {
+    return "";
+  }
+  if (typeof userContent === "string") {
+    return userContent;
+  }
+  if (!Array.isArray(userContent)) {
+    return "";
+  }
+  return userContent
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (part?.type === "text" && part.text) {
+        return part.text;
+      }
+      // Rough vision token stand-in when image_url is present (detail=low ~85 tokens ≈ ~300 chars)
+      if (part?.type === "image_url") {
+        return "x".repeat(300);
+      }
+      return "";
+    })
+    .join(" ");
+}
+
+/**
+ * @param {{ system?: string, user?: string, userContent?: string | Array<object>, role?: string }} params
+ */
+export function estimateChatTokens({ system = "", user = "", userContent, role = "default" }) {
+  const userText = userContent != null
+    ? flattenUserContentForEstimate(userContent)
+    : String(user);
+  const inputChars = String(system).length + userText.length;
   const inputEstimate = Math.ceil(inputChars / 3.5);
   const outputReserve = OUTPUT_RESERVE_BY_ROLE[role] ?? OUTPUT_RESERVE_BY_ROLE.default;
   return inputEstimate + outputReserve;
@@ -705,4 +740,142 @@ export function readDailyQuotaSummary({
     return createEmptyDocument({ date: dateKey, timezone, limits });
   }
   return readDailyDocument(filePath, { date: dateKey, timezone, limits });
+}
+
+function parseExhaustedPools(raw) {
+  if (!raw) {
+    return [];
+  }
+  return String(raw)
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value === "premium" || value === "mini");
+}
+
+function applyPoolSeed(document, poolName, {
+  usedTokens,
+  exhausted = false,
+  limits,
+  mode,
+}) {
+  const limit = limits[poolName];
+  const pool = document.pools[poolName];
+  let targetUsed = Math.max(0, usedTokens);
+  if (exhausted && targetUsed === 0) {
+    targetUsed = limit;
+  }
+  targetUsed = Math.min(targetUsed, limit);
+  if (mode === "set") {
+    pool.usedTokens = targetUsed;
+  } else {
+    pool.usedTokens = Math.max(pool.usedTokens ?? 0, targetUsed);
+  }
+  pool.calls = Math.max(pool.calls ?? 0, pool.usedTokens > 0 ? 1 : 0);
+  if (exhausted || pool.usedTokens >= limit) {
+    pool.exhausted = true;
+    pool.remainingTokens = 0;
+  }
+  recomputePoolRemaining(pool, limit);
+  if (pool.exhausted) {
+    pool.remainingTokens = 0;
+  }
+}
+
+/**
+ * Seed daily quota with usage that happened before OPENAI_QUOTA_TRACKING was enabled.
+ *
+ * @param {{
+ *   usageDir?: string,
+ *   timezone?: string,
+ *   limits?: { premium: number, mini: number },
+ *   date?: Date,
+ *   premiumUsedTokens?: number,
+ *   miniUsedTokens?: number,
+ *   exhaustedPools?: Array<"premium" | "mini">,
+ *   note?: string,
+ *   mode?: "set-minimum" | "set",
+ * }} params
+ */
+export function seedDailyQuotaUsage({
+  usageDir = process.env.OPENAI_USAGE_DIR ?? path.join("output", ".openai-usage"),
+  timezone = process.env.OPENAI_QUOTA_TIMEZONE ?? "UTC",
+  limits = {
+    premium: Number(process.env.OPENAI_DAILY_PREMIUM_LIMIT ?? DEFAULT_PREMIUM_LIMIT),
+    mini: Number(process.env.OPENAI_DAILY_MINI_LIMIT ?? DEFAULT_MINI_LIMIT),
+  },
+  date = new Date(),
+  premiumUsedTokens = 0,
+  miniUsedTokens = 0,
+  exhaustedPools = [],
+  note = "manual seed — usage before quota tracking",
+  mode = "set-minimum",
+} = {}) {
+  const exhausted = new Set(exhaustedPools);
+  let savedDocument = null;
+
+  withDailyDocument({
+    usageDir,
+    timezone,
+    limits,
+    reservePercent: 0,
+    reservationTtlMinutes: 0,
+    mutate(document) {
+      if (premiumUsedTokens > 0 || exhausted.has("premium")) {
+        applyPoolSeed(document, "premium", {
+          usedTokens: premiumUsedTokens,
+          exhausted: exhausted.has("premium"),
+          limits,
+          mode,
+        });
+      }
+      if (miniUsedTokens > 0 || exhausted.has("mini")) {
+        applyPoolSeed(document, "mini", {
+          usedTokens: miniUsedTokens,
+          exhausted: exhausted.has("mini"),
+          limits,
+          mode,
+        });
+      }
+
+      document.manualSeed = {
+        note,
+        mode,
+        premiumUsedTokens,
+        miniUsedTokens,
+        exhaustedPools: [...exhausted],
+        seededAt: new Date().toISOString(),
+      };
+      document.updatedAt = new Date().toISOString();
+      savedDocument = document;
+      return document;
+    },
+  });
+
+  return savedDocument;
+}
+
+export function seedDailyQuotaUsageFromEnv(env = process.env) {
+  const premiumRaw = env.OPENAI_QUOTA_SEED_PREMIUM;
+  const miniRaw = env.OPENAI_QUOTA_SEED_MINI;
+  const premiumUsedTokens = Number.parseInt(premiumRaw ?? "0", 10);
+  const miniUsedTokens = Number.parseInt(miniRaw ?? "0", 10);
+  const exhaustedPools = parseExhaustedPools(env.OPENAI_QUOTA_SEED_EXHAUSTED);
+  const note = env.OPENAI_QUOTA_SEED_NOTE ?? "manual seed — usage before quota tracking";
+
+  if (
+    (!Number.isFinite(premiumUsedTokens) || premiumUsedTokens <= 0)
+    && (!Number.isFinite(miniUsedTokens) || miniUsedTokens <= 0)
+    && exhaustedPools.length === 0
+  ) {
+    return null;
+  }
+
+  return seedDailyQuotaUsage({
+    usageDir: env.OPENAI_USAGE_DIR,
+    timezone: env.OPENAI_QUOTA_TIMEZONE,
+    premiumUsedTokens: Number.isFinite(premiumUsedTokens) ? premiumUsedTokens : 0,
+    miniUsedTokens: Number.isFinite(miniUsedTokens) ? miniUsedTokens : 0,
+    exhaustedPools,
+    note,
+  });
 }

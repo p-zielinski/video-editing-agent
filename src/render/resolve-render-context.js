@@ -107,12 +107,36 @@ function loadAudioEnhancementIndex(workDir) {
   return JSON.parse(fs.readFileSync(indexPath, "utf8"));
 }
 
-function buildEnhancedAudioPaths(workDir, enhancementIndex) {
+/**
+ * Map clipId → enhanced WAV path for render.
+ * When recipe has audioEnhancementDecisions, only `action === "accept"` clips are included.
+ * When decisions are absent/empty (legacy), any succeeded/stubbed index entry is allowed.
+ *
+ * @param {string} workDir
+ * @param {object|null} enhancementIndex
+ * @param {object|null} [recipe]
+ * @returns {Record<string, string>}
+ */
+export function buildEnhancedAudioPaths(workDir, enhancementIndex, recipe = null) {
+  const decisions = recipe?.audioEnhancementDecisions;
+  const hasDecisions = Array.isArray(decisions) && decisions.length > 0;
+  const acceptedClipIds = hasDecisions
+    ? new Set(
+      decisions
+        .filter((decision) => decision.action === "accept")
+        .map((decision) => decision.clipId),
+    )
+    : null;
+
   const paths = {};
   for (const entry of enhancementIndex?.clips ?? []) {
-    if ((entry.status === "succeeded" || entry.status === "stubbed") && entry.outputPath) {
-      paths[entry.clipId] = path.resolve(workDir, entry.outputPath);
+    if ((entry.status !== "succeeded" && entry.status !== "stubbed") || !entry.outputPath) {
+      continue;
     }
+    if (acceptedClipIds !== null && !acceptedClipIds.has(entry.clipId)) {
+      continue;
+    }
+    paths[entry.clipId] = path.resolve(workDir, entry.outputPath);
   }
   return paths;
 }
@@ -122,6 +146,7 @@ export function resolveRenderContext(workDir, recipe) {
   const sceneCatalog = JSON.parse(fs.readFileSync(sceneCatalogPath, "utf8"));
   const clips = mapClipsFromCatalog(sceneCatalog);
   validateClipSourcePaths(clips);
+  const audioEnhancementIndex = loadAudioEnhancementIndex(workDir);
 
   return {
     batchId: sceneCatalog.batchId ?? recipe?.batchId ?? "",
@@ -131,6 +156,11 @@ export function resolveRenderContext(workDir, recipe) {
     spatialIndex: loadSpatialIndex(workDir),
     sceneCatalog,
     audioIndex: loadAudioIndex(workDir),
-    enhancedAudioPaths: buildEnhancedAudioPaths(workDir, loadAudioEnhancementIndex(workDir)),
+    audioEnhancementIndex,
+    enhancedAudioPaths: buildEnhancedAudioPaths(
+      workDir,
+      audioEnhancementIndex,
+      recipe,
+    ),
   };
 }

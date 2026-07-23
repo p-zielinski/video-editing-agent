@@ -49,12 +49,16 @@ export function buildAgentChatContext({
   dailyQuotaTracker,
   batchId,
   step,
+  cacheKey,
+  workDir,
 }) {
   return {
     onUsage: createUsageRecorder(gptUsageTracker, step),
     quotaTracker: dailyQuotaTracker ?? null,
     batchId: batchId ?? null,
     step: step ?? null,
+    cacheKey: cacheKey ?? null,
+    workDir: workDir ?? null,
   };
 }
 

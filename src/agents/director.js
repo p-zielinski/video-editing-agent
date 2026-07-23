@@ -1,4 +1,5 @@
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
+import { parseAgentSchema } from "../lib/llm-response-cache.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +14,10 @@ import {
   summarizeCreativityBudgetForBrief,
   synthesizeOutputsForBudget,
 } from "../editorial/technique-budget.js";
-import { formatCatalogForPrompt } from "../editorial/format-catalog-for-prompt.js";
+import {
+  formatCatalogForPrompt,
+  formatCatalogIdListForPrompt,
+} from "../editorial/format-catalog-for-prompt.js";
 import {
   buildRetentionBeatAnchors,
   buildRetentionTechniqueRotation,
@@ -63,7 +67,7 @@ import { buildTopSceneRanks } from "../editorial/scene-rank.js";
 import { buildEnhancementCandidatesBrief } from "../lib/audio-quality.js";
 import { buildEngagementRepairCandidates } from "../lib/delivery-analysis.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
-import { measureBriefPayload } from "../lib/brief-metrics.js";
+import { measureBriefPayload, warnBriefPayloadIfLarge } from "../lib/brief-metrics.js";
 
 function truncateSummary(text, maxLen = DIRECTOR_BRIEF_CAPS.L1_SUMMARY_MAX_CHARS) {
   const s = text ?? "";
@@ -193,7 +197,9 @@ function buildCreativityContext({
       summarizeCreativityBudgetForBrief(outputBudget),
     ]),
   );
-  const techniqueCatalog = formatCatalogForPrompt(catalog, creativityBudget);
+  const techniqueCatalog = formatCatalogForPrompt(catalog, creativityBudget, {
+    maxChars: DIRECTOR_BRIEF_CAPS.TECHNIQUE_CATALOG_MAX_CHARS,
+  });
 
   let retentionBeatTargets = [];
   let retentionBeatTargetsMain = [];
@@ -497,6 +503,28 @@ function buildL1SceneSummaries(abstraction, scenes) {
       isNarrationSource: l1.isNarrationSource ?? false,
     };
   });
+}
+
+/**
+ * Prefer L1 summaries over long word dumps when unique L1 coverage is good.
+ */
+export function resolveMaxWordsPerSceneForBrief(
+  abstraction,
+  timelineIndex,
+  caps = DIRECTOR_BRIEF_CAPS,
+) {
+  const sceneCount = timelineIndex?.scenes?.length ?? 0;
+  if (sceneCount <= 0) {
+    return caps.maxWordsPerScene;
+  }
+  const uniqueL1 = new Set(
+    (abstraction?.L1 ?? []).map((entry) => entry.sceneId).filter(Boolean),
+  );
+  const coverage = uniqueL1.size / sceneCount;
+  if (coverage >= caps.L1_GOOD_COVERAGE_RATIO) {
+    return caps.maxWordsPerSceneWhenL1Good;
+  }
+  return caps.maxWordsPerScene;
 }
 
 function selectL1SummaryScenes({
@@ -1187,6 +1215,8 @@ export function buildDirectorBrief({
     })
     .filter((entry) => entry.count > 0);
 
+  const maxWordsPerScene = resolveMaxWordsPerSceneForBrief(abstraction, timelineIndex);
+
   const editorialContext = buildEditorialContext({
     timelineIndex,
     topicIndex,
@@ -1194,7 +1224,7 @@ export function buildDirectorBrief({
     audioIndex,
     includeFullTopicIndex: DIRECTOR_BRIEF_CAPS.includeFullTopicIndex,
     spatialAnchorLimit: DIRECTOR_BRIEF_CAPS.spatialAnchorLimit,
-    maxWordsPerScene: DIRECTOR_BRIEF_CAPS.maxWordsPerScene,
+    maxWordsPerScene,
     audioCaps: DIRECTOR_BRIEF_CAPS.audioCaps,
     perClipAnalysis,
     wordIndexes,
@@ -1613,6 +1643,7 @@ export async function runDirector(client, {
     userJson: user,
     brief,
   });
+  warnBriefPayloadIfLarge(briefMetric);
 
   const raw = await chatJson(client, {
     role: "director",
@@ -1624,6 +1655,7 @@ export async function runDirector(client, {
     quotaTracker,
     batchId,
     step,
+    workDir,
   });
 
   raw.batchId = timelineIndex.batchId;
@@ -1649,10 +1681,169 @@ export async function runDirector(client, {
     raw.creativeMoments = [];
   }
   sanitizeDirectorDraft(raw, { clipRegistry });
+  backfillDirectorDraftContext(raw, {
+    priorRecipe: null,
+    batchContext: brief.batchContext,
+    requiredFormats,
+    inputMode: brief.inputMode,
+  });
 
-  const recipe = EditRecipeV2Schema.parse(raw);
+  const recipe = parseAgentSchema(EditRecipeV2Schema, raw, {
+    batchId,
+    workDir,
+    step: step ?? "direct",
+    role: "director",
+  });
   persistRetentionBeatTargetsFromBrief(recipe, brief);
   return { recipe, briefMetric };
+}
+
+function mediaRefKey(ref) {
+  if (!ref || typeof ref !== "object") {
+    return "";
+  }
+  return `${ref.clipId ?? ""}:${ref.sceneId ?? ""}`;
+}
+
+function defaultAudioPolicyForSegment(segment) {
+  if (segment?.segmentRole === "ai_hook") {
+    return "from_next";
+  }
+  const videoKey = mediaRefKey(segment?.videoRef);
+  const audioKey = mediaRefKey(segment?.audioRef);
+  if (audioKey && audioKey !== videoKey) {
+    return "from_audio_ref";
+  }
+  return "from_video_ref";
+}
+
+export function buildPriorAudioPolicyBySegmentId(priorRecipe) {
+  const map = new Map();
+  for (const output of priorRecipe?.outputs ?? []) {
+    for (const segment of output.timeline ?? []) {
+      if (segment?.segmentId && segment.audioPolicy) {
+        map.set(segment.segmentId, segment.audioPolicy);
+      }
+    }
+  }
+  return map;
+}
+
+export function ensureTimelineAudioPolicies(raw, { priorRecipe } = {}) {
+  if (!raw?.outputs?.length) {
+    return raw;
+  }
+
+  const priorMap = buildPriorAudioPolicyBySegmentId(priorRecipe);
+  for (const output of raw.outputs) {
+    for (const segment of output.timeline ?? []) {
+      if (!segment) {
+        continue;
+      }
+      // AI hooks must pull audio from the next A-roll — mute+0 fails schema (audioOutSec > 0).
+      if (segment.segmentRole === "ai_hook" && (!segment.audioPolicy || segment.audioPolicy === "mute")) {
+        segment.audioPolicy = "from_next";
+        continue;
+      }
+      if (segment.audioPolicy) {
+        continue;
+      }
+      if (segment.segmentId && priorMap.has(segment.segmentId)) {
+        segment.audioPolicy = priorMap.get(segment.segmentId);
+        continue;
+      }
+      segment.audioPolicy = defaultAudioPolicyForSegment(segment);
+    }
+  }
+  return raw;
+}
+
+/**
+ * Coerce invalid LLM timeline numbers so Zod positive() checks pass.
+ * Common failure: mute ai_hook with audioOutSec=0.
+ */
+export function normalizeDirectorTimelineWindows(raw) {
+  if (!raw?.outputs?.length) {
+    return raw;
+  }
+
+  for (const output of raw.outputs) {
+    for (const segment of output.timeline ?? []) {
+      if (!segment || typeof segment !== "object") {
+        continue;
+      }
+
+      if (!Number.isFinite(segment.videoInSec) || segment.videoInSec < 0) {
+        segment.videoInSec = 0;
+      }
+      if (!Number.isFinite(segment.audioInSec) || segment.audioInSec < 0) {
+        segment.audioInSec = 0;
+      }
+
+      const videoSpan = Number.isFinite(segment.videoOutSec)
+        ? Math.max(0, segment.videoOutSec - segment.videoInSec)
+        : 0;
+
+      if (!Number.isFinite(segment.videoOutSec) || segment.videoOutSec <= segment.videoInSec) {
+        segment.videoOutSec = segment.videoInSec + Math.max(videoSpan, 0.1);
+      }
+
+      const fallbackAudioSpan = Math.max(
+        segment.videoOutSec - segment.videoInSec,
+        0.1,
+      );
+      if (!Number.isFinite(segment.audioOutSec) || segment.audioOutSec <= segment.audioInSec) {
+        segment.audioOutSec = segment.audioInSec + fallbackAudioSpan;
+      }
+
+      // Fix common LLM mistake: sceneId === clipId for ai_hook
+      if (segment.segmentRole === "ai_hook") {
+        for (const refKey of ["videoRef", "audioRef"]) {
+          const ref = segment[refKey];
+          if (ref?.clipId && (!ref.sceneId || ref.sceneId === ref.clipId)) {
+            ref.sceneId = `${ref.clipId}_scene001`;
+          }
+        }
+      }
+    }
+  }
+
+  return raw;
+}
+
+export function backfillDirectorDraftContext(raw, {
+  priorRecipe = null,
+  batchContext = {},
+  requiredFormats = ["16:9", "9:16"],
+  inputMode = null,
+} = {}) {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+
+  if ((!Array.isArray(raw.outputs) || raw.outputs.length === 0)
+    && priorRecipe?.outputs?.length > 0) {
+    raw.outputs = structuredClone(priorRecipe.outputs);
+  }
+  if (typeof raw.segmentId === "string") {
+    delete raw.segmentId;
+  }
+
+  raw.batchContext = {
+    ...(priorRecipe?.batchContext ?? {}),
+    ...batchContext,
+    ...(raw.batchContext ?? {}),
+  };
+  if (Array.isArray(requiredFormats) && requiredFormats.length > 0) {
+    raw.batchContext.requiredFormats = requiredFormats;
+  }
+  // Orchestrator/manifest inputMode always wins — never keep LLM single_clip on multi-clip batches.
+  if (inputMode) {
+    raw.batchContext.inputMode = inputMode;
+  }
+  ensureTimelineAudioPolicies(raw, { priorRecipe });
+  normalizeDirectorTimelineWindows(raw);
+  return raw;
 }
 
 export function sanitizeDirectorDraft(raw, { clipRegistry } = {}) {
@@ -1673,6 +1864,8 @@ export function sanitizeDirectorDraft(raw, { clipRegistry } = {}) {
   if (vo && !(Number.isFinite(vo.estimatedDurationSec) && vo.estimatedDurationSec > 0)) {
     delete vo.estimatedDurationSec;
   }
+  ensureTimelineAudioPolicies(raw);
+  normalizeDirectorTimelineWindows(raw);
   return raw;
 }
 
@@ -1739,6 +1932,78 @@ export function shouldRunDirectorDrillDown(recipe, batchContext = {}, options = 
 
 export const DRILL_DOWN_SCENE_CAP = 15;
 
+const DRILL_DOWN_FIX_INSTRUCTIONS = [
+  "Refine the draft using drillDownSceneDetails and sceneSummariesL1 for the selected scenes only.",
+  "Return a full EditRecipeV2 document; preserve untouched timeline segments from draftRecipeFingerprint.",
+  "Do not invent sceneIds outside drillDownSceneDetails / fingerprint timelines.",
+  "Prefer patching cuts, audioPolicy, and creativeMoments over rewriting the entire story.",
+];
+
+/**
+ * Compact prior-recipe summary for drill-down (no bulky overlays/debug dumps).
+ */
+export function buildDraftRecipeFingerprint(recipe) {
+  if (!recipe) {
+    return null;
+  }
+  return {
+    version: recipe.version,
+    batchId: recipe.batchId,
+    creativityProfile: recipe.creativityProfile ?? null,
+    narrativeProfile: recipe.narrativeProfile
+      ? {
+          mode: recipe.narrativeProfile.mode,
+          segmentCount: recipe.narrativeProfile.segments?.length ?? 0,
+        }
+      : null,
+    creativeMomentCount: recipe.creativeMoments?.length ?? 0,
+    creativeMoments: (recipe.creativeMoments ?? []).slice(0, 24).map((moment) => ({
+      id: moment.id,
+      techniqueId: moment.techniqueId,
+      outputId: moment.outputId,
+      atSec: moment.atSec ?? moment.startSec ?? null,
+    })),
+    outputs: (recipe.outputs ?? []).map((output) => ({
+      outputId: output.outputId,
+      format: output.format,
+      outputKind: output.outputKind,
+      title: output.title,
+      targetDurationSec: output.targetDurationSec,
+      timeline: (output.timeline ?? []).map((segment) => ({
+        segmentId: segment.segmentId,
+        segmentRole: segment.segmentRole,
+        videoRef: segment.videoRef,
+        audioRef: segment.audioRef,
+        videoInSec: segment.videoInSec,
+        videoOutSec: segment.videoOutSec,
+        audioInSec: segment.audioInSec,
+        audioOutSec: segment.audioOutSec,
+        audioPolicy: segment.audioPolicy,
+        cutCount: segment.cuts?.length ?? 0,
+        textOverlayCount: segment.textOverlays?.length ?? 0,
+        preserveAmbientAudio: segment.preserveAmbientAudio ?? undefined,
+      })),
+    })),
+  };
+}
+
+export function buildOutputTimelinesSummary(recipe) {
+  return (recipe?.outputs ?? []).map((output) => ({
+    outputId: output.outputId,
+    format: output.format,
+    outputKind: output.outputKind,
+    segmentCount: output.timeline?.length ?? 0,
+    sceneIds: [
+      ...new Set(
+        (output.timeline ?? []).flatMap((segment) => [
+          segment.videoRef?.sceneId,
+          segment.audioRef?.sceneId,
+        ].filter(Boolean)),
+      ),
+    ],
+  }));
+}
+
 /**
  * Prioritize scenes for drill-down when the recipe uses more than DRILL_DOWN_SCENE_CAP scenes.
  * Order: cross-clip segments, scenes with cuts, then sceneRanks.
@@ -1800,7 +2065,10 @@ export function prioritizeDrillDownSceneIds(recipe, sceneIds, abstraction, timel
     .slice(0, DRILL_DOWN_SCENE_CAP);
 }
 
-export async function directorDrillDown(client, {
+/**
+ * Slim drill-down user payload: fingerprint + selected scene details (no full draft/catalog/schema).
+ */
+export function buildDrillDownUserPayload({
   abstraction,
   timelineIndex,
   clipRegistry = [],
@@ -1817,12 +2085,7 @@ export async function directorDrillDown(client, {
   targetDurationSec,
   keyframesByClip = null,
   aiVideoArtifact = null,
-  onUsage,
-  quotaTracker,
-  batchId,
-  step,
 }) {
-  const system = loadPrompt("director", { version: "v2" });
   const cappedSceneIds = prioritizeDrillDownSceneIds(recipe, sceneIds, abstraction, timelineIndex);
   const drillDown = drillDownSceneDetails(timelineIndex, cappedSceneIds);
   const sceneSummariesL1 = filterL1ForScenes(abstraction, cappedSceneIds);
@@ -1830,7 +2093,6 @@ export async function directorDrillDown(client, {
     parsedCreativity,
     creativityBudget,
     creativityBudgetByOutput,
-    techniqueCatalog,
     shortsRetention,
     vlogRetention,
     dualRetention,
@@ -1859,6 +2121,25 @@ export async function directorDrillDown(client, {
     recipe,
   });
 
+  const catalog = loadTechniqueCatalog({
+    pack: parsedCreativity.techniquePack,
+    platforms: batchContext.targetPlatforms?.length
+      ? batchContext.targetPlatforms
+      : (recipe.batchContext?.targetPlatforms?.length
+        ? recipe.batchContext.targetPlatforms
+        : ["youtube", "shorts"]),
+  });
+  const techniqueCatalog = formatCatalogIdListForPrompt(catalog, creativityBudget);
+
+  const maxWordsPerScene = resolveMaxWordsPerSceneForBrief(
+    abstraction,
+    {
+      ...timelineIndex,
+      scenes: (timelineIndex.scenes ?? []).filter((s) => cappedSceneIds.includes(s.sceneId)),
+    },
+    DRILL_DOWN_CAPS,
+  );
+
   const editorialContext = buildEditorialContext({
     timelineIndex,
     recipe,
@@ -1868,7 +2149,7 @@ export async function directorDrillDown(client, {
     audioIndex,
     includeFullTopicIndex: DRILL_DOWN_CAPS.includeFullTopicIndex,
     spatialAnchorLimit: DRILL_DOWN_CAPS.spatialAnchorLimit,
-    maxWordsPerScene: DRILL_DOWN_CAPS.maxWordsPerScene,
+    maxWordsPerScene,
     audioCaps: DRILL_DOWN_CAPS.audioCaps,
     perClipAnalysis,
     wordIndexes,
@@ -1916,9 +2197,11 @@ export async function directorDrillDown(client, {
   const emotionalBeatHints = buildEmotionalBeatHints(abstraction, timelineIndex);
   const deadAirMontageHints = buildDeadAirMontageHints(editorialContext.audioIndex);
 
-  const user = JSON.stringify({
+  const payload = {
     task: "drill_down_refine",
-    draftRecipe: recipe,
+    fixInstructions: DRILL_DOWN_FIX_INSTRUCTIONS,
+    draftRecipeFingerprint: buildDraftRecipeFingerprint(recipe),
+    outputTimelinesSummary: buildOutputTimelinesSummary(recipe),
     drillDownSceneDetails: drillDown,
     sceneSummariesL1,
     topicIndex: editorialContext.topicIndex,
@@ -1979,14 +2262,61 @@ export async function directorDrillDown(client, {
     ...(emotionalBeatHints.length > 0 ? { emotionalBeatHints } : {}),
     ...(narrativeOpenLoops.length > 0 ? { narrativeOpenLoops } : {}),
     ...(deadAirMontageHints.length > 0 ? { deadAirMontageHints } : {}),
-    outputSchema: EDIT_RECIPE_V2_OUTPUT_SCHEMA,
+  };
+
+  return { payload, cappedSceneIds };
+}
+
+export async function directorDrillDown(client, {
+  abstraction,
+  timelineIndex,
+  clipRegistry = [],
+  topicIndex = { topics: [] },
+  spatialIndex = { scenes: [] },
+  audioIndex = null,
+  perClipAnalysis = null,
+  wordIndexes = [],
+  userContext,
+  requiredFormats = ["16:9", "9:16"],
+  batchContext = {},
+  recipe,
+  sceneIds,
+  targetDurationSec,
+  keyframesByClip = null,
+  aiVideoArtifact = null,
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
+  workDir = null,
+}) {
+  const system = loadPrompt("director", { version: "v2" });
+  const { payload, cappedSceneIds } = buildDrillDownUserPayload({
+    abstraction,
+    timelineIndex,
+    clipRegistry,
+    topicIndex,
+    spatialIndex,
+    audioIndex,
+    perClipAnalysis,
+    wordIndexes,
+    userContext,
+    requiredFormats,
+    batchContext,
+    recipe,
+    sceneIds,
+    targetDurationSec,
+    keyframesByClip,
+    aiVideoArtifact,
   });
+  const user = JSON.stringify(payload);
 
   const briefMetric = measureBriefPayload({
     task: "drill_down_refine",
     userJson: user,
     meta: { drillDownSceneCount: cappedSceneIds.length },
   });
+  warnBriefPayloadIfLarge(briefMetric);
 
   const raw = await chatJson(client, {
     role: "directorDrillDown",
@@ -1998,6 +2328,8 @@ export async function directorDrillDown(client, {
     quotaTracker,
     batchId,
     step,
+    cacheKey: "drill_down",
+    workDir,
   });
 
   raw.batchId = timelineIndex.batchId;
@@ -2016,6 +2348,16 @@ export async function directorDrillDown(client, {
   }
   // Always trust analysis clip registry — GPT drafts often omit required fields.
   sanitizeDirectorDraft(raw, { clipRegistry });
+  backfillDirectorDraftContext(raw, {
+    priorRecipe: recipe,
+    batchContext,
+    requiredFormats,
+    inputMode: detectInputMode(
+      timelineIndex.clips?.length ?? 1,
+      // Orchestrator batchContext wins over LLM/prior recipe inputMode.
+      { ...recipe.batchContext, ...batchContext },
+    ),
+  });
   if (!raw.narrativeProfile) {
     const derived = recipe.narrativeProfile
       ?? resolveEffectiveNarrativeProfile({
@@ -2028,7 +2370,13 @@ export async function directorDrillDown(client, {
   }
 
   return {
-    recipe: EditRecipeV2Schema.parse(raw),
+    recipe: parseAgentSchema(EditRecipeV2Schema, raw, {
+      batchId,
+      workDir,
+      step: step ?? "drill_down",
+      role: "directorDrillDown",
+      cacheKey: "drill_down",
+    }),
     directorMetrics: {
       drillDownRan: true,
       drillDownSceneCount: cappedSceneIds.length,

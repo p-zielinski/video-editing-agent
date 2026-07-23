@@ -35,15 +35,136 @@ export function audioEnhancementManifestPath(workDir, clipId) {
   return path.join(workDir, ARTIFACTS.audioEnhancementManifest(clipId));
 }
 
+/**
+ * True when every timeline use of clipId is on a preserveAmbientAudio segment.
+ */
+export function clipOnlyUsedOnPreserveAmbient(recipe, clipId) {
+  let seen = false;
+  for (const output of recipe?.outputs ?? []) {
+    for (const segment of output.timeline ?? []) {
+      const audioClipId = segment.audioRef?.clipId ?? segment.videoRef?.clipId;
+      if (audioClipId !== clipId) {
+        continue;
+      }
+      seen = true;
+      if (segment.preserveAmbientAudio !== true) {
+        return false;
+      }
+    }
+  }
+  return seen;
+}
+
 function collectAcceptedDecisions(recipe) {
   return (recipe.audioEnhancementDecisions ?? []).filter(
-    (decision) => decision.action === "accept",
+    (decision) => (
+      decision.action === "accept"
+      && !clipOnlyUsedOnPreserveAmbient(recipe, decision.clipId)
+    ),
+  );
+}
+
+const ARTIFACT_MISSING_REASON_RE = /brak (udanego )?artefaktu|bez udanego artefaktu/i;
+
+function findPerClipAnalysis(perClipAnalysis, clipId) {
+  if (!perClipAnalysis) {
+    return null;
+  }
+  if (Array.isArray(perClipAnalysis)) {
+    return perClipAnalysis.find((entry) => entry.clipId === clipId) ?? null;
+  }
+  if (typeof perClipAnalysis === "object") {
+    return perClipAnalysis[clipId] ?? null;
+  }
+  return null;
+}
+
+function resolveRepairOnlyPolishPreset(analysis) {
+  const humScore = analysis?.audioQuality?.humScore ?? 0;
+  const windScore = analysis?.audioQuality?.windScore ?? 0;
+  if (humScore > 0.5 && windScore < 0.45) {
+    return "repair_only";
+  }
+  return null;
+}
+
+/**
+ * Align recipe decisions with an existing enhancement index (succeeded/stubbed clips).
+ * @param {object} recipe
+ * @param {object} enhancementIndex
+ * @param {{ perClipAnalysis?: object[] }} [options]
+ * @returns {object} recipe
+ */
+export function reconcileAudioEnhancementDecisions(
+  recipe,
+  enhancementIndex,
+  { perClipAnalysis = null } = {},
+) {
+  const succeededClips = (enhancementIndex?.clips ?? []).filter(
+    (entry) => entry.status === "succeeded" || entry.status === "stubbed",
+  );
+  if (!succeededClips.length) {
+    return recipe;
+  }
+
+  const decisions = [...(recipe.audioEnhancementDecisions ?? [])];
+  const byClipId = new Map(decisions.map((decision) => [decision.clipId, decision]));
+
+  for (const manifest of succeededClips) {
+    const { clipId } = manifest;
+    const analysis = findPerClipAnalysis(perClipAnalysis, clipId);
+    const repairOnlyPreset = resolveRepairOnlyPolishPreset(analysis);
+    let decision = byClipId.get(clipId);
+
+    if (!decision) {
+      decision = {
+        candidateId: manifest.candidateId,
+        clipId,
+        action: "accept",
+        dialogueValue: "useful",
+        reason: "Zgodne z istniejącym artefaktem audio_enhancement",
+        providerPreference: "auto",
+        targetDialogueLufs: -18,
+        retranscribePolicy: "if_material_improvement",
+        ...(repairOnlyPreset ? { polishPreset: repairOnlyPreset } : {}),
+      };
+      decisions.push(decision);
+      byClipId.set(clipId, decision);
+      continue;
+    }
+
+    // Only flip artifact-missing rejects (fixer contract). Never override
+    // intentional ambient / director rejects when an old enhanced artifact exists.
+    const hasArtifactMissingReason = ARTIFACT_MISSING_REASON_RE.test(decision.reason ?? "");
+    if (hasArtifactMissingReason) {
+      decision.action = "accept";
+      decision.reason = "Zgodne z istniejącym artefaktem audio_enhancement (reconciled)";
+      if (!decision.candidateId) {
+        decision.candidateId = manifest.candidateId;
+      }
+    }
+
+    if (decision.action === "accept" && repairOnlyPreset) {
+      decision.polishPreset = repairOnlyPreset;
+    }
+  }
+
+  recipe.audioEnhancementDecisions = decisions;
+  return recipe;
+}
+
+function collectSucceededManifests(enhancementIndex) {
+  return (enhancementIndex?.clips ?? []).filter(
+    (entry) => entry.status === "succeeded" || entry.status === "stubbed",
   );
 }
 
 function applySourceVolumeDbToRecipe(recipe, clipId, sourceVolumeDb) {
   for (const output of recipe.outputs ?? []) {
     for (const segment of output.timeline ?? []) {
+      if (segment.preserveAmbientAudio === true) {
+        continue;
+      }
       const audioClipId = segment.audioRef?.clipId ?? segment.videoRef?.clipId;
       if (audioClipId === clipId) {
         segment.sourceVolumeDb = sourceVolumeDb;
@@ -87,12 +208,13 @@ function buildFailedManifest({
   });
 }
 
-function writeEnhancementIndex(workDir, catalog, manifests, recipe) {
+function writeEnhancementIndex(workDir, catalog, manifests, recipe, { perClipAnalysis = null } = {}) {
   const index = AudioEnhancementIndexSchema.parse({
     version: "1.0",
     batchId: catalog.batchId,
     clips: manifests,
   });
+  reconcileAudioEnhancementDecisions(recipe, index, { perClipAnalysis });
   writeJson(path.join(workDir, ARTIFACTS.audioEnhancementIndex), index);
   materializeSourceVolumeDb(recipe, index);
   writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
@@ -226,19 +348,30 @@ export async function runAudioEnhancementStep({
     throw new Error(`Brak ${ARTIFACTS.recipeDraft} — uruchom direct przed audio_enhancement`);
   }
 
+  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
+  const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
   const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
+  const existingIndex = fs.existsSync(indexPath) ? readJson(indexPath) : null;
+
   if (!force && shouldUseCachedArtifact(workDir, ARTIFACTS.audioEnhancementIndex, force)) {
-    const existing = readJson(indexPath);
     const recipe = EditRecipeV2Schema.parse(readJson(recipePath));
-    materializeSourceVolumeDb(recipe, existing);
+    reconcileAudioEnhancementDecisions(recipe, existingIndex, { perClipAnalysis });
+    materializeSourceVolumeDb(recipe, existingIndex);
     writeJson(recipePath, recipe);
-    return existing;
+    return existingIndex;
   }
 
   const recipe = EditRecipeV2Schema.parse(readJson(recipePath));
   const accepted = collectAcceptedDecisions(recipe);
-  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
-  const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
+  const existingSucceeded = collectSucceededManifests(existingIndex);
+
+  if (!accepted.length && existingSucceeded.length > 0) {
+    reconcileAudioEnhancementDecisions(recipe, existingIndex, { perClipAnalysis });
+    materializeSourceVolumeDb(recipe, existingIndex);
+    writeJson(recipePath, recipe);
+    return AudioEnhancementIndexSchema.parse(existingIndex);
+  }
+
   const manifests = [];
 
   for (const decision of accepted) {
@@ -266,7 +399,7 @@ export async function runAudioEnhancementStep({
     manifests.push(manifest);
   }
 
-  const index = writeEnhancementIndex(workDir, catalog, manifests, recipe);
+  const index = writeEnhancementIndex(workDir, catalog, manifests, recipe, { perClipAnalysis });
 
   const failedManifests = manifests.filter((entry) => entry.status === "failed");
   if (failedManifests.length > 0) {

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { ARTIFACTS } from "../../pipeline/work-paths.js";
 import { ERROR_CODES } from "./error-codes.js";
-import { StepFailureError } from "./errors.js";
+import { StepFailureError, AnalysisWaveFailure } from "./errors.js";
 import {
   buildRecoveryPlan,
   clearRecoveryPlan,
@@ -56,5 +56,25 @@ describe("recovery plan-writer", () => {
   it("clearRecoveryPlan removes artifact", () => {
     clearRecoveryPlan(workDir);
     assert.equal(readRecoveryPlan(workDir), null);
+  });
+
+  it("prefers error.step over orchestrator step for failedStep", () => {
+    const error = new AnalysisWaveFailure("vision: 1 klip(ów) nie powiodło się (clip16)", {
+      step: "vision",
+      failures: [{
+        clipId: "clip16",
+        code: ERROR_CODES.VISION_CLIP_FAILED,
+        message: "Python timeout",
+        scope: { clipId: "clip16" },
+      }],
+    });
+    const plan = buildRecoveryPlan({
+      error,
+      batchId: "batch01",
+      workDir,
+      step: "transcribe",
+    });
+    assert.equal(plan.failedStep, "vision");
+    assert.equal(plan.failures[0].step, "vision");
   });
 });

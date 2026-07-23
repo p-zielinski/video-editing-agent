@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   AbstractionBundleSchema,
   AbstractL1Schema,
@@ -11,6 +12,9 @@ import {
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 
 const SILENT_BATCH_MAX_SCENES = 8;
+const L1_INTEGRITY_MIN_RATIO = 0.5;
+const L1_INTEGRITY_COLLAPSE_UNIQUE_MAX = 1;
+const L1_INTEGRITY_COLLAPSE_EXPECTED_MIN = 5;
 
 const L1_OUTPUT_SCHEMA = {
   sceneId: "string",
@@ -46,6 +50,122 @@ function buildClipHints(clipRegistry = []) {
 function enrichSceneInput(scene, words, visionCaptions, clipRegistry, objectDetections = []) {
   const input = sceneSummaryInput(scene, words, visionCaptions, objectDetections);
   return enrichSceneInputWithClipMeta(input, clipRegistry);
+}
+
+/**
+ * Per-scene L1 LLM cache key — must be unique per sceneId so responses cannot collapse.
+ * @param {string} sceneId
+ * @returns {string}
+ */
+export function buildL1SceneCacheKey(sceneId) {
+  if (!sceneId || typeof sceneId !== "string") {
+    throw new Error("buildL1SceneCacheKey requires a non-empty sceneId");
+  }
+  return sceneId;
+}
+
+/**
+ * Stable batch L1 cache key from the set of sceneIds in the group.
+ * @param {string[]} sceneIds
+ * @returns {string}
+ */
+export function buildL1BatchCacheKey(sceneIds) {
+  const sorted = [...new Set((sceneIds ?? []).filter(Boolean))].sort();
+  if (sorted.length === 0) {
+    throw new Error("buildL1BatchCacheKey requires at least one sceneId");
+  }
+  const digest = createHash("sha256").update(sorted.join("|")).digest("hex").slice(0, 16);
+  return `batch_${digest}`;
+}
+
+/**
+ * Force sceneId from the requesting input — never trust the LLM field.
+ * @param {object} summary
+ * @param {string} sceneId
+ */
+export function bindL1SceneId(summary, sceneId) {
+  if (!summary || typeof summary !== "object") {
+    return summary;
+  }
+  return { ...summary, sceneId };
+}
+
+/**
+ * SceneIds that must receive L1 summaries (excludes ai_generated clips).
+ */
+export function expectedL1SceneIds(timelineIndex, clipRegistry = []) {
+  return (timelineIndex?.scenes ?? [])
+    .filter((scene) => {
+      const clip = clipRegistry.find((entry) => entry.clipId === scene.clipId);
+      return clip?.clipRole !== "ai_generated";
+    })
+    .map((scene) => scene.sceneId)
+    .filter(Boolean);
+}
+
+function l1SummaryFingerprint(entry) {
+  return String(entry?.summary ?? "").trim();
+}
+
+/**
+ * Detect poisoned / collapsed L1 (cache reuse or identical summaries after sceneId bind).
+ * @param {Array<object>} l1
+ * @param {string[]} expectedSceneIds
+ * @param {{ minUniqueRatio?: number, collapseUniqueMax?: number, collapseExpectedMin?: number }} [options]
+ * @returns {{ uniqueSceneIds: number, uniqueSummaries: number, expectedCount: number, sceneIdRatio: number, summaryRatio: number }}
+ */
+export function assertAbstractL1Integrity(l1, expectedSceneIds, {
+  minUniqueRatio = L1_INTEGRITY_MIN_RATIO,
+  collapseUniqueMax = L1_INTEGRITY_COLLAPSE_UNIQUE_MAX,
+  collapseExpectedMin = L1_INTEGRITY_COLLAPSE_EXPECTED_MIN,
+} = {}) {
+  const expected = [...new Set((expectedSceneIds ?? []).filter(Boolean))];
+  const expectedCount = expected.length;
+  const entries = Array.isArray(l1) ? l1 : [];
+  const uniqueSceneIds = new Set(entries.map((entry) => entry?.sceneId).filter(Boolean)).size;
+  const uniqueSummaries = new Set(
+    entries.map(l1SummaryFingerprint).filter((text) => text.length > 0),
+  ).size;
+
+  const sceneIdRatio = expectedCount === 0 ? 1 : uniqueSceneIds / expectedCount;
+  const summaryRatio = expectedCount === 0 ? 1 : uniqueSummaries / expectedCount;
+
+  const sceneIdCollapsed = uniqueSceneIds <= collapseUniqueMax && expectedCount > collapseExpectedMin;
+  const summaryCollapsed = uniqueSummaries <= collapseUniqueMax && expectedCount > collapseExpectedMin;
+  const sceneIdLowRatio = expectedCount > 0 && sceneIdRatio < minUniqueRatio;
+  const summaryLowRatio = expectedCount > 0 && summaryRatio < minUniqueRatio;
+
+  if (sceneIdCollapsed || sceneIdLowRatio || summaryCollapsed || summaryLowRatio) {
+    const reasons = [];
+    if (sceneIdCollapsed || sceneIdLowRatio) {
+      reasons.push(`unique sceneIds ${uniqueSceneIds}/${expectedCount} (ratio ${sceneIdRatio.toFixed(2)})`);
+    }
+    if (summaryCollapsed || summaryLowRatio) {
+      reasons.push(`unique summaries ${uniqueSummaries}/${expectedCount} (ratio ${summaryRatio.toFixed(2)})`);
+    }
+    const error = new Error(
+      `Abstract L1 integrity failed: ${reasons.join("; ")}. `
+      + "Likely poisoned summarizerL1 LLM cache (shared cacheKey). "
+      + "Clear output/.work/<batch>/llm-cache/abstract__summarizerL1*.json "
+      + "and re-run: node src/cli.js run --batch-id <id> --from-step abstract --to-step abstract "
+      + "(bez --force — integrity przebuduje automatycznie; --force tylko przy pełnym przeliczeniu)",
+    );
+    error.code = "ABSTRACT_L1_INTEGRITY";
+    error.uniqueSceneIds = uniqueSceneIds;
+    error.uniqueSummaries = uniqueSummaries;
+    error.expectedCount = expectedCount;
+    error.sceneIdRatio = sceneIdRatio;
+    error.summaryRatio = summaryRatio;
+    throw error;
+  }
+
+  return {
+    uniqueSceneIds,
+    uniqueSummaries,
+    expectedCount,
+    sceneIdRatio,
+    summaryRatio,
+  };
 }
 
 function loadSummarizerPrompt() {
@@ -118,7 +238,13 @@ function normalizeL1Summary(raw) {
   };
 }
 
-export async function summarizeScene(client, sceneInput, { onUsage, quotaTracker, batchId, step } = {}) {
+export async function summarizeScene(client, sceneInput, {
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
+  workDir,
+} = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L1_scene_summary",
@@ -136,6 +262,8 @@ export async function summarizeScene(client, sceneInput, { onUsage, quotaTracker
     quotaTracker,
     batchId,
     step,
+    workDir,
+    cacheKey: buildL1SceneCacheKey(sceneInput.sceneId),
   });
   let candidate = raw;
   if (raw && typeof raw === "object") {
@@ -147,10 +275,16 @@ export async function summarizeScene(client, sceneInput, { onUsage, quotaTracker
   } else if (Array.isArray(raw) && raw[0]) {
     candidate = raw[0];
   }
-  return normalizeL1Summary(candidate);
+  return bindL1SceneId(normalizeL1Summary(candidate), sceneInput.sceneId);
 }
 
-export async function summarizeSceneBatch(client, scenesInputs, { onUsage, quotaTracker, batchId, step } = {}) {
+export async function summarizeSceneBatch(client, scenesInputs, {
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
+  workDir,
+} = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L1_batch_summary",
@@ -170,6 +304,8 @@ export async function summarizeSceneBatch(client, scenesInputs, { onUsage, quota
     quotaTracker,
     batchId,
     step,
+    workDir,
+    cacheKey: buildL1BatchCacheKey(scenesInputs.map((scene) => scene.sceneId)),
   });
   const candidates = Array.isArray(raw)
     ? raw
@@ -180,31 +316,56 @@ export async function summarizeSceneBatch(client, scenesInputs, { onUsage, quota
         : [];
 
   const bySceneId = new Map();
+  const normalizedCandidates = [];
   for (const item of candidates) {
     if (!item || typeof item !== "object") {
       continue;
     }
     const sceneId = item.sceneId ?? item.scene_id ?? item.id;
     const summary = item.summary ?? item.text ?? item.caption;
-    if (typeof sceneId === "string" && typeof summary === "string") {
-      bySceneId.set(sceneId, normalizeL1Summary({ ...item, sceneId, summary }));
+    if (typeof summary !== "string") {
+      continue;
+    }
+    const normalized = normalizeL1Summary({
+      ...item,
+      sceneId: typeof sceneId === "string" ? sceneId : undefined,
+      summary,
+    });
+    normalizedCandidates.push(normalized);
+    if (typeof sceneId === "string") {
+      bySceneId.set(sceneId, normalized);
     }
   }
 
   const resolved = [];
-  for (const sceneInput of scenesInputs) {
+  const chatOpts = { onUsage, quotaTracker, batchId, step, workDir };
+  for (let index = 0; index < scenesInputs.length; index += 1) {
+    const sceneInput = scenesInputs[index];
     const sceneId = sceneInput.sceneId;
-    if (bySceneId.has(sceneId)) {
-      resolved.push(bySceneId.get(sceneId));
+    let candidate = bySceneId.get(sceneId) ?? null;
+    if (!candidate) {
+      const byIndex = normalizedCandidates[index];
+      if (byIndex && typeof byIndex.summary === "string") {
+        candidate = byIndex;
+      }
+    }
+    if (candidate) {
+      resolved.push(bindL1SceneId(candidate, sceneId));
       continue;
     }
     // Batch response missing this scene — fall back to single-scene call.
-    resolved.push(await summarizeScene(client, sceneInput, { onUsage, quotaTracker, batchId, step }));
+    resolved.push(await summarizeScene(client, sceneInput, chatOpts));
   }
   return resolved;
 }
 
-export async function summarizeSegment(client, segment, l1Summaries, { onUsage, quotaTracker, batchId, step } = {}) {
+export async function summarizeSegment(client, segment, l1Summaries, {
+  onUsage,
+  quotaTracker,
+  batchId,
+  step,
+  workDir,
+} = {}) {
   const system = loadSummarizerPrompt();
   const scenes = l1Summaries.filter((s) => segment.sceneIds.includes(s.sceneId));
 
@@ -225,6 +386,9 @@ export async function summarizeSegment(client, segment, l1Summaries, { onUsage, 
     quotaTracker,
     batchId,
     step,
+    workDir,
+    // Distinct cache per L2 segment — null cacheKey caused all segments to reuse seg001.
+    cacheKey: segment.segmentId ?? null,
   });
   return AbstractL2Schema.parse(raw);
 }
@@ -236,7 +400,7 @@ export async function summarizeSession(client, {
   clipRegistry = [],
   audioQualitySummary = [],
   deliverySummary = [],
-}, { onUsage, quotaTracker, batchId, step } = {}) {
+}, { onUsage, quotaTracker, batchId, step, workDir } = {}) {
   const system = loadSummarizerPrompt();
   const user = JSON.stringify({
     task: "L3_session_summary",
@@ -299,6 +463,7 @@ export async function summarizeSession(client, {
     quotaTracker,
     batchId,
     step,
+    workDir,
   });
 }
 
@@ -340,10 +505,15 @@ export async function buildAbstractionBundle(client, timelineIndex, {
   quotaTracker,
   batchId,
   step,
+  workDir,
 } = {}) {
+  const sourceScenes = (timelineIndex.scenes ?? []).filter((scene) => {
+    const clip = clipRegistry.find((entry) => entry.clipId === scene.clipId);
+    return clip?.clipRole !== "ai_generated";
+  });
   const l1 = [];
   const groups = groupScenesForL1Summarization(
-    timelineIndex.scenes,
+    sourceScenes,
     timelineIndex.words,
     timelineIndex.visionCaptions,
     {
@@ -352,23 +522,24 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     },
   );
 
+  const chatOpts = { onUsage, quotaTracker, batchId, step, workDir };
   for (const group of groups) {
     if (group.type === "batch") {
-      const summaries = await summarizeSceneBatch(client, group.inputs, { onUsage, quotaTracker, batchId, step });
+      const summaries = await summarizeSceneBatch(client, group.inputs, chatOpts);
       for (const summary of summaries) {
         l1.push(AbstractL1Schema.parse(summary));
       }
     } else {
-      const summary = await summarizeScene(client, group.input, { onUsage, quotaTracker, batchId, step });
+      const summary = await summarizeScene(client, group.input, chatOpts);
       l1.push(AbstractL1Schema.parse(summary));
     }
   }
 
-  const segmentDefs = chunkTimelineForL2(timelineIndex.scenes, { clipRegistry });
+  const segmentDefs = chunkTimelineForL2(sourceScenes, { clipRegistry });
   const l2 = [];
 
   for (const segment of segmentDefs) {
-    const summary = await summarizeSegment(client, segment, l1, { onUsage, quotaTracker, batchId, step });
+    const summary = await summarizeSegment(client, segment, l1, chatOpts);
     l2.push(AbstractL2Schema.parse(summary));
   }
 
@@ -379,7 +550,7 @@ export async function buildAbstractionBundle(client, timelineIndex, {
     clipRegistry,
     audioQualitySummary: buildAudioQualitySummary(audioIndex),
     deliverySummary: buildDeliverySummary(audioIndex),
-  }, { onUsage, quotaTracker, batchId, step });
+  }, chatOpts);
 
   return AbstractionBundleSchema.parse({
     version: "1.0",

@@ -1,5 +1,6 @@
 import { enhanceWithStub } from "./stub.js";
 import { enhanceWithDeepFilterNet } from "./deepfilternet.js";
+import { enhanceWithDpdfnet } from "./dpdfnet.js";
 import { enhanceWithFfmpegDenoise } from "./ffmpeg-denoise.js";
 
 export async function runEnhancementProvider({
@@ -33,11 +34,26 @@ export async function runEnhancementProvider({
     throw new Error(`Paid audio enhancement provider not configured: ${config.paidProvider}`);
   }
 
-  return enhanceWithDeepFilterNet({
-    inputPath,
-    outputPath,
-    deepFilterBin: config.deepFilterBin,
-    deepFilterModelPath: config.deepFilterModelPath,
-    clipId,
-  });
+  if (provider === "deepfilternet") {
+    return enhanceWithDeepFilterNet({
+      inputPath,
+      outputPath,
+      deepFilterBin: config.deepFilterBin,
+      deepFilterModelPath: config.deepFilterModelPath,
+      clipId,
+    });
+  }
+
+  if (provider === "dpdfnet") {
+    return enhanceWithDpdfnet({
+      inputPath,
+      outputPath,
+      dpdfnetBin: config.dpdfnetBin,
+      dpdfnetModel: config.dpdfnetModel,
+      dpdfnetAttnLimitDb: config.dpdfnetAttnLimitDb,
+      clipId,
+    });
+  }
+
+  throw new Error(`Unknown audio enhancement provider: ${provider}`);
 }

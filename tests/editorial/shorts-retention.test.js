@@ -145,6 +145,7 @@ describe("shorts-retention editorial", () => {
 
   it("computeScaledMinRetentionBeats scales for >30s", () => {
     const profile = { minRetentionBeats: 2, retentionBeatIntervalSec: 25 };
+    assert.equal(computeScaledMinRetentionBeats(0, profile), 0);
     assert.equal(computeScaledMinRetentionBeats(25, profile), 2);
     assert.equal(computeScaledMinRetentionBeats(45, profile), 4);
     assert.equal(computeScaledMinRetentionBeats(60, profile), 4);

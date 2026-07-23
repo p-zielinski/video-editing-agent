@@ -11,6 +11,7 @@ import {
   resolveSfxFilePath,
 } from "../editorial/sfx-library.js";
 import { suggestSfxVolumeDb, PROFANITY_BLEEP_SFX_ID } from "../editorial/sfx-catalog-summary.js";
+import { deriveSpeechDuckingWindows } from "../editorial/speech-ducking.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SFX_DIR = path.join(ROOT, "assets", "sfx");
@@ -29,14 +30,18 @@ const DEFAULT_BLEEP_VOLUME_DB = -3;
  * creativeMoments handled in the music-bed mix pass (not video creative).
  */
 export function resolveMusicBedMoments(creativeMoments = []) {
-  return creativeMoments.filter((m) => MUSIC_BED_AUDIO_TECHNIQUES.has(m.techniqueId));
+  return creativeMoments.filter(
+    (m) => !m.disabled && MUSIC_BED_AUDIO_TECHNIQUES.has(m.techniqueId),
+  );
 }
 
 /**
  * creativeMoments that duck/gate the voice stream in the audio mix pass.
  */
 export function resolveVoiceAudioMoments(creativeMoments = []) {
-  return creativeMoments.filter((m) => VOICE_AUDIO_TECHNIQUES.has(m.techniqueId));
+  return creativeMoments.filter(
+    (m) => !m.disabled && VOICE_AUDIO_TECHNIQUES.has(m.techniqueId),
+  );
 }
 
 /**
@@ -266,7 +271,21 @@ export function fillDuckingWindowGaps(windows, segmentEndSec) {
   return filled;
 }
 
-export function resolveDuckingWindows(mixSegment, plan) {
+export function resolveDuckingWindows(mixSegment, plan, {
+  output = null,
+  wordIndexes = null,
+} = {}) {
+  return resolveDuckingWindowsWithSource(mixSegment, plan, { output, wordIndexes }).windows;
+}
+
+/**
+ * Same as resolveDuckingWindows, plus provenance for fidelity logs.
+ * @returns {{ windows: object[], source: "director"|"speech_derived"|"fallback" }}
+ */
+export function resolveDuckingWindowsWithSource(mixSegment, plan, {
+  output = null,
+  wordIndexes = null,
+} = {}) {
   const globalDb = plan?.musicBed?.duckingDb ?? DEFAULT_DUCKING_DB;
 
   if (mixSegment?.duckingWindows?.length) {
@@ -275,11 +294,29 @@ export function resolveDuckingWindows(mixSegment, plan) {
       endSec: w.endSec,
       duckingDb: w.duckingDb ?? globalDb,
     }));
-    return fillDuckingWindowGaps(windows, mixSegment.musicOutSec ?? null);
+    return {
+      windows: fillDuckingWindowGaps(windows, mixSegment.musicOutSec ?? null),
+      source: "director",
+    };
+  }
+
+  // Deterministic speech fallback when enricher did not materialize windows.
+  if (output?.timeline?.length && wordIndexes) {
+    const derived = deriveSpeechDuckingWindows(output, {
+      wordIndexes,
+      speechDuckDb: mixSegment?.duckingDb ?? globalDb,
+      endSec: mixSegment?.musicOutSec ?? null,
+    });
+    if (derived.length) {
+      return { windows: derived, source: "speech_derived" };
+    }
   }
 
   const duckingDb = mixSegment?.duckingDb ?? globalDb;
-  return [{ startSec: 0, endSec: null, duckingDb }];
+  return {
+    windows: [{ startSec: 0, endSec: null, duckingDb }],
+    source: "fallback",
+  };
 }
 
 function buildDuckingWindowMaskFilter(inputLabel, outputLabel, window) {
@@ -391,6 +428,8 @@ export function buildAudioMixFilterGraph({
   musicBedMoments = [],
   voiceAudioMoments = [],
   censorshipWindows = [],
+  output = null,
+  wordIndexes = null,
 }) {
   const filters = [];
   const mixInputs = [];
@@ -443,7 +482,10 @@ export function buildAudioMixFilterGraph({
     }
 
     if (mixSegment?.duckUnderVoice !== false) {
-      const duckingWindows = resolveDuckingWindows(mixSegment, plan);
+      const duckingWindows = resolveDuckingWindows(mixSegment, plan, {
+        output,
+        wordIndexes,
+      });
       const { filters: duckFilters, outputLabel } = buildMusicBedDuckingFilters(
         bedLabel,
         "[voice]",
@@ -632,6 +674,8 @@ export async function applyAudioMix(inputPath, outputPath, {
     musicBedMoments,
     voiceAudioMoments,
     censorshipWindows,
+    output,
+    wordIndexes: context?.wordIndexes ?? null,
   });
 
   const appliedAudioTechniques = [
@@ -639,6 +683,17 @@ export async function applyAudioMix(inputPath, outputPath, {
     ...voiceAudioMoments.map((m) => m.techniqueId),
   ];
   const audioTechniquesApplied = appliedAudioTechniques.length > 0;
+
+  let duckingWindowCount = 0;
+  let duckingSource = null;
+  if (resolvedBedPath && mixSegment?.duckUnderVoice !== false) {
+    const ducking = resolveDuckingWindowsWithSource(mixSegment, plan, {
+      output,
+      wordIndexes: context?.wordIndexes ?? null,
+    });
+    duckingWindowCount = ducking.windows.length;
+    duckingSource = ducking.source;
+  }
 
   if (!graph.needsMix) {
     fs.copyFileSync(inputPath, outputPath);
@@ -648,6 +703,8 @@ export async function applyAudioMix(inputPath, outputPath, {
       sfxApplied: false,
       audioTechniquesApplied: false,
       appliedAudioTechniques: [],
+      duckingWindowCount: 0,
+      duckingSource: null,
       warnings: sfxWarningsCombined,
     };
   }
@@ -688,6 +745,8 @@ export async function applyAudioMix(inputPath, outputPath, {
     sfxApplied: sfxEntries.length > 0,
     audioTechniquesApplied,
     appliedAudioTechniques,
+    duckingWindowCount,
+    duckingSource,
     warnings: sfxWarningsCombined,
   };
 }

@@ -17,6 +17,59 @@ function anchorCenter(spatialAnchor) {
   return { cx: x + w / 2, cy: y + h / 2 };
 }
 
+export function unionAnchorBbox(anchors = []) {
+  const valid = anchors.filter((anchor) => Array.isArray(anchor?.bbox) && anchor.bbox.length === 4);
+  if (valid.length === 0) {
+    return null;
+  }
+
+  let minX = 1;
+  let minY = 1;
+  let maxX = 0;
+  let maxY = 0;
+
+  for (const anchor of valid) {
+    const [x, y, w, h] = anchor.bbox;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  }
+
+  return {
+    x: clamp(minX, 0, 1),
+    y: clamp(minY, 0, 1),
+    w: clamp(maxX - minX, 0, 1),
+    h: clamp(maxY - minY, 0, 1),
+  };
+}
+
+/**
+ * Whether a subject union bbox fits inside the target-aspect crop window with margin.
+ */
+export function subjectFitsInCropWindow({
+  unionBbox,
+  sourceAspect,
+  targetAspect,
+  margin = 0.04,
+}) {
+  if (!unionBbox) {
+    return true;
+  }
+
+  let cropW;
+  let cropH;
+  if (sourceAspect > targetAspect) {
+    cropH = 1;
+    cropW = targetAspect / sourceAspect;
+  } else {
+    cropW = 1;
+    cropH = sourceAspect / targetAspect;
+  }
+
+  return unionBbox.w <= cropW + margin && unionBbox.h <= cropH + margin;
+}
+
 /**
  * Compute a normalized crop box (0–1) to reframe source video into target format.
  * Centers on face/subject bbox when spatialAnchor is provided (9:16 shorts).

@@ -19,6 +19,8 @@ describe("deterministic enricher order", () => {
       "enrichRecipeFastRhythmSpeed",
       "enrichRecipeJlCutSnap",
       "enrichRecipeSfxPlan",
+      "enrichRecipeSpeechDucking",
+      "enrichAudioEnhancementSpeechAccepts",
       "enrichRecipeRetentionBeats",
       "enrichRecipePayoffMoments",
       "enrichRecipeCallbackMoments",
@@ -31,6 +33,7 @@ describe("deterministic enricher order", () => {
       "enrichJumpCutsAsTimeCuts",
       "enrichRecipeBrandSafetyText",
       "enrichRecipeDisableColorGrade",
+      "enrichIntentionalAmbient",
       "sanitizeRecipeHardErrors",
     ]);
   });

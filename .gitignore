@@ -1,10 +1,37 @@
 node_modules/
+
+# Env / secrets
 .env
-output/*
-!output/.work/
-!output/.work/.gitkeep
+.env.local
+.env.*.local
+
+# Python venvs (incl. DPDFNet tooling — can be 400MB+)
 .python-venv/
+.venv/
+.venv-*/
+venv/
 __pycache__/
 *.pyc
+*.pyo
+
+# OS
 .DS_Store
-output/
+
+# Pipeline batch outputs (renders, enhanced audio, llm-cache, frames, …)
+# Keep only the empty workdir placeholder. Do NOT use a bare `output/` rule —
+# that blocks negation of nested paths.
+output/*
+!output/.work/
+output/.work/*
+!output/.work/.gitkeep
+
+# Heavy media never belongs in git (safety net outside output/)
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.aac
+*.m4a
+
+# Optional local agent scratch (uncomment if you do not want handoffs in PRs)
+# .cursor/work/

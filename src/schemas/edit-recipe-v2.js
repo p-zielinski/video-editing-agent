@@ -52,6 +52,7 @@ export const RoleSourceSchema = z.enum([
   "l1_refined",
   "context_override",
   "director",
+  "ai_video",
 ]);
 
 export const VisualQualitySchema = z.enum(["low", "medium", "high"]);
@@ -90,6 +91,7 @@ export const SubtitlesConfigSchema = z.object({
   sourceClipId: z.string(),
   outputStartSec: z.number().nonnegative().optional(),
   outputEndSec: z.number().positive().optional(),
+  placement: z.enum(["bottom", "top", "center"]).optional(),
   style: z.string().optional(),
 });
 
@@ -208,7 +210,7 @@ export const RetentionRoleSchema = z.preprocess((value) => {
   return "beat";
 }, z.enum(["hook", "beat", "payoff", "breath", "closure"]).optional());
 
-export const NarrativeIntentSchema = z.enum([
+const NARRATIVE_INTENT_VALUES = [
   "tension",
   "intimacy",
   "isolation",
@@ -219,7 +221,29 @@ export const NarrativeIntentSchema = z.enum([
   "momentum",
   "passage_of_time",
   "closure",
-]);
+];
+
+const NARRATIVE_INTENT_ALIASES = {
+  callback: "reveal",
+  flashback: "memory",
+};
+
+export const NarrativeIntentSchema = z.preprocess((value) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  if (NARRATIVE_INTENT_VALUES.includes(value)) {
+    return value;
+  }
+  if (value in NARRATIVE_INTENT_ALIASES) {
+    return NARRATIVE_INTENT_ALIASES[value];
+  }
+  // Drop unknown LLM inventions so V21-16 can warn instead of hard-failing parse.
+  return undefined;
+}, z.enum(NARRATIVE_INTENT_VALUES).optional());
 
 export const VideoTransformSchema = z.object({
   crop: z.object({
@@ -259,6 +283,8 @@ export const TimelineSegmentV2Schema = z.object({
   textOverlays: z.array(TextOverlayV2Schema).default([]),
   videoTransform: VideoTransformSchema,
   sourceVolumeDb: z.number().min(-60).max(12).default(0).optional(),
+  /** Keep in-clip ambient (birds/nature) — skip denoise / use original audio for this segment. */
+  preserveAmbientAudio: z.boolean().optional(),
   intent: z.string().optional(),
   retentionRole: RetentionRoleSchema.optional(),
   // deprecated / migration-only — walidator emituje SOURCE_REF_IN_V2_SEGMENT / DEPRECATED_AUDIO_OFFSET
@@ -439,6 +465,8 @@ export const CreativeMomentSchema = z.object({
   narrativeIntent: NarrativeIntentSchema.optional(),
   reason: z.string().min(1),
   confidence: z.number().min(0).max(1).optional(),
+  /** Soft-disable without deleting (e.g. intentional ambient preserve). */
+  disabled: z.boolean().optional(),
 });
 
 export const ShortsRetentionProfileSchema = z.object({

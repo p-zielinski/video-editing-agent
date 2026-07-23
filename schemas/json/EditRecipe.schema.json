@@ -349,8 +349,7 @@
             },
             "required": [
               "sceneId",
-              "outputId",
-              "format"
+              "outputId"
             ],
             "additionalProperties": false
           },

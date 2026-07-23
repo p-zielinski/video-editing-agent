@@ -1,17 +1,75 @@
-import { computeReframeCrop } from "./reframe.js";
+import { computeReframeCrop, subjectFitsInCropWindow, unionAnchorBbox } from "./reframe.js";
 
 const DEFAULT_BLUR_SIGMA = 20;
+const SUBJECT_ANCHOR_TYPES = new Set(["face", "subject", "object"]);
 
-function findSpatialAnchor(spatialIndex, sceneId) {
+function findSpatialAnchors(spatialIndex, sceneId, reframeMode) {
   const scene = spatialIndex?.scenes?.find((s) => s.sceneId === sceneId);
   if (!scene?.anchors?.length) {
-    return scene?.primaryAnchor ?? null;
+    return scene?.primaryAnchor ? [scene.primaryAnchor] : [];
   }
-  return scene.primaryAnchor ?? scene.anchors[0];
+
+  if (reframeMode === "subject") {
+    const subjectRelevant = scene.anchors.filter((anchor) => {
+      const type = anchor.type ?? anchor.anchorType;
+      if (!SUBJECT_ANCHOR_TYPES.has(type)) {
+        return false;
+      }
+      const label = String(anchor.label ?? "").toLowerCase();
+      return type === "subject"
+        || type === "face"
+        || label.includes("dog")
+        || label.includes("person")
+        || label.includes("man")
+        || label.includes("woman");
+    });
+    if (subjectRelevant.length > 0) {
+      return subjectRelevant;
+    }
+  }
+
+  if (reframeMode === "face") {
+    const face = scene.anchors.find((anchor) => (anchor.type ?? anchor.anchorType) === "face");
+    if (face) {
+      return [face];
+    }
+  }
+
+  if (scene.primaryAnchor) {
+    return [scene.primaryAnchor];
+  }
+
+  return [scene.anchors[0]];
 }
 
 function targetAspectForFormat(format) {
   return format === "9:16" ? 9 / 16 : 16 / 9;
+}
+
+function isNoOpCrop(crop) {
+  return crop.w >= 0.99 && crop.h >= 0.99 && crop.x <= 0.01 && crop.y <= 0.01;
+}
+
+function formatCropFilter(crop) {
+  const x = crop.x.toFixed(6);
+  const y = crop.y.toFixed(6);
+  const w = crop.w.toFixed(6);
+  const h = crop.h.toFixed(6);
+  return `crop=iw*${w}:ih*${h}:iw*${x}:ih*${y}`;
+}
+
+function scalePadFit(dimensions) {
+  return [
+    `scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease`,
+    `pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2`,
+  ];
+}
+
+function scaleFillExact(dimensions) {
+  return [
+    `scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=increase`,
+    `crop=${dimensions.width}:${dimensions.height}`,
+  ];
 }
 
 /**
@@ -89,15 +147,41 @@ export function buildSegmentVideoFilter({
   const targetAspect = targetAspectForFormat(format);
   const aspectDiffers = Math.abs(sourceAspect - targetAspect) > 0.01;
 
+  const wantsPillarbox = fitMode === "pillarbox" || fitMode === "pillarbox_blur";
   const useFillInLandscape = format !== "9:16" && aspectDiffers && fitMode === "fill";
   const useBlurPillarbox = format !== "9:16" && aspectDiffers && fitMode === "pillarbox_blur";
 
-  const useCropReframe = !useBlurPillarbox && (
-    format === "9:16"
-    || reframeMode === "face"
-    || reframeMode === "subject"
-    || useFillInLandscape
-  );
+  const useSpatialAnchor = reframeMode === "face" || reframeMode === "subject";
+  let spatialAnchors = [];
+  if (useSpatialAnchor && sceneId && spatialIndex) {
+    spatialAnchors = findSpatialAnchors(spatialIndex, sceneId, reframeMode);
+  }
+  const unionBbox = unionAnchorBbox(spatialAnchors);
+  const spatialAnchor = unionBbox
+    ? { bbox: [unionBbox.x, unionBbox.y, unionBbox.w, unionBbox.h] }
+    : (spatialAnchors[0] ? {
+      bbox: spatialAnchors[0].bbox,
+      anchorType: spatialAnchors[0].type ?? spatialAnchors[0].anchorType,
+    } : null);
+
+  const subjectTooWideForCrop = useSpatialAnchor
+    && fitMode === "fill"
+    && unionBbox
+    && !subjectFitsInCropWindow({
+      unionBbox,
+      sourceAspect,
+      targetAspect,
+    });
+
+  const useCropReframe = !useBlurPillarbox
+    && !wantsPillarbox
+    && !subjectTooWideForCrop
+    && (
+      (format === "9:16" && (fitMode === "fill" || reframeMode === "face" || reframeMode === "subject"))
+      || reframeMode === "face"
+      || reframeMode === "subject"
+      || useFillInLandscape
+    );
 
   if (useBlurPillarbox && dimensions) {
     const blurGraph = buildBlurPillarboxFilterGraph(dimensions);
@@ -115,18 +199,6 @@ export function buildSegmentVideoFilter({
   }
 
   if (useCropReframe && dimensions) {
-    const useSpatialAnchor = reframeMode === "face" || reframeMode === "subject";
-    let spatialAnchor = null;
-    if (useSpatialAnchor && sceneId && spatialIndex) {
-      const anchor = findSpatialAnchor(spatialIndex, sceneId);
-      if (anchor) {
-        spatialAnchor = {
-          bbox: anchor.bbox,
-          anchorType: anchor.type ?? anchor.anchorType,
-        };
-      }
-    }
-
     const crop = videoTransform.crop
       ?? computeReframeCrop({
         format,
@@ -134,16 +206,12 @@ export function buildSegmentVideoFilter({
         sourceResolution: { w: sourceW, h: sourceH },
       });
 
-    const cropX = Math.round(crop.x * sourceW);
-    const cropY = Math.round(crop.y * sourceH);
-    const cropW = Math.round(crop.w * sourceW);
-    const cropH = Math.round(crop.h * sourceH);
-
-    filters.push(`crop=${cropW}:${cropH}:${cropX}:${cropY}`);
-    filters.push(`scale=${dimensions.width}:${dimensions.height}`);
+    if (!isNoOpCrop(crop)) {
+      filters.push(formatCropFilter(crop));
+    }
+    filters.push(...scaleFillExact(dimensions));
   } else if (dimensions) {
-    filters.push(`scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease`);
-    filters.push(`pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2`);
+    filters.push(...scalePadFit(dimensions));
   }
 
   const speed = videoTransform.speed ?? 1;

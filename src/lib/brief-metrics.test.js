@@ -4,8 +4,11 @@ import {
   measureBriefPayload,
   createBriefMetricsAccumulator,
   evaluateBriefMetricsWarnings,
+  warnBriefPayloadIfLarge,
   BRIEF_METRICS_WARN_SINGLE_TOKENS,
   BRIEF_METRICS_WARN_TOTAL_TOKENS,
+  BRIEF_METRICS_WARN_SEGMENT_TOKENS,
+  BRIEF_METRICS_WARN_DRILL_DOWN_TOKENS,
 } from "./brief-metrics.js";
 
 describe("brief-metrics", () => {
@@ -70,6 +73,46 @@ describe("brief-metrics", () => {
     assert.ok(warnings.some((w) => w.code === "BRIEF_PAYLOAD_LARGE"));
     assert.ok(warnings.some((w) => w.code === "BRIEF_PAYLOAD_TOTAL_LARGE"
       || w.code === "BRIEF_PAYLOAD_LARGE"));
+  });
+
+  it("evaluateBriefMetricsWarnings flags segment budget and drill-down soft guards", () => {
+    const segmentJson = JSON.stringify({ data: "s".repeat(BRIEF_METRICS_WARN_SEGMENT_TOKENS * 4) });
+    const drillJson = JSON.stringify({ data: "d".repeat(BRIEF_METRICS_WARN_DRILL_DOWN_TOKENS * 4) });
+    const warnings = evaluateBriefMetricsWarnings({
+      calls: [
+        measureBriefPayload({
+          task: "segment_director_draft",
+          userJson: segmentJson,
+          segmentId: "seg002",
+        }),
+        measureBriefPayload({
+          task: "drill_down_refine",
+          userJson: drillJson,
+          meta: { drillDownSceneCount: 15 },
+        }),
+      ],
+      totals: { callCount: 2, jsonBytes: 1, estimatedTokens: 1 },
+    });
+
+    assert.ok(warnings.some((w) => w.code === "BRIEF_SEGMENT_BUDGET_EXCEEDED"));
+    assert.ok(warnings.some((w) => w.code === "BRIEF_DRILL_DOWN_LARGE"));
+    assert.ok(BRIEF_METRICS_WARN_SEGMENT_TOKENS === 40_000);
+    assert.ok(BRIEF_METRICS_WARN_DRILL_DOWN_TOKENS === 60_000);
+  });
+
+  it("warnBriefPayloadIfLarge logs soft warnings without throwing", () => {
+    const lines = [];
+    const metric = measureBriefPayload({
+      task: "segment_director_draft",
+      userJson: JSON.stringify({ data: "x".repeat(BRIEF_METRICS_WARN_SEGMENT_TOKENS * 4) }),
+      segmentId: "seg009",
+    });
+    const warnings = warnBriefPayloadIfLarge(metric, {
+      logger: { warn: (msg) => lines.push(msg) },
+    });
+    assert.ok(warnings.length >= 1);
+    assert.ok(lines.some((line) => line.includes("BRIEF_SEGMENT_BUDGET_EXCEEDED")));
+    assert.ok(lines.some((line) => line.includes("soft warn")));
   });
 
   it("evaluateBriefMetricsWarnings is empty for small payloads", () => {

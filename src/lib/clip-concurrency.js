@@ -1,3 +1,11 @@
+export function isAnalysisParallelClips(env = process.env) {
+  return env.ANALYSIS_PARALLEL_CLIPS === "1";
+}
+
+export function isAnalysisParallelGpuSteps(env = process.env) {
+  return env.ANALYSIS_PARALLEL_GPU_STEPS === "1";
+}
+
 function parseLimit(envName, defaultValue) {
   const raw = process.env[envName];
   if (raw === undefined || raw === "") {
@@ -8,7 +16,7 @@ function parseLimit(envName, defaultValue) {
 }
 
 export function getClipConcurrencyLimit() {
-  return parseLimit("CLIP_CONCURRENCY", 2);
+  return parseLimit("CLIP_CONCURRENCY", 1);
 }
 
 export function getGpuConcurrencyLimit() {

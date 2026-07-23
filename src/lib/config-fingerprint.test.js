@@ -76,7 +76,20 @@ describe("config-fingerprint", () => {
     assert.notEqual(defaultWhisper, customWhisper);
     delete process.env.OPENAI_WHISPER_MODEL;
 
-    assert.equal(EXPECTED_ARTIFACT_VERSIONS.words, "1.0");
+    assert.equal(EXPECTED_ARTIFACT_VERSIONS.words, "1.1");
+    assert.equal(EXPECTED_ARTIFACT_VERSIONS.twelvelabs, "1.1");
+
+    const tlDefaultProxy = buildStepConfigFingerprint("twelvelabs", {
+      useStub: false,
+      twelvelabsLive: true,
+      proxyMaxBytes: 180 * 1024 * 1024,
+    });
+    const tlSmallerProxy = buildStepConfigFingerprint("twelvelabs", {
+      useStub: false,
+      twelvelabsLive: true,
+      proxyMaxBytes: 50 * 1024 * 1024,
+    });
+    assert.notEqual(tlDefaultProxy, tlSmallerProxy);
   });
 
   it("includes expectedTerms in words fingerprint when provided", () => {

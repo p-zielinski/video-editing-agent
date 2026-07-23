@@ -1,4 +1,9 @@
 import { DIRECTOR_BRIEF_CAPS } from "../editorial/brief-caps.js";
+import { filterWordsForScene } from "./timeline-index.js";
+
+function sceneDurationSec(scene) {
+  return scene.durationSec ?? (scene.endSec - scene.startSec);
+}
 
 /**
  * Sort scenes by clip ingest order (sortIndex) then in-clip time.
@@ -64,6 +69,7 @@ export function buildDaySegments(clipRegistry = []) {
 
 /**
  * Dzieli timeline na segmenty L2 (~5-15 min) do streszczeń.
+ * Uses sum of scene durations (global clock) — not local endSec - startSec across clips.
  */
 export function chunkTimelineForL2(scenes, { targetSegmentSec = 600, minSegmentSec = 300, clipRegistry = [] } = {}) {
   if (scenes.length === 0) {
@@ -79,32 +85,42 @@ export function chunkTimelineForL2(scenes, { targetSegmentSec = 600, minSegmentS
       return a.startSec - b.startSec;
     });
 
+  const firstDur = sceneDurationSec(sorted[0]);
   const segments = [];
   let current = {
     segmentId: "seg001",
-    startSec: sorted[0].startSec,
-    endSec: sorted[0].endSec,
+    startSec: 0,
+    endSec: firstDur,
     sceneIds: [sorted[0].sceneId],
   };
-
+  let currentDuration = firstDur;
+  let globalEnd = firstDur;
   let segIndex = 1;
 
   for (let i = 1; i < sorted.length; i += 1) {
     const scene = sorted[i];
-    const duration = scene.endSec - current.startSec;
+    const dur = sceneDurationSec(scene);
 
-    if (duration >= targetSegmentSec && current.sceneIds.length > 0 && current.endSec - current.startSec >= minSegmentSec) {
+    if (
+      currentDuration >= targetSegmentSec
+      && currentDuration >= minSegmentSec
+      && current.sceneIds.length > 0
+    ) {
       segments.push({ ...current });
       segIndex += 1;
       current = {
         segmentId: `seg${String(segIndex).padStart(3, "0")}`,
-        startSec: scene.startSec,
-        endSec: scene.endSec,
+        startSec: globalEnd,
+        endSec: globalEnd + dur,
         sceneIds: [scene.sceneId],
       };
+      currentDuration = dur;
+      globalEnd += dur;
     } else {
-      current.endSec = scene.endSec;
+      current.endSec = globalEnd + dur;
       current.sceneIds.push(scene.sceneId);
+      currentDuration += dur;
+      globalEnd += dur;
     }
   }
 
@@ -116,8 +132,7 @@ export function chunkTimelineForL2(scenes, { targetSegmentSec = 600, minSegmentS
 }
 
 export function sceneSummaryInput(scene, words, captions, objectDetections = []) {
-  const sceneWords = words
-    .filter((w) => w.start >= scene.startSec && w.start < scene.endSec)
+  const sceneWords = filterWordsForScene(scene, words)
     .slice(0, DIRECTOR_BRIEF_CAPS.maxWordsPerScene);
   const sceneCaptions = captions.filter((c) => c.sceneId === scene.sceneId);
   const sceneObjects = objectDetections.filter((d) => d.sceneId === scene.sceneId);

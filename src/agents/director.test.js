@@ -15,7 +15,11 @@ import {
   shouldRunDirectorDrillDown,
   prioritizeDrillDownSceneIds,
   DRILL_DOWN_SCENE_CAP,
+  backfillDirectorDraftContext,
+  ensureTimelineAudioPolicies,
+  sanitizeDirectorDraft,
 } from "./director.js";
+import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 import { DIRECTOR_BRIEF_CAPS, DRILL_DOWN_CAPS } from "../editorial/brief-caps.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
 import { MODELS } from "./openai-client.js";
@@ -1558,6 +1562,9 @@ describe("director agent v2", () => {
     assert.deepEqual(drillDownPayload.topicIndex, topicIndex);
     assert.equal(drillDownPayload.drillDownSceneDetails.length, 2);
     assert.ok(drillDownPayload.techniqueCatalog);
+    assert.ok(drillDownPayload.draftRecipeFingerprint);
+    assert.equal(drillDownPayload.draftRecipe, undefined);
+    assert.equal(drillDownPayload.outputSchema, undefined);
     assert.ok(drillDownPayload.creativityProfile);
     assert.ok(drillDownPayload.creativityBudget);
     assert.equal(drillDownPayload.spatialIndex.scenes.length, 1);
@@ -1795,5 +1802,212 @@ describe("director agent v2", () => {
       timelineIndex,
     );
     assert.deepEqual(prioritized, sceneIds);
+  });
+
+  it("backfillDirectorDraftContext fills batchContext and ai_hook audioPolicy", () => {
+    const priorRecipe = loadFixture("recipe-draft.json");
+    const raw = structuredClone(loadFixture("fixer-response.json"));
+    delete raw.batchContext;
+    for (const output of raw.outputs ?? []) {
+      for (const segment of output.timeline ?? []) {
+        if (segment.segmentRole === "ai_hook") {
+          delete segment.audioPolicy;
+        }
+      }
+    }
+
+    backfillDirectorDraftContext(raw, {
+      priorRecipe,
+      batchContext: priorRecipe.batchContext,
+      requiredFormats: ["16:9", "9:16"],
+      inputMode: "single_clip",
+    });
+
+    assert.ok(raw.batchContext);
+    assert.deepEqual(raw.batchContext.requiredFormats, ["16:9", "9:16"]);
+    const parsed = EditRecipeV2Schema.parse(raw);
+    assert.ok(parsed.batchContext);
+  });
+
+  it("backfillDirectorDraftContext overwrites LLM single_clip with orchestrator multi_clip_day", () => {
+    const raw = {
+      batchContext: {
+        inputMode: "single_clip",
+        requiredFormats: ["16:9"],
+        theme: "vlog",
+      },
+      outputs: [],
+    };
+
+    backfillDirectorDraftContext(raw, {
+      priorRecipe: null,
+      batchContext: { inputMode: "multi_clip_day", theme: "vlog" },
+      requiredFormats: ["16:9", "9:16"],
+      inputMode: "multi_clip_day",
+    });
+
+    assert.equal(raw.batchContext.inputMode, "multi_clip_day");
+    assert.deepEqual(raw.batchContext.requiredFormats, ["16:9", "9:16"]);
+  });
+
+  it("backfillDirectorDraftContext overwrites even when priorRecipe also has single_clip", () => {
+    const raw = {
+      batchContext: { inputMode: "single_clip" },
+      outputs: [],
+    };
+
+    backfillDirectorDraftContext(raw, {
+      priorRecipe: { batchContext: { inputMode: "single_clip", theme: "day" } },
+      batchContext: { theme: "day" },
+      requiredFormats: ["16:9"],
+      inputMode: "multi_clip_day",
+    });
+
+    assert.equal(raw.batchContext.inputMode, "multi_clip_day");
+  });
+
+  const minimalPriorOutputs = () => ([
+    {
+      outputId: "main_16x9",
+      format: "16:9",
+      outputKind: "main",
+      targetDurationSec: 60,
+      title: "Main",
+      synopsis: "Test",
+      timeline: [{
+        segmentId: "seg_main_1",
+        segmentRole: "aroll",
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoInSec: 0,
+        videoOutSec: 10,
+        audioInSec: 0,
+        audioOutSec: 10,
+        audioPolicy: "from_video_ref",
+        overlapSec: 0,
+        cuts: [],
+        textOverlays: [],
+      }],
+      chapterMarkers: [],
+    },
+  ]);
+
+  it("backfillDirectorDraftContext restores missing outputs from priorRecipe (deep clone)", () => {
+    const priorRecipe = { outputs: minimalPriorOutputs() };
+    const raw = { batchContext: { theme: "vlog" } };
+
+    backfillDirectorDraftContext(raw, { priorRecipe });
+
+    assert.equal(raw.outputs.length, 1);
+    assert.equal(raw.outputs[0].outputId, "main_16x9");
+    priorRecipe.outputs[0].title = "mutated";
+    assert.equal(raw.outputs[0].title, "Main");
+  });
+
+  it("backfillDirectorDraftContext restores empty outputs array from priorRecipe", () => {
+    const priorRecipe = { outputs: minimalPriorOutputs() };
+    const raw = { outputs: [], batchContext: { theme: "vlog" } };
+
+    backfillDirectorDraftContext(raw, { priorRecipe });
+
+    assert.equal(raw.outputs.length, 1);
+    assert.equal(raw.outputs[0].outputId, "main_16x9");
+  });
+
+  it("backfillDirectorDraftContext keeps existing outputs when non-empty", () => {
+    const priorRecipe = { outputs: minimalPriorOutputs() };
+    const raw = {
+      outputs: [{
+        outputId: "short_9x16",
+        format: "9:16",
+        outputKind: "short",
+        targetDurationSec: 30,
+        title: "Short",
+        synopsis: "Keep me",
+        timeline: [{
+          segmentId: "seg_short_1",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene002" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 5,
+          audioPolicy: "from_video_ref",
+          overlapSec: 0,
+          cuts: [],
+          textOverlays: [],
+        }],
+        chapterMarkers: [],
+      }],
+    };
+
+    backfillDirectorDraftContext(raw, { priorRecipe });
+
+    assert.equal(raw.outputs.length, 1);
+    assert.equal(raw.outputs[0].outputId, "short_9x16");
+  });
+
+  it("backfillDirectorDraftContext strips spurious top-level segmentId", () => {
+    const priorRecipe = { outputs: minimalPriorOutputs() };
+    const raw = { segmentId: "seg001", batchContext: { theme: "vlog" } };
+
+    backfillDirectorDraftContext(raw, { priorRecipe });
+
+    assert.equal(raw.segmentId, undefined);
+    assert.equal(raw.outputs.length, 1);
+  });
+
+  it("ensureTimelineAudioPolicies defaults ai_hook to from_next", () => {
+    const raw = {
+      outputs: [{
+        outputId: "short",
+        format: "9:16",
+        timeline: [{
+          segmentId: "hook_1",
+          segmentRole: "ai_hook",
+          videoRef: { clipId: "ai_hook_01", sceneId: "ai_hook_01_scene001" },
+          audioRef: { clipId: "clip28", sceneId: "clip28_scene001" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 5,
+          overlapSec: 0,
+          cuts: [],
+          textOverlays: [],
+        }],
+      }],
+    };
+
+    ensureTimelineAudioPolicies(raw);
+    assert.equal(raw.outputs[0].timeline[0].audioPolicy, "from_next");
+  });
+
+  it("sanitizeDirectorDraft rewrites mute ai_hook with audioOutSec=0", () => {
+    const raw = {
+      outputs: [{
+        outputId: "short_9x16",
+        format: "9:16",
+        timeline: [{
+          segmentId: "short_001",
+          segmentRole: "ai_hook",
+          videoRef: { clipId: "ai_hook_01", sceneId: "ai_hook_01" },
+          audioRef: { clipId: "ai_hook_01", sceneId: "ai_hook_01" },
+          videoInSec: 0,
+          videoOutSec: 5,
+          audioInSec: 0,
+          audioOutSec: 0,
+          audioPolicy: "mute",
+        }],
+      }],
+    };
+
+    sanitizeDirectorDraft(raw);
+    const segment = raw.outputs[0].timeline[0];
+    assert.equal(segment.audioPolicy, "from_next");
+    assert.ok(segment.audioOutSec > 0);
+    assert.equal(segment.audioOutSec, 5);
+    assert.equal(segment.videoRef.sceneId, "ai_hook_01_scene001");
+    assert.equal(segment.audioRef.sceneId, "ai_hook_01_scene001");
   });
 });

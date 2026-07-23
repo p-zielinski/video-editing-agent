@@ -1,5 +1,9 @@
 export function detectInputMode(clipCount, batchContext = {}) {
   if (batchContext.inputMode) {
+    // Never trust LLM/stale single_clip when the batch clearly has multiple clips.
+    if (batchContext.inputMode === "single_clip" && clipCount > 1) {
+      return "multi_clip_day";
+    }
     return batchContext.inputMode;
   }
   if (clipCount <= 1) {

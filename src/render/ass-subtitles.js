@@ -1,7 +1,20 @@
 import fs from "node:fs";
 import { runFfmpeg } from "../lib/ffmpeg.js";
 import { censorWordForDisplay } from "../lib/profanity-censor.js";
+import { isWhisperPromptEchoWord } from "../lib/whisper-prompt-echo.js";
 import { findWordById } from "./audio-cuts.js";
+
+export const MIN_CUE_SEC = 0.35;
+const SAME_START_EPS = 0.02;
+
+const BOILERPLATE_PATTERNS = [
+  /amara\.org/i,
+  /napisy stworzone przez/i,
+  /społeczność amara/i,
+  /zapisz każde słowo/i,
+  /bez eufemizmów/i,
+  /wulgaryzm/i,
+];
 
 function assColor(hex) {
   const h = hex.replace("#", "");
@@ -71,6 +84,133 @@ function clampEventTime(time, clipStart, clipEnd) {
   return Math.max(clipStart, Math.min(time, clipEnd));
 }
 
+export function isBoilerplateSubtitleWord(word, { neighbors = null } = {}) {
+  const text = String(word?.word ?? "").trim();
+  if (!text) {
+    return true;
+  }
+  if (BOILERPLATE_PATTERNS.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  return isWhisperPromptEchoWord(word, { neighbors: neighbors ?? undefined });
+}
+
+export function filterSubtitleWords(words, audioInSec, audioOutSec) {
+  return (words ?? []).filter(
+    (word, index, list) =>
+      !isBoilerplateSubtitleWord(word, {
+        neighbors: [list[index - 1], list[index + 1]].filter(Boolean),
+      })
+      && word.end > audioInSec
+      && word.start < audioOutSec,
+  );
+}
+
+function mergeSameStartClusters(words) {
+  if (words.length === 0) {
+    return [];
+  }
+
+  const clusters = [];
+  let current = [words[0]];
+
+  for (let i = 1; i < words.length; i += 1) {
+    const word = words[i];
+    if (Math.abs(word.start - current[0].start) <= SAME_START_EPS) {
+      current.push(word);
+    } else {
+      clusters.push(current);
+      current = [word];
+    }
+  }
+  clusters.push(current);
+  return clusters;
+}
+
+function clusterOutputEnd(cluster, nextClusterStart, clipEnd) {
+  const start = cluster[0].start;
+  const naturalEnd = Math.max(...cluster.map((word) => word.end));
+  const minEnd = start + MIN_CUE_SEC;
+  const holdEnd = nextClusterStart != null
+    ? Math.min(nextClusterStart, clipEnd)
+    : clipEnd;
+  return Math.min(clipEnd, Math.max(minEnd, naturalEnd, holdEnd > start ? holdEnd : minEnd));
+}
+
+/**
+ * Build word-by-word (or merged-cluster) subtitle cues on the output timeline.
+ */
+export function buildWordSubtitleEvents(wordsInRange, {
+  segment,
+  segmentIndex,
+  segments,
+  clipStart,
+  clipEnd,
+}) {
+  const events = [];
+  const clusters = mergeSameStartClusters(wordsInRange);
+
+  for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
+    const cluster = clusters[clusterIndex];
+    const nextCluster = clusters[clusterIndex + 1];
+    const rawStart = wordOutputTime(cluster[0], segment, segmentIndex, segments);
+    const nextRawStart = nextCluster
+      ? wordOutputTime(nextCluster[0], segment, segmentIndex, segments)
+      : null;
+    const sourceEnd = clusterOutputEnd(
+      cluster,
+      nextRawStart,
+      clipEnd,
+    );
+    const rawEnd = rawStart + Math.max(MIN_CUE_SEC, sourceEnd - cluster[0].start);
+    const start = clampEventTime(rawStart, clipStart, clipEnd);
+    const end = clampEventTime(
+      nextRawStart != null ? Math.min(rawEnd, nextRawStart) : rawEnd,
+      clipStart,
+      clipEnd,
+    );
+    if (end <= start) {
+      continue;
+    }
+    const text = cluster.map((word) => subtitleWordText(word)).join(" ");
+    events.push({ start, end, text });
+  }
+
+  return events;
+}
+
+/**
+ * Map subtitle placement / preset position to ASS Alignment (numpad).
+ * bottom → 2, top → 8, center → 5
+ */
+export function resolveAssAlignment(placementOrPosition) {
+  const value = String(placementOrPosition ?? "bottom").toLowerCase();
+  if (value === "top" || value === "top_center") {
+    return 8;
+  }
+  if (value === "center") {
+    return 5;
+  }
+  return 2;
+}
+
+export function resolveSubtitlePlacement(segment, style) {
+  return segment.subtitles?.placement
+    ?? (style?.position === "top_center" ? "top"
+      : style?.position === "center" ? "center"
+        : "bottom");
+}
+
+function assStyleName(placement) {
+  if (placement === "top") {
+    return "Top";
+  }
+  if (placement === "center") {
+    return "Center";
+  }
+  return "Bottom";
+}
+
 /**
  * Generate ASS file content for word-by-word subtitles on output timeline.
  */
@@ -79,6 +219,11 @@ export function generateAssSubtitles({ edl, context, stylePresets, format, dimen
   const style = stylePresets.subtitles[styleKey] ?? stylePresets.subtitles.default;
   const playResX = dimensions?.width ?? (format === "9:16" ? 1080 : 1920);
   const playResY = dimensions?.height ?? (format === "9:16" ? 1920 : 1080);
+  const marginV = Math.round((style.safeMarginPct ?? 0.08) * playResY);
+  const font = style.fontFamily;
+  const size = style.fontSizePx;
+  const primary = assColor(style.color);
+  const outline = assColor(style.outlineColor ?? "#000000");
   const header = `[Script Info]
 ScriptType: v4.00+
 PlayResX: ${playResX}
@@ -86,7 +231,10 @@ PlayResY: ${playResY}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, Bold, Alignment, MarginV
-Style: Default,${style.fontFamily},${style.fontSizePx},${assColor(style.color)},${assColor(style.outlineColor ?? "#000000")},-1,2,${Math.round((style.safeMarginPct ?? 0.08) * playResY)}
+Style: Default,${font},${size},${primary},${outline},-1,2,${marginV}
+Style: Bottom,${font},${size},${primary},${outline},-1,2,${marginV}
+Style: Top,${font},${size},${primary},${outline},-1,8,${marginV}
+Style: Center,${font},${size},${primary},${outline},-1,5,${marginV}
 
 [Events]
 Format: Layer, Start, End, Style, Text
@@ -101,6 +249,9 @@ Format: Layer, Start, End, Style, Text
       continue;
     }
 
+    const placement = resolveSubtitlePlacement(segment, style);
+    const dialogueStyle = assStyleName(placement);
+
     const { start: clipStart, end: clipEnd } = subtitleClipRange(segment, segmentIndex, segments);
 
     const clipId = segment.subtitles.sourceClipId ?? segment.audioRef?.clipId;
@@ -109,8 +260,10 @@ Format: Layer, Start, End, Style, Text
       continue;
     }
 
-    const wordsInRange = wordIndex.words.filter(
-      (w) => w.start >= segment.audioInSec && w.end <= segment.audioOutSec,
+    const wordsInRange = filterSubtitleWords(
+      wordIndex.words,
+      segment.audioInSec,
+      segment.audioOutSec,
     );
 
     if (segment.subtitles.policy === "phrase") {
@@ -122,8 +275,12 @@ Format: Layer, Start, End, Style, Text
         clipStart,
         clipEnd,
       );
+      const lastWord = wordsInRange.at(-1);
+      const phraseEndSource = lastWord.end > lastWord.start
+        ? lastWord.end
+        : lastWord.start + MIN_CUE_SEC;
       const end = clampEventTime(
-        wordOutputTime(wordsInRange.at(-1), segment, segmentIndex, segments),
+        wordOutputTime({ ...lastWord, start: phraseEndSource }, segment, segmentIndex, segments),
         clipStart,
         clipEnd,
       );
@@ -131,19 +288,21 @@ Format: Layer, Start, End, Style, Text
         continue;
       }
       const text = wordsInRange.map((w) => subtitleWordText(w)).join(" ");
-      events.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,${text}`);
+      events.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},${dialogueStyle},${text}`);
       continue;
     }
 
-    for (const word of wordsInRange) {
-      const rawStart = wordOutputTime(word, segment, segmentIndex, segments);
-      const rawEnd = rawStart + Math.max(0.08, word.end - word.start);
-      const start = clampEventTime(rawStart, clipStart, clipEnd);
-      const end = clampEventTime(rawEnd, clipStart, clipEnd);
-      if (end <= start) {
-        continue;
-      }
-      events.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,${subtitleWordText(word)}`);
+    const wordEvents = buildWordSubtitleEvents(wordsInRange, {
+      segment,
+      segmentIndex,
+      segments,
+      clipStart,
+      clipEnd,
+    });
+    for (const event of wordEvents) {
+      events.push(
+        `Dialogue: 0,${formatAssTime(event.start)},${formatAssTime(event.end)},${dialogueStyle},${event.text}`,
+      );
     }
   }
 

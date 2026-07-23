@@ -1,12 +1,8 @@
-import { describe, it, before, after } from "node:test";
-import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import {
   ensureSpatialIndex,
   mergeGeneratedAiSceneIntoTimeline,
   reconstructSuperPlanFromRecipe,
+  runAbstractStep,
   runReviewStep,
   runSuperDirectorDirectPath,
   SEGMENT_DIRECTOR_CONCURRENCY,
@@ -20,6 +16,12 @@ import {
   buildMiniDaySuperDirectorPlan,
   buildMiniDaySegmentPartial,
 } from "../../test-helpers/mock-openai-client.js";
+import { StepFailureError } from "../../lib/recovery/errors.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
 
 describe("generated AI scene context", () => {
   it("appends the registered generated scene without mutating the saved timeline", () => {
@@ -494,5 +496,261 @@ describe("super-director direct path", () => {
 
   it("SEGMENT_DIRECTOR_CONCURRENCY is at least 1", () => {
     assert.ok(SEGMENT_DIRECTOR_CONCURRENCY >= 1);
+  });
+});
+
+describe("runAbstractStep L1 integrity + force cache wipe", () => {
+  function makeDiverseL1(sceneIds) {
+    return sceneIds.map((sceneId, index) => ({
+      sceneId,
+      summary: `Unikalne podsumowanie sceny ${sceneId} numer ${index}.`,
+      mood: "neutralny",
+      keyMoments: [`moment-${index}`],
+      brollPotential: 0.4,
+      topics: [`topic-${index}`],
+      visualQuality: "medium",
+      stability: "stable",
+    }));
+  }
+
+  function seedAbstractWorkDir(workDir, { poisoned = false } = {}) {
+    const timeline = loadFixture("timeline-index.json");
+    writeJson(path.join(workDir, ARTIFACTS.timelineIndex), timeline);
+    writeJson(path.join(workDir, ARTIFACTS.clipRegistry), {
+      version: "1.0",
+      batchId: "testbatch",
+      clipRegistry: [{ clipId: "clip01", clipRole: "primary", mediaType: "video", hasSpeech: true }],
+    });
+
+    const sceneIds = timeline.scenes.map((s) => s.sceneId);
+    const abstraction = loadFixture("abstraction.json");
+    if (poisoned) {
+      abstraction.L1 = sceneIds.map(() => ({
+        sceneId: "clip01_scene001",
+        summary: "Ten sam zatruty opis spaceru z psem.",
+        mood: "spokojny",
+        keyMoments: [],
+        brollPotential: 0.5,
+        topics: ["pies"],
+        visualQuality: "medium",
+        stability: "stable",
+      }));
+    }
+    writeJson(path.join(workDir, ARTIFACTS.abstraction), abstraction);
+    writeJson(path.join(workDir, ARTIFACTS.abstractionL1), abstraction.L1);
+    writeJson(path.join(workDir, ARTIFACTS.abstractionL2), abstraction.L2);
+    writeJson(path.join(workDir, ARTIFACTS.abstractionL3), abstraction.L3);
+    return { timeline, sceneIds };
+  }
+
+  it("returns cached abstract when L1 integrity passes", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-abstract-ok-"));
+    try {
+      seedAbstractWorkDir(workDir, { poisoned: false });
+      const result = await runAbstractStep({
+        workDir,
+        batchId: "testbatch",
+        force: false,
+        openaiClient: createMockOpenAIClient([]),
+      });
+      assert.equal(result.L1.length, 2);
+      assert.equal(result.L1[0].sceneId, "clip01_scene001");
+    } finally {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("invalidates poisoned cached abstract and rebuilds with unique L1", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-abstract-poison-"));
+    try {
+      seedAbstractWorkDir(workDir, { poisoned: true });
+      const manyScenes = Array.from({ length: 8 }, (_, i) => ({
+        sceneId: `clip01_scene${String(i + 1).padStart(3, "0")}`,
+        clipId: "clip01",
+        startSec: i * 10,
+        endSec: (i + 1) * 10,
+        durationSec: 10,
+        aspectRatio: "16:9",
+        hasSpeech: true,
+      }));
+      const visionCaptions = manyScenes.map((scene, i) => ({
+        sceneId: scene.sceneId,
+        caption: `Widok numer ${i + 1}`,
+        timestampSec: scene.startSec + 1,
+      }));
+      writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+        ...loadFixture("timeline-index.json"),
+        scenes: manyScenes,
+        visionCaptions,
+        stats: { totalDurationSec: 80, totalScenes: 8, totalWords: 3, fillerWordCount: 1 },
+      });
+      writeJson(path.join(workDir, ARTIFACTS.abstraction), {
+        ...loadFixture("abstraction.json"),
+        L1: manyScenes.map(() => ({
+          sceneId: "clip01_scene001",
+          summary: "Ten sam zatruty opis spaceru z psem.",
+          mood: "spokojny",
+          keyMoments: [],
+          brollPotential: 0.5,
+          topics: ["pies"],
+          visualQuality: "medium",
+          stability: "stable",
+        })),
+      });
+
+      const l1 = makeDiverseL1(manyScenes.map((s) => s.sceneId));
+      const l2 = {
+        segmentId: "seg001",
+        startSec: 0,
+        endSec: 80,
+        sceneIds: manyScenes.map((s) => s.sceneId),
+        summary: "Segment po odbudowie.",
+        narrativeRole: "development",
+      };
+      const l3 = loadFixture("summarizer-l3.json");
+      const client = createMockOpenAIClient([...l1, l2, l3]);
+
+      const result = await runAbstractStep({
+        workDir,
+        batchId: "testbatch",
+        force: false,
+        openaiClient: client,
+      });
+      assert.equal(result.L1.length, 8);
+      assert.equal(new Set(result.L1.map((s) => s.sceneId)).size, 8);
+      assert.equal(new Set(result.L1.map((s) => s.summary)).size, 8);
+    } finally {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("--force clears summarizer L1/L2 llm-cache but keeps director caches", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-abstract-force-"));
+    try {
+      seedAbstractWorkDir(workDir, { poisoned: false });
+      const cacheDir = path.join(workDir, "llm-cache");
+      fs.mkdirSync(cacheDir, { recursive: true });
+      const legacyL1 = path.join(cacheDir, "abstract__summarizerL1.json");
+      const directorCache = path.join(cacheDir, "direct__segmentDirector__seg001.json");
+      fs.writeFileSync(legacyL1, "{}\n");
+      fs.writeFileSync(path.join(cacheDir, "abstract__summarizerL2__seg001.json"), "{}\n");
+      fs.writeFileSync(directorCache, "{}\n");
+
+      const timeline = loadFixture("timeline-index.json");
+      const l1a = {
+        ...loadFixture("summarizer-l1.json"),
+        sceneId: "clip01_scene001",
+        summary: "Odbudowane L1 A.",
+      };
+      const l1b = {
+        ...loadFixture("summarizer-l1.json"),
+        sceneId: "clip01_scene002",
+        summary: "Odbudowane L1 B.",
+      };
+      const l2 = loadFixture("summarizer-l2.json");
+      const l3 = loadFixture("summarizer-l3.json");
+      const client = createMockOpenAIClient([l1a, l1b, l2, l3]);
+
+      await runAbstractStep({
+        workDir,
+        batchId: timeline.batchId,
+        force: true,
+        openaiClient: client,
+      });
+
+      // Legacy null-key L1 must stay gone; director caches must survive force wipe.
+      assert.equal(fs.existsSync(legacyL1), false);
+      assert.ok(fs.existsSync(directorCache));
+      // Rebuild writes per-scene L1 keys (not the legacy shared file).
+      assert.ok(
+        fs.existsSync(path.join(cacheDir, "abstract__summarizerL1__clip01_scene001.json")),
+      );
+      assert.ok(
+        fs.existsSync(path.join(cacheDir, "abstract__summarizerL1__clip01_scene002.json")),
+      );
+    } finally {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws StepFailureError when L1 stays collapsed after retry", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-abstract-fail-"));
+    try {
+      const manyScenes = Array.from({ length: 8 }, (_, i) => ({
+        sceneId: `clip01_scene${String(i + 1).padStart(3, "0")}`,
+        clipId: "clip01",
+        startSec: i * 10,
+        endSec: (i + 1) * 10,
+        durationSec: 10,
+        aspectRatio: "16:9",
+        hasSpeech: true,
+      }));
+      const visionCaptions = manyScenes.map((scene, i) => ({
+        sceneId: scene.sceneId,
+        caption: `Widok numer ${i + 1}`,
+        timestampSec: scene.startSec + 1,
+      }));
+      writeJson(path.join(workDir, ARTIFACTS.timelineIndex), {
+        ...loadFixture("timeline-index.json"),
+        scenes: manyScenes,
+        visionCaptions,
+        stats: { totalDurationSec: 80, totalScenes: 8, totalWords: 0, fillerWordCount: 0 },
+      });
+      writeJson(path.join(workDir, ARTIFACTS.clipRegistry), {
+        version: "1.0",
+        batchId: "testbatch",
+        clipRegistry: [{ clipId: "clip01", clipRole: "primary", mediaType: "video", hasSpeech: true }],
+      });
+
+      const poisoned = {
+        sceneId: "clip01_scene001",
+        summary: "Identyczny zatruty opis dla wszystkich.",
+        mood: "spokojny",
+        keyMoments: [],
+        brollPotential: 0.5,
+        topics: ["pies"],
+        visualQuality: "medium",
+        stability: "stable",
+      };
+      const l2 = {
+        segmentId: "seg001",
+        startSec: 0,
+        endSec: 80,
+        sceneIds: manyScenes.map((s) => s.sceneId),
+        summary: "Segment.",
+        narrativeRole: "development",
+      };
+      const l3 = loadFixture("summarizer-l3.json");
+      // First build + retry: 8+8 L1, 2 L2, 2 L3
+      const responses = [
+        ...Array.from({ length: 8 }, () => ({ ...poisoned })),
+        l2,
+        l3,
+        ...Array.from({ length: 8 }, () => ({ ...poisoned })),
+        l2,
+        l3,
+      ];
+      const client = createMockOpenAIClient(responses);
+
+      await assert.rejects(
+        () => runAbstractStep({
+          workDir,
+          batchId: "testbatch",
+          force: true,
+          openaiClient: client,
+        }),
+        (error) => {
+          assert.ok(error instanceof StepFailureError);
+          assert.equal(error.step, "abstract");
+          assert.match(error.message, /integrity/i);
+          const hint = error.failures?.[0]?.recoveryHint ?? "";
+          assert.match(hint, /--from-step abstract --to-step abstract/);
+          assert.doesNotMatch(hint, /--to-step abstract --force/);
+          return true;
+        },
+      );
+    } finally {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    }
   });
 });

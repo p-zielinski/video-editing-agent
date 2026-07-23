@@ -279,12 +279,21 @@ function analyzeDirectorMetrics(workDir) {
 
   const briefMetrics = provenance?.directorMetrics?.briefMetrics;
   for (const warning of evaluateBriefMetricsWarnings(briefMetrics)) {
+    let message;
+    if (warning.code === "BRIEF_PAYLOAD_TOTAL_LARGE") {
+      message = `Łączny rozmiar briefów directora ~${warning.estimatedTokens} tokenów (${warning.callCount} wywołań GPT)`;
+    } else if (warning.code === "BRIEF_SEGMENT_BUDGET_EXCEEDED") {
+      message = `Segment director brief przekroczył budżet ${warning.budgetTokens} est. tokenów`
+        + ` (${warning.task}${warning.segmentId ? `/${warning.segmentId}` : ""}: ~${warning.estimatedTokens})`;
+    } else if (warning.code === "BRIEF_DRILL_DOWN_LARGE") {
+      message = `Drill-down brief duży (~${warning.estimatedTokens} est. tokenów, budżet soft ${warning.budgetTokens})`;
+    } else {
+      message = `Duży brief GPT (${warning.task}${warning.segmentId ? `/${warning.segmentId}` : ""}): ~${warning.estimatedTokens} tokenów`;
+    }
     issues.push({
       severity: "warning",
       code: warning.code,
-      message: warning.code === "BRIEF_PAYLOAD_TOTAL_LARGE"
-        ? `Łączny rozmiar briefów directora ~${warning.estimatedTokens} tokenów (${warning.callCount} wywołań GPT)`
-        : `Duży brief GPT (${warning.task}${warning.segmentId ? `/${warning.segmentId}` : ""}): ~${warning.estimatedTokens} tokenów`,
+      message,
     });
   }
 

@@ -339,6 +339,21 @@ function hasSilenceBeatGapViolation(moments, outputSec, minGapSec) {
   });
 }
 
+function hasPreserveAmbientNearOutputSec(recipe, outputId, outputSec, toleranceSec = 0.5) {
+  const output = (recipe.outputs ?? []).find((o) => o.outputId === outputId);
+  if (!output?.timeline?.length || !Number.isFinite(outputSec)) {
+    return false;
+  }
+  return output.timeline.some((segment) => {
+    if (segment.preserveAmbientAudio !== true) {
+      return false;
+    }
+    const start = segment.outputStartSec ?? 0;
+    const end = segment.outputEndSec ?? start;
+    return outputSec >= start - toleranceSec && outputSec <= end + toleranceSec;
+  });
+}
+
 /**
  * Adds silence_beat creativeMoments for high-confidence dead air (source: both)
  * when timeline cuts were not applied (unsafe overlap or silencePolicy).
@@ -394,6 +409,10 @@ export function enrichRecipeSilenceBeatFromDeadAir(recipe, {
       wordIndexes,
     });
     if (outputStartSec == null) {
+      continue;
+    }
+
+    if (hasPreserveAmbientNearOutputSec(recipe, mainOutput.outputId, outputStartSec)) {
       continue;
     }
 

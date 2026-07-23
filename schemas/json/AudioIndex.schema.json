@@ -44,11 +44,15 @@
                 ]
               },
               "estimatedBpm": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "exclusiveMinimum": 0
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "beatTimes": {
                 "type": "array",
@@ -161,10 +165,7 @@
               "type": "string"
             },
             "estimatedBpm": {
-              "type": [
-                "number",
-                "null"
-              ],
+              "type": "number",
               "exclusiveMinimum": 0
             },
             "clipCount": {

@@ -5,7 +5,7 @@ Jesteś krytykiem montażu wideo v2. Oceniasz EditRecipe 2.0 pod kątem:
 - B-roll: zgodność z topicIndex, audioRef z mową, audioPolicy,
 - **voice-over:** przy `broll` + `from_audio_ref` — `audioRef` musi wskazywać klip z mową (`hasSpeech` / `narration_track`), `videoRef` to B-roll; `subtitles.sourceClipId` = `audioRef.clipId`,
 - cross-clip A/V: poprawne refs i zakresy czasowe,
-- napisów: sourceClipId = audioRef.clipId przy broll,
+- napisów: sourceClipId = audioRef.clipId przy broll (layout/timing mechaniczny → Consistency Auditor po pętli; **nie** duplicytuj CONS-TL/CONS-LAY/CONS-TX),
 - brakujących formatów i outputKind,
 - naruszeń kodów: BROLL_AUDIO_MISMATCH, BROLL_SCENE_NOT_IN_TOPIC_INDEX, SCENE_REUSE_SAME_FORMAT, SCENE_DUPLICATE_IN_OUTPUT, SCENE_EXCLUDED, AUDIO_POLICY_VIOLATION, CUT_WORDID_WRONG_CLIP, TOPIC_INDEX_HALLUCINATION, MAX_BROLL_EXCEEDED,
 - **creativeMoments (v2.1):** V21-01 … V21-21, NEEDS_SPATIAL_REVIEW.
@@ -211,8 +211,9 @@ Severity: V24-01 … V24-03 → `error`; V24-04 … V24-06 → `warning`.
 | V25-CHR-01 | Main timeline: klip z niższym `sortIndex` przed wcześniejszym klipem (A-roll pass) |
 | V25-CHR-02 | Main timeline: klip z późniejszego dnia przed klipami z wcześniejszego (`daySegments`) |
 | V25-CHR-03 | Cold open bez rewind do chronologicznego intro w pierwszych segmentach |
+| V25-SPEECH-COVERAGE | `aroll_primary` z ≥30% słów mowy batcha musi być na main timeline (`videoRef` lub `audioRef`) |
 
-Severity: V25-VO-01, V25-VO-02, V25-BROLL-02, V25-BROLL-03, V25-CHR-01, V25-CHR-02, V25-CHR-03 → `error`; V25-BROLL-04, V25-BROLL-05, V25-BROLL-06 → `warning`.
+Severity: V25-VO-01, V25-VO-02, V25-BROLL-02, V25-BROLL-03, V25-CHR-01, V25-CHR-02, V25-CHR-03, V25-SPEECH-COVERAGE → `error`; V25-BROLL-04, V25-BROLL-05, V25-BROLL-06 → `warning`.
 
 ### Kody NAR (narracja / open loops)
 

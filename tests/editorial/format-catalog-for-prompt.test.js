@@ -83,4 +83,14 @@ describe("formatCatalogForPrompt", () => {
     assert.match(desaturate.params, /amount/);
     assert.match(boost.params, /boost/);
   });
+
+  it("compacts techniques when maxChars is exceeded", () => {
+    const catalog = loadTechniqueCatalog();
+    const budget = computeCreativityBudget(600, { level: "balanced" });
+    const full = formatCatalogForPrompt(catalog, budget, { maxChars: Infinity });
+    assert.ok(JSON.stringify(full).length > 4500);
+    const capped = formatCatalogForPrompt(catalog, budget, { maxChars: 4500 });
+    assert.ok(JSON.stringify(capped).length <= 4500);
+    assert.equal(capped.compact, true);
+  });
 });

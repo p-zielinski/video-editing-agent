@@ -270,7 +270,17 @@ describe("runSegmentDirector", () => {
     return {
       abstraction,
       timelineIndex,
-      clipRegistry: [{ clipId: "clip01", sortIndex: 0, durationSec: 120 }],
+      clipRegistry: [{
+        clipId: "clip01",
+        fileName: "clip01.mp4",
+        durationSec: 120,
+        sortIndex: 0,
+        clipRole: "aroll_primary",
+        roleConfidence: 0.75,
+        roleSource: "clip_profile",
+        hasSpeech: true,
+        speechWordCount: timelineIndex.words?.length ?? 0,
+      }],
       topicIndex: { topics: [] },
       spatialIndex: { scenes: [] },
       audioIndex: null,

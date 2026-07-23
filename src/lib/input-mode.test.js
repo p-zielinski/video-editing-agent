@@ -8,6 +8,20 @@ describe("input-mode", () => {
     assert.equal(detectInputMode(1), "single_clip");
   });
 
+  it("detectInputMode overrides stale single_clip when clipCount > 1", () => {
+    assert.equal(
+      detectInputMode(5, { inputMode: "single_clip" }),
+      "multi_clip_day",
+    );
+  });
+
+  it("detectInputMode respects explicit multi_clip_day", () => {
+    assert.equal(
+      detectInputMode(1, { inputMode: "multi_clip_day" }),
+      "multi_clip_day",
+    );
+  });
+
   it("resolveDefaultSortBy prefers creation_time for multi-clip", () => {
     assert.equal(resolveDefaultSortBy(2), "creation_time");
     assert.equal(resolveDefaultSortBy(1), "mtime");

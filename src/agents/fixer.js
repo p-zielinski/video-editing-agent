@@ -1,4 +1,5 @@
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
+import { parseAgentSchema } from "../lib/llm-response-cache.js";
 import { formatCatalogForPrompt } from "../editorial/format-catalog-for-prompt.js";
 import { loadTechniqueCatalog } from "../editorial/load-technique-catalog.js";
 import {
@@ -19,6 +20,7 @@ import {
   spreadEditorialToPayload,
 } from "../editorial/editorial-context.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
+import { buildRecipeReviewCacheKey } from "../lib/recipe-review-cache-key.js";
 
 /** V22-VLOG warnings the fixer should attempt to repair (not only errors). */
 export const FIXABLE_VLOG_WARNING_CODES = new Set([
@@ -318,7 +320,11 @@ export async function runFixer(client, {
   step,
   superCriticReview = null,
   attempt = 1,
+  workDir = null,
+  cacheKey = null,
 }) {
+  const fixerRole = attempt > 1 ? "fixerEscalation" : "fixer";
+  const resolvedStep = step ?? (attempt > 1 ? "fixer_escalation" : "fixer");
   const promptVersion = resolveFixerPromptVersion(recipe);
   const system = loadPrompt("fixer", { version: promptVersion });
   const retentionContext = shouldRunShortsRetentionValidation({
@@ -371,8 +377,11 @@ export async function runFixer(client, {
       : {}),
   });
 
+  const recipeCacheKey = cacheKey ?? buildRecipeReviewCacheKey(recipe);
+  const attemptCacheKey = `${recipeCacheKey}-attempt-${attempt}`;
+
   const raw = await chatJson(client, {
-    role: attempt > 1 ? "fixerEscalation" : "fixer",
+    role: fixerRole,
     model: attempt > 1 ? MODELS.fixerEscalation : MODELS.fixer,
     system,
     user,
@@ -380,7 +389,9 @@ export async function runFixer(client, {
     onUsage,
     quotaTracker,
     batchId,
-    step,
+    step: resolvedStep,
+    cacheKey: attemptCacheKey,
+    workDir,
   });
 
   raw.batchId = recipe.batchId;
@@ -435,7 +446,13 @@ export async function runFixer(client, {
     if (vo && !(Number.isFinite(vo.estimatedDurationSec) && vo.estimatedDurationSec > 0)) {
       delete vo.estimatedDurationSec;
     }
-    return EditRecipeV2Schema.parse(merged);
+    return parseAgentSchema(EditRecipeV2Schema, merged, {
+      batchId,
+      workDir,
+      step: resolvedStep,
+      role: fixerRole,
+      cacheKey: attemptCacheKey,
+    });
   }
 
   return raw;

@@ -1,10 +1,37 @@
 import { TimelineIndexSchema } from "../schemas/timeline-index.js";
 
+/**
+ * Whether a word belongs to a clip (explicit clipId or wordId prefix).
+ * Legacy: no scene clipId, or word with neither clipId nor wordId → true.
+ */
+export function wordBelongsToClip(word, clipId) {
+  if (clipId == null || clipId === "") {
+    return true;
+  }
+  if (word.clipId != null) {
+    return word.clipId === clipId;
+  }
+  if (word.wordId != null) {
+    return String(word.wordId).startsWith(`${clipId}_`);
+  }
+  return true;
+}
+
+/**
+ * Words in a scene by clip ownership and local time window.
+ */
+export function filterWordsForScene(scene, words) {
+  return words.filter(
+    (w) =>
+      wordBelongsToClip(w, scene.clipId)
+      && w.start >= scene.startSec
+      && w.start < scene.endSec,
+  );
+}
+
 export function attachWordsToScenes(scenes, words) {
   return scenes.map((scene) => {
-    const sceneWords = words.filter(
-      (w) => w.start >= scene.startSec && w.start < scene.endSec,
-    );
+    const sceneWords = filterWordsForScene(scene, words);
 
     if (sceneWords.length === 0) {
       return { ...scene, hasSpeech: false };

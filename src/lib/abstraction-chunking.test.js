@@ -161,4 +161,92 @@ describe("abstraction chunking", () => {
     const segments = chunkTimelineForL2(scenes, { clipRegistry, targetSegmentSec: 600 });
     assert.equal(segments[0].sceneIds[0], "clip01_scene001");
   });
+
+  it("chunkTimelineForL2 splits multi-clip day by accumulated duration (~1571s)", () => {
+    // Many clips with local clocks restarting at 0 — old endSec-startSec logic never split.
+    const scenes = [];
+    const clipRegistry = [];
+    let totalDuration = 0;
+    const clipDurations = [300, 280, 250, 241, 250, 250]; // ~1571s
+    for (let c = 0; c < clipDurations.length; c += 1) {
+      const clipId = `clip${String(c + 1).padStart(2, "0")}`;
+      const dur = clipDurations[c];
+      clipRegistry.push({ clipId, sortIndex: c });
+      scenes.push({
+        sceneId: `${clipId}_scene001`,
+        clipId,
+        startSec: 0,
+        endSec: dur,
+        durationSec: dur,
+      });
+      totalDuration += dur;
+    }
+    assert.ok(totalDuration >= 1570 && totalDuration <= 1572);
+
+    const segments = chunkTimelineForL2(scenes, {
+      clipRegistry,
+      targetSegmentSec: 600,
+      minSegmentSec: 300,
+    });
+    assert.ok(segments.length >= 2, `expected ≥2 L2 segments, got ${segments.length}`);
+    assert.equal(segments[0].startSec, 0);
+    assert.ok(segments[0].endSec >= 300);
+    assert.ok(segments[1].startSec === segments[0].endSec);
+  });
+
+  it("sceneSummaryInput scopes words by clipId when local times overlap", () => {
+    const scene = {
+      sceneId: "clip16_scene001",
+      clipId: "clip16",
+      startSec: 0,
+      endSec: 100,
+      durationSec: 100,
+    };
+    const words = [
+      { wordId: "clip01_w00001", clipId: "clip01", word: "other", start: 5, end: 5.5, isFiller: false },
+      { wordId: "clip16_w00001", clipId: "clip16", word: "mine", start: 5, end: 5.5, isFiller: false },
+    ];
+
+    const input = sceneSummaryInput(scene, words, []);
+    assert.equal(input.transcript, "mine");
+    assert.equal(input.transcript.includes("other"), false);
+  });
+
+  it("sceneSummaryInput scopes words by wordId prefix without word.clipId", () => {
+    const scene = {
+      sceneId: "clip16_scene001",
+      clipId: "clip16",
+      startSec: 0,
+      endSec: 100,
+      durationSec: 100,
+    };
+    const words = [
+      { wordId: "clip01_w00001", word: "other", start: 5, end: 5.5, isFiller: false },
+      { wordId: "clip16_w00001", word: "mine", start: 5, end: 5.5, isFiller: false },
+    ];
+
+    const input = sceneSummaryInput(scene, words, []);
+    assert.equal(input.transcript, "mine");
+  });
+
+  it("chunkTimelineForL2 keeps contiguous global spans on single-clip continuous timeline", () => {
+    const scenes = [];
+    for (let i = 0; i < 12; i += 1) {
+      scenes.push({
+        sceneId: `clip01_scene${String(i + 1).padStart(3, "0")}`,
+        clipId: "clip01",
+        startSec: i * 60,
+        endSec: (i + 1) * 60,
+        durationSec: 60,
+      });
+    }
+
+    const segments = chunkTimelineForL2(scenes, { targetSegmentSec: 300, minSegmentSec: 120 });
+    assert.ok(segments.length >= 2);
+    assert.equal(segments[0].startSec, 0);
+    for (let i = 1; i < segments.length; i += 1) {
+      assert.equal(segments[i].startSec, segments[i - 1].endSec);
+    }
+    assert.equal(segments.at(-1).endSec, 720);
+  });
 });

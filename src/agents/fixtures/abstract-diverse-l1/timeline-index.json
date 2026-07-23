@@ -1,0 +1,6367 @@
+{
+  "version": "1.0",
+  "batchId": "abstract-diverse-l1",
+  "userContext": "vlog dzień w mieście — park i kawa",
+  "clips": [
+    {
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "durationSec": 200
+    },
+    {
+      "clipId": "clip02",
+      "sourcePath": "/inbox/clip02.mp4",
+      "durationSec": 210
+    },
+    {
+      "clipId": "clip03",
+      "sourcePath": "/inbox/clip03.mp4",
+      "durationSec": 40
+    }
+  ],
+  "scenes": [
+    {
+      "sceneId": "clip01_scene001",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "startSec": 0,
+      "endSec": 45,
+      "durationSec": 45,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene002",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "startSec": 45,
+      "endSec": 90,
+      "durationSec": 45,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene003",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "startSec": 90,
+      "endSec": 140,
+      "durationSec": 50,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip01_scene004",
+      "clipId": "clip01",
+      "sourcePath": "/inbox/clip01.mp4",
+      "startSec": 140,
+      "endSec": 200,
+      "durationSec": 60,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip02_scene001",
+      "clipId": "clip02",
+      "sourcePath": "/inbox/clip02.mp4",
+      "startSec": 0,
+      "endSec": 50,
+      "durationSec": 50,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip02_scene002",
+      "clipId": "clip02",
+      "sourcePath": "/inbox/clip02.mp4",
+      "startSec": 50,
+      "endSec": 110,
+      "durationSec": 60,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip02_scene003",
+      "clipId": "clip02",
+      "sourcePath": "/inbox/clip02.mp4",
+      "startSec": 110,
+      "endSec": 160,
+      "durationSec": 50,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip02_scene004",
+      "clipId": "clip02",
+      "sourcePath": "/inbox/clip02.mp4",
+      "startSec": 160,
+      "endSec": 210,
+      "durationSec": 50,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": true
+    },
+    {
+      "sceneId": "clip03_scene001",
+      "clipId": "clip03",
+      "sourcePath": "/inbox/clip03.mp4",
+      "startSec": 0,
+      "endSec": 40,
+      "durationSec": 40,
+      "aspectRatio": "16:9",
+      "resolution": {
+        "w": 1920,
+        "h": 1080
+      },
+      "hasSpeech": false
+    }
+  ],
+  "words": [
+    {
+      "wordId": "clip01_w0001",
+      "word": "cześć",
+      "start": 0,
+      "end": 0.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0002",
+      "word": "dzisiaj",
+      "start": 0.25,
+      "end": 0.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0003",
+      "word": "idziemy",
+      "start": 0.5,
+      "end": 0.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0004",
+      "word": "do",
+      "start": 0.75,
+      "end": 0.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0005",
+      "word": "parku",
+      "start": 1,
+      "end": 1.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0006",
+      "word": "posłuchajcie",
+      "start": 1.25,
+      "end": 1.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0007",
+      "word": "ptaków",
+      "start": 1.5,
+      "end": 1.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0008",
+      "word": "kawa",
+      "start": 1.75,
+      "end": 1.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0009",
+      "word": "jest",
+      "start": 2,
+      "end": 2.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0010",
+      "word": "świetna",
+      "start": 2.25,
+      "end": 2.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0011",
+      "word": "naprawdę",
+      "start": 2.5,
+      "end": 2.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0012",
+      "word": "warto",
+      "start": 2.75,
+      "end": 2.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0013",
+      "word": "zobaczyć",
+      "start": 3,
+      "end": 3.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0014",
+      "word": "ten",
+      "start": 3.25,
+      "end": 3.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0015",
+      "word": "widok",
+      "start": 3.5,
+      "end": 3.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0016",
+      "word": "zapraszam",
+      "start": 3.75,
+      "end": 3.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0017",
+      "word": "do",
+      "start": 4,
+      "end": 4.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0018",
+      "word": "subskrypcji",
+      "start": 4.25,
+      "end": 4.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0019",
+      "word": "trasa",
+      "start": 4.5,
+      "end": 4.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0020",
+      "word": "jest",
+      "start": 4.75,
+      "end": 4.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0021",
+      "word": "prosta",
+      "start": 5,
+      "end": 5.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0022",
+      "word": "pogoda",
+      "start": 5.25,
+      "end": 5.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0023",
+      "word": "dopisuje",
+      "start": 5.5,
+      "end": 5.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0024",
+      "word": "cześć",
+      "start": 5.75,
+      "end": 5.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0025",
+      "word": "dzisiaj",
+      "start": 6,
+      "end": 6.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0026",
+      "word": "idziemy",
+      "start": 6.25,
+      "end": 6.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0027",
+      "word": "do",
+      "start": 6.5,
+      "end": 6.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0028",
+      "word": "parku",
+      "start": 6.75,
+      "end": 6.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0029",
+      "word": "posłuchajcie",
+      "start": 7,
+      "end": 7.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0030",
+      "word": "ptaków",
+      "start": 7.25,
+      "end": 7.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0031",
+      "word": "kawa",
+      "start": 7.5,
+      "end": 7.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0032",
+      "word": "jest",
+      "start": 7.75,
+      "end": 7.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0033",
+      "word": "świetna",
+      "start": 8,
+      "end": 8.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0034",
+      "word": "naprawdę",
+      "start": 8.25,
+      "end": 8.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0035",
+      "word": "warto",
+      "start": 8.5,
+      "end": 8.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0036",
+      "word": "zobaczyć",
+      "start": 8.75,
+      "end": 8.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0037",
+      "word": "ten",
+      "start": 9,
+      "end": 9.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0038",
+      "word": "widok",
+      "start": 9.25,
+      "end": 9.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0039",
+      "word": "zapraszam",
+      "start": 9.5,
+      "end": 9.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0040",
+      "word": "do",
+      "start": 9.75,
+      "end": 9.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0041",
+      "word": "subskrypcji",
+      "start": 10,
+      "end": 10.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0042",
+      "word": "trasa",
+      "start": 10.25,
+      "end": 10.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0043",
+      "word": "jest",
+      "start": 10.5,
+      "end": 10.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0044",
+      "word": "prosta",
+      "start": 10.75,
+      "end": 10.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0045",
+      "word": "pogoda",
+      "start": 11,
+      "end": 11.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0046",
+      "word": "dopisuje",
+      "start": 11.25,
+      "end": 11.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0047",
+      "word": "cześć",
+      "start": 11.5,
+      "end": 11.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0048",
+      "word": "dzisiaj",
+      "start": 11.75,
+      "end": 11.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0049",
+      "word": "idziemy",
+      "start": 12,
+      "end": 12.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0050",
+      "word": "do",
+      "start": 12.25,
+      "end": 12.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0051",
+      "word": "parku",
+      "start": 12.5,
+      "end": 12.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0052",
+      "word": "posłuchajcie",
+      "start": 12.75,
+      "end": 12.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0053",
+      "word": "ptaków",
+      "start": 13,
+      "end": 13.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0054",
+      "word": "kawa",
+      "start": 13.25,
+      "end": 13.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0055",
+      "word": "jest",
+      "start": 13.5,
+      "end": 13.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0056",
+      "word": "świetna",
+      "start": 13.75,
+      "end": 13.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0057",
+      "word": "naprawdę",
+      "start": 14,
+      "end": 14.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0058",
+      "word": "warto",
+      "start": 14.25,
+      "end": 14.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0059",
+      "word": "zobaczyć",
+      "start": 14.5,
+      "end": 14.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0060",
+      "word": "ten",
+      "start": 14.75,
+      "end": 14.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0061",
+      "word": "widok",
+      "start": 15,
+      "end": 15.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0062",
+      "word": "zapraszam",
+      "start": 15.25,
+      "end": 15.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0063",
+      "word": "do",
+      "start": 15.5,
+      "end": 15.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0064",
+      "word": "subskrypcji",
+      "start": 15.75,
+      "end": 15.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0065",
+      "word": "trasa",
+      "start": 16,
+      "end": 16.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0066",
+      "word": "jest",
+      "start": 16.25,
+      "end": 16.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0067",
+      "word": "prosta",
+      "start": 16.5,
+      "end": 16.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0068",
+      "word": "pogoda",
+      "start": 16.75,
+      "end": 16.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0069",
+      "word": "dopisuje",
+      "start": 17,
+      "end": 17.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0070",
+      "word": "cześć",
+      "start": 17.25,
+      "end": 17.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0071",
+      "word": "dzisiaj",
+      "start": 17.5,
+      "end": 17.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0072",
+      "word": "idziemy",
+      "start": 17.75,
+      "end": 17.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0073",
+      "word": "do",
+      "start": 18,
+      "end": 18.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0074",
+      "word": "parku",
+      "start": 18.25,
+      "end": 18.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0075",
+      "word": "posłuchajcie",
+      "start": 18.5,
+      "end": 18.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0076",
+      "word": "ptaków",
+      "start": 18.75,
+      "end": 18.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0077",
+      "word": "kawa",
+      "start": 19,
+      "end": 19.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0078",
+      "word": "jest",
+      "start": 19.25,
+      "end": 19.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0079",
+      "word": "świetna",
+      "start": 19.5,
+      "end": 19.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0080",
+      "word": "naprawdę",
+      "start": 19.75,
+      "end": 19.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0081",
+      "word": "warto",
+      "start": 20,
+      "end": 20.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0082",
+      "word": "zobaczyć",
+      "start": 20.25,
+      "end": 20.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0083",
+      "word": "ten",
+      "start": 20.5,
+      "end": 20.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0084",
+      "word": "widok",
+      "start": 20.75,
+      "end": 20.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0085",
+      "word": "zapraszam",
+      "start": 21,
+      "end": 21.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0086",
+      "word": "do",
+      "start": 21.25,
+      "end": 21.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0087",
+      "word": "subskrypcji",
+      "start": 21.5,
+      "end": 21.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0088",
+      "word": "trasa",
+      "start": 21.75,
+      "end": 21.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0089",
+      "word": "jest",
+      "start": 22,
+      "end": 22.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0090",
+      "word": "prosta",
+      "start": 22.25,
+      "end": 22.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0091",
+      "word": "pogoda",
+      "start": 22.5,
+      "end": 22.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0092",
+      "word": "dopisuje",
+      "start": 22.75,
+      "end": 22.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0093",
+      "word": "cześć",
+      "start": 23,
+      "end": 23.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0094",
+      "word": "dzisiaj",
+      "start": 23.25,
+      "end": 23.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0095",
+      "word": "idziemy",
+      "start": 23.5,
+      "end": 23.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0096",
+      "word": "do",
+      "start": 23.75,
+      "end": 23.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0097",
+      "word": "parku",
+      "start": 24,
+      "end": 24.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0098",
+      "word": "posłuchajcie",
+      "start": 24.25,
+      "end": 24.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0099",
+      "word": "ptaków",
+      "start": 24.5,
+      "end": 24.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0100",
+      "word": "kawa",
+      "start": 24.75,
+      "end": 24.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0101",
+      "word": "jest",
+      "start": 25,
+      "end": 25.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0102",
+      "word": "świetna",
+      "start": 25.25,
+      "end": 25.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0103",
+      "word": "naprawdę",
+      "start": 25.5,
+      "end": 25.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0104",
+      "word": "warto",
+      "start": 25.75,
+      "end": 25.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0105",
+      "word": "zobaczyć",
+      "start": 26,
+      "end": 26.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0106",
+      "word": "ten",
+      "start": 26.25,
+      "end": 26.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0107",
+      "word": "widok",
+      "start": 26.5,
+      "end": 26.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0108",
+      "word": "zapraszam",
+      "start": 26.75,
+      "end": 26.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0109",
+      "word": "do",
+      "start": 27,
+      "end": 27.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0110",
+      "word": "subskrypcji",
+      "start": 27.25,
+      "end": 27.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0451",
+      "word": "cześć",
+      "start": 45,
+      "end": 45.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0452",
+      "word": "dzisiaj",
+      "start": 45.25,
+      "end": 45.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0453",
+      "word": "idziemy",
+      "start": 45.5,
+      "end": 45.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0454",
+      "word": "do",
+      "start": 45.75,
+      "end": 45.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0455",
+      "word": "parku",
+      "start": 46,
+      "end": 46.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0456",
+      "word": "posłuchajcie",
+      "start": 46.25,
+      "end": 46.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0457",
+      "word": "ptaków",
+      "start": 46.5,
+      "end": 46.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0458",
+      "word": "kawa",
+      "start": 46.75,
+      "end": 46.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0459",
+      "word": "jest",
+      "start": 47,
+      "end": 47.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0460",
+      "word": "świetna",
+      "start": 47.25,
+      "end": 47.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0461",
+      "word": "naprawdę",
+      "start": 47.5,
+      "end": 47.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0462",
+      "word": "warto",
+      "start": 47.75,
+      "end": 47.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0463",
+      "word": "zobaczyć",
+      "start": 48,
+      "end": 48.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0464",
+      "word": "ten",
+      "start": 48.25,
+      "end": 48.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0465",
+      "word": "widok",
+      "start": 48.5,
+      "end": 48.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0466",
+      "word": "zapraszam",
+      "start": 48.75,
+      "end": 48.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0467",
+      "word": "do",
+      "start": 49,
+      "end": 49.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0468",
+      "word": "subskrypcji",
+      "start": 49.25,
+      "end": 49.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0469",
+      "word": "trasa",
+      "start": 49.5,
+      "end": 49.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0470",
+      "word": "jest",
+      "start": 49.75,
+      "end": 49.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0471",
+      "word": "prosta",
+      "start": 50,
+      "end": 50.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0472",
+      "word": "pogoda",
+      "start": 50.25,
+      "end": 50.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0473",
+      "word": "dopisuje",
+      "start": 50.5,
+      "end": 50.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0474",
+      "word": "cześć",
+      "start": 50.75,
+      "end": 50.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0475",
+      "word": "dzisiaj",
+      "start": 51,
+      "end": 51.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0476",
+      "word": "idziemy",
+      "start": 51.25,
+      "end": 51.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0477",
+      "word": "do",
+      "start": 51.5,
+      "end": 51.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0478",
+      "word": "parku",
+      "start": 51.75,
+      "end": 51.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0479",
+      "word": "posłuchajcie",
+      "start": 52,
+      "end": 52.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0480",
+      "word": "ptaków",
+      "start": 52.25,
+      "end": 52.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0481",
+      "word": "kawa",
+      "start": 52.5,
+      "end": 52.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0482",
+      "word": "jest",
+      "start": 52.75,
+      "end": 52.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0483",
+      "word": "świetna",
+      "start": 53,
+      "end": 53.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0484",
+      "word": "naprawdę",
+      "start": 53.25,
+      "end": 53.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0485",
+      "word": "warto",
+      "start": 53.5,
+      "end": 53.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0486",
+      "word": "zobaczyć",
+      "start": 53.75,
+      "end": 53.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0487",
+      "word": "ten",
+      "start": 54,
+      "end": 54.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0488",
+      "word": "widok",
+      "start": 54.25,
+      "end": 54.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0489",
+      "word": "zapraszam",
+      "start": 54.5,
+      "end": 54.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0490",
+      "word": "do",
+      "start": 54.75,
+      "end": 54.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0491",
+      "word": "subskrypcji",
+      "start": 55,
+      "end": 55.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0492",
+      "word": "trasa",
+      "start": 55.25,
+      "end": 55.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0493",
+      "word": "jest",
+      "start": 55.5,
+      "end": 55.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0494",
+      "word": "prosta",
+      "start": 55.75,
+      "end": 55.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0495",
+      "word": "pogoda",
+      "start": 56,
+      "end": 56.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0496",
+      "word": "dopisuje",
+      "start": 56.25,
+      "end": 56.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0497",
+      "word": "cześć",
+      "start": 56.5,
+      "end": 56.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0498",
+      "word": "dzisiaj",
+      "start": 56.75,
+      "end": 56.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0499",
+      "word": "idziemy",
+      "start": 57,
+      "end": 57.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0500",
+      "word": "do",
+      "start": 57.25,
+      "end": 57.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0501",
+      "word": "parku",
+      "start": 57.5,
+      "end": 57.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0502",
+      "word": "posłuchajcie",
+      "start": 57.75,
+      "end": 57.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0503",
+      "word": "ptaków",
+      "start": 58,
+      "end": 58.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0504",
+      "word": "kawa",
+      "start": 58.25,
+      "end": 58.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0505",
+      "word": "jest",
+      "start": 58.5,
+      "end": 58.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0506",
+      "word": "świetna",
+      "start": 58.75,
+      "end": 58.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0507",
+      "word": "naprawdę",
+      "start": 59,
+      "end": 59.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0508",
+      "word": "warto",
+      "start": 59.25,
+      "end": 59.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0509",
+      "word": "zobaczyć",
+      "start": 59.5,
+      "end": 59.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0510",
+      "word": "ten",
+      "start": 59.75,
+      "end": 59.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0511",
+      "word": "widok",
+      "start": 60,
+      "end": 60.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0512",
+      "word": "zapraszam",
+      "start": 60.25,
+      "end": 60.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0513",
+      "word": "do",
+      "start": 60.5,
+      "end": 60.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0514",
+      "word": "subskrypcji",
+      "start": 60.75,
+      "end": 60.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0515",
+      "word": "trasa",
+      "start": 61,
+      "end": 61.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0516",
+      "word": "jest",
+      "start": 61.25,
+      "end": 61.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0517",
+      "word": "prosta",
+      "start": 61.5,
+      "end": 61.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0518",
+      "word": "pogoda",
+      "start": 61.75,
+      "end": 61.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0519",
+      "word": "dopisuje",
+      "start": 62,
+      "end": 62.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0520",
+      "word": "cześć",
+      "start": 62.25,
+      "end": 62.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0521",
+      "word": "dzisiaj",
+      "start": 62.5,
+      "end": 62.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0522",
+      "word": "idziemy",
+      "start": 62.75,
+      "end": 62.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0523",
+      "word": "do",
+      "start": 63,
+      "end": 63.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0524",
+      "word": "parku",
+      "start": 63.25,
+      "end": 63.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0525",
+      "word": "posłuchajcie",
+      "start": 63.5,
+      "end": 63.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0526",
+      "word": "ptaków",
+      "start": 63.75,
+      "end": 63.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0527",
+      "word": "kawa",
+      "start": 64,
+      "end": 64.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0528",
+      "word": "jest",
+      "start": 64.25,
+      "end": 64.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0529",
+      "word": "świetna",
+      "start": 64.5,
+      "end": 64.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0530",
+      "word": "naprawdę",
+      "start": 64.75,
+      "end": 64.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0531",
+      "word": "warto",
+      "start": 65,
+      "end": 65.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0532",
+      "word": "zobaczyć",
+      "start": 65.25,
+      "end": 65.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0533",
+      "word": "ten",
+      "start": 65.5,
+      "end": 65.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0534",
+      "word": "widok",
+      "start": 65.75,
+      "end": 65.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0535",
+      "word": "zapraszam",
+      "start": 66,
+      "end": 66.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0536",
+      "word": "do",
+      "start": 66.25,
+      "end": 66.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0537",
+      "word": "subskrypcji",
+      "start": 66.5,
+      "end": 66.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0538",
+      "word": "trasa",
+      "start": 66.75,
+      "end": 66.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0539",
+      "word": "jest",
+      "start": 67,
+      "end": 67.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0540",
+      "word": "prosta",
+      "start": 67.25,
+      "end": 67.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0541",
+      "word": "pogoda",
+      "start": 67.5,
+      "end": 67.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0542",
+      "word": "dopisuje",
+      "start": 67.75,
+      "end": 67.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0543",
+      "word": "cześć",
+      "start": 68,
+      "end": 68.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0544",
+      "word": "dzisiaj",
+      "start": 68.25,
+      "end": 68.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0545",
+      "word": "idziemy",
+      "start": 68.5,
+      "end": 68.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0546",
+      "word": "do",
+      "start": 68.75,
+      "end": 68.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0547",
+      "word": "parku",
+      "start": 69,
+      "end": 69.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0548",
+      "word": "posłuchajcie",
+      "start": 69.25,
+      "end": 69.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0549",
+      "word": "ptaków",
+      "start": 69.5,
+      "end": 69.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0550",
+      "word": "kawa",
+      "start": 69.75,
+      "end": 69.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0551",
+      "word": "jest",
+      "start": 70,
+      "end": 70.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0552",
+      "word": "świetna",
+      "start": 70.25,
+      "end": 70.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0553",
+      "word": "naprawdę",
+      "start": 70.5,
+      "end": 70.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0554",
+      "word": "warto",
+      "start": 70.75,
+      "end": 70.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0555",
+      "word": "zobaczyć",
+      "start": 71,
+      "end": 71.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0556",
+      "word": "ten",
+      "start": 71.25,
+      "end": 71.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0557",
+      "word": "widok",
+      "start": 71.5,
+      "end": 71.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0558",
+      "word": "zapraszam",
+      "start": 71.75,
+      "end": 71.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0559",
+      "word": "do",
+      "start": 72,
+      "end": 72.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0560",
+      "word": "subskrypcji",
+      "start": 72.25,
+      "end": 72.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0901",
+      "word": "cześć",
+      "start": 90,
+      "end": 90.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0902",
+      "word": "dzisiaj",
+      "start": 90.25,
+      "end": 90.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0903",
+      "word": "idziemy",
+      "start": 90.5,
+      "end": 90.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0904",
+      "word": "do",
+      "start": 90.75,
+      "end": 90.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0905",
+      "word": "parku",
+      "start": 91,
+      "end": 91.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0906",
+      "word": "posłuchajcie",
+      "start": 91.25,
+      "end": 91.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0907",
+      "word": "ptaków",
+      "start": 91.5,
+      "end": 91.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0908",
+      "word": "kawa",
+      "start": 91.75,
+      "end": 91.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0909",
+      "word": "jest",
+      "start": 92,
+      "end": 92.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0910",
+      "word": "świetna",
+      "start": 92.25,
+      "end": 92.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0911",
+      "word": "naprawdę",
+      "start": 92.5,
+      "end": 92.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0912",
+      "word": "warto",
+      "start": 92.75,
+      "end": 92.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0913",
+      "word": "zobaczyć",
+      "start": 93,
+      "end": 93.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0914",
+      "word": "ten",
+      "start": 93.25,
+      "end": 93.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0915",
+      "word": "widok",
+      "start": 93.5,
+      "end": 93.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0916",
+      "word": "zapraszam",
+      "start": 93.75,
+      "end": 93.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0917",
+      "word": "do",
+      "start": 94,
+      "end": 94.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0918",
+      "word": "subskrypcji",
+      "start": 94.25,
+      "end": 94.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0919",
+      "word": "trasa",
+      "start": 94.5,
+      "end": 94.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0920",
+      "word": "jest",
+      "start": 94.75,
+      "end": 94.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0921",
+      "word": "prosta",
+      "start": 95,
+      "end": 95.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0922",
+      "word": "pogoda",
+      "start": 95.25,
+      "end": 95.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0923",
+      "word": "dopisuje",
+      "start": 95.5,
+      "end": 95.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0924",
+      "word": "cześć",
+      "start": 95.75,
+      "end": 95.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0925",
+      "word": "dzisiaj",
+      "start": 96,
+      "end": 96.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0926",
+      "word": "idziemy",
+      "start": 96.25,
+      "end": 96.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0927",
+      "word": "do",
+      "start": 96.5,
+      "end": 96.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0928",
+      "word": "parku",
+      "start": 96.75,
+      "end": 96.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0929",
+      "word": "posłuchajcie",
+      "start": 97,
+      "end": 97.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0930",
+      "word": "ptaków",
+      "start": 97.25,
+      "end": 97.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0931",
+      "word": "kawa",
+      "start": 97.5,
+      "end": 97.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0932",
+      "word": "jest",
+      "start": 97.75,
+      "end": 97.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0933",
+      "word": "świetna",
+      "start": 98,
+      "end": 98.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0934",
+      "word": "naprawdę",
+      "start": 98.25,
+      "end": 98.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0935",
+      "word": "warto",
+      "start": 98.5,
+      "end": 98.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0936",
+      "word": "zobaczyć",
+      "start": 98.75,
+      "end": 98.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0937",
+      "word": "ten",
+      "start": 99,
+      "end": 99.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0938",
+      "word": "widok",
+      "start": 99.25,
+      "end": 99.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0939",
+      "word": "zapraszam",
+      "start": 99.5,
+      "end": 99.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0940",
+      "word": "do",
+      "start": 99.75,
+      "end": 99.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0941",
+      "word": "subskrypcji",
+      "start": 100,
+      "end": 100.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0942",
+      "word": "trasa",
+      "start": 100.25,
+      "end": 100.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0943",
+      "word": "jest",
+      "start": 100.5,
+      "end": 100.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0944",
+      "word": "prosta",
+      "start": 100.75,
+      "end": 100.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0945",
+      "word": "pogoda",
+      "start": 101,
+      "end": 101.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0946",
+      "word": "dopisuje",
+      "start": 101.25,
+      "end": 101.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0947",
+      "word": "cześć",
+      "start": 101.5,
+      "end": 101.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0948",
+      "word": "dzisiaj",
+      "start": 101.75,
+      "end": 101.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0949",
+      "word": "idziemy",
+      "start": 102,
+      "end": 102.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0950",
+      "word": "do",
+      "start": 102.25,
+      "end": 102.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0951",
+      "word": "parku",
+      "start": 102.5,
+      "end": 102.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0952",
+      "word": "posłuchajcie",
+      "start": 102.75,
+      "end": 102.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0953",
+      "word": "ptaków",
+      "start": 103,
+      "end": 103.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0954",
+      "word": "kawa",
+      "start": 103.25,
+      "end": 103.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0955",
+      "word": "jest",
+      "start": 103.5,
+      "end": 103.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0956",
+      "word": "świetna",
+      "start": 103.75,
+      "end": 103.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0957",
+      "word": "naprawdę",
+      "start": 104,
+      "end": 104.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0958",
+      "word": "warto",
+      "start": 104.25,
+      "end": 104.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0959",
+      "word": "zobaczyć",
+      "start": 104.5,
+      "end": 104.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0960",
+      "word": "ten",
+      "start": 104.75,
+      "end": 104.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0961",
+      "word": "widok",
+      "start": 105,
+      "end": 105.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0962",
+      "word": "zapraszam",
+      "start": 105.25,
+      "end": 105.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0963",
+      "word": "do",
+      "start": 105.5,
+      "end": 105.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0964",
+      "word": "subskrypcji",
+      "start": 105.75,
+      "end": 105.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0965",
+      "word": "trasa",
+      "start": 106,
+      "end": 106.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0966",
+      "word": "jest",
+      "start": 106.25,
+      "end": 106.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0967",
+      "word": "prosta",
+      "start": 106.5,
+      "end": 106.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0968",
+      "word": "pogoda",
+      "start": 106.75,
+      "end": 106.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0969",
+      "word": "dopisuje",
+      "start": 107,
+      "end": 107.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0970",
+      "word": "cześć",
+      "start": 107.25,
+      "end": 107.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0971",
+      "word": "dzisiaj",
+      "start": 107.5,
+      "end": 107.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0972",
+      "word": "idziemy",
+      "start": 107.75,
+      "end": 107.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0973",
+      "word": "do",
+      "start": 108,
+      "end": 108.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0974",
+      "word": "parku",
+      "start": 108.25,
+      "end": 108.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0975",
+      "word": "posłuchajcie",
+      "start": 108.5,
+      "end": 108.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0976",
+      "word": "ptaków",
+      "start": 108.75,
+      "end": 108.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0977",
+      "word": "kawa",
+      "start": 109,
+      "end": 109.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0978",
+      "word": "jest",
+      "start": 109.25,
+      "end": 109.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0979",
+      "word": "świetna",
+      "start": 109.5,
+      "end": 109.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0980",
+      "word": "naprawdę",
+      "start": 109.75,
+      "end": 109.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0981",
+      "word": "warto",
+      "start": 110,
+      "end": 110.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0982",
+      "word": "zobaczyć",
+      "start": 110.25,
+      "end": 110.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0983",
+      "word": "ten",
+      "start": 110.5,
+      "end": 110.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0984",
+      "word": "widok",
+      "start": 110.75,
+      "end": 110.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0985",
+      "word": "zapraszam",
+      "start": 111,
+      "end": 111.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0986",
+      "word": "do",
+      "start": 111.25,
+      "end": 111.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w0987",
+      "word": "subskrypcji",
+      "start": 111.5,
+      "end": 111.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0988",
+      "word": "trasa",
+      "start": 111.75,
+      "end": 111.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0989",
+      "word": "jest",
+      "start": 112,
+      "end": 112.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0990",
+      "word": "prosta",
+      "start": 112.25,
+      "end": 112.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0991",
+      "word": "pogoda",
+      "start": 112.5,
+      "end": 112.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0992",
+      "word": "dopisuje",
+      "start": 112.75,
+      "end": 112.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0993",
+      "word": "cześć",
+      "start": 113,
+      "end": 113.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0994",
+      "word": "dzisiaj",
+      "start": 113.25,
+      "end": 113.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0995",
+      "word": "idziemy",
+      "start": 113.5,
+      "end": 113.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0996",
+      "word": "do",
+      "start": 113.75,
+      "end": 113.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0997",
+      "word": "parku",
+      "start": 114,
+      "end": 114.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0998",
+      "word": "posłuchajcie",
+      "start": 114.25,
+      "end": 114.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w0999",
+      "word": "ptaków",
+      "start": 114.5,
+      "end": 114.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1000",
+      "word": "kawa",
+      "start": 114.75,
+      "end": 114.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1001",
+      "word": "jest",
+      "start": 115,
+      "end": 115.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1002",
+      "word": "świetna",
+      "start": 115.25,
+      "end": 115.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1003",
+      "word": "naprawdę",
+      "start": 115.5,
+      "end": 115.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1004",
+      "word": "warto",
+      "start": 115.75,
+      "end": 115.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1005",
+      "word": "zobaczyć",
+      "start": 116,
+      "end": 116.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1006",
+      "word": "ten",
+      "start": 116.25,
+      "end": 116.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1007",
+      "word": "widok",
+      "start": 116.5,
+      "end": 116.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1008",
+      "word": "zapraszam",
+      "start": 116.75,
+      "end": 116.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1009",
+      "word": "do",
+      "start": 117,
+      "end": 117.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1010",
+      "word": "subskrypcji",
+      "start": 117.25,
+      "end": 117.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1401",
+      "word": "cześć",
+      "start": 140,
+      "end": 140.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1402",
+      "word": "dzisiaj",
+      "start": 140.25,
+      "end": 140.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1403",
+      "word": "idziemy",
+      "start": 140.5,
+      "end": 140.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1404",
+      "word": "do",
+      "start": 140.75,
+      "end": 140.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1405",
+      "word": "parku",
+      "start": 141,
+      "end": 141.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1406",
+      "word": "posłuchajcie",
+      "start": 141.25,
+      "end": 141.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1407",
+      "word": "ptaków",
+      "start": 141.5,
+      "end": 141.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1408",
+      "word": "kawa",
+      "start": 141.75,
+      "end": 141.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1409",
+      "word": "jest",
+      "start": 142,
+      "end": 142.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1410",
+      "word": "świetna",
+      "start": 142.25,
+      "end": 142.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1411",
+      "word": "naprawdę",
+      "start": 142.5,
+      "end": 142.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1412",
+      "word": "warto",
+      "start": 142.75,
+      "end": 142.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1413",
+      "word": "zobaczyć",
+      "start": 143,
+      "end": 143.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1414",
+      "word": "ten",
+      "start": 143.25,
+      "end": 143.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1415",
+      "word": "widok",
+      "start": 143.5,
+      "end": 143.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1416",
+      "word": "zapraszam",
+      "start": 143.75,
+      "end": 143.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1417",
+      "word": "do",
+      "start": 144,
+      "end": 144.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1418",
+      "word": "subskrypcji",
+      "start": 144.25,
+      "end": 144.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1419",
+      "word": "trasa",
+      "start": 144.5,
+      "end": 144.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1420",
+      "word": "jest",
+      "start": 144.75,
+      "end": 144.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1421",
+      "word": "prosta",
+      "start": 145,
+      "end": 145.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1422",
+      "word": "pogoda",
+      "start": 145.25,
+      "end": 145.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1423",
+      "word": "dopisuje",
+      "start": 145.5,
+      "end": 145.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1424",
+      "word": "cześć",
+      "start": 145.75,
+      "end": 145.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1425",
+      "word": "dzisiaj",
+      "start": 146,
+      "end": 146.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1426",
+      "word": "idziemy",
+      "start": 146.25,
+      "end": 146.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1427",
+      "word": "do",
+      "start": 146.5,
+      "end": 146.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1428",
+      "word": "parku",
+      "start": 146.75,
+      "end": 146.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1429",
+      "word": "posłuchajcie",
+      "start": 147,
+      "end": 147.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1430",
+      "word": "ptaków",
+      "start": 147.25,
+      "end": 147.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1431",
+      "word": "kawa",
+      "start": 147.5,
+      "end": 147.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1432",
+      "word": "jest",
+      "start": 147.75,
+      "end": 147.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1433",
+      "word": "świetna",
+      "start": 148,
+      "end": 148.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1434",
+      "word": "naprawdę",
+      "start": 148.25,
+      "end": 148.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1435",
+      "word": "warto",
+      "start": 148.5,
+      "end": 148.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1436",
+      "word": "zobaczyć",
+      "start": 148.75,
+      "end": 148.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1437",
+      "word": "ten",
+      "start": 149,
+      "end": 149.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1438",
+      "word": "widok",
+      "start": 149.25,
+      "end": 149.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1439",
+      "word": "zapraszam",
+      "start": 149.5,
+      "end": 149.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1440",
+      "word": "do",
+      "start": 149.75,
+      "end": 149.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1441",
+      "word": "subskrypcji",
+      "start": 150,
+      "end": 150.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1442",
+      "word": "trasa",
+      "start": 150.25,
+      "end": 150.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1443",
+      "word": "jest",
+      "start": 150.5,
+      "end": 150.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1444",
+      "word": "prosta",
+      "start": 150.75,
+      "end": 150.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1445",
+      "word": "pogoda",
+      "start": 151,
+      "end": 151.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1446",
+      "word": "dopisuje",
+      "start": 151.25,
+      "end": 151.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1447",
+      "word": "cześć",
+      "start": 151.5,
+      "end": 151.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1448",
+      "word": "dzisiaj",
+      "start": 151.75,
+      "end": 151.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1449",
+      "word": "idziemy",
+      "start": 152,
+      "end": 152.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1450",
+      "word": "do",
+      "start": 152.25,
+      "end": 152.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1451",
+      "word": "parku",
+      "start": 152.5,
+      "end": 152.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1452",
+      "word": "posłuchajcie",
+      "start": 152.75,
+      "end": 152.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1453",
+      "word": "ptaków",
+      "start": 153,
+      "end": 153.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1454",
+      "word": "kawa",
+      "start": 153.25,
+      "end": 153.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1455",
+      "word": "jest",
+      "start": 153.5,
+      "end": 153.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1456",
+      "word": "świetna",
+      "start": 153.75,
+      "end": 153.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1457",
+      "word": "naprawdę",
+      "start": 154,
+      "end": 154.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1458",
+      "word": "warto",
+      "start": 154.25,
+      "end": 154.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1459",
+      "word": "zobaczyć",
+      "start": 154.5,
+      "end": 154.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1460",
+      "word": "ten",
+      "start": 154.75,
+      "end": 154.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1461",
+      "word": "widok",
+      "start": 155,
+      "end": 155.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1462",
+      "word": "zapraszam",
+      "start": 155.25,
+      "end": 155.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1463",
+      "word": "do",
+      "start": 155.5,
+      "end": 155.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1464",
+      "word": "subskrypcji",
+      "start": 155.75,
+      "end": 155.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1465",
+      "word": "trasa",
+      "start": 156,
+      "end": 156.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1466",
+      "word": "jest",
+      "start": 156.25,
+      "end": 156.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1467",
+      "word": "prosta",
+      "start": 156.5,
+      "end": 156.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1468",
+      "word": "pogoda",
+      "start": 156.75,
+      "end": 156.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1469",
+      "word": "dopisuje",
+      "start": 157,
+      "end": 157.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1470",
+      "word": "cześć",
+      "start": 157.25,
+      "end": 157.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1471",
+      "word": "dzisiaj",
+      "start": 157.5,
+      "end": 157.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1472",
+      "word": "idziemy",
+      "start": 157.75,
+      "end": 157.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1473",
+      "word": "do",
+      "start": 158,
+      "end": 158.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1474",
+      "word": "parku",
+      "start": 158.25,
+      "end": 158.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1475",
+      "word": "posłuchajcie",
+      "start": 158.5,
+      "end": 158.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1476",
+      "word": "ptaków",
+      "start": 158.75,
+      "end": 158.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1477",
+      "word": "kawa",
+      "start": 159,
+      "end": 159.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1478",
+      "word": "jest",
+      "start": 159.25,
+      "end": 159.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1479",
+      "word": "świetna",
+      "start": 159.5,
+      "end": 159.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1480",
+      "word": "naprawdę",
+      "start": 159.75,
+      "end": 159.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1481",
+      "word": "warto",
+      "start": 160,
+      "end": 160.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1482",
+      "word": "zobaczyć",
+      "start": 160.25,
+      "end": 160.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1483",
+      "word": "ten",
+      "start": 160.5,
+      "end": 160.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1484",
+      "word": "widok",
+      "start": 160.75,
+      "end": 160.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1485",
+      "word": "zapraszam",
+      "start": 161,
+      "end": 161.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1486",
+      "word": "do",
+      "start": 161.25,
+      "end": 161.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1487",
+      "word": "subskrypcji",
+      "start": 161.5,
+      "end": 161.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1488",
+      "word": "trasa",
+      "start": 161.75,
+      "end": 161.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1489",
+      "word": "jest",
+      "start": 162,
+      "end": 162.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1490",
+      "word": "prosta",
+      "start": 162.25,
+      "end": 162.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1491",
+      "word": "pogoda",
+      "start": 162.5,
+      "end": 162.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1492",
+      "word": "dopisuje",
+      "start": 162.75,
+      "end": 162.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1493",
+      "word": "cześć",
+      "start": 163,
+      "end": 163.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1494",
+      "word": "dzisiaj",
+      "start": 163.25,
+      "end": 163.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1495",
+      "word": "idziemy",
+      "start": 163.5,
+      "end": 163.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1496",
+      "word": "do",
+      "start": 163.75,
+      "end": 163.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1497",
+      "word": "parku",
+      "start": 164,
+      "end": 164.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1498",
+      "word": "posłuchajcie",
+      "start": 164.25,
+      "end": 164.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1499",
+      "word": "ptaków",
+      "start": 164.5,
+      "end": 164.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1500",
+      "word": "kawa",
+      "start": 164.75,
+      "end": 164.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1501",
+      "word": "jest",
+      "start": 165,
+      "end": 165.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1502",
+      "word": "świetna",
+      "start": 165.25,
+      "end": 165.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1503",
+      "word": "naprawdę",
+      "start": 165.5,
+      "end": 165.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip01_w1504",
+      "word": "warto",
+      "start": 165.75,
+      "end": 165.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1505",
+      "word": "zobaczyć",
+      "start": 166,
+      "end": 166.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1506",
+      "word": "ten",
+      "start": 166.25,
+      "end": 166.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1507",
+      "word": "widok",
+      "start": 166.5,
+      "end": 166.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1508",
+      "word": "zapraszam",
+      "start": 166.75,
+      "end": 166.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1509",
+      "word": "do",
+      "start": 167,
+      "end": 167.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip01_w1510",
+      "word": "subskrypcji",
+      "start": 167.25,
+      "end": 167.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0001",
+      "word": "cześć",
+      "start": 0,
+      "end": 0.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0002",
+      "word": "dzisiaj",
+      "start": 0.25,
+      "end": 0.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0003",
+      "word": "idziemy",
+      "start": 0.5,
+      "end": 0.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0004",
+      "word": "do",
+      "start": 0.75,
+      "end": 0.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0005",
+      "word": "parku",
+      "start": 1,
+      "end": 1.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0006",
+      "word": "posłuchajcie",
+      "start": 1.25,
+      "end": 1.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0007",
+      "word": "ptaków",
+      "start": 1.5,
+      "end": 1.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0008",
+      "word": "kawa",
+      "start": 1.75,
+      "end": 1.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0009",
+      "word": "jest",
+      "start": 2,
+      "end": 2.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0010",
+      "word": "świetna",
+      "start": 2.25,
+      "end": 2.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0011",
+      "word": "naprawdę",
+      "start": 2.5,
+      "end": 2.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0012",
+      "word": "warto",
+      "start": 2.75,
+      "end": 2.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0013",
+      "word": "zobaczyć",
+      "start": 3,
+      "end": 3.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0014",
+      "word": "ten",
+      "start": 3.25,
+      "end": 3.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0015",
+      "word": "widok",
+      "start": 3.5,
+      "end": 3.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0016",
+      "word": "zapraszam",
+      "start": 3.75,
+      "end": 3.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0017",
+      "word": "do",
+      "start": 4,
+      "end": 4.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0018",
+      "word": "subskrypcji",
+      "start": 4.25,
+      "end": 4.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0019",
+      "word": "trasa",
+      "start": 4.5,
+      "end": 4.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0020",
+      "word": "jest",
+      "start": 4.75,
+      "end": 4.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0021",
+      "word": "prosta",
+      "start": 5,
+      "end": 5.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0022",
+      "word": "pogoda",
+      "start": 5.25,
+      "end": 5.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0023",
+      "word": "dopisuje",
+      "start": 5.5,
+      "end": 5.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0024",
+      "word": "cześć",
+      "start": 5.75,
+      "end": 5.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0025",
+      "word": "dzisiaj",
+      "start": 6,
+      "end": 6.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0026",
+      "word": "idziemy",
+      "start": 6.25,
+      "end": 6.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0027",
+      "word": "do",
+      "start": 6.5,
+      "end": 6.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0028",
+      "word": "parku",
+      "start": 6.75,
+      "end": 6.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0029",
+      "word": "posłuchajcie",
+      "start": 7,
+      "end": 7.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0030",
+      "word": "ptaków",
+      "start": 7.25,
+      "end": 7.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0031",
+      "word": "kawa",
+      "start": 7.5,
+      "end": 7.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0032",
+      "word": "jest",
+      "start": 7.75,
+      "end": 7.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0033",
+      "word": "świetna",
+      "start": 8,
+      "end": 8.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0034",
+      "word": "naprawdę",
+      "start": 8.25,
+      "end": 8.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0035",
+      "word": "warto",
+      "start": 8.5,
+      "end": 8.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0036",
+      "word": "zobaczyć",
+      "start": 8.75,
+      "end": 8.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0037",
+      "word": "ten",
+      "start": 9,
+      "end": 9.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0038",
+      "word": "widok",
+      "start": 9.25,
+      "end": 9.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0039",
+      "word": "zapraszam",
+      "start": 9.5,
+      "end": 9.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0040",
+      "word": "do",
+      "start": 9.75,
+      "end": 9.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0041",
+      "word": "subskrypcji",
+      "start": 10,
+      "end": 10.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0042",
+      "word": "trasa",
+      "start": 10.25,
+      "end": 10.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0043",
+      "word": "jest",
+      "start": 10.5,
+      "end": 10.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0044",
+      "word": "prosta",
+      "start": 10.75,
+      "end": 10.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0045",
+      "word": "pogoda",
+      "start": 11,
+      "end": 11.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0046",
+      "word": "dopisuje",
+      "start": 11.25,
+      "end": 11.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0047",
+      "word": "cześć",
+      "start": 11.5,
+      "end": 11.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0048",
+      "word": "dzisiaj",
+      "start": 11.75,
+      "end": 11.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0049",
+      "word": "idziemy",
+      "start": 12,
+      "end": 12.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0050",
+      "word": "do",
+      "start": 12.25,
+      "end": 12.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0051",
+      "word": "parku",
+      "start": 12.5,
+      "end": 12.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0052",
+      "word": "posłuchajcie",
+      "start": 12.75,
+      "end": 12.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0053",
+      "word": "ptaków",
+      "start": 13,
+      "end": 13.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0054",
+      "word": "kawa",
+      "start": 13.25,
+      "end": 13.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0055",
+      "word": "jest",
+      "start": 13.5,
+      "end": 13.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0056",
+      "word": "świetna",
+      "start": 13.75,
+      "end": 13.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0057",
+      "word": "naprawdę",
+      "start": 14,
+      "end": 14.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0058",
+      "word": "warto",
+      "start": 14.25,
+      "end": 14.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0059",
+      "word": "zobaczyć",
+      "start": 14.5,
+      "end": 14.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0060",
+      "word": "ten",
+      "start": 14.75,
+      "end": 14.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0061",
+      "word": "widok",
+      "start": 15,
+      "end": 15.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0062",
+      "word": "zapraszam",
+      "start": 15.25,
+      "end": 15.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0063",
+      "word": "do",
+      "start": 15.5,
+      "end": 15.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0064",
+      "word": "subskrypcji",
+      "start": 15.75,
+      "end": 15.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0065",
+      "word": "trasa",
+      "start": 16,
+      "end": 16.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0066",
+      "word": "jest",
+      "start": 16.25,
+      "end": 16.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0067",
+      "word": "prosta",
+      "start": 16.5,
+      "end": 16.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0068",
+      "word": "pogoda",
+      "start": 16.75,
+      "end": 16.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0069",
+      "word": "dopisuje",
+      "start": 17,
+      "end": 17.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0070",
+      "word": "cześć",
+      "start": 17.25,
+      "end": 17.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0071",
+      "word": "dzisiaj",
+      "start": 17.5,
+      "end": 17.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0072",
+      "word": "idziemy",
+      "start": 17.75,
+      "end": 17.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0073",
+      "word": "do",
+      "start": 18,
+      "end": 18.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0074",
+      "word": "parku",
+      "start": 18.25,
+      "end": 18.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0075",
+      "word": "posłuchajcie",
+      "start": 18.5,
+      "end": 18.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0076",
+      "word": "ptaków",
+      "start": 18.75,
+      "end": 18.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0077",
+      "word": "kawa",
+      "start": 19,
+      "end": 19.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0078",
+      "word": "jest",
+      "start": 19.25,
+      "end": 19.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0079",
+      "word": "świetna",
+      "start": 19.5,
+      "end": 19.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0080",
+      "word": "naprawdę",
+      "start": 19.75,
+      "end": 19.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0081",
+      "word": "warto",
+      "start": 20,
+      "end": 20.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0082",
+      "word": "zobaczyć",
+      "start": 20.25,
+      "end": 20.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0083",
+      "word": "ten",
+      "start": 20.5,
+      "end": 20.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0084",
+      "word": "widok",
+      "start": 20.75,
+      "end": 20.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0085",
+      "word": "zapraszam",
+      "start": 21,
+      "end": 21.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0086",
+      "word": "do",
+      "start": 21.25,
+      "end": 21.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0087",
+      "word": "subskrypcji",
+      "start": 21.5,
+      "end": 21.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0088",
+      "word": "trasa",
+      "start": 21.75,
+      "end": 21.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0089",
+      "word": "jest",
+      "start": 22,
+      "end": 22.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0090",
+      "word": "prosta",
+      "start": 22.25,
+      "end": 22.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0091",
+      "word": "pogoda",
+      "start": 22.5,
+      "end": 22.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0092",
+      "word": "dopisuje",
+      "start": 22.75,
+      "end": 22.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0093",
+      "word": "cześć",
+      "start": 23,
+      "end": 23.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0094",
+      "word": "dzisiaj",
+      "start": 23.25,
+      "end": 23.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0095",
+      "word": "idziemy",
+      "start": 23.5,
+      "end": 23.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0096",
+      "word": "do",
+      "start": 23.75,
+      "end": 23.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0097",
+      "word": "parku",
+      "start": 24,
+      "end": 24.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0098",
+      "word": "posłuchajcie",
+      "start": 24.25,
+      "end": 24.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0099",
+      "word": "ptaków",
+      "start": 24.5,
+      "end": 24.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0100",
+      "word": "kawa",
+      "start": 24.75,
+      "end": 24.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0101",
+      "word": "jest",
+      "start": 25,
+      "end": 25.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0102",
+      "word": "świetna",
+      "start": 25.25,
+      "end": 25.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0103",
+      "word": "naprawdę",
+      "start": 25.5,
+      "end": 25.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0104",
+      "word": "warto",
+      "start": 25.75,
+      "end": 25.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0105",
+      "word": "zobaczyć",
+      "start": 26,
+      "end": 26.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0106",
+      "word": "ten",
+      "start": 26.25,
+      "end": 26.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0107",
+      "word": "widok",
+      "start": 26.5,
+      "end": 26.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0108",
+      "word": "zapraszam",
+      "start": 26.75,
+      "end": 26.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0109",
+      "word": "do",
+      "start": 27,
+      "end": 27.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0110",
+      "word": "subskrypcji",
+      "start": 27.25,
+      "end": 27.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0501",
+      "word": "cześć",
+      "start": 50,
+      "end": 50.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0502",
+      "word": "dzisiaj",
+      "start": 50.25,
+      "end": 50.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0503",
+      "word": "idziemy",
+      "start": 50.5,
+      "end": 50.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0504",
+      "word": "do",
+      "start": 50.75,
+      "end": 50.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0505",
+      "word": "parku",
+      "start": 51,
+      "end": 51.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0506",
+      "word": "posłuchajcie",
+      "start": 51.25,
+      "end": 51.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0507",
+      "word": "ptaków",
+      "start": 51.5,
+      "end": 51.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0508",
+      "word": "kawa",
+      "start": 51.75,
+      "end": 51.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0509",
+      "word": "jest",
+      "start": 52,
+      "end": 52.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0510",
+      "word": "świetna",
+      "start": 52.25,
+      "end": 52.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0511",
+      "word": "naprawdę",
+      "start": 52.5,
+      "end": 52.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0512",
+      "word": "warto",
+      "start": 52.75,
+      "end": 52.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0513",
+      "word": "zobaczyć",
+      "start": 53,
+      "end": 53.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0514",
+      "word": "ten",
+      "start": 53.25,
+      "end": 53.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0515",
+      "word": "widok",
+      "start": 53.5,
+      "end": 53.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0516",
+      "word": "zapraszam",
+      "start": 53.75,
+      "end": 53.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0517",
+      "word": "do",
+      "start": 54,
+      "end": 54.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0518",
+      "word": "subskrypcji",
+      "start": 54.25,
+      "end": 54.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0519",
+      "word": "trasa",
+      "start": 54.5,
+      "end": 54.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0520",
+      "word": "jest",
+      "start": 54.75,
+      "end": 54.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0521",
+      "word": "prosta",
+      "start": 55,
+      "end": 55.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0522",
+      "word": "pogoda",
+      "start": 55.25,
+      "end": 55.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0523",
+      "word": "dopisuje",
+      "start": 55.5,
+      "end": 55.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0524",
+      "word": "cześć",
+      "start": 55.75,
+      "end": 55.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0525",
+      "word": "dzisiaj",
+      "start": 56,
+      "end": 56.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0526",
+      "word": "idziemy",
+      "start": 56.25,
+      "end": 56.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0527",
+      "word": "do",
+      "start": 56.5,
+      "end": 56.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0528",
+      "word": "parku",
+      "start": 56.75,
+      "end": 56.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0529",
+      "word": "posłuchajcie",
+      "start": 57,
+      "end": 57.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0530",
+      "word": "ptaków",
+      "start": 57.25,
+      "end": 57.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0531",
+      "word": "kawa",
+      "start": 57.5,
+      "end": 57.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0532",
+      "word": "jest",
+      "start": 57.75,
+      "end": 57.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0533",
+      "word": "świetna",
+      "start": 58,
+      "end": 58.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0534",
+      "word": "naprawdę",
+      "start": 58.25,
+      "end": 58.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0535",
+      "word": "warto",
+      "start": 58.5,
+      "end": 58.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0536",
+      "word": "zobaczyć",
+      "start": 58.75,
+      "end": 58.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0537",
+      "word": "ten",
+      "start": 59,
+      "end": 59.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0538",
+      "word": "widok",
+      "start": 59.25,
+      "end": 59.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0539",
+      "word": "zapraszam",
+      "start": 59.5,
+      "end": 59.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0540",
+      "word": "do",
+      "start": 59.75,
+      "end": 59.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0541",
+      "word": "subskrypcji",
+      "start": 60,
+      "end": 60.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0542",
+      "word": "trasa",
+      "start": 60.25,
+      "end": 60.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0543",
+      "word": "jest",
+      "start": 60.5,
+      "end": 60.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0544",
+      "word": "prosta",
+      "start": 60.75,
+      "end": 60.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0545",
+      "word": "pogoda",
+      "start": 61,
+      "end": 61.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0546",
+      "word": "dopisuje",
+      "start": 61.25,
+      "end": 61.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0547",
+      "word": "cześć",
+      "start": 61.5,
+      "end": 61.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0548",
+      "word": "dzisiaj",
+      "start": 61.75,
+      "end": 61.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0549",
+      "word": "idziemy",
+      "start": 62,
+      "end": 62.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0550",
+      "word": "do",
+      "start": 62.25,
+      "end": 62.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0551",
+      "word": "parku",
+      "start": 62.5,
+      "end": 62.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0552",
+      "word": "posłuchajcie",
+      "start": 62.75,
+      "end": 62.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0553",
+      "word": "ptaków",
+      "start": 63,
+      "end": 63.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0554",
+      "word": "kawa",
+      "start": 63.25,
+      "end": 63.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0555",
+      "word": "jest",
+      "start": 63.5,
+      "end": 63.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0556",
+      "word": "świetna",
+      "start": 63.75,
+      "end": 63.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0557",
+      "word": "naprawdę",
+      "start": 64,
+      "end": 64.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0558",
+      "word": "warto",
+      "start": 64.25,
+      "end": 64.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0559",
+      "word": "zobaczyć",
+      "start": 64.5,
+      "end": 64.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0560",
+      "word": "ten",
+      "start": 64.75,
+      "end": 64.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0561",
+      "word": "widok",
+      "start": 65,
+      "end": 65.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0562",
+      "word": "zapraszam",
+      "start": 65.25,
+      "end": 65.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0563",
+      "word": "do",
+      "start": 65.5,
+      "end": 65.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0564",
+      "word": "subskrypcji",
+      "start": 65.75,
+      "end": 65.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0565",
+      "word": "trasa",
+      "start": 66,
+      "end": 66.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0566",
+      "word": "jest",
+      "start": 66.25,
+      "end": 66.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0567",
+      "word": "prosta",
+      "start": 66.5,
+      "end": 66.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0568",
+      "word": "pogoda",
+      "start": 66.75,
+      "end": 66.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0569",
+      "word": "dopisuje",
+      "start": 67,
+      "end": 67.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0570",
+      "word": "cześć",
+      "start": 67.25,
+      "end": 67.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0571",
+      "word": "dzisiaj",
+      "start": 67.5,
+      "end": 67.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0572",
+      "word": "idziemy",
+      "start": 67.75,
+      "end": 67.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0573",
+      "word": "do",
+      "start": 68,
+      "end": 68.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0574",
+      "word": "parku",
+      "start": 68.25,
+      "end": 68.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0575",
+      "word": "posłuchajcie",
+      "start": 68.5,
+      "end": 68.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0576",
+      "word": "ptaków",
+      "start": 68.75,
+      "end": 68.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0577",
+      "word": "kawa",
+      "start": 69,
+      "end": 69.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0578",
+      "word": "jest",
+      "start": 69.25,
+      "end": 69.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0579",
+      "word": "świetna",
+      "start": 69.5,
+      "end": 69.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0580",
+      "word": "naprawdę",
+      "start": 69.75,
+      "end": 69.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0581",
+      "word": "warto",
+      "start": 70,
+      "end": 70.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0582",
+      "word": "zobaczyć",
+      "start": 70.25,
+      "end": 70.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0583",
+      "word": "ten",
+      "start": 70.5,
+      "end": 70.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0584",
+      "word": "widok",
+      "start": 70.75,
+      "end": 70.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0585",
+      "word": "zapraszam",
+      "start": 71,
+      "end": 71.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0586",
+      "word": "do",
+      "start": 71.25,
+      "end": 71.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0587",
+      "word": "subskrypcji",
+      "start": 71.5,
+      "end": 71.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0588",
+      "word": "trasa",
+      "start": 71.75,
+      "end": 71.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0589",
+      "word": "jest",
+      "start": 72,
+      "end": 72.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0590",
+      "word": "prosta",
+      "start": 72.25,
+      "end": 72.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0591",
+      "word": "pogoda",
+      "start": 72.5,
+      "end": 72.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0592",
+      "word": "dopisuje",
+      "start": 72.75,
+      "end": 72.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0593",
+      "word": "cześć",
+      "start": 73,
+      "end": 73.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0594",
+      "word": "dzisiaj",
+      "start": 73.25,
+      "end": 73.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0595",
+      "word": "idziemy",
+      "start": 73.5,
+      "end": 73.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0596",
+      "word": "do",
+      "start": 73.75,
+      "end": 73.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0597",
+      "word": "parku",
+      "start": 74,
+      "end": 74.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0598",
+      "word": "posłuchajcie",
+      "start": 74.25,
+      "end": 74.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0599",
+      "word": "ptaków",
+      "start": 74.5,
+      "end": 74.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0600",
+      "word": "kawa",
+      "start": 74.75,
+      "end": 74.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0601",
+      "word": "jest",
+      "start": 75,
+      "end": 75.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0602",
+      "word": "świetna",
+      "start": 75.25,
+      "end": 75.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0603",
+      "word": "naprawdę",
+      "start": 75.5,
+      "end": 75.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w0604",
+      "word": "warto",
+      "start": 75.75,
+      "end": 75.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0605",
+      "word": "zobaczyć",
+      "start": 76,
+      "end": 76.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0606",
+      "word": "ten",
+      "start": 76.25,
+      "end": 76.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0607",
+      "word": "widok",
+      "start": 76.5,
+      "end": 76.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0608",
+      "word": "zapraszam",
+      "start": 76.75,
+      "end": 76.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0609",
+      "word": "do",
+      "start": 77,
+      "end": 77.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w0610",
+      "word": "subskrypcji",
+      "start": 77.25,
+      "end": 77.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1101",
+      "word": "cześć",
+      "start": 110,
+      "end": 110.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1102",
+      "word": "dzisiaj",
+      "start": 110.25,
+      "end": 110.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1103",
+      "word": "idziemy",
+      "start": 110.5,
+      "end": 110.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1104",
+      "word": "do",
+      "start": 110.75,
+      "end": 110.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1105",
+      "word": "parku",
+      "start": 111,
+      "end": 111.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1106",
+      "word": "posłuchajcie",
+      "start": 111.25,
+      "end": 111.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1107",
+      "word": "ptaków",
+      "start": 111.5,
+      "end": 111.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1108",
+      "word": "kawa",
+      "start": 111.75,
+      "end": 111.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1109",
+      "word": "jest",
+      "start": 112,
+      "end": 112.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1110",
+      "word": "świetna",
+      "start": 112.25,
+      "end": 112.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1111",
+      "word": "naprawdę",
+      "start": 112.5,
+      "end": 112.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1112",
+      "word": "warto",
+      "start": 112.75,
+      "end": 112.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1113",
+      "word": "zobaczyć",
+      "start": 113,
+      "end": 113.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1114",
+      "word": "ten",
+      "start": 113.25,
+      "end": 113.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1115",
+      "word": "widok",
+      "start": 113.5,
+      "end": 113.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1116",
+      "word": "zapraszam",
+      "start": 113.75,
+      "end": 113.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1117",
+      "word": "do",
+      "start": 114,
+      "end": 114.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1118",
+      "word": "subskrypcji",
+      "start": 114.25,
+      "end": 114.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1119",
+      "word": "trasa",
+      "start": 114.5,
+      "end": 114.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1120",
+      "word": "jest",
+      "start": 114.75,
+      "end": 114.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1121",
+      "word": "prosta",
+      "start": 115,
+      "end": 115.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1122",
+      "word": "pogoda",
+      "start": 115.25,
+      "end": 115.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1123",
+      "word": "dopisuje",
+      "start": 115.5,
+      "end": 115.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1124",
+      "word": "cześć",
+      "start": 115.75,
+      "end": 115.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1125",
+      "word": "dzisiaj",
+      "start": 116,
+      "end": 116.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1126",
+      "word": "idziemy",
+      "start": 116.25,
+      "end": 116.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1127",
+      "word": "do",
+      "start": 116.5,
+      "end": 116.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1128",
+      "word": "parku",
+      "start": 116.75,
+      "end": 116.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1129",
+      "word": "posłuchajcie",
+      "start": 117,
+      "end": 117.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1130",
+      "word": "ptaków",
+      "start": 117.25,
+      "end": 117.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1131",
+      "word": "kawa",
+      "start": 117.5,
+      "end": 117.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1132",
+      "word": "jest",
+      "start": 117.75,
+      "end": 117.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1133",
+      "word": "świetna",
+      "start": 118,
+      "end": 118.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1134",
+      "word": "naprawdę",
+      "start": 118.25,
+      "end": 118.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1135",
+      "word": "warto",
+      "start": 118.5,
+      "end": 118.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1136",
+      "word": "zobaczyć",
+      "start": 118.75,
+      "end": 118.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1137",
+      "word": "ten",
+      "start": 119,
+      "end": 119.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1138",
+      "word": "widok",
+      "start": 119.25,
+      "end": 119.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1139",
+      "word": "zapraszam",
+      "start": 119.5,
+      "end": 119.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1140",
+      "word": "do",
+      "start": 119.75,
+      "end": 119.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1141",
+      "word": "subskrypcji",
+      "start": 120,
+      "end": 120.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1142",
+      "word": "trasa",
+      "start": 120.25,
+      "end": 120.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1143",
+      "word": "jest",
+      "start": 120.5,
+      "end": 120.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1144",
+      "word": "prosta",
+      "start": 120.75,
+      "end": 120.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1145",
+      "word": "pogoda",
+      "start": 121,
+      "end": 121.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1146",
+      "word": "dopisuje",
+      "start": 121.25,
+      "end": 121.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1147",
+      "word": "cześć",
+      "start": 121.5,
+      "end": 121.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1148",
+      "word": "dzisiaj",
+      "start": 121.75,
+      "end": 121.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1149",
+      "word": "idziemy",
+      "start": 122,
+      "end": 122.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1150",
+      "word": "do",
+      "start": 122.25,
+      "end": 122.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1151",
+      "word": "parku",
+      "start": 122.5,
+      "end": 122.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1152",
+      "word": "posłuchajcie",
+      "start": 122.75,
+      "end": 122.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1153",
+      "word": "ptaków",
+      "start": 123,
+      "end": 123.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1154",
+      "word": "kawa",
+      "start": 123.25,
+      "end": 123.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1155",
+      "word": "jest",
+      "start": 123.5,
+      "end": 123.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1156",
+      "word": "świetna",
+      "start": 123.75,
+      "end": 123.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1157",
+      "word": "naprawdę",
+      "start": 124,
+      "end": 124.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1158",
+      "word": "warto",
+      "start": 124.25,
+      "end": 124.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1159",
+      "word": "zobaczyć",
+      "start": 124.5,
+      "end": 124.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1160",
+      "word": "ten",
+      "start": 124.75,
+      "end": 124.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1161",
+      "word": "widok",
+      "start": 125,
+      "end": 125.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1162",
+      "word": "zapraszam",
+      "start": 125.25,
+      "end": 125.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1163",
+      "word": "do",
+      "start": 125.5,
+      "end": 125.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1164",
+      "word": "subskrypcji",
+      "start": 125.75,
+      "end": 125.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1165",
+      "word": "trasa",
+      "start": 126,
+      "end": 126.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1166",
+      "word": "jest",
+      "start": 126.25,
+      "end": 126.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1167",
+      "word": "prosta",
+      "start": 126.5,
+      "end": 126.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1168",
+      "word": "pogoda",
+      "start": 126.75,
+      "end": 126.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1169",
+      "word": "dopisuje",
+      "start": 127,
+      "end": 127.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1170",
+      "word": "cześć",
+      "start": 127.25,
+      "end": 127.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1171",
+      "word": "dzisiaj",
+      "start": 127.5,
+      "end": 127.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1172",
+      "word": "idziemy",
+      "start": 127.75,
+      "end": 127.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1173",
+      "word": "do",
+      "start": 128,
+      "end": 128.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1174",
+      "word": "parku",
+      "start": 128.25,
+      "end": 128.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1175",
+      "word": "posłuchajcie",
+      "start": 128.5,
+      "end": 128.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1176",
+      "word": "ptaków",
+      "start": 128.75,
+      "end": 128.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1177",
+      "word": "kawa",
+      "start": 129,
+      "end": 129.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1178",
+      "word": "jest",
+      "start": 129.25,
+      "end": 129.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1179",
+      "word": "świetna",
+      "start": 129.5,
+      "end": 129.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1180",
+      "word": "naprawdę",
+      "start": 129.75,
+      "end": 129.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1181",
+      "word": "warto",
+      "start": 130,
+      "end": 130.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1182",
+      "word": "zobaczyć",
+      "start": 130.25,
+      "end": 130.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1183",
+      "word": "ten",
+      "start": 130.5,
+      "end": 130.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1184",
+      "word": "widok",
+      "start": 130.75,
+      "end": 130.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1185",
+      "word": "zapraszam",
+      "start": 131,
+      "end": 131.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1186",
+      "word": "do",
+      "start": 131.25,
+      "end": 131.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1187",
+      "word": "subskrypcji",
+      "start": 131.5,
+      "end": 131.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1188",
+      "word": "trasa",
+      "start": 131.75,
+      "end": 131.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1189",
+      "word": "jest",
+      "start": 132,
+      "end": 132.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1190",
+      "word": "prosta",
+      "start": 132.25,
+      "end": 132.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1191",
+      "word": "pogoda",
+      "start": 132.5,
+      "end": 132.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1192",
+      "word": "dopisuje",
+      "start": 132.75,
+      "end": 132.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1193",
+      "word": "cześć",
+      "start": 133,
+      "end": 133.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1194",
+      "word": "dzisiaj",
+      "start": 133.25,
+      "end": 133.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1195",
+      "word": "idziemy",
+      "start": 133.5,
+      "end": 133.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1196",
+      "word": "do",
+      "start": 133.75,
+      "end": 133.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1197",
+      "word": "parku",
+      "start": 134,
+      "end": 134.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1198",
+      "word": "posłuchajcie",
+      "start": 134.25,
+      "end": 134.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1199",
+      "word": "ptaków",
+      "start": 134.5,
+      "end": 134.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1200",
+      "word": "kawa",
+      "start": 134.75,
+      "end": 134.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1201",
+      "word": "jest",
+      "start": 135,
+      "end": 135.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1202",
+      "word": "świetna",
+      "start": 135.25,
+      "end": 135.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1203",
+      "word": "naprawdę",
+      "start": 135.5,
+      "end": 135.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1204",
+      "word": "warto",
+      "start": 135.75,
+      "end": 135.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1205",
+      "word": "zobaczyć",
+      "start": 136,
+      "end": 136.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1206",
+      "word": "ten",
+      "start": 136.25,
+      "end": 136.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1207",
+      "word": "widok",
+      "start": 136.5,
+      "end": 136.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1208",
+      "word": "zapraszam",
+      "start": 136.75,
+      "end": 136.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1209",
+      "word": "do",
+      "start": 137,
+      "end": 137.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1210",
+      "word": "subskrypcji",
+      "start": 137.25,
+      "end": 137.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1601",
+      "word": "cześć",
+      "start": 160,
+      "end": 160.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1602",
+      "word": "dzisiaj",
+      "start": 160.25,
+      "end": 160.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1603",
+      "word": "idziemy",
+      "start": 160.5,
+      "end": 160.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1604",
+      "word": "do",
+      "start": 160.75,
+      "end": 160.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1605",
+      "word": "parku",
+      "start": 161,
+      "end": 161.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1606",
+      "word": "posłuchajcie",
+      "start": 161.25,
+      "end": 161.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1607",
+      "word": "ptaków",
+      "start": 161.5,
+      "end": 161.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1608",
+      "word": "kawa",
+      "start": 161.75,
+      "end": 161.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1609",
+      "word": "jest",
+      "start": 162,
+      "end": 162.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1610",
+      "word": "świetna",
+      "start": 162.25,
+      "end": 162.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1611",
+      "word": "naprawdę",
+      "start": 162.5,
+      "end": 162.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1612",
+      "word": "warto",
+      "start": 162.75,
+      "end": 162.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1613",
+      "word": "zobaczyć",
+      "start": 163,
+      "end": 163.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1614",
+      "word": "ten",
+      "start": 163.25,
+      "end": 163.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1615",
+      "word": "widok",
+      "start": 163.5,
+      "end": 163.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1616",
+      "word": "zapraszam",
+      "start": 163.75,
+      "end": 163.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1617",
+      "word": "do",
+      "start": 164,
+      "end": 164.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1618",
+      "word": "subskrypcji",
+      "start": 164.25,
+      "end": 164.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1619",
+      "word": "trasa",
+      "start": 164.5,
+      "end": 164.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1620",
+      "word": "jest",
+      "start": 164.75,
+      "end": 164.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1621",
+      "word": "prosta",
+      "start": 165,
+      "end": 165.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1622",
+      "word": "pogoda",
+      "start": 165.25,
+      "end": 165.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1623",
+      "word": "dopisuje",
+      "start": 165.5,
+      "end": 165.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1624",
+      "word": "cześć",
+      "start": 165.75,
+      "end": 165.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1625",
+      "word": "dzisiaj",
+      "start": 166,
+      "end": 166.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1626",
+      "word": "idziemy",
+      "start": 166.25,
+      "end": 166.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1627",
+      "word": "do",
+      "start": 166.5,
+      "end": 166.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1628",
+      "word": "parku",
+      "start": 166.75,
+      "end": 166.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1629",
+      "word": "posłuchajcie",
+      "start": 167,
+      "end": 167.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1630",
+      "word": "ptaków",
+      "start": 167.25,
+      "end": 167.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1631",
+      "word": "kawa",
+      "start": 167.5,
+      "end": 167.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1632",
+      "word": "jest",
+      "start": 167.75,
+      "end": 167.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1633",
+      "word": "świetna",
+      "start": 168,
+      "end": 168.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1634",
+      "word": "naprawdę",
+      "start": 168.25,
+      "end": 168.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1635",
+      "word": "warto",
+      "start": 168.5,
+      "end": 168.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1636",
+      "word": "zobaczyć",
+      "start": 168.75,
+      "end": 168.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1637",
+      "word": "ten",
+      "start": 169,
+      "end": 169.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1638",
+      "word": "widok",
+      "start": 169.25,
+      "end": 169.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1639",
+      "word": "zapraszam",
+      "start": 169.5,
+      "end": 169.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1640",
+      "word": "do",
+      "start": 169.75,
+      "end": 169.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1641",
+      "word": "subskrypcji",
+      "start": 170,
+      "end": 170.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1642",
+      "word": "trasa",
+      "start": 170.25,
+      "end": 170.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1643",
+      "word": "jest",
+      "start": 170.5,
+      "end": 170.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1644",
+      "word": "prosta",
+      "start": 170.75,
+      "end": 170.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1645",
+      "word": "pogoda",
+      "start": 171,
+      "end": 171.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1646",
+      "word": "dopisuje",
+      "start": 171.25,
+      "end": 171.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1647",
+      "word": "cześć",
+      "start": 171.5,
+      "end": 171.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1648",
+      "word": "dzisiaj",
+      "start": 171.75,
+      "end": 171.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1649",
+      "word": "idziemy",
+      "start": 172,
+      "end": 172.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1650",
+      "word": "do",
+      "start": 172.25,
+      "end": 172.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1651",
+      "word": "parku",
+      "start": 172.5,
+      "end": 172.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1652",
+      "word": "posłuchajcie",
+      "start": 172.75,
+      "end": 172.95,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1653",
+      "word": "ptaków",
+      "start": 173,
+      "end": 173.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1654",
+      "word": "kawa",
+      "start": 173.25,
+      "end": 173.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1655",
+      "word": "jest",
+      "start": 173.5,
+      "end": 173.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1656",
+      "word": "świetna",
+      "start": 173.75,
+      "end": 173.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1657",
+      "word": "naprawdę",
+      "start": 174,
+      "end": 174.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1658",
+      "word": "warto",
+      "start": 174.25,
+      "end": 174.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1659",
+      "word": "zobaczyć",
+      "start": 174.5,
+      "end": 174.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1660",
+      "word": "ten",
+      "start": 174.75,
+      "end": 174.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1661",
+      "word": "widok",
+      "start": 175,
+      "end": 175.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1662",
+      "word": "zapraszam",
+      "start": 175.25,
+      "end": 175.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1663",
+      "word": "do",
+      "start": 175.5,
+      "end": 175.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1664",
+      "word": "subskrypcji",
+      "start": 175.75,
+      "end": 175.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1665",
+      "word": "trasa",
+      "start": 176,
+      "end": 176.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1666",
+      "word": "jest",
+      "start": 176.25,
+      "end": 176.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1667",
+      "word": "prosta",
+      "start": 176.5,
+      "end": 176.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1668",
+      "word": "pogoda",
+      "start": 176.75,
+      "end": 176.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1669",
+      "word": "dopisuje",
+      "start": 177,
+      "end": 177.2,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1670",
+      "word": "cześć",
+      "start": 177.25,
+      "end": 177.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1671",
+      "word": "dzisiaj",
+      "start": 177.5,
+      "end": 177.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1672",
+      "word": "idziemy",
+      "start": 177.75,
+      "end": 177.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1673",
+      "word": "do",
+      "start": 178,
+      "end": 178.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1674",
+      "word": "parku",
+      "start": 178.25,
+      "end": 178.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1675",
+      "word": "posłuchajcie",
+      "start": 178.5,
+      "end": 178.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1676",
+      "word": "ptaków",
+      "start": 178.75,
+      "end": 178.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1677",
+      "word": "kawa",
+      "start": 179,
+      "end": 179.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1678",
+      "word": "jest",
+      "start": 179.25,
+      "end": 179.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1679",
+      "word": "świetna",
+      "start": 179.5,
+      "end": 179.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1680",
+      "word": "naprawdę",
+      "start": 179.75,
+      "end": 179.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1681",
+      "word": "warto",
+      "start": 180,
+      "end": 180.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1682",
+      "word": "zobaczyć",
+      "start": 180.25,
+      "end": 180.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1683",
+      "word": "ten",
+      "start": 180.5,
+      "end": 180.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1684",
+      "word": "widok",
+      "start": 180.75,
+      "end": 180.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1685",
+      "word": "zapraszam",
+      "start": 181,
+      "end": 181.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1686",
+      "word": "do",
+      "start": 181.25,
+      "end": 181.45,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1687",
+      "word": "subskrypcji",
+      "start": 181.5,
+      "end": 181.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1688",
+      "word": "trasa",
+      "start": 181.75,
+      "end": 181.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1689",
+      "word": "jest",
+      "start": 182,
+      "end": 182.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1690",
+      "word": "prosta",
+      "start": 182.25,
+      "end": 182.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1691",
+      "word": "pogoda",
+      "start": 182.5,
+      "end": 182.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1692",
+      "word": "dopisuje",
+      "start": 182.75,
+      "end": 182.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1693",
+      "word": "cześć",
+      "start": 183,
+      "end": 183.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1694",
+      "word": "dzisiaj",
+      "start": 183.25,
+      "end": 183.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1695",
+      "word": "idziemy",
+      "start": 183.5,
+      "end": 183.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1696",
+      "word": "do",
+      "start": 183.75,
+      "end": 183.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1697",
+      "word": "parku",
+      "start": 184,
+      "end": 184.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1698",
+      "word": "posłuchajcie",
+      "start": 184.25,
+      "end": 184.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1699",
+      "word": "ptaków",
+      "start": 184.5,
+      "end": 184.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1700",
+      "word": "kawa",
+      "start": 184.75,
+      "end": 184.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1701",
+      "word": "jest",
+      "start": 185,
+      "end": 185.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1702",
+      "word": "świetna",
+      "start": 185.25,
+      "end": 185.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1703",
+      "word": "naprawdę",
+      "start": 185.5,
+      "end": 185.7,
+      "isFiller": true
+    },
+    {
+      "wordId": "clip02_w1704",
+      "word": "warto",
+      "start": 185.75,
+      "end": 185.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1705",
+      "word": "zobaczyć",
+      "start": 186,
+      "end": 186.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1706",
+      "word": "ten",
+      "start": 186.25,
+      "end": 186.45,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1707",
+      "word": "widok",
+      "start": 186.5,
+      "end": 186.7,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1708",
+      "word": "zapraszam",
+      "start": 186.75,
+      "end": 186.95,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1709",
+      "word": "do",
+      "start": 187,
+      "end": 187.2,
+      "isFiller": false
+    },
+    {
+      "wordId": "clip02_w1710",
+      "word": "subskrypcji",
+      "start": 187.25,
+      "end": 187.45,
+      "isFiller": false
+    }
+  ],
+  "keyframes": [],
+  "visionCaptions": [
+    {
+      "timestampSec": 2,
+      "sceneId": "clip01_scene001",
+      "caption": "host przy blacie z kubkiem kawy"
+    },
+    {
+      "timestampSec": 47,
+      "sceneId": "clip01_scene002",
+      "caption": "ręce pakują kamerę do plecaka"
+    },
+    {
+      "timestampSec": 92,
+      "sceneId": "clip01_scene003",
+      "caption": "host zamyka drzwi mieszkania"
+    },
+    {
+      "timestampSec": 142,
+      "sceneId": "clip01_scene004",
+      "caption": "spacer szeroką ulicą w słońcu"
+    },
+    {
+      "timestampSec": 2,
+      "sceneId": "clip02_scene001",
+      "caption": "drzewa parku, host w kadrze szerokim"
+    },
+    {
+      "timestampSec": 52,
+      "sceneId": "clip02_scene002",
+      "caption": "close-up talking head na ławce"
+    },
+    {
+      "timestampSec": 112,
+      "sceneId": "clip02_scene003",
+      "caption": "lada kawiarni, filiżanka latte"
+    },
+    {
+      "timestampSec": 162,
+      "sceneId": "clip02_scene004",
+      "caption": "zachód słońca, host macha do kamery"
+    },
+    {
+      "timestampSec": 2,
+      "sceneId": "clip03_scene001",
+      "caption": "macro liści i woda fontanny"
+    }
+  ],
+  "objectDetections": [],
+  "stats": {
+    "totalDurationSec": 450,
+    "totalWords": 880,
+    "totalScenes": 9,
+    "fillerWordCount": 56
+  }
+}

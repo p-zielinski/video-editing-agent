@@ -327,8 +327,11 @@ describe("technique-to-ffmpeg", () => {
       },
       { dimensions: { width: 1080, height: 1920 } },
     );
-    assert.ok(result.filter?.includes("zoompan="));
-    assert.ok(result.filter?.includes("702-"));
+    assert.ok(result.filter?.includes("scale="));
+    assert.ok(result.filter?.includes("crop="));
+    assert.ok(result.filter?.includes("0.6500"));
+    assert.ok(result.filter?.includes("0.4000"));
+    assert.ok(!result.filter?.includes("zoompan="));
   });
 
   it("delegates retention_beat to pattern_interrupt via linkedTechniqueId", () => {
@@ -369,7 +372,7 @@ describe("technique-to-ffmpeg", () => {
     assert.equal(result.delegatesTo, "graphics");
   });
 
-  it("limits ken_burns_light zoompan to outputStartSec/outputEndSec window", () => {
+  it("limits ken_burns_light to outputStartSec/outputEndSec window via scale+crop", () => {
     const result = buildTechniqueFilter(
       {
         techniqueId: "ken_burns_light",
@@ -378,12 +381,14 @@ describe("technique-to-ffmpeg", () => {
       },
       { dimensions: { width: 1080, height: 1920 } },
     );
-    assert.ok(result.filter?.includes("zoompan="));
-    assert.ok(result.filter?.includes("between(t,3,8)"));
-    assert.ok(result.filter?.includes("min(zoom+0.0005,1.08)"));
+    assert.ok(result.filter?.includes("scale="));
+    assert.ok(result.filter?.includes("crop="));
+    assert.ok(result.filter?.includes("between(t\\,3\\,8)"));
+    assert.ok(result.filter?.includes("1.08"));
+    assert.ok(!result.filter?.includes("zoompan="));
   });
 
-  it("limits reframe_follow_subject zoompan to output time window", () => {
+  it("limits reframe_follow_subject to output time window via scale+crop", () => {
     const result = buildTechniqueFilter(
       {
         techniqueId: "reframe_follow_subject",
@@ -393,9 +398,11 @@ describe("technique-to-ffmpeg", () => {
       },
       { dimensions: { width: 1080, height: 1920 } },
     );
-    assert.ok(result.filter?.includes("zoompan="));
-    assert.ok(result.filter?.includes("between(t,2,5)"));
-    assert.ok(result.filter?.includes("270-"));
+    assert.ok(result.filter?.includes("scale="));
+    assert.ok(result.filter?.includes("crop="));
+    assert.ok(result.filter?.includes("between(t\\,2\\,5)"));
+    assert.ok(result.filter?.includes("(270)*1.1"));
+    assert.ok(!result.filter?.includes("zoompan="));
   });
 
   it("returns warning when reframe_follow_subject has no spatialRef", () => {

@@ -28,6 +28,61 @@ describe("timeline index", () => {
     assert.equal(updated[0].wordRange.lastWordId, "clip01_w00002");
   });
 
+  it("does not attach words from other clips when local clocks overlap", () => {
+    const scenes = [
+      {
+        sceneId: "clip16_scene001",
+        clipId: "clip16",
+        sourcePath: "/clip16.mp4",
+        startSec: 0,
+        endSec: 825,
+        durationSec: 825,
+        aspectRatio: "16:9",
+        resolution: { w: 1920, h: 1080 },
+      },
+    ];
+
+    const words = [
+      { wordId: "clip01_w00001", clipId: "clip01", word: "hello", start: 1, end: 1.5 },
+      { wordId: "clip01_w00002", clipId: "clip01", word: "world", start: 100, end: 100.5 },
+      { wordId: "clip16_w00001", clipId: "clip16", word: "dzień", start: 10, end: 10.4 },
+      { wordId: "clip16_w00002", clipId: "clip16", word: "dobry", start: 200, end: 200.5 },
+    ];
+
+    const updated = attachWordsToScenes(scenes, words);
+    assert.equal(updated[0].hasSpeech, true);
+    assert.equal(updated[0].wordRange.firstWordId, "clip16_w00001");
+    assert.equal(updated[0].wordRange.lastWordId, "clip16_w00002");
+    assert.match(updated[0].wordRange.firstWordId, /^clip16_w/);
+    assert.match(updated[0].wordRange.lastWordId, /^clip16_w/);
+  });
+
+  it("scopes words by wordId prefix when clipId is absent on words", () => {
+    const scenes = [
+      {
+        sceneId: "clip16_scene001",
+        clipId: "clip16",
+        sourcePath: "/clip16.mp4",
+        startSec: 0,
+        endSec: 825,
+        durationSec: 825,
+        aspectRatio: "16:9",
+        resolution: { w: 1920, h: 1080 },
+      },
+    ];
+
+    const words = [
+      { wordId: "clip01_w00001", word: "hello", start: 1, end: 1.5 },
+      { wordId: "clip16_w00001", word: "dzień", start: 10, end: 10.4 },
+      { wordId: "clip16_w00002", word: "dobry", start: 200, end: 200.5 },
+    ];
+
+    const updated = attachWordsToScenes(scenes, words);
+    assert.equal(updated[0].hasSpeech, true);
+    assert.equal(updated[0].wordRange.firstWordId, "clip16_w00001");
+    assert.equal(updated[0].wordRange.lastWordId, "clip16_w00002");
+  });
+
   it("builds full timeline index", () => {
     const catalog = {
       batchId: "b1",

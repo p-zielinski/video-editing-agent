@@ -52,6 +52,7 @@ function buildFailuresFromError(error, { batchId, step }) {
     message: classified.message,
     cause: classified.cause ?? null,
     scope: classified.scope ?? null,
+    prerequisites: classified.prerequisites ?? null,
   })];
 }
 
@@ -62,7 +63,7 @@ export function buildRecoveryPlan({
   ledger = null,
   step = null,
 }) {
-  const failedStep = step ?? error?.step ?? ledger?.getState()?.currentStep ?? null;
+  const failedStep = error?.step ?? step ?? ledger?.getState()?.currentStep ?? null;
   const failures = buildFailuresFromError(error, { batchId, step: failedStep });
   const plan = RecoveryPlanSchema.parse({
     version: "1.0",

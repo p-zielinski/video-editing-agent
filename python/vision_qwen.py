@@ -3,7 +3,10 @@
 
 import json
 import sys
+import tempfile
 from pathlib import Path
+
+from vlm_image_utils import format_metal_oom_error, get_vision_max_side, load_rgb_resized
 
 
 def stub_caption(image_path: str, timestamp_sec: float, scene_id: str) -> dict:
@@ -43,24 +46,34 @@ def analyze_with_mlx(frames: list[dict], model: str, prompt: str) -> list[dict]:
         num_images=1,
     )
     captions = []
+    max_side = get_vision_max_side()
 
-    for frame in frames:
-        text = generate(
-            model_obj,
-            processor,
-            formatted_prompt,
-            frame["imagePath"],
-            verbose=False,
-            max_tokens=256,
-        )
-        captions.append(
-            {
-                "timestampSec": frame["timestampSec"],
-                "sceneId": frame["sceneId"],
-                "caption": str(text).strip(),
-                "tags": [],
-            }
-        )
+    with tempfile.TemporaryDirectory(prefix="vea-vision-") as temp_dir:
+        for index, frame in enumerate(frames):
+            image_path = frame["imagePath"]
+            try:
+                resized_image, _, _ = load_rgb_resized(image_path, max_side=max_side)
+                temp_path = Path(temp_dir) / f"frame-{index:04d}.jpg"
+                resized_image.save(temp_path, format="JPEG", quality=90)
+                text = generate(
+                    model_obj,
+                    processor,
+                    formatted_prompt,
+                    str(temp_path),
+                    verbose=False,
+                    max_tokens=256,
+                )
+            except RuntimeError as exc:
+                raise RuntimeError(format_metal_oom_error(exc, image_path, max_side)) from exc
+
+            captions.append(
+                {
+                    "timestampSec": frame["timestampSec"],
+                    "sceneId": frame["sceneId"],
+                    "caption": str(text).strip(),
+                    "tags": [],
+                }
+            )
 
     return captions
 

@@ -31,8 +31,8 @@ describe("clip-concurrency", () => {
     }
   });
 
-  it("getClipConcurrencyLimit defaults to 2", () => {
-    assert.equal(getClipConcurrencyLimit(), 2);
+  it("getClipConcurrencyLimit defaults to 1", () => {
+    assert.equal(getClipConcurrencyLimit(), 1);
   });
 
   it("getGpuConcurrencyLimit defaults to 1", () => {
@@ -53,7 +53,7 @@ describe("clip-concurrency", () => {
   it("ignores invalid env values", () => {
     process.env.CLIP_CONCURRENCY = "0";
     process.env.GPU_CONCURRENCY = "bad";
-    assert.equal(getClipConcurrencyLimit(), 2);
+    assert.equal(getClipConcurrencyLimit(), 1);
     assert.equal(getGpuConcurrencyLimit(), 1);
   });
 

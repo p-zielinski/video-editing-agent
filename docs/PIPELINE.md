@@ -181,7 +181,7 @@ flowchart TD
 | 3 | `meta_commands` | words, scene catalog | `01c-meta-commands-<clipId>.json` | reguły PL: overlay, boomerang, reverse |
 | 4 | `audio_analysis` | catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json` | librosa (beaty, energia, cisza, **audioQuality**) lub fallback `ffmpeg_astats`; PANNs dla wiatru |
 | 5 | `keyframes` | catalog, words | `02-keyframes-<clipId>.json` | hybrydowy sampling + FFmpeg |
-| 6 | `twelvelabs` | catalog, manifest | `03b-twelvelabs-<clipId>.json` | TwelveLabs API (rozdziały, momenty) lub stub |
+| 6 | `twelvelabs` | catalog, manifest | `03b-twelvelabs-<clipId>.json` | Routing: short GPT / live upload / chunked (patrz niżej) |
 | 7 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (mlx-vlm) |
 | 8 | `objects` | keyframes | `04-objects-<clipId>.json` | Florence-2 |
 | 9 | `index` | catalog, words, keyframes, vision, objects | `05-timeline-index.json` | agregacja czasowa batcha; wzbogaca scene catalog (`hasSpeech`, `wordRange`) |
@@ -238,6 +238,7 @@ Wszystkie pliki w `output/.work/<batchId>/`:
 | `06-abstract-L*.json` | abstract | abstrakcje L1/L2/L3 |
 | `07-edit-recipe-draft.json` | direct | receptura montażowa (draft) |
 | `08-review.json` | review | wynik critic/fixer |
+| `08b-consistency-audit.json` | review | Consistency Auditor: issues + safe fixes (timing/layout/tekst) |
 | `09-edit-recipe-final.json` | review | finalna receptura po walidacji |
 | `10-batch-quality-report.json` | report (CLI) | metryki jakości batcha |
 | `11-thumbnail-plan.json` | thumbnails | warianty miniatur per output (GPT lub stub) |
@@ -245,6 +246,7 @@ Wszystkie pliki w `output/.work/<batchId>/`:
 | `14-recipe-provenance.json` | direct + review | audyt receptury: snapshoty po directorze/enricherach/review, log enricherów, `stitchValidation`, `superCriticReview` |
 | `16-gpt-usage.json` | review | zużycie tokenów GPT per krok pipeline |
 | `13-render-manifest.json` | render | manifest montażu |
+| `13b-montage-fidelity.json` | render | fidelity recipe↔render: drift czasu, audio source (original/enhanced), CREATIVE_FALLBACK, ducking, soft-disabled moments |
 | `15-publish-package-<outputId>.json` | publish | pakiet publikacji (tytuł, opis, tagi, rozdziały) |
 | `renders/*.mp4` | render | wyeksportowane wideo |
 
@@ -276,7 +278,22 @@ Trzy warstwy „instrukcji z materiału”:
 | Źródło | Kiedy | Co robi director / enrichery |
 |--------|-------|------------------------------|
 | **Meta-komendy** (`01c-*`) | mówione instrukcje montażu w A-roll | Brief: `voiceDirectivePolicy: enricher_materializes` — director **nie** dodaje cutów/overlayów w szkicu; `enrichRecipeVoiceDirectives` materializuje cięcia, overlaye, boomerang/reverse |
-| **twelveLabsMoments** | TwelveLabs API / stub | skrót rozdziałów i highlightów w briefie directora (`buildTwelveLabsBriefFields`) |
+| **twelveLabsMoments** | TwelveLabs API / short GPT / stub | skrót rozdziałów i highlightów w briefie directora (`buildTwelveLabsBriefFields`); statusy `indexed`, `frame_analysis`, `chunked` trafiają do briefu; `stub` jest pomijany |
+
+### TwelveLabs upload routing
+
+Krok `twelvelabs` wybiera ścieżkę per klip:
+
+1. **duration &lt; `TWELVELABS_MIN_DURATION_SEC` (domyślnie 4)** — ekstrakcja 1–3 klatek + `chatJsonMultimodal` (`OPENAI_MODEL_TWELVELABS_SHORT` / mini). Wynik: `indexingStatus: "frame_analysis"`. Zużycie tokenów idzie do dziennej puli **mini** (`OPENAI_DAILY_MINI_LIMIT`) przez `reserve`/`commit`.
+2. **w przeciwnym razie** — `prepareVideoForTwelveLabsUpload` (proxy 720p gdy plik &gt; `TWELVELABS_PROXY_MAX_BYTES` lub &gt;~1.8 GiB), upload przez `fs.openAsBlob` (bez `readFile` całego pliku).
+3. **gdy po proxy nadal za duży lub duration &gt; `TWELVELABS_MAX_SINGLE_DURATION_SEC` (20 min)** — cięcie na segmenty `TWELVELABS_CHUNK_DURATION_SEC` (5 min), indeksacja każdego, merge z offsetami → `indexingStatus: "chunked"`.
+
+| `indexingStatus` | Brief Director | Global cache |
+|------------------|----------------|--------------|
+| `indexed` | tak | tak |
+| `frame_analysis` | tak | tak |
+| `chunked` | tak | tak |
+| `stub` | nie | nie |
 | **voiceDirectives** (receptura) | wynik enrichera | `cuts[]` z `reason: voice_directive`, `textOverlays`, `videoTransform.playbackMode` |
 
 Przepływ meta-komend: `transcribe` → `meta_commands` (detekcja) → `direct` (GPT bez materializacji komend) → `enrichRecipeVoiceDirectives` (timeline).
@@ -379,14 +396,16 @@ Po GPT (direct lub merge) pipeline uruchamia reguły bez LLM (`buildDeterministi
 | 9 | `enrichRecipeFastRhythmSpeed` | przyspieszenie w segmentach szybkiego rytmu |
 | 10 | `enrichRecipeJlCutSnap` | snap J/L-cut do granic słów |
 | 11 | `enrichRecipeSfxPlan` | plan SFX z tagów audio (śmiech, impact) |
-| 12 | `enrichRecipeRetentionBeats` | beaty retencji dla shortów |
-| 13 | `enrichRecipePayoffMoments` | payoff narracyjne |
-| 14 | `enrichRecipeCallbackMoments` | callbacki narracyjne |
-| 15 | `enrichRecipeClosureCta` | CTA zamknięcia |
-| 16 | `enrichRecipeChapterCards` | karty rozdziałów |
-| 17 | `enrichRecipeActTransitions` | przejścia między aktami |
-| 18 | `enrichBrollSyncFromHints` | synchronizacja B-roll (pomijane przy `brollStrategy: minimal`) |
-| 19 | `enrichJumpCutsAsTimeCuts` | jump cuty jako time cuts w segmencie |
+| 12 | `enrichRecipeSpeechDucking` | `duckingWindows` z pokrycia mowy (wordIndexes): mowa → głęboki duck, cisza → płytszy bed |
+| 13 | `enrichAudioEnhancementSpeechAccepts` | auto-`accept` DPDFNet dla speech A-roll w timeline (≠ music ducking) |
+| 14 | `enrichRecipeRetentionBeats` | beaty retencji dla shortów |
+| 15 | `enrichRecipePayoffMoments` | payoff narracyjne |
+| 16 | `enrichRecipeCallbackMoments` | callbacki narracyjne |
+| 17 | `enrichRecipeClosureCta` | CTA zamknięcia |
+| 18 | `enrichRecipeChapterCards` | karty rozdziałów |
+| 19 | `enrichRecipeActTransitions` | przejścia między aktami |
+| 20 | `enrichBrollSyncFromHints` | synchronizacja B-roll (pomijane przy `brollStrategy: minimal`) |
+| 21 | `enrichJumpCutsAsTimeCuts` | jump cuty jako time cuts w segmencie |
 
 **Dlaczego enrichery osobno od GPT:** powtarzalne reguły (snap do słowa, cięcie fillera, profanity, voice directives) są tańsze i bardziej precyzyjne deterministycznie niż w promptcie directora.
 
@@ -426,13 +445,17 @@ Krok `review` iteruje do `maxReviewIterations` (domyślnie 3):
 1. **Critic** — heurystyki deterministyczne (Zod, scene registry, kody walidacji) + ocena jakościowa GPT; na ścieżce Super Director uwzględnia `superCriticReview` z poprzedniego passa.
 2. **Fixer** — naprawia błędy `severity: error` w recepturze.
 3. Na ścieżce **Super Director** — po każdym fixerze pipeline ponownie uruchamia **Super Critic** (krok `super_critic` w `16-gpt-usage.json`), aktualizując `superCriticReview` i `crossSegmentNotes` przed kolejną iteracją critic/fixer.
-4. Po zatwierdzeniu — zapis `09-edit-recipe-final.json`.
+4. **`sanitizeRecipeHardErrors`** — deterministyczne sprzątanie twardych błędów (duplikaty segmentów, CTA vs payoff, okna źródła).
+5. **Consistency Auditor** (osobny byt od krytyka GPT) — `src/validators/recipe-consistency.js` + `src/editorial/recipe-consistency-sanitize.js`: nonsensy czasowe (`CONS-TL-*`), tekst (`CONS-TX-*`), kolizje layoutu napisów↔overlay (`CONS-LAY-*`); bezpieczna auto-naprawa (przesunięcie bandu, clamp okien, drop niskopriorytetowych overlayów). Artefakt: `08b-consistency-audit.json`.
+6. **`validateRecipeV2`** + ewentualne pozostałe błędy Consistency → zapis `09-edit-recipe-final.json` (lub fail).
 
 Wyjście critic: `08-review.json` (`ReviewResult` — `approved`, `issues[]`, `summary`).
 
+**Consistency Auditor vs Critic:** Critic ocenia narrację i reguły montażowe; Auditor łapie wyłącznie mechanikę timeline/layoutu i naprawia lokalnie bez LLM. Nie dubluj `CONS-*` w prompcie krytyka.
+
 **`--strict-review`:** gdy ustawione, pipeline nie zapisuje `09-edit-recipe-final.json` bez `approved: true` od krytyka (błąd `RECIPE_REVIEW_NOT_APPROVED`), nawet jeśli walidacja Zod przechodzi. Domyślnie final może powstać z `needsHumanReview: true`.
 
-**Dlaczego pętla:** director może naruszyć reguły (B-roll bez audio match, reuse sceny, brak hooka w shortcie). Critic łączy twarde reguły z oceną narracyjną; fixer koryguje bez pełnego re-run analizy.
+**Dlaczego pętla:** director może naruszyć reguły (B-roll bez audio match, reuse sceny, brak hooka w shortcie). Critic łączy twarde reguły z oceną narracyjną; fixer koryguje bez pełnego re-run analizy. Auditor dogrywa layout napisów (`subtitles.placement`: `bottom`|`top`|`center`) bez ryzyka GPT.
 
 ---
 
@@ -484,6 +507,7 @@ Każdy segment to jeden kawałek składanki z rozdzielonymi referencjami wideo i
 - Cross-clip B-roll: `audioRef.clipId ≠ videoRef.clipId`, `audioPolicy: "from_audio_ref"`.
 - `cuts[].wordIds` muszą należeć do transkryptu `audioRef.clipId`.
 - Napisy i overlaye: czasy względem **timeline outputu**.
+- `subtitles.placement`: `bottom` (domyślnie) | `top` | `center` — region ASS; Consistency Auditor rozsuwa kolizje z `textOverlays` na tym samym paśmie.
 
 ### Creative moments
 
@@ -513,14 +537,14 @@ Gdy Director uzna, że materiał wymaga voice-over, ale użytkownik nie dostarcz
 
 Po `direct`, gdy `audioEnhancementDecisions[].action === "accept"`:
 
-1. Denoise (domyślnie **DeepFilterNet** — fail hard bez cichego fallbacku; jawny `AUDIO_ENHANCEMENT_PROVIDER=ffmpeg` lub stub `AUDIO_ENHANCEMENT_STUB=1`)
+1. Denoise (domyślnie **DPDFNet** — fail hard bez cichego fallbacku; jawny `AUDIO_ENHANCEMENT_PROVIDER=ffmpeg`, `deepfilternet` lub stub `AUDIO_ENHANCEMENT_STUB=1`)
 2. Pomiar LUFS przed/po i normalizacja do `targetDialogueLufs` (domyślnie -18)
 3. Ustawienie `sourceVolumeDb` na segmentach używających klipu
 4. Render używa `enhanced-audio/<clipId>.wav` jako `audioSourcePath` (wideo z oryginału)
 
 Przy failu providera pipeline zapisuje `17-recovery-plan.json` z komendą `node src/cli.js run --batch-id <id> --from-step audio_enhancement`. Sprawdź też `node src/cli.js recover --batch-id <id>` i `doctor`.
 
-Env: `AUDIO_ENHANCEMENT_PROVIDER`, `DEEPFILTERNET_BIN`, `AUDIO_ENHANCEMENT_STUB` — patrz `.env.example`.
+Env: `AUDIO_ENHANCEMENT_PROVIDER`, `DPDFNET_BIN`, `DPDFNET_MODEL`, `DEEPFILTERNET_BIN` (legacy), `AUDIO_ENHANCEMENT_STUB` — patrz `.env.example`.
 
 ### Pionowe wstawki w main 16:9
 
@@ -569,7 +593,11 @@ Retention shortów **włącza się** przy domyślnym `16:9,9:16` (dual format) �
 
 ### Graf mtime (per batch)
 
-`src/pipeline/artifact-deps.js` — krok pomijany, gdy artefakt istnieje i upstream nie jest nowszy. `--force` wymusza przebudowę.
+`src/pipeline/artifact-deps.js` — krok pomijany, gdy artefakt istnieje i upstream nie jest nowszy. `--force` wymusza przebudowę **artefaktów**.
+
+Osobna warstwa: **LLM response cache** (`output/.work/<batch>/llm-cache/`). Domyślnie przy wykonywaniu kroku wywołania idą do API; `--reuse-llm-cache` to opt-in reuse zapisanych odpowiedzi (np. po ręcznej poprawce `__rejected.json`). Nie mylić z `--force`.
+
+Krok `abstract`: przy zatrutym L1 (integrity gate) cache summarizera L1/L2 jest czyszczony i abstract przebudowywany **bez** `--force` — wystarczy `--from-step abstract`.
 
 ### Hash treści (`contentHash`)
 
@@ -643,8 +671,15 @@ npm run render -- --batch-id <id> --from-pass creative --keep-tmp
 7. **Color grade** — LUT / eq
 8. Export → `renders/<outputId>_<format>.mp4`
 9. Manifest → `13-render-manifest.json`
+10. Fidelity → `13b-montage-fidelity.json` (per-output duration drift, segment audio source, creative applied/fallback/disabled, audioMix ducking)
 
-Kod: `src/render/execute-render.js`, kontekst: `resolve-render-context.js`, EDL: `build-render-edl.js`.
+Kod: `src/render/execute-render.js`, kontekst: `resolve-render-context.js`, EDL: `build-render-edl.js`, fidelity: `montage-fidelity.js`.
+
+CLI soft-warns when `|durationDriftSec| > 1` or any `CREATIVE_FALLBACK` (does not hard-fail production). Inspect after render:
+
+```bash
+jq '.outputs[] | {outputId, durationDriftSec, creative, audioMix}' output/.work/<batchId>/13b-montage-fidelity.json
+```
 
 **Dlaczego multi-pass:** każdy pass ma inne wymagania FFmpeg (trim vs concat vs overlay vs miks). Resume (`--from-pass`) pozwala wznowić po błędzie bez re-renderu segmentów.
 
@@ -705,17 +740,33 @@ Zmienne środowiskowe (`.env`):
 
 | Zmienna | Domyślnie | Opis |
 |---------|-----------|------|
-| `CLIP_CONCURRENCY` | 2 | równoległe klipy (transcribe, audio, keyframes, twelvelabs) |
+| `CLIP_CONCURRENCY` | 1 | równoległe klipy w obrębie jednego kroku (transcribe, audio, keyframes, twelvelabs) |
+| `AUDIO_CONCURRENCY` | 1 | librosa + PANNs per clip |
 | `GPU_CONCURRENCY` | 1 | vision, objects, face detect |
+| `VISION_MAX_SIDE` | 1280 | max dłuższy bok klatki (px) przed Qwen/Florence — chroni przed OOM na 4K |
+| `VISION_TIMEOUT_PER_FRAME_MS` | 45000 | budżet czasu na klatkę w vision/objects (timeout klipu = max(min, base + n×perFrame)) |
+| `VISION_TIMEOUT_BASE_MS` | 300000 | stały overhead (ładowanie modelu) w ms |
+| `VISION_TIMEOUT_MIN_MS` | 1800000 | minimalny timeout klipu (30 min) |
 | `SEGMENT_DIRECTOR_CONCURRENCY` | 3 | równoległe wywołania segment directora (Super Director) |
 
-Orchestrator używa wave scheduling (`src/pipeline/analysis-phase.js`):
+Domyślnie orchestrator uruchamia **jeden typ kroku naraz** (`src/pipeline/analysis-phase.js`):
 
 ```
-Wave A: transcribe ∥ audio_analysis ∥ twelvelabs (per klip)
-Wave B: keyframes
-Wave C: vision ∥ objects
+transcribe (wszystkie klipy) → meta_commands → audio_analysis → twelvelabs → keyframes → vision → objects
 ```
+
+Opt-in dla mocniejszych maszyn:
+
+| Zmienna | Efekt |
+|---------|--------|
+| `ANALYSIS_PARALLEL_CLIPS=1` | Wave A: transcribe ∥ audio_analysis ∥ twelvelabs (per klip, `CLIP_CONCURRENCY`) |
+| `ANALYSIS_PARALLEL_GPU_STEPS=1` | vision ∥ objects na tym samym klipie (`GPU_CONCURRENCY`) |
+
+Bez tych flag nie ma `Promise.all(vision, objects)` ani mieszanych fal per klip.
+
+Keyframes z iPhone 4K są przed inferencją zmniejszane do `VISION_MAX_SIDE` (domyślnie 1280 px) w [`python/vision_qwen.py`](python/vision_qwen.py) i [`python/vision_florence.py`](python/vision_florence.py). Oryginalne pliki w `frames/` zostają bez zmian; bbox Florence jest skalowany z powrotem do rozdzielczości źródła.
+
+Timeout `vision_qwen.py` / `vision_florence.py` skaluje się z liczbą klatek (`resolveVisionPythonTimeoutMs` w [`src/pipeline/steps/vision.js`](src/pipeline/steps/vision.js)) — klipy z wieloma keyframes (np. 80+) dostają proporcjonalnie dłuższy limit niż stałe 30 min.
 
 ---
 

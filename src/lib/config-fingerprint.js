@@ -79,6 +79,14 @@ export function buildStepConfigFingerprint(step, options = {}) {
         useStub: options.useStub === true,
         twelvelabsLive: options.twelvelabsLive === true,
         indexId: process.env.TWELVELABS_INDEX_ID ?? null,
+        minDurationSec: options.minDurationSec
+          ?? Number.parseFloat(process.env.TWELVELABS_MIN_DURATION_SEC ?? "4"),
+        proxyMaxBytes: options.proxyMaxBytes
+          ?? Number.parseInt(process.env.TWELVELABS_PROXY_MAX_BYTES ?? String(180 * 1024 * 1024), 10),
+        proxyHeight: options.proxyHeight
+          ?? Number.parseInt(process.env.TWELVELABS_PROXY_HEIGHT ?? "720", 10),
+        chunkDurationSec: options.chunkDurationSec
+          ?? Number.parseFloat(process.env.TWELVELABS_CHUNK_DURATION_SEC ?? "300"),
       });
 
     case "vision":

@@ -389,6 +389,37 @@ export function computeXfadeOffsetAtBoundary(segmentDurations, crossfadeAtBounda
 }
 
 /**
+ * Build filter_complex for N-segment hard concat with PTS reset (mixed FPS safe).
+ */
+export function buildHardConcatFilterComplex(segmentCount) {
+  const n = segmentCount;
+  const filters = [];
+
+  for (let i = 0; i < n; i += 1) {
+    filters.push(`[${i}:v]setpts=PTS-STARTPTS[s${i}v]`);
+    filters.push(`[${i}:a]asetpts=PTS-STARTPTS[s${i}a]`);
+  }
+
+  let curV = "s0v";
+  let curA = "s0a";
+
+  for (let i = 1; i < n; i += 1) {
+    const outV = `hc${i}v`;
+    const outA = `hc${i}a`;
+    filters.push(`[${curV}][s${i}v]concat=n=2:v=1:a=0[${outV}]`);
+    filters.push(`[${curA}][s${i}a]concat=n=2:v=0:a=1[${outA}]`);
+    curV = outV;
+    curA = outA;
+  }
+
+  return {
+    filterComplex: filters.join(";"),
+    videoMap: `[${curV}]`,
+    audioMap: `[${curA}]`,
+  };
+}
+
+/**
  * Build filter_complex for N-segment chained xfade/acrossfade with optional hard cuts.
  */
 export function buildMultiSegmentXfadeFilterComplex({ segmentDurations, crossfadeAtBoundaries }) {

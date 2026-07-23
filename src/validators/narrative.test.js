@@ -829,6 +829,51 @@ describe("validateNarrativeDramaticPauseCuts", () => {
     assert.equal(issues[0].code, "NAR-DRAMATIC-PAUSE-CUT");
     assert.match(issues[0].message, /dramatic_pause/);
   });
+
+  it("does not throw when tagged dead-air hints lack matching raw audioIndex hints", () => {
+    const recipe = buildMainRecipe({
+      narrativeProfile: { silencePolicy: "preserve" },
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg_body",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 30,
+          audioInSec: 0,
+          audioOutSec: 30,
+          audioPolicy: "from_video_ref",
+          cuts: [{
+            startWordId: "clip01_w001",
+            endWordId: "clip01_w002",
+            reason: "dead_air",
+          }],
+        }],
+      }],
+    });
+
+    const audioIndex = {
+      clips: [{
+        clipId: "clip01",
+        deadAirHints: [],
+      }],
+    };
+
+    const issues = validateNarrativeDramaticPauseCuts(recipe, {
+      abstraction,
+      timelineIndex,
+      wordIndexes,
+      audioIndex,
+    });
+
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].code, "NAR-DRAMATIC-PAUSE-CUT");
+    assert.match(issues[0].message, /dramatic_pause/);
+  });
 });
 
 describe("validateNarrative", () => {

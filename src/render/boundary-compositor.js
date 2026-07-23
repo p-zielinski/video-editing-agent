@@ -7,6 +7,7 @@ import { runFfmpeg } from "../lib/ffmpeg.js";
 import { applyJlCutAudio, hasJlCutOverlap } from "./audio-jlcut.js";
 import {
   applyBeatSnapTrims,
+  buildHardConcatFilterComplex,
   buildMultiSegmentXfadeFilterComplex,
   buildTwoSegmentXfadeFilterComplex,
   collectBeatSnapsAtBoundaries,
@@ -76,6 +77,30 @@ async function applyMultiSegmentXfade(segmentPaths, segments, outputPath, {
   await runFfmpegFn(args, { label: "multi-segment xfade concat" });
 }
 
+async function applyHardConcat(segmentPaths, outputPath, {
+  encodeProfile,
+  runFfmpegFn,
+}) {
+  const built = buildHardConcatFilterComplex(segmentPaths.length);
+  const args = ["-y"];
+  for (const segmentPath of segmentPaths) {
+    args.push("-i", segmentPath);
+  }
+  args.push(
+    "-filter_complex", built.filterComplex,
+    "-map", built.videoMap,
+    "-map", built.audioMap,
+    "-c:v", encodeProfile.videoCodec,
+    "-preset", encodeProfile.preset,
+    "-crf", String(encodeProfile.crf),
+    "-c:a", encodeProfile.audioCodec,
+    "-b:a", encodeProfile.audioBitrate,
+    "-movflags", "+faststart",
+    outputPath,
+  );
+  await runFfmpegFn(args, { label: "hard concat segments" });
+}
+
 /**
  * Plan how to join segment files (beat snap, crossfade, J/L, hard concat).
  */
@@ -98,7 +123,7 @@ export function planBoundaryConcat({
     : null;
   const hasJlVideoCrossfade = Boolean(jlVideoCrossfadeAtBoundaries?.some(Boolean));
 
-  let strategy = "demuxer_concat";
+  let strategy = "hard_concat";
   if (hasJlVideoCrossfade) {
     strategy = "jl_video_xfade";
   } else if (!hasJlCut && crossfade) {
@@ -210,38 +235,18 @@ export async function executeBoundaryConcat(segmentPaths, outputPath, {
     };
   }
 
-  const listPath = `${outputPath}.concat.txt`;
-  const listContent = pathsToConcat.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n");
-  fs.writeFileSync(listPath, listContent);
-
-  try {
-    if (plan.strategy === "jl_audio") {
-      await applyJlCutAudio(pathsToConcat, segments, outputPath, { encodeProfile, runFfmpegFn });
-      return {
-        outputPath,
-        appliedCrossfade: false,
-        appliedBeatSnaps: [],
-        alreadyAlignedBeatSnaps: [],
-        strategy: plan.strategy,
-      };
-    }
-
-    await runFfmpegFn(
-      [
-        "-y",
-        "-f", "concat",
-        "-safe", "0",
-        "-i", listPath,
-        "-c", "copy",
-        outputPath,
-      ],
-      { label: "concat segments" },
-    );
-  } finally {
-    if (fs.existsSync(listPath)) {
-      fs.unlinkSync(listPath);
-    }
+  if (plan.strategy === "jl_audio") {
+    await applyJlCutAudio(pathsToConcat, segments, outputPath, { encodeProfile, runFfmpegFn });
+    return {
+      outputPath,
+      appliedCrossfade: false,
+      appliedBeatSnaps: [],
+      alreadyAlignedBeatSnaps: [],
+      strategy: plan.strategy,
+    };
   }
+
+  await applyHardConcat(pathsToConcat, outputPath, { encodeProfile, runFfmpegFn });
 
   return {
     outputPath,

@@ -1,13 +1,15 @@
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
+import { parseAgentSchema } from "../lib/llm-response-cache.js";
 import {
   buildDirectorBrief,
   filterL1ForScenes,
   sanitizeDirectorDraft,
+  backfillDirectorDraftContext,
   EDIT_RECIPE_V2_OUTPUT_SCHEMA,
 } from "./director.js";
 import { buildActTransitionHints } from "../editorial/act-transitions.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
-import { measureBriefPayload } from "../lib/brief-metrics.js";
+import { measureBriefPayload, warnBriefPayloadIfLarge } from "../lib/brief-metrics.js";
 
 function findNeighborL2Summaries(abstraction, segmentId) {
   const l2 = abstraction?.L2 ?? [];
@@ -219,6 +221,7 @@ export async function runSegmentDirector(client, context, {
     batchContext = {},
     dailyQuotaTracker,
     batchId: contextBatchId,
+    workDir: contextWorkDir,
   } = context;
   const resolvedQuotaTracker = quotaTracker ?? dailyQuotaTracker ?? null;
   const resolvedBatchId = batchId ?? contextBatchId ?? timelineIndex.batchId ?? null;
@@ -244,6 +247,16 @@ export async function runSegmentDirector(client, context, {
     brief,
     segmentId,
   });
+  warnBriefPayloadIfLarge(briefMetric);
+
+  if (
+    (brief.transcriptExcerpts?.length ?? 0) === 0
+    && (timelineIndex.words?.length ?? 0) > 0
+  ) {
+    throw new Error(
+      `Segment director brief for ${segmentId} has zero transcript excerpts despite speech in timeline`,
+    );
+  }
 
   const raw = await chatJson(client, {
     role: "segmentDirector",
@@ -255,6 +268,8 @@ export async function runSegmentDirector(client, context, {
     quotaTracker: resolvedQuotaTracker,
     batchId: resolvedBatchId,
     step: resolvedStep,
+    cacheKey: segmentId,
+    workDir: contextWorkDir ?? null,
   });
 
   raw.batchId = timelineIndex.batchId;
@@ -280,7 +295,19 @@ export async function runSegmentDirector(client, context, {
     raw.creativeMoments = [];
   }
   sanitizeDirectorDraft(raw, { clipRegistry });
+  backfillDirectorDraftContext(raw, {
+    priorRecipe: null,
+    batchContext: brief.batchContext,
+    requiredFormats,
+    inputMode: brief.inputMode,
+  });
 
-  const recipe = EditRecipeV2Schema.parse(raw);
+  const recipe = parseAgentSchema(EditRecipeV2Schema, raw, {
+    batchId: resolvedBatchId,
+    workDir: contextWorkDir ?? null,
+    step: resolvedStep,
+    role: "segmentDirector",
+    cacheKey: segmentId,
+  });
   return { recipe: { ...recipe, segmentId }, briefMetric };
 }

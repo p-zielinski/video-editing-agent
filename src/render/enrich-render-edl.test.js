@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   enrichRenderEdl,
+  resolveAudioSourcePath,
   projectHookTitleOverlays,
   projectPatternInterruptTextOverlays,
   projectEmphasisTextOverlays,
@@ -270,5 +271,34 @@ describe("enrich-render-edl", () => {
     } finally {
       cleanupWorkDir(workDir);
     }
+  });
+
+  it("resolveAudioSourcePath uses original when preserveAmbientAudio even if enhanced path exists", () => {
+    const sourcePath = "/inbox/01_talk.MOV";
+    const enhancedPath = "/work/enhanced-audio/clip01.wav";
+    const context = {
+      clips: { clip01: { sourcePath } },
+      enhancedAudioPaths: { clip01: enhancedPath },
+      musicBed: null,
+    };
+
+    assert.equal(
+      resolveAudioSourcePath({
+        audioPolicy: "from_video_ref",
+        videoRef: { clipId: "clip01" },
+        audioRef: { clipId: "clip01" },
+      }, context),
+      enhancedPath,
+    );
+
+    assert.equal(
+      resolveAudioSourcePath({
+        audioPolicy: "from_video_ref",
+        videoRef: { clipId: "clip01" },
+        audioRef: { clipId: "clip01" },
+        preserveAmbientAudio: true,
+      }, context),
+      sourcePath,
+    );
   });
 });

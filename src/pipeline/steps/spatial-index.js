@@ -179,13 +179,21 @@ export function buildSceneAnchors(sceneId, detections, { scene, timelineIndex } 
 
   const anchors = [];
   const faceAnchor = bestDetection(sceneDetections, "face", scene, timelineIndex);
+  const subjectAnchor = bestDetection(sceneDetections, "subject", scene, timelineIndex);
+  const dogAnchor = sceneDetections
+    .filter((detection) => String(detection.label ?? "").toLowerCase().includes("dog"))
+    .map((detection) => toAnchor(detection, scene, timelineIndex))
+    .filter(Boolean)
+    .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0] ?? null;
+
   if (faceAnchor) {
     anchors.push(faceAnchor);
   }
-
-  const subjectAnchor = bestDetection(sceneDetections, "subject", scene, timelineIndex);
   if (subjectAnchor) {
     anchors.push(subjectAnchor);
+  }
+  if (dogAnchor && !anchors.some((anchor) => anchor.label === dogAnchor.label)) {
+    anchors.push(dogAnchor);
   }
 
   if (anchors.length === 0) {
@@ -198,17 +206,28 @@ export function buildSceneAnchors(sceneId, detections, { scene, timelineIndex } 
   return anchors;
 }
 
+export function resolvePrimaryAnchor(anchors = []) {
+  const subjectAnchor = anchors.find((anchor) => anchor.type === "subject");
+  const faceAnchor = anchors.find((anchor) => anchor.type === "face");
+  const dogAnchor = anchors.find((anchor) => String(anchor.label ?? "").toLowerCase().includes("dog"));
+  return subjectAnchor ?? faceAnchor ?? dogAnchor ?? anchors[0] ?? null;
+}
+
 export function mergeDetections(objectDetections = [], faceDetections = []) {
   return [...objectDetections, ...faceDetections];
 }
 
 export function buildSpatialIndex(timelineIndex, { builtFrom, faceDetections = [] } = {}) {
   const detections = mergeDetections(timelineIndex.objectDetections ?? [], faceDetections);
-  const scenes = (timelineIndex.scenes ?? []).map((scene) => ({
-    sceneId: scene.sceneId,
-    clipId: scene.clipId ?? deriveClipIdFromSceneId(scene.sceneId),
-    anchors: buildSceneAnchors(scene.sceneId, detections, { scene, timelineIndex }),
-  }));
+  const scenes = (timelineIndex.scenes ?? []).map((scene) => {
+    const anchors = buildSceneAnchors(scene.sceneId, detections, { scene, timelineIndex });
+    return {
+      sceneId: scene.sceneId,
+      clipId: scene.clipId ?? deriveClipIdFromSceneId(scene.sceneId),
+      anchors,
+      primaryAnchor: resolvePrimaryAnchor(anchors),
+    };
+  });
 
   return {
     version: "1.0",

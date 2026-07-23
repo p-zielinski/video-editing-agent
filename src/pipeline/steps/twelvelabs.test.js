@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runTwelveLabsStep } from "./twelvelabs.js";
+import { processClipTwelveLabs, runTwelveLabsStep } from "./twelvelabs.js";
+import { planShortClipFrameTimestamps } from "../../lib/twelvelabs-short-analysis.js";
 import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
 import {
   getGlobalCachePath,
@@ -113,6 +114,67 @@ describe("twelvelabs step", () => {
       assert.deepEqual(result.chapters, []);
       assert.deepEqual(result.moments, []);
     }
+  });
+
+  it("short clips use frame_analysis via GPT when under min duration", async () => {
+    process.env.TWELVELABS_API_KEY = "test-key-short";
+    const shortDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-tl-short-"));
+    try {
+      writeJson(path.join(shortDir, ARTIFACTS.manifest), {
+        version: "1.0",
+        batchId: "short01",
+        clips: [{
+          clipId: "clip01",
+          sourcePath: "/in/short.mp4",
+          fileName: "short.mp4",
+          contentHash: "hash-short",
+          durationSec: 2,
+        }],
+      });
+      writeJson(path.join(shortDir, ARTIFACTS.sceneCatalog), {
+        version: "1.0",
+        batchId: "short01",
+        clips: [{
+          clipId: "clip01",
+          sourcePath: "/in/short.mp4",
+          fileName: "short.mp4",
+          durationSec: 2,
+        }],
+      });
+
+      const result = await processClipTwelveLabs({
+        workDir: shortDir,
+        clip: { clipId: "clip01", sourcePath: "/in/short.mp4", durationSec: 2 },
+        manifest: readJson(path.join(shortDir, ARTIFACTS.manifest)),
+        useStub: false,
+        force: true,
+        apiKey: "test-key-short",
+        openaiApiKey: "sk-test",
+        configFingerprint: buildStepConfigFingerprint("twelvelabs", {
+          useStub: false,
+          twelvelabsLive: true,
+        }),
+        globalCacheDisabled: true,
+        analyzeShortClipWithGptFn: async () => ({
+          indexingStatus: "frame_analysis",
+          clipSummary: "Mountain ridge",
+          chapters: [{ startSec: 0, endSec: 2, title: "Ridge" }],
+          moments: [{ startSec: 0, endSec: 2, description: "Wide vista" }],
+          editorial: { summary: "Mountain ridge", mood: "reflective" },
+        }),
+      });
+
+      assert.equal(result.indexingStatus, "frame_analysis");
+      assert.equal(result.clipSummary, "Mountain ridge");
+      assert.equal(result.moments[0].description, "Wide vista");
+    } finally {
+      fs.rmSync(shortDir, { recursive: true, force: true });
+    }
+  });
+
+  it("planShortClipFrameTimestamps returns mid for ultra-short clips", () => {
+    assert.deepEqual(planShortClipFrameTimestamps(1.2), [0.6]);
+    assert.equal(planShortClipFrameTimestamps(3).length, 3);
   });
 
   it("rebuilds stub artifacts when switching from stub to live mode", async () => {

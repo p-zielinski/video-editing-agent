@@ -201,6 +201,7 @@ export async function runPipeline(options) {
     aiVideo = false,
     aiVideoStub = false,
     noAiVideo = false,
+    reuseLlmCache = false,
   } = options;
 
   const resolvedTwelvelabsStub = twelvelabsStub === true || !process.env.TWELVELABS_API_KEY;
@@ -208,10 +209,15 @@ export async function runPipeline(options) {
   const workDir = resolveWorkDir(batchId);
   fs.mkdirSync(workDir, { recursive: true });
 
+  if (reuseLlmCache === true) {
+    process.env.LLM_REUSE_CACHE = "1";
+    log.log("LLM reuse cache włączony (--reuse-llm-cache)");
+  }
+
   log.banner(`Video Editing Agent — batch ${batchId}`);
   log.log(`Work dir: ${workDir}`);
   if (force) {
-    log.log("Tryb --force: pomijanie cache artefaktów");
+    log.log("Tryb --force: wymuszanie przeliczenia kroków (pomijanie cache artefaktów)");
   }
   if (globalCacheDisabled || process.env.DISABLE_GLOBAL_ANALYSIS_CACHE === "1") {
     log.log("Globalny cache analizy wyłączony (--no-global-cache lub DISABLE_GLOBAL_ANALYSIS_CACHE=1)");

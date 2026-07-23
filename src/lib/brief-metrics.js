@@ -3,6 +3,18 @@
  * Token estimate uses chars/4 heuristic (aligned with rough GPT billing approximations).
  */
 
+import { SEGMENT_BRIEF_ESTIMATED_TOKEN_BUDGET } from "../editorial/brief-caps.js";
+
+export { SEGMENT_BRIEF_ESTIMATED_TOKEN_BUDGET };
+
+/** Warn when a single call or total director brief budget is very large. */
+export const BRIEF_METRICS_WARN_SINGLE_TOKENS = 80_000;
+export const BRIEF_METRICS_WARN_TOTAL_TOKENS = 200_000;
+/** Soft guard aligned with segment director budget (audit #6). */
+export const BRIEF_METRICS_WARN_SEGMENT_TOKENS = SEGMENT_BRIEF_ESTIMATED_TOKEN_BUDGET;
+/** Soft guard for drill-down payloads (~60k est.). */
+export const BRIEF_METRICS_WARN_DRILL_DOWN_TOKENS = 60_000;
+
 export function measureBriefPayload({
   task,
   userJson,
@@ -60,10 +72,15 @@ export function createBriefMetricsAccumulator() {
   };
 }
 
-/** Warn when a single call or total director brief budget is very large. */
-export const BRIEF_METRICS_WARN_SINGLE_TOKENS = 80_000;
-export const BRIEF_METRICS_WARN_TOTAL_TOKENS = 200_000;
+function isSegmentDirectorTask(task) {
+  return typeof task === "string" && task.startsWith("segment_director");
+}
 
+function isDrillDownTask(task) {
+  return typeof task === "string" && task.includes("drill_down");
+}
+
+/** Warn when a single call or total director brief budget is very large. Soft only. */
 export function evaluateBriefMetricsWarnings(briefMetrics) {
   const warnings = [];
   if (!briefMetrics?.calls?.length) {
@@ -71,6 +88,29 @@ export function evaluateBriefMetricsWarnings(briefMetrics) {
   }
 
   for (const call of briefMetrics.calls) {
+    if (isSegmentDirectorTask(call.task)
+      && call.estimatedTokens >= BRIEF_METRICS_WARN_SEGMENT_TOKENS) {
+      warnings.push({
+        code: "BRIEF_SEGMENT_BUDGET_EXCEEDED",
+        task: call.task,
+        segmentId: call.segmentId,
+        estimatedTokens: call.estimatedTokens,
+        jsonBytes: call.jsonBytes,
+        budgetTokens: BRIEF_METRICS_WARN_SEGMENT_TOKENS,
+      });
+    }
+    if (isDrillDownTask(call.task)
+      && call.estimatedTokens >= BRIEF_METRICS_WARN_DRILL_DOWN_TOKENS) {
+      warnings.push({
+        code: "BRIEF_DRILL_DOWN_LARGE",
+        task: call.task,
+        segmentId: call.segmentId,
+        estimatedTokens: call.estimatedTokens,
+        jsonBytes: call.jsonBytes,
+        budgetTokens: BRIEF_METRICS_WARN_DRILL_DOWN_TOKENS,
+        drillDownSceneCount: call.drillDownSceneCount ?? null,
+      });
+    }
     if (call.estimatedTokens >= BRIEF_METRICS_WARN_SINGLE_TOKENS) {
       warnings.push({
         code: "BRIEF_PAYLOAD_LARGE",
@@ -92,5 +132,32 @@ export function evaluateBriefMetricsWarnings(briefMetrics) {
     });
   }
 
+  return warnings;
+}
+
+/**
+ * Log soft warnings for a single brief metric (no throw).
+ * @returns {ReturnType<typeof evaluateBriefMetricsWarnings>}
+ */
+export function warnBriefPayloadIfLarge(metric, { logger = console } = {}) {
+  if (!metric) {
+    return [];
+  }
+  const warnings = evaluateBriefMetricsWarnings({
+    calls: [metric],
+    totals: {
+      callCount: 1,
+      jsonBytes: metric.jsonBytes,
+      estimatedTokens: metric.estimatedTokens,
+    },
+  });
+  for (const warning of warnings) {
+    const where = warning.segmentId ? ` segment=${warning.segmentId}` : "";
+    const budget = warning.budgetTokens != null ? ` budget=${warning.budgetTokens}` : "";
+    logger.warn?.(
+      `[brief-metrics] ${warning.code}: task=${warning.task ?? "?"}${where}`
+      + ` estTokens=${warning.estimatedTokens}${budget} (soft warn — no hard fail)`,
+    );
+  }
   return warnings;
 }

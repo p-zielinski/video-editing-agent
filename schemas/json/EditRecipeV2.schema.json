@@ -415,7 +415,8 @@
                   "clip_profile",
                   "l1_refined",
                   "context_override",
-                  "director"
+                  "director",
+                  "ai_video"
                 ]
               },
               "hasSpeech": {
@@ -766,6 +767,14 @@
                           "type": "number",
                           "exclusiveMinimum": 0
                         },
+                        "placement": {
+                          "type": "string",
+                          "enum": [
+                            "bottom",
+                            "top",
+                            "center"
+                          ]
+                        },
                         "style": {
                           "type": "string"
                         }
@@ -1107,8 +1116,7 @@
             },
             "required": [
               "sceneId",
-              "outputId",
-              "format"
+              "outputId"
             ],
             "additionalProperties": false
           },
@@ -1529,7 +1537,8 @@
                     "exclusiveMinimum": 0
                   },
                   "duckUnderVoice": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                   },
                   "duckingDb": {
                     "type": "number"
@@ -1562,8 +1571,7 @@
                   }
                 },
                 "required": [
-                  "outputId",
-                  "duckUnderVoice"
+                  "outputId"
                 ],
                 "additionalProperties": false
               },

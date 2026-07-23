@@ -38,6 +38,7 @@ export async function applyCreativeMoments(inputPath, outputPath, {
       warnings.push({
         code: "TECHNIQUE_AUDIO_ONLY",
         techniqueId: moment.techniqueId,
+        momentId: moment.momentId,
         message: `${moment.techniqueId} — technika audio-only, nie renderowana w pass wideo`,
       });
       continue;
@@ -46,6 +47,7 @@ export async function applyCreativeMoments(inputPath, outputPath, {
       warnings.push({
         code: "TECHNIQUE_DEFERRED_CONCAT",
         techniqueId: moment.techniqueId,
+        momentId: moment.momentId,
         message: `${moment.techniqueId} — technika montażu na granicy segmentów; wymaga obsługi concat/xfade`,
       });
       continue;
@@ -59,10 +61,15 @@ export async function applyCreativeMoments(inputPath, outputPath, {
   if (supported.length === 0) {
     const { copyFileSync } = await import("node:fs");
     copyFileSync(inputPath, outputPath);
-    return { warnings };
+    return {
+      warnings,
+      appliedMomentIds: [],
+      appliedTechniqueIds: [],
+    };
   }
 
   const filterParts = [];
+  const appliedMoments = [];
   let labelIn = "[0:v]";
 
   for (let i = 0; i < supported.length; i += 1) {
@@ -78,22 +85,26 @@ export async function applyCreativeMoments(inputPath, outputPath, {
     if (built.filter) {
       filterParts.push(built.filter);
       labelIn = built.outputLabel;
+      appliedMoments.push(moment);
     } else if (built.deferred === "concat") {
       warnings.push({
         code: "TECHNIQUE_DEFERRED_CONCAT",
         techniqueId: moment.techniqueId,
+        momentId: moment.momentId,
         message: `${moment.techniqueId} — technika montażu na granicy segmentów; wymaga obsługi concat/xfade`,
       });
     } else if (built.delegatesTo === "graphics") {
       warnings.push({
         code: "TECHNIQUE_DELEGATED_GRAPHICS",
         techniqueId: moment.techniqueId,
+        momentId: moment.momentId,
         message: built.warning ?? `${moment.techniqueId} — delegacja do pass overlay`,
       });
     } else {
       warnings.push({
         code: "TECHNIQUE_NO_OP",
         techniqueId: moment.techniqueId,
+        momentId: moment.momentId,
         message: built.warning ?? `${moment.techniqueId} — brak filtra wideo (obsługa w innej warstwie lub deferred)`,
       });
     }
@@ -104,10 +115,16 @@ export async function applyCreativeMoments(inputPath, outputPath, {
   if (filterParts.length === 0) {
     const { copyFileSync } = await import("node:fs");
     copyFileSync(inputPath, outputPath);
-    return { warnings };
+    return {
+      warnings,
+      appliedMomentIds: [],
+      appliedTechniqueIds: [],
+    };
   }
 
   const { runFfmpeg } = await import("../lib/ffmpeg.js");
+  const appliedMomentIds = appliedMoments.map((m) => m.momentId).filter(Boolean);
+  const appliedTechniqueIds = [...new Set(appliedMoments.map((m) => m.techniqueId).filter(Boolean))];
 
   try {
     await runFfmpeg(
@@ -129,10 +146,27 @@ export async function applyCreativeMoments(inputPath, outputPath, {
     warnings.push({
       code: "CREATIVE_FALLBACK",
       message: error.message,
+      momentId: appliedMomentIds[0] ?? supported[0]?.momentId ?? null,
+      momentIds: appliedMomentIds.length > 0
+        ? appliedMomentIds
+        : supported.map((m) => m.momentId).filter(Boolean),
+      techniqueId: appliedTechniqueIds[0] ?? supported[0]?.techniqueId ?? null,
+      techniqueIds: appliedTechniqueIds.length > 0
+        ? appliedTechniqueIds
+        : [...new Set(supported.map((m) => m.techniqueId).filter(Boolean))],
     });
     const { copyFileSync } = await import("node:fs");
     copyFileSync(inputPath, outputPath);
+    return {
+      warnings,
+      appliedMomentIds: [],
+      appliedTechniqueIds: [],
+    };
   }
 
-  return { warnings };
+  return {
+    warnings,
+    appliedMomentIds,
+    appliedTechniqueIds,
+  };
 }

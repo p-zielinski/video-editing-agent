@@ -163,6 +163,17 @@ Szczegóły pól katalogu: [`assets/music/README.md`](assets/music/README.md), [
 
 **AI video:** `--ai-video` włącza krok `ai_video` (Kling VIDEO 3.0); po wygenerowaniu live klip jest analizowany przez TwelveLabs i trafia do briefu Directora jako rzeczywisty asset. Błąd analizy nie usuwa hooka, ale oznacza go jako niezweryfikowany. `--ai-video-stub` sam włącza krok w jawnym trybie placeholdera lavfi. Brak kluczy nie uruchamia stuba automatycznie.
 
+**Dwa niezależne cache:**
+
+| Warstwa | Domyślnie | Flaga |
+|---------|-----------|-------|
+| **Artefakty kroków** (`06-abstract.json` itd.) | Pomijaj krok, gdy artefakt świeży | `--force` — przelicz mimo świeżego artefaktu |
+| **Odpowiedzi LLM** (`llm-cache/*.json`) | Zawsze świeże wywołanie API, gdy krok się wykonuje | `--reuse-llm-cache` — opt-in reuse (np. po ręcznej poprawce odrzuconej odpowiedzi) |
+
+Każde wywołanie `chatJson` zapisuje surową odpowiedź w `llm-cache/`. Przy odrzuceniu Zod powstaje `*__rejected.json`. Reuse LLM tylko przez `--reuse-llm-cache` (nie `.env`).
+
+**Abstract L1 poison:** przy `--from-step abstract` zepsuty `06-abstract.json` jest wykrywany przez integrity gate, llm-cache L1/L2 czyszczony i krok przebudowywany **bez `--force`**. `--force` zostaw na pełne przeliczenie, gdy integrity przechodzi, a chcesz i tak od nowa.
+
 ## Struktura katalogów
 
 | Ścieżka | Opis |

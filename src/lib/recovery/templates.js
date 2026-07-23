@@ -99,9 +99,10 @@ const STEP_DEFAULTS = {
   },
   audio_enhancement: {
     prerequisites: [
-      "Zainstaluj DeepFilterNet CLI (deepFilter w PATH)",
-      "Ustaw DEEPFILTERNET_BIN jeśli binarka nie jest w PATH",
-      "Opcjonalnie: DEEPFILTERNET_MODEL_PATH",
+      "Zainstaluj DPDFNet CLI (pip install dpdfnet; dpdfnet download dpdfnet8_48khz_hr)",
+      "Ustaw DPDFNET_BIN jeśli binarka nie jest w PATH",
+      "Opcjonalnie: DPDFNET_MODEL, DPDFNET_ATTN_LIMIT_DB",
+      "Legacy: AUDIO_ENHANCEMENT_PROVIDER=deepfilternet + deepFilter w PATH",
       "Dla CI/dev: AUDIO_ENHANCEMENT_PROVIDER=ffmpeg lub AUDIO_ENHANCEMENT_STUB=1",
     ],
     fromStep: "audio_enhancement",
@@ -133,6 +134,7 @@ const CLIP_ERROR_STEP_MAP = {
   [ERROR_CODES.OBJECTS_CLIP_FAILED]: "objects",
   [ERROR_CODES.AUDIO_ENHANCEMENT_CLIP_FAILED]: "audio_enhancement",
   [ERROR_CODES.AUDIO_ENH_DEEPFILTERNET_FAILED]: "audio_enhancement",
+  [ERROR_CODES.AUDIO_ENH_DPDFNET_FAILED]: "audio_enhancement",
   [ERROR_CODES.AUDIO_ENH_PROVIDER_FAILED]: "audio_enhancement",
 };
 
@@ -182,7 +184,8 @@ export function buildRecoveryFailure({
     }
   }
 
-  if (code === ERROR_CODES.AUDIO_ENH_DEEPFILTERNET_FAILED) {
+  if (code === ERROR_CODES.AUDIO_ENH_DEEPFILTERNET_FAILED
+    || code === ERROR_CODES.AUDIO_ENH_DPDFNET_FAILED) {
     resolvedPrerequisites.push(
       "Po naprawie: node src/cli.js run --batch-id "
         + `${batchId} --from-step audio_enhancement (bez --force — retry tylko failed klipów)`,

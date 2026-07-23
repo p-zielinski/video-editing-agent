@@ -7,7 +7,8 @@ Nie wymyślaj faktów spoza dostarczonego transkryptu i opisów wizualnych.
 ## L1_scene_summary — pola montażowe
 
 - **brollPotential** (0–1): jak dobra scena jest jako wycinek B-roll. Sceny bez mowy → wysoko (0.7–0.95). Talking head / monolog do kamery → nisko (0.05–0.25). Ujęcia otoczenia, detale, akcja bez narracji → wysoko.
-- **topics**: krótkie tagi wizualne/tematyczne (np. `jedzenie`, `ulica`, `twarz`, `laptop`) — pomagają dopasować B-roll do tematu mowy.
+- **topics**: krótkie tagi wizualne/tematyczne (np. `jedzenie`, `ulica`, `twarz`, `laptop`) — pomagają dopasować B-roll do tematu mowy. Dla scen A-roll z mową wyprowadzaj tematy z dialogu (transkrypt), nie tylko z opisu wizualnego.
+- **keyMoments** (gdy generowane): przy A-roll z mową kotwicz na wątki dialogu / punchline’y, nie na same momenty wizualne.
 - **visualQuality**: `low` przy ciemnym/rozmazanym/shaky ujęciu; `high` przy ostrym, dobrze oświetlonym materiale; `medium` w pozostałych przypadkach.
 - **stability**: `shaky` gdy kamera wyraźnie trzęsie się / handheld bez stabilizacji; `stable` przy statywie lub płynnym ruchu; `unknown` gdy brak sygnału.
 - **isNarrationSource** (`boolean`): ustaw `true`, gdy scena pochodzi z klipu `clipRole: narration_track` lub `mediaType: audio_only` z mową (osobna ścieżka narracji). Dla B-roll bez mowy i talking head → `false`. Pole pomaga directorowi rozróżnić źródło narracji od materiału wizualnego.

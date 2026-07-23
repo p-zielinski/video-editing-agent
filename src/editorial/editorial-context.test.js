@@ -152,6 +152,45 @@ describe("editorial-context", () => {
     assert.equal(ctx.transcriptExcerpts[0].sceneId, "clip01_scene001");
   });
 
+  it("buildEditorialContext with empty recipe timelines still returns speech excerpts", () => {
+    const emptyRecipe = {
+      outputs: [{
+        timeline: [],
+      }],
+    };
+    const ctx = buildEditorialContext({
+      timelineIndex,
+      recipe: emptyRecipe,
+      includeFullTopicIndex: false,
+    });
+    assert.ok(ctx.transcriptExcerpts.length > 0);
+  });
+
+  it("buildTranscriptExcerpts treats empty sceneIds as no filter", () => {
+    const excerpts = buildTranscriptExcerpts(timelineIndex, { sceneIds: [] });
+    assert.ok(excerpts.length > 0);
+  });
+
+  it("buildTranscriptExcerpts scopes words by clip when local clocks overlap", () => {
+    const multiClipIndex = {
+      scenes: [{
+        sceneId: "clip16_scene001",
+        clipId: "clip16",
+        startSec: 0,
+        endSec: 100,
+        hasSpeech: true,
+      }],
+      words: [
+        { wordId: "clip01_w00001", clipId: "clip01", word: "other", start: 5, end: 5.5 },
+        { wordId: "clip16_w00001", clipId: "clip16", word: "mine", start: 5, end: 5.5 },
+      ],
+    };
+    const excerpts = buildTranscriptExcerpts(multiClipIndex);
+    assert.equal(excerpts.length, 1);
+    assert.equal(excerpts[0].words.length, 1);
+    assert.equal(excerpts[0].words[0].word, "mine");
+  });
+
   it("buildEditorialContext includes audio and spatial summaries when provided", () => {
     const ctx = buildEditorialContext({
       timelineIndex,

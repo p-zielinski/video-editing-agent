@@ -11,7 +11,11 @@ import {
   computeThumbnailFontSize,
   composeThumbnail,
   escapeSvgText,
+  normalizeDetectionBboxToFrame,
   resolveThumbnailDimensions,
+  resolveThumbnailFraming,
+  resolveThumbnailSourceDimensions,
+  wrapThumbnailHeadline,
 } from "./thumbnail-compose.js";
 
 describe("thumbnail-compose", () => {
@@ -21,10 +25,16 @@ describe("thumbnail-compose", () => {
     assert.ok(fontSize < 120);
   });
 
-  it("builds SVG with stroke text and accent bar", () => {
+  it("wraps headlines into at most two lines (not one word per line)", () => {
+    assert.deepEqual(wrapThumbnailHeadline("NOWY ETAP START"), ["NOWY ETAP", "START"]);
+    assert.deepEqual(wrapThumbnailHeadline("30 LAT ZA CHWILĘ"), ["30 LAT", "ZA CHWILĘ"]);
+    assert.equal(wrapThumbnailHeadline("A B C D E").length, 2);
+  });
+
+  it("builds SVG with stroke text and accent bar covering all text lines", () => {
     const { w, h } = resolveThumbnailDimensions("9:16");
     const svg = buildThumbnailTextSvg({
-      headline: "najlepsza restauracja",
+      headline: "NOWY ETAP START",
       format: "9:16",
       width: w,
       height: h,
@@ -33,10 +43,17 @@ describe("thumbnail-compose", () => {
 
     assert.match(svg, /stroke="#000000"/);
     assert.match(svg, /<rect /);
-    assert.match(svg, /NAJLEPSZA/);
+    assert.match(svg, /NOWY ETAP/);
+    assert.match(svg, /START/);
+    assert.doesNotMatch(svg, /<tspan[^>]*>NOWY<\/tspan>\s*<tspan[^>]*>ETAP<\/tspan>\s*<tspan[^>]*>START<\/tspan>/);
+
+    const rectMatch = svg.match(/<rect[^>]*y="(\d+)"[^>]*height="(\d+)"/);
+    assert.ok(rectMatch);
+    const barHeight = Number(rectMatch[2]);
+    assert.ok(barHeight > 120, `accent bar should cover 2 lines, got height=${barHeight}`);
   });
 
-  it("computes face-aware extract placing face toward the right third", () => {
+  it("computes subject-aware extract placing subject toward center", () => {
     const extract = computeFaceAwareExtract({
       srcWidth: 1920,
       srcHeight: 1080,
@@ -50,6 +67,38 @@ describe("thumbnail-compose", () => {
     assert.ok(extract.top >= 0);
     assert.ok(extract.width > 0);
     assert.ok(extract.height > 0);
+  });
+
+  it("chooses blur_pad for portrait source into 16:9 target", () => {
+    const framing = resolveThumbnailFraming({
+      srcWidth: 2160,
+      srcHeight: 3840,
+      targetW: 1280,
+      targetH: 720,
+      subjectBbox: [0.2, 0.15, 0.5, 0.7],
+    });
+    assert.equal(framing.mode, "blur_pad");
+  });
+
+  it("swaps catalog landscape dims when detections imply portrait decode", () => {
+    const dims = resolveThumbnailSourceDimensions({
+      scene: { resolution: { w: 3840, h: 2160 } },
+      detections: [
+        { bbox: [1.08, 1787.52, 1547.64, 3834.24], label: "dog" },
+      ],
+    });
+    assert.deepEqual(dims, { srcWidth: 2160, srcHeight: 3840 });
+  });
+
+  it("normalizes object bboxes with swapped orientation fallback", () => {
+    const bbox = normalizeDetectionBboxToFrame(
+      [1.08, 1787.52, 1547.64, 3834.24],
+      3840,
+      2160,
+    );
+    assert.ok(bbox);
+    assert.ok(bbox[1] + bbox[3] <= 1.02, `dog bbox should fit frame: ${bbox}`);
+    assert.ok(bbox[3] > 0.3, "dog should retain meaningful height");
   });
 
   it("composes PNG at target dimensions without real video", async () => {
@@ -78,6 +127,59 @@ describe("thumbnail-compose", () => {
     assert.equal(meta.width, THUMBNAIL_DIMENSIONS["16:9"].w);
     assert.equal(meta.height, THUMBNAIL_DIMENSIONS["16:9"].h);
     assert.equal(fs.existsSync(outputPath), true);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("composes portrait frame to 16:9 with blur pad (keeps vertical context)", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-thumb-blur-"));
+    const framePath = path.join(tmpDir, "portrait.jpg");
+    const outputPath = path.join(tmpDir, "thumb.png");
+
+    // Top = blue (face zone), bottom = green (dog zone)
+    const top = await sharp({
+      create: { width: 216, height: 192, channels: 3, background: { r: 20, g: 40, b: 200 } },
+    }).png().toBuffer();
+    const bottom = await sharp({
+      create: { width: 216, height: 192, channels: 3, background: { r: 20, g: 180, b: 40 } },
+    }).png().toBuffer();
+    await sharp({
+      create: { width: 216, height: 384, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .composite([
+        { input: top, top: 0, left: 0 },
+        { input: bottom, top: 192, left: 0 },
+      ])
+      .jpeg()
+      .toFile(framePath);
+
+    await composeThumbnail({
+      framePath,
+      headline: "",
+      style: "frame_only",
+      format: "16:9",
+      outputPath,
+      subjectBbox: [0.1, 0.1, 0.8, 0.85],
+    });
+
+    const meta = await sharp(outputPath).metadata();
+    assert.equal(meta.width, 1280);
+    assert.equal(meta.height, 720);
+
+    // Sample a center pixel — contain keeps both bands visible as a letterboxed portrait.
+    const { data, info } = await sharp(outputPath)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const cx = Math.floor(info.width / 2);
+    const cyTop = Math.floor(info.height * 0.35);
+    const cyBot = Math.floor(info.height * 0.65);
+    const idx = (x, y) => (y * info.width + x) * info.channels;
+    const topPx = [data[idx(cx, cyTop)], data[idx(cx, cyTop) + 1], data[idx(cx, cyTop) + 2]];
+    const botPx = [data[idx(cx, cyBot)], data[idx(cx, cyBot) + 1], data[idx(cx, cyBot) + 2]];
+    // Blue-ish top band and green-ish bottom band should both survive (not face-only crop).
+    assert.ok(topPx[2] > topPx[1], `expected blue-ish top, got ${topPx}`);
+    assert.ok(botPx[1] > botPx[2], `expected green-ish bottom, got ${botPx}`);
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

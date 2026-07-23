@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runVisionStep } from "./vision.js";
+import { runVisionStep, resolveVisionPythonTimeoutMs } from "./vision.js";
 import { buildStepConfigFingerprint } from "../../lib/config-fingerprint.js";
 import { publishGlobalClipArtifact } from "../../lib/global-cache-step.js";
 import { getGlobalCachePath, buildAnalysisCacheKey } from "../../lib/global-analysis-cache.js";
@@ -169,5 +169,19 @@ describe("vision step", () => {
     assert.ok(!fs.existsSync(cachePath), "empty stub vision should not write global cache");
 
     fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("resolveVisionPythonTimeoutMs enforces minimum and scales with frame count", () => {
+    const minMs = 30 * 60 * 1000;
+    assert.ok(resolveVisionPythonTimeoutMs(0) >= minMs);
+    assert.ok(resolveVisionPythonTimeoutMs(83) >= 67 * 60 * 1000);
+    assert.equal(
+      resolveVisionPythonTimeoutMs(10, {
+        VISION_TIMEOUT_PER_FRAME_MS: "60000",
+        VISION_TIMEOUT_BASE_MS: "0",
+        VISION_TIMEOUT_MIN_MS: "1000",
+      }),
+      10 * 60 * 1000,
+    );
   });
 });

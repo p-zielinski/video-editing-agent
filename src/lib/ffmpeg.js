@@ -106,17 +106,48 @@ export async function probeVideoDimensions(filePath) {
     "v:0",
     "-show_entries",
     "stream=width,height",
+    "-show_entries",
+    "stream_tags=rotate",
+    "-show_entries",
+    "stream_side_data=rotation",
     "-of",
-    "csv=p=0",
+    "json",
     filePath,
   ]);
 
-  const [width, height] = stdout.trim().split(",").map(Number);
+  const parsed = JSON.parse(stdout);
+  const stream = parsed.streams?.[0];
+  if (!stream) {
+    throw new Error(`Nie udało się odczytać wymiarów wideo: ${filePath}`);
+  }
+
+  let width = Number(stream.width);
+  let height = Number(stream.height);
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
     throw new Error(`Nie udało się odczytać wymiarów wideo: ${filePath}`);
   }
 
-  return { width, height };
+  let rotation = 0;
+  if (stream.tags?.rotate != null) {
+    rotation = Number(stream.tags.rotate) || 0;
+  }
+  const sideData = (stream.side_data_list ?? []).find((entry) => entry.rotation != null);
+  if (sideData) {
+    rotation = Number(sideData.rotation) || rotation;
+  }
+
+  const normalizedRotation = ((rotation % 360) + 360) % 360;
+  if (normalizedRotation === 90 || normalizedRotation === 270) {
+    [width, height] = [height, width];
+  }
+
+  return {
+    width,
+    height,
+    storageWidth: Number(stream.width),
+    storageHeight: Number(stream.height),
+    rotation: normalizedRotation,
+  };
 }
 
 export async function probeAudioStream(filePath) {

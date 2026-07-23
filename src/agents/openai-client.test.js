@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chatJson, resolveAgentModels } from "./openai-client.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { chatJson, chatJsonMultimodal, resolveAgentModels } from "./openai-client.js";
+import { classifyModelPool, createDailyQuotaTracker } from "../lib/openai-daily-usage.js";
+import { executeRoutedChatJsonMultimodal, resolveRolePolicy } from "./openai-model-router.js";
+import { writeLlmResponseCache } from "../lib/llm-response-cache.js";
 
 function createJsonRetryMockClient(validPayload) {
   let callCount = 0;
@@ -80,6 +86,86 @@ describe("openai-client chatJson", () => {
     assert.deepEqual(result, { ready: true });
     assert.equal(callCount, 1);
   });
+
+  it("reuses cached response when LLM_REUSE_CACHE is enabled", async () => {
+    let callCount = 0;
+    const client = {
+      chat: {
+        completions: {
+          create: async () => {
+            callCount += 1;
+            return {
+              choices: [{ message: { content: JSON.stringify({ fresh: true }) } }],
+            };
+          },
+        },
+      },
+    };
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatjson-cache-"));
+    const previousReuse = process.env.LLM_REUSE_CACHE;
+    process.env.LLM_REUSE_CACHE = "1";
+
+    try {
+      writeLlmResponseCache({
+        batchId: "batch001",
+        workDir: tmpDir,
+        step: "direct",
+        role: "director",
+        response: { cached: true },
+        model: "gpt-5.5-mini",
+      });
+
+      const result = await chatJson(client, {
+        model: "gpt-5.5-mini",
+        system: "Return JSON",
+        user: "{}",
+        batchId: "batch001",
+        step: "direct",
+        role: "director",
+        workDir: tmpDir,
+      });
+
+      assert.deepEqual(result, { cached: true });
+      assert.equal(callCount, 0);
+    } finally {
+      if (previousReuse === undefined) {
+        delete process.env.LLM_REUSE_CACHE;
+      } else {
+        process.env.LLM_REUSE_CACHE = previousReuse;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("chatJsonMultimodal sends image_url userContent and parses JSON", async () => {
+    let captured = null;
+    const client = {
+      chat: {
+        completions: {
+          create: async (request) => {
+            captured = request;
+            return {
+              choices: [{ message: { content: JSON.stringify({ summary: "mountain view" }) } }],
+              usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 },
+            };
+          },
+        },
+      },
+    };
+
+    const result = await chatJsonMultimodal(client, {
+      model: "gpt-4o-mini",
+      system: "Return JSON",
+      userContent: [
+        { type: "text", text: "Describe the clip" },
+        { type: "image_url", image_url: { url: "data:image/jpeg;base64,abc", detail: "low" } },
+      ],
+    });
+
+    assert.deepEqual(result, { summary: "mountain view" });
+    assert.equal(captured.messages[1].content[1].type, "image_url");
+    assert.equal(classifyModelPool("gpt-4o-mini"), "mini");
+  });
 });
 
 describe("agent model routing", () => {
@@ -96,6 +182,7 @@ describe("agent model routing", () => {
     assert.equal(models.critic, "gpt-5.4-mini");
     assert.equal(models.fixer, "gpt-5.4-mini");
     assert.equal(models.fixerEscalation, "gpt-5.4");
+    assert.equal(models.twelvelabsShort, "gpt-5.4-mini");
   });
 
   it("supports independent per-role model overrides", () => {
@@ -109,6 +196,7 @@ describe("agent model routing", () => {
       OPENAI_MODEL_DIRECTOR_DRILLDOWN: "drill-custom",
       OPENAI_MODEL_FIXER: "fixer-custom",
       OPENAI_MODEL_FIXER_ESCALATION: "fixer-escalation-custom",
+      OPENAI_MODEL_TWELVELABS_SHORT: "gpt-4o-mini",
     });
 
     assert.equal(models.summarizerL1, "nano-custom");
@@ -120,5 +208,53 @@ describe("agent model routing", () => {
     assert.equal(models.directorDrillDown, "drill-custom");
     assert.equal(models.fixer, "fixer-custom");
     assert.equal(models.fixerEscalation, "fixer-escalation-custom");
+    assert.equal(models.twelvelabsShort, "gpt-4o-mini");
+  });
+
+  it("twelvelabsShort role policy stays on mini tier", () => {
+    assert.deepEqual(resolveRolePolicy("twelvelabsShort", {}).tiers, ["mini"]);
+  });
+
+  it("executeRoutedChatJsonMultimodal reserves and commits mini pool usage", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-mm-"));
+    try {
+      const quotaTracker = createDailyQuotaTracker({
+        usageDir: tempDir,
+        timezone: "UTC",
+        batchId: "batch01",
+        limits: { premium: 250000, mini: 2500000 },
+      });
+
+      const client = {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: JSON.stringify({ ok: true }) } }],
+              usage: { prompt_tokens: 50, completion_tokens: 10, total_tokens: 60 },
+            }),
+          },
+        },
+      };
+
+      const result = await executeRoutedChatJsonMultimodal(client, {
+        role: "twelvelabsShort",
+        model: "gpt-4o-mini",
+        system: "Return JSON",
+        userContent: [
+          { type: "text", text: "clip" },
+          { type: "image_url", image_url: { url: "data:image/jpeg;base64,x", detail: "low" } },
+        ],
+        quotaTracker,
+        batchId: "batch01",
+        step: "twelvelabs",
+        env: { OPENAI_QUOTA_TRACKING: "1" },
+      });
+
+      assert.deepEqual(result, { ok: true });
+      const snap = quotaTracker.snapshot();
+      assert.ok(snap.pools.mini.usedTokens >= 60);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
