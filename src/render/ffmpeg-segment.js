@@ -4,6 +4,7 @@ import { resolveSegmentOutputDuration } from "../lib/build-output-timeline.js";
 import { buildSegmentVideoFilter, composeSegmentVideoFilter } from "./ffmpeg-reframe.js";
 import { applyAudioCutsToRange, applyVideoCutsToRange } from "./audio-cuts.js";
 import { applyAudioTimeCutsToRange, applyVideoTimeCutsToRange } from "./time-cuts.js";
+import { buildSourceDuckFilterGraph } from "./audio-source-duck.js";
 import {
   buildAtempoFilterChain,
   buildSourceVolumeFilter,
@@ -35,6 +36,20 @@ function segmentDurationSec(segment, context) {
 export function resolveWordIndexForSegment(segment, context) {
   const clipId = segment.audioRef?.clipId ?? segment.videoRef?.clipId;
   return clipId ? context?.wordIndexes?.[clipId] ?? null : null;
+}
+
+/**
+ * @returns {object|null} speech_ambient_duck plan when dual-source mix is active
+ */
+export function resolveActiveSourceDuckPlan(segment) {
+  const plan = segment?.audioSourceDuck;
+  if (plan?.mode !== "speech_ambient_duck") {
+    return null;
+  }
+  if (!plan.enhancedPath || !plan.originalPath) {
+    return null;
+  }
+  return plan;
 }
 
 export function collectBrollDesyncWarning(segment, videoDur, audioDur) {
@@ -188,7 +203,9 @@ export function buildPictureInPictureFilter(segment, dimensions = {}) {
 }
 
 function isJlCutBorrowedAudio(segment) {
-  return segment.audioPolicy === "from_prev" || segment.audioPolicy === "from_next";
+  // from_next is video-only at segment pass (audio pulled from next segment at JL-cut).
+  // from_prev still embeds own videoRef audio for the non-overlap remainder.
+  return segment.audioPolicy === "from_next";
 }
 
 function pushShortestIfNeeded(args, segment) {
@@ -276,8 +293,10 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
   const isJlCutVideoOnly = isJlCutBorrowedAudio(segment);
   const isMuted = segment.audioPolicy === "mute" || shouldMutePlaybackAudio(effectiveSegment);
   const omitEmbeddedAudio = isMuted || isJlCutVideoOnly;
+  const duckPlan = omitEmbeddedAudio ? null : resolveActiveSourceDuckPlan(effectiveSegment);
   const sameSource = audioPath === videoPath;
   const useSeparateAudio = !omitEmbeddedAudio
+    && !duckPlan
     && (!sameSource
       || segment.audioPolicy === "from_audio_ref"
       || Math.abs(audioDur - videoDur) > 0.05);
@@ -300,6 +319,8 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
 
   const targetDur = durationSec;
   const args = ["-y"];
+  let duckEnhancedIdx = null;
+  let duckOriginalIdx = null;
 
   if (audioOnlyVideo) {
     args.push(
@@ -308,7 +329,14 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
       "-i",
       buildLavfiColorInput(targetDur, dimensions),
     );
-    args.push("-ss", String(segment.audioInSec ?? 0), "-i", audioPath);
+    if (duckPlan) {
+      args.push("-ss", String(segment.audioInSec ?? 0), "-i", duckPlan.enhancedPath);
+      args.push("-ss", String(segment.audioInSec ?? 0), "-i", duckPlan.originalPath);
+      duckEnhancedIdx = 1;
+      duckOriginalIdx = 2;
+    } else {
+      args.push("-ss", String(segment.audioInSec ?? 0), "-i", audioPath);
+    }
   } else {
     if (segment.syncMode === "loop_video" && videoDur < audioDur) {
       const loopCount = Math.ceil(audioDur / videoDur);
@@ -317,16 +345,114 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
 
     args.push("-ss", String(segment.videoInSec), "-i", videoPath);
 
+    let nextInputIdx = 1;
     if (pipScenePath) {
       args.push("-ss", "0", "-i", pipScenePath);
+      nextInputIdx = 2;
     }
 
-    if (useSeparateAudio && audioPath) {
-      args.push("-ss", String(segment.audioInSec), "-i", audioPath);
+    if (duckPlan) {
+      const audioSs = String(segment.audioInSec ?? 0);
+      args.push("-ss", audioSs, "-i", duckPlan.enhancedPath);
+      duckEnhancedIdx = nextInputIdx;
+      nextInputIdx += 1;
+      args.push("-ss", audioSs, "-i", duckPlan.originalPath);
+      duckOriginalIdx = nextInputIdx;
+    } else if (useSeparateAudio && audioPath) {
+      args.push("-ss", String(segment.audioInSec ?? 0), "-i", audioPath);
     }
   }
 
-  if (hasAudioCuts || hasTimeCuts) {
+  const needsFilterComplex = Boolean(
+    duckPlan
+    || hasAudioCuts
+    || hasTimeCuts
+    || videoFilter
+    || combinedAudioFilter
+    || (pipFilter && pipScenePath),
+  );
+
+  if (duckPlan && !omitEmbeddedAudio) {
+    const videoPre = videoFilter
+      ? (videoFilter.mode === "filter_complex"
+        ? `${videoFilter.graph}[vcutin]`
+        : `[0:v]${videoFilter.chain}[vcutin]`)
+      : "[0:v]setpts=PTS-STARTPTS[vcutin]";
+
+    let videoCutsFilter = null;
+    if (hasAudioCuts || hasTimeCuts) {
+      if (hasAudioCuts) {
+        videoCutsFilter = applyVideoCutsToRange({
+          videoLabel: "[vcutin]",
+          cuts: effectiveSegment.cuts,
+          wordIndex,
+          rangeStartSec: videoCutRangeStart,
+          rangeEndSec: videoCutRangeEnd,
+        });
+      }
+      if (hasTimeCuts) {
+        videoCutsFilter = applyVideoTimeCutsToRange({
+          videoLabel: hasAudioCuts ? "[vout]" : "[vcutin]",
+          timeCuts: effectiveSegment.timeCuts,
+          rangeStartSec: outputStartSec,
+          rangeEndSec: outputEndSec,
+        });
+      }
+    } else {
+      videoCutsFilter = "[vcutin]null[vout]";
+    }
+
+    const duckOutLabel = (combinedAudioFilter || hasAudioCuts || hasTimeCuts)
+      ? "[aduck]"
+      : "[aout]";
+    const duckGraph = buildSourceDuckFilterGraph(duckPlan, {
+      enhancedLabel: `[${duckEnhancedIdx}:a]`,
+      originalLabel: `[${duckOriginalIdx}:a]`,
+      outputLabel: duckOutLabel,
+    });
+
+    const audioParts = [...duckGraph.filters];
+    let audioLabel = duckOutLabel;
+
+    if (combinedAudioFilter) {
+      audioParts.push(`${audioLabel}${combinedAudioFilter}[async]`);
+      audioLabel = "[async]";
+    }
+
+    let audioCutsFilter = null;
+    if (hasAudioCuts) {
+      audioCutsFilter = applyAudioCutsToRange({
+        audioFilter: audioLabel,
+        cuts: effectiveSegment.cuts,
+        wordIndex,
+        rangeStartSec: audioCutRangeStart,
+        rangeEndSec: audioCutRangeEnd,
+        singleInput: false,
+      });
+    } else if (hasTimeCuts) {
+      audioCutsFilter = applyAudioTimeCutsToRange({
+        audioFilter: audioLabel,
+        timeCuts: effectiveSegment.timeCuts,
+        rangeStartSec: outputStartSec,
+        rangeEndSec: outputEndSec,
+        singleInput: false,
+      });
+    } else if (audioLabel !== "[aout]") {
+      audioParts.push(`${audioLabel}anull[aout]`);
+    }
+
+    let filterTail = `${videoPre};${videoCutsFilter};${audioParts.join(";")}`;
+    if (audioCutsFilter) {
+      filterTail = `${videoPre};${videoCutsFilter};${audioParts.join(";")};${audioCutsFilter}`;
+    }
+    if (pipFilter && pipScenePath) {
+      filterTail = `${filterTail};[vout][1:v]${pipFilter.replace(/^\[1:v\]/, "").replace(/\[0:v\]/, "[vout]")}`;
+    }
+
+    args.push("-filter_complex", filterTail);
+    args.push("-map", "[vout]", "-map", "[aout]");
+    pushShortestIfNeeded(args, effectiveSegment);
+  } else if (hasAudioCuts || hasTimeCuts) {
     const videoPre = videoFilter
       ? (videoFilter.mode === "filter_complex"
         ? `${videoFilter.graph}[vcutin]`
@@ -389,7 +515,7 @@ export function buildSegmentFfmpegArgs(segment, context, outputPath, options = {
     args.push("-filter_complex", filterTail);
     args.push("-map", "[vout]", "-map", "[aout]");
     pushShortestIfNeeded(args, effectiveSegment);
-  } else if (videoFilter || combinedAudioFilter || (pipFilter && pipScenePath)) {
+  } else if (needsFilterComplex && !duckPlan) {
     if (videoFilter && combinedAudioFilter && useSeparateAudio && audioPath) {
       const videoOut = videoFilter.mode === "filter_complex"
         ? `${videoFilter.graph}[vout]`

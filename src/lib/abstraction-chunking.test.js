@@ -58,6 +58,31 @@ describe("abstraction chunking", () => {
     assert.equal(wordCount, 120);
   });
 
+  it("samples across long monologue scenes instead of first-N only", () => {
+    const scene = {
+      sceneId: "clip16_scene001",
+      clipId: "clip16",
+      startSec: 0,
+      endSec: 825,
+      durationSec: 825,
+    };
+    const words = Array.from({ length: 600 }, (_, i) => ({
+      wordId: `clip16_w${String(i).padStart(5, "0")}`,
+      clipId: "clip16",
+      word: `w${i}`,
+      start: i * (825 / 600),
+      end: (i + 1) * (825 / 600),
+      isFiller: false,
+    }));
+
+    const input = sceneSummaryInput(scene, words, [], [], { maxWords: 40 });
+    const wordCount = input.transcript.split(/\s+/).filter(Boolean).length;
+    assert.ok(wordCount > 40, "distributed sampling should exceed single-window cap");
+    assert.ok(input.transcript.includes("w599"), "should include end-of-scene speech");
+    assert.ok(!input.transcript.includes("w200 w201 w202 w203 w204 w205 w206 w207 w208 w209 w210"),
+      "should not be a contiguous head-only slice");
+  });
+
   it("includes objectLabels in scene summary input", () => {
     const scene = {
       sceneId: "clip01_scene001",

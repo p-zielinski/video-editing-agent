@@ -1,6 +1,7 @@
 import { sanitizeRecipeConsistency } from "../editorial/recipe-consistency-sanitize.js";
 import { buildOutputTimeline } from "../lib/build-output-timeline.js";
 import { DEFAULT_RENDER_STYLE_PRESETS } from "../render/style-presets.js";
+import { buildClipDurationMap } from "./recipe-v2.js";
 
 const TIMELINE_TOLERANCE_SEC = 0.05;
 const MIN_OVERLAY_DURATION_SEC = 0.3;
@@ -392,6 +393,8 @@ function validateOwnershipWindows(recipe, issues, stylePresets, options) {
 }
 
 function validateMediaTimeRanges(recipe, issues) {
+  const clipDurations = buildClipDurationMap(recipe.clipRegistry ?? []);
+
   for (const output of recipe.outputs ?? []) {
     for (const segment of output.timeline ?? []) {
       if (segment.videoOutSec <= segment.videoInSec) {
@@ -402,6 +405,21 @@ function validateMediaTimeRanges(recipe, issues) {
           outputId: output.outputId,
           segmentId: segment.segmentId,
         });
+      }
+
+      const clipId = segment.videoRef?.clipId;
+      if (clipId) {
+        const clipDurationSec = clipDurations.get(clipId);
+        if (clipDurationSec != null && clipDurationSec > 0
+          && segment.videoOutSec > clipDurationSec + TIMELINE_TOLERANCE_SEC) {
+          issues.push({
+            severity: "error",
+            code: "CONS-TL-05",
+            message: `Segment ${segment.segmentId}: videoOutSec (${segment.videoOutSec}) exceeds clip ${clipId} duration (${clipDurationSec}s)`,
+            outputId: output.outputId,
+            segmentId: segment.segmentId,
+          });
+        }
       }
 
       if (

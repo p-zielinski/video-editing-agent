@@ -26,6 +26,9 @@ import {
   resolveBleepSfxEntries,
   outputHasAudioCensorship,
   PROFANITY_BLEEP_SFX_ID,
+  shouldLoopMusicBed,
+  buildMusicBedInputArgs,
+  resolveMusicBedRequiredSec,
 } from "./audio-mix.js";
 import { AudioMixDuckingWindowSchema, AudioMixSegmentSchema } from "../schemas/edit-recipe-v2.js";
 import { validateAudioMixPlan } from "../validators/recipe-v2.js";
@@ -630,6 +633,55 @@ describe("audio-mix", () => {
     assert.ok(baseIdx < scIdx, "bed automation should precede sidechain ducking");
   });
 
+  it("buildAudioMixFilterGraph uses amix normalize=0 and dropout_transition=0", () => {
+    const graph = buildAudioMixFilterGraph({
+      plan: { musicBed: { volumeDb: -18, duckingDb: -12 } },
+      mixSegment: { duckUnderVoice: true },
+      bedPath: "/tmp/bed.mp3",
+      voiceLoudnormFilter: "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true",
+    });
+
+    const amix = graph.filters.find((f) => f.includes("amix=inputs="));
+    assert.ok(amix?.includes("normalize=0"));
+    assert.ok(amix?.includes("dropout_transition=0"));
+    assert.ok(!amix?.includes("dropout_transition=2"));
+  });
+
+  it("shouldLoopMusicBed loops when bed is shorter than musicOutSec window", () => {
+    assert.equal(shouldLoopMusicBed({
+      bedDurationSec: 60,
+      musicInSec: 0,
+      musicOutSec: 120,
+    }), true);
+    assert.equal(shouldLoopMusicBed({
+      bedDurationSec: 120,
+      musicInSec: 0,
+      musicOutSec: 120,
+    }), false);
+    assert.equal(shouldLoopMusicBed({
+      bedDurationSec: 130,
+      musicInSec: 10,
+      musicOutSec: 120,
+    }), false);
+  });
+
+  it("buildMusicBedInputArgs adds stream_loop when loop is true", () => {
+    assert.deepEqual(
+      buildMusicBedInputArgs("/tmp/bed.mp3", { musicInSec: 5, loop: true }),
+      ["-stream_loop", "-1", "-ss", "5", "-i", "/tmp/bed.mp3"],
+    );
+    assert.deepEqual(
+      buildMusicBedInputArgs("/tmp/bed.mp3"),
+      ["-i", "/tmp/bed.mp3"],
+    );
+  });
+
+  it("resolveMusicBedRequiredSec returns musicOutSec minus musicInSec", () => {
+    assert.equal(resolveMusicBedRequiredSec({ musicInSec: 5, musicOutSec: 125 }), 120);
+    assert.equal(resolveMusicBedRequiredSec({ musicOutSec: 90 }), 90);
+    assert.equal(resolveMusicBedRequiredSec({}), null);
+  });
+
   it("applyAudioMix builds filter_complex with two-pass loudnorm on voice", async (t) => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-audio-mix-"));
     const inputPath = path.join(tmpDir, "input.mp4");
@@ -689,6 +741,83 @@ describe("audio-mix", () => {
       assert.ok(capturedFilterComplex, "expected -filter_complex in ffmpeg args");
       assert.ok(capturedFilterComplex.includes(expectedLoudnorm));
       assert.ok(capturedFilterComplex.includes("[voice]"));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("applyAudioMix adds stream_loop when bed is shorter than mix window", async (t) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-audio-mix-loop-"));
+    const inputPath = path.join(tmpDir, "input.mp4");
+    const outputPath = path.join(tmpDir, "output.mp4");
+    const bedPath = path.join(tmpDir, "bed.mp3");
+    const { ffmpeg } = resolveFfmpegBins();
+
+    const genVideo = spawnSync(
+      ffmpeg,
+      [
+        "-y",
+        "-f", "lavfi",
+        "-i", "color=c=blue:s=160x120:d=2",
+        "-f", "lavfi",
+        "-i", "sine=frequency=440:duration=2",
+        "-t", "2",
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-shortest",
+        inputPath,
+      ],
+      { encoding: "utf8" },
+    );
+    const genBed = spawnSync(
+      ffmpeg,
+      [
+        "-y",
+        "-f", "lavfi",
+        "-i", "sine=frequency=220:duration=1",
+        "-c:a", "libmp3lame",
+        bedPath,
+      ],
+      { encoding: "utf8" },
+    );
+    if (genVideo.status !== 0 || genBed.status !== 0) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      t.skip("ffmpeg lavfi unavailable for test input generation");
+    }
+
+    let capturedArgs = null;
+
+    try {
+      await applyAudioMix(inputPath, outputPath, {
+        recipe: {
+          audioMixPlan: {
+            voiceTargetLufs: -16,
+            musicBed: { volumeDb: -18, duckingDb: -12 },
+            segments: [{
+              outputId: "short_9x16",
+              musicInSec: 0,
+              musicOutSec: 5,
+              duckUnderVoice: true,
+            }],
+          },
+        },
+        output: { outputId: "short_9x16" },
+        context: {
+          musicBed: {
+            trackFilePath: bedPath,
+            durationSec: 1,
+          },
+        },
+        encodeProfile: resolveEncodeProfile("draft"),
+        measureLoudnessFn: async () => ({ integratedLufs: -20 }),
+        runFfmpegFn: async (args) => {
+          capturedArgs = args;
+        },
+      });
+
+      const loopIdx = capturedArgs.indexOf("-stream_loop");
+      assert.ok(loopIdx >= 0, "expected -stream_loop when bed shorter than musicOutSec");
+      assert.equal(capturedArgs[loopIdx + 1], "-1");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

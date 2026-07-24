@@ -5,6 +5,7 @@ import {
   extractAudioChunksForWhisper,
   whisperAudioPath,
 } from "../../lib/extract-audio.js";
+import { resolveWhisperMediaPath } from "./audio-enhancement.js";
 import {
   transcribeForEdit,
   transcribeChunksForEdit,
@@ -151,8 +152,10 @@ export async function transcribeClip({
   }
 
   const audioPath = whisperAudioPath(workDir, clip.clipId);
+  // Prefer enhanced-audio/{clipId}.wav when enhancement succeeded (same duration as source).
+  const whisperMediaPath = resolveWhisperMediaPath(workDir, clip);
 
-  await extractAudioForWhisper(clip.sourcePath, audioPath);
+  await extractAudioForWhisper(whisperMediaPath, audioPath);
 
   const whisperPrompt = buildWhisperPrompt({ expectedTerms });
 
@@ -160,7 +163,7 @@ export async function transcribeClip({
   let durationSec;
 
   if (fs.statSync(audioPath).size > WHISPER_MAX_BYTES) {
-    const chunks = await extractAudioChunksForWhisper(clip.sourcePath, workDir, {
+    const chunks = await extractAudioChunksForWhisper(whisperMediaPath, workDir, {
       clipId: clip.clipId,
     });
     const result = await transcribeChunksForEdit(chunks, apiKey, { prompt: whisperPrompt });

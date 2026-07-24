@@ -27,6 +27,21 @@ export const DIRECTOR_BRIEF_CAPS = {
   SCENE_MAP_LARGE_BATCH_SCENE_COUNT: 80,
   /** Hard char budget for technique catalog JSON in director/segment briefs. */
   TECHNIQUE_CATALOG_MAX_CHARS: 4_500,
+  /**
+   * Long-scene transcript sampling (speech-dense monologues).
+   * When words > maxWordsPerScene * longSceneWordOvercapRatio, use time-distributed windows.
+   */
+  longSceneWordOvercapRatio: 2,
+  /** Total word budget multiplier for distributed sampling (e.g. 40 → up to 120). */
+  longSceneSampleBudgetMultiplier: 3,
+  /** Words captured per time window. */
+  longSceneWindowWords: 20,
+  /** Minimum windows (begin / middle / end). */
+  longSceneMinWindows: 3,
+  /** Maximum windows across a scene. */
+  longSceneMaxWindows: 8,
+  /** Target one window per this many seconds of scene speech. */
+  longSceneWindowIntervalSec: 180,
 };
 
 /** Drill-down uses the same caps as the initial director brief (not critic defaults). */

@@ -163,9 +163,15 @@ export const TextOverlayRoleSchema = z.preprocess((value) => {
 export const ShortsOutroBracketSchema = z.object({
   enabled: z.boolean().default(true),
   /** Krótka klamra (max ~40 znaków). Enricher wybierze z L3 gdy brak. */
-  text: z.string().min(1).max(48).optional(),
+  text: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().min(1).max(48).optional(),
+  ),
   /** Koniec shorta na osi output (łącznie z klamrą). */
-  endAtOutputSec: z.number().positive().optional(),
+  endAtOutputSec: z.preprocess(
+    (value) => (typeof value === "number" && !(value > 0) ? undefined : value),
+    z.number().positive().optional(),
+  ),
   bracketDurationSec: z.number().min(1.5).max(4).default(2.5),
   /** Gdy true — enricher szuka słabego ogona i dobiera cut. */
   auto: z.boolean().optional(),
@@ -245,6 +251,30 @@ export const NarrativeIntentSchema = z.preprocess((value) => {
   return undefined;
 }, z.enum(NARRATIVE_INTENT_VALUES).optional());
 
+const REFRAME_MODE_VALUES = ["center", "face", "subject"];
+
+const REFRAME_MODE_ALIASES = {
+  center_crop: "center",
+  follow_subject: "subject",
+  reframe_follow_subject: "subject",
+};
+
+export const ReframeModeSchema = z.preprocess((value) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  if (REFRAME_MODE_VALUES.includes(value)) {
+    return value;
+  }
+  if (value in REFRAME_MODE_ALIASES) {
+    return REFRAME_MODE_ALIASES[value];
+  }
+  return undefined;
+}, z.enum(REFRAME_MODE_VALUES).optional());
+
 export const VideoTransformSchema = z.object({
   crop: z.object({
     x: z.number(),
@@ -252,7 +282,7 @@ export const VideoTransformSchema = z.object({
     w: z.number(),
     h: z.number(),
   }).optional(),
-  reframe: z.enum(["center", "face", "subject"]).optional(),
+  reframe: ReframeModeSchema,
   fitMode: z.enum(["pillarbox", "pillarbox_blur", "fill"]).optional(),
   playbackMode: z.enum(["normal", "reverse", "boomerang"]).default("normal").optional(),
   boomerangHalfSec: z.number().positive().max(30).optional(),
@@ -649,11 +679,39 @@ export const StructuredCallbackSchema = z.object({
   teaseText: z.string().optional(),
 });
 
-export const RecipeEditorialVerdictSchema = z.enum([
+const RECIPE_EDITORIAL_VERDICT_VALUES = [
   "publishable_as_is",
   "salvage_required",
   "not_recommended",
-]);
+];
+
+const RECIPE_EDITORIAL_VERDICT_ALIASES = {
+  strong: "publishable_as_is",
+  viable: "publishable_as_is",
+  publishable: "publishable_as_is",
+  salvageable: "salvage_required",
+  salvage: "salvage_required",
+  not_viable: "not_recommended",
+  weak: "not_recommended",
+  poor: "not_recommended",
+};
+
+export const RecipeEditorialVerdictSchema = z.preprocess((value) => {
+  if (value === undefined || value === null) {
+    return "salvage_required";
+  }
+  if (typeof value !== "string") {
+    return "salvage_required";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (RECIPE_EDITORIAL_VERDICT_VALUES.includes(normalized)) {
+    return normalized;
+  }
+  if (normalized in RECIPE_EDITORIAL_VERDICT_ALIASES) {
+    return RECIPE_EDITORIAL_VERDICT_ALIASES[normalized];
+  }
+  return "salvage_required";
+}, z.enum(RECIPE_EDITORIAL_VERDICT_VALUES));
 
 export const RecipeEditorialAssessmentSchema = z.object({
   verdict: RecipeEditorialVerdictSchema,

@@ -5,6 +5,8 @@ import {
   enrichRecipeColdOpenSegment,
   enrichRecipeChapterCards,
   COLD_OPEN_SEGMENT_ID,
+  COLD_OPEN_CTA_TAIL_SEC,
+  resolveColdOpenTeaseWindow,
 } from "../../src/editorial/chapter-hints.js";
 
 const timelineIndex = {
@@ -99,5 +101,79 @@ describe("cold-open idempotency", () => {
       .filter((o) => o.style === "chapter_card");
     assert.equal(chapterCards.length, chapterCountAfterFirst);
     assert.ok(chapterCards.every((o) => o.overlayId?.startsWith("enrich_chapter_")));
+  });
+});
+
+describe("cold-open tease window", () => {
+  it("long scene avoids CTA tail — outSec is not sceneEnd", () => {
+    const sceneStart = 0;
+    const sceneEnd = 160;
+    const window = resolveColdOpenTeaseWindow(sceneStart, sceneEnd);
+
+    assert.notEqual(window.videoOutSec, sceneEnd);
+    assert.equal(window.videoOutSec, sceneEnd - COLD_OPEN_CTA_TAIL_SEC);
+    assert.equal(window.videoOutSec - window.videoInSec, 8);
+    assert.ok(window.videoOutSec <= sceneEnd - COLD_OPEN_CTA_TAIL_SEC);
+  });
+
+  it("short scene keeps tail behavior ending at sceneEnd", () => {
+    const sceneStart = 80;
+    const sceneEnd = 95;
+    const window = resolveColdOpenTeaseWindow(sceneStart, sceneEnd);
+
+    assert.equal(window.videoOutSec, sceneEnd);
+    assert.equal(window.videoInSec, sceneEnd - 8);
+  });
+
+  it("enrichRecipeColdOpenSegment uses non-tail window on long payoff scene", () => {
+    const longSceneIndex = {
+      scenes: [
+        { sceneId: "clip40_scene001", clipId: "clip40", startSec: 0, endSec: 160, durationSec: 160 },
+        { sceneId: "clip01_scene001", clipId: "clip01", startSec: 0, endSec: 90, durationSec: 90 },
+      ],
+    };
+    const longAbstraction = {
+      L2: [{ segmentId: "seg_payoff", sceneIds: ["clip40_scene001"] }],
+      L3: {
+        openLoops: [{
+          loopId: "loop_01",
+          kind: "cold_open",
+          payoffSceneId: "clip40_scene001",
+          teaseText: "Najlepszy moment dnia",
+        }],
+      },
+    };
+    const hint = buildColdOpenSegmentHint(longAbstraction, {}, {
+      clipRegistry: [{ clipId: "clip01", sortIndex: 0, clipRole: "aroll_primary", hasSpeech: true }],
+      timelineIndex: longSceneIndex,
+    });
+    const recipe = {
+      outputs: [{
+        outputId: "main_16x9",
+        outputKind: "main",
+        format: "16:9",
+        timeline: [{
+          segmentId: "seg_body",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 60,
+          audioInSec: 0,
+          audioOutSec: 60,
+          audioPolicy: "from_video_ref",
+        }],
+      }],
+      creativeMoments: [],
+      sfxPlan: [],
+    };
+
+    enrichRecipeColdOpenSegment(recipe, hint, longSceneIndex);
+    const coldOpen = recipe.outputs[0].timeline[0];
+
+    assert.equal(coldOpen.segmentId, COLD_OPEN_SEGMENT_ID);
+    assert.notEqual(coldOpen.videoOutSec, 160);
+    assert.equal(coldOpen.videoOutSec, 160 - COLD_OPEN_CTA_TAIL_SEC);
+    assert.equal(coldOpen.videoInSec, 160 - COLD_OPEN_CTA_TAIL_SEC - 8);
   });
 });

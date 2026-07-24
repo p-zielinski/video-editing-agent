@@ -78,12 +78,21 @@ export function applyAudioCutsToRange({
     return `${inputLabel}anull[aout]`;
   }
 
-  const parts = keepRanges.map((range, i) => {
-    return `${inputLabel}atrim=${range.start}:${range.end},asetpts=PTS-STARTPTS[a${i}]`;
-  });
+  // Single range: no asplit needed (mirrors applyVideoCutsToRange).
+  if (keepRanges.length === 1) {
+    const range = keepRanges[0];
+    return `${inputLabel}atrim=${range.start}:${range.end},asetpts=PTS-STARTPTS[aout]`;
+  }
 
+  // Intermediate labels ([aduck]/[async]/…) cannot be consumed twice — asplit first.
+  const n = keepRanges.length;
+  const splitOutputs = keepRanges.map((_, i) => `[as${i}]`).join("");
+  const split = `${inputLabel}asplit=${n}${splitOutputs}`;
+  const parts = keepRanges.map((range, i) =>
+    `[as${i}]atrim=${range.start}:${range.end},asetpts=PTS-STARTPTS[a${i}]`,
+  );
   const concatInputs = keepRanges.map((_, i) => `[a${i}]`).join("");
-  return `${parts.join(";")};${concatInputs}concat=n=${keepRanges.length}:v=0:a=1[aout]`;
+  return `${split};${parts.join(";")};${concatInputs}concat=n=${n}:v=0:a=1[aout]`;
 }
 
 /**
@@ -105,12 +114,19 @@ export function applyVideoCutsToRange({
     return `${videoLabel}null[vout]`;
   }
 
-  const parts = keepRanges.map((range, i) => {
-    return `${videoLabel}trim=start=${range.start}:end=${range.end},setpts=PTS-STARTPTS[v${i}]`;
-  });
+  if (keepRanges.length === 1) {
+    const range = keepRanges[0];
+    return `${videoLabel}trim=start=${range.start}:end=${range.end},setpts=PTS-STARTPTS[vout]`;
+  }
 
+  const n = keepRanges.length;
+  const splitOutputs = keepRanges.map((_, i) => `[vs${i}]`).join("");
+  const split = `${videoLabel}split=${n}${splitOutputs}`;
+  const parts = keepRanges.map((range, i) =>
+    `[vs${i}]trim=start=${range.start}:end=${range.end},setpts=PTS-STARTPTS[v${i}]`,
+  );
   const concatInputs = keepRanges.map((_, i) => `[v${i}]`).join("");
-  return `${parts.join(";")};${concatInputs}concat=n=${keepRanges.length}:v=1:a=0[vout]`;
+  return `${split};${parts.join(";")};${concatInputs}concat=n=${n}:v=1:a=0[vout]`;
 }
 
 export function findWordById(wordIndex, wordId) {

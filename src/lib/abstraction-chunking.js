@@ -1,5 +1,6 @@
 import { DIRECTOR_BRIEF_CAPS } from "../editorial/brief-caps.js";
 import { filterWordsForScene } from "./timeline-index.js";
+import { sampleWordsAcrossScene } from "./word-sampling.js";
 
 function sceneDurationSec(scene) {
   return scene.durationSec ?? (scene.endSec - scene.startSec);
@@ -131,9 +132,13 @@ export function chunkTimelineForL2(scenes, { targetSegmentSec = 600, minSegmentS
   return segments;
 }
 
-export function sceneSummaryInput(scene, words, captions, objectDetections = []) {
-  const sceneWords = filterWordsForScene(scene, words)
-    .slice(0, DIRECTOR_BRIEF_CAPS.maxWordsPerScene);
+export function sceneSummaryInput(scene, words, captions, objectDetections = [], {
+  maxWords = DIRECTOR_BRIEF_CAPS.maxWordsPerScene,
+} = {}) {
+  const sceneWords = sampleWordsAcrossScene(
+    filterWordsForScene(scene, words),
+    maxWords,
+  );
   const sceneCaptions = captions.filter((c) => c.sceneId === scene.sceneId);
   const sceneObjects = objectDetections.filter((d) => d.sceneId === scene.sceneId);
   const objectLabels = [...new Set(

@@ -165,7 +165,6 @@ export function buildSegmentVideoFilter({
     } : null);
 
   const subjectTooWideForCrop = useSpatialAnchor
-    && fitMode === "fill"
     && unionBbox
     && !subjectFitsInCropWindow({
       unionBbox,

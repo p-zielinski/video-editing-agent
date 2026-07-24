@@ -13,6 +13,7 @@ export const REWIND_MOMENT_ID = "enrich_rewind_01";
 export const REWIND_OVERLAY_ID = "enrich_rewind_overlay_01";
 
 const DEFAULT_COLD_OPEN_MAX_SEC = 8;
+export const COLD_OPEN_CTA_TAIL_SEC = 20;
 const REWIND_INTRO_MAX_SEC = 6;
 
 const CHAPTER_CARD_INTERVAL_SEC = 240;
@@ -528,6 +529,35 @@ function sceneUsedInTimeline(timeline, sceneId) {
   return (timeline ?? []).some((segment) => segment.videoRef?.sceneId === sceneId);
 }
 
+/**
+ * Pick cold-open tease in/out points within a payoff scene, avoiding CTA tail on long scenes.
+ *
+ * @param {number} sceneStart
+ * @param {number} sceneEnd
+ * @returns {{ videoInSec: number, videoOutSec: number }}
+ */
+export function resolveColdOpenTeaseWindow(sceneStart, sceneEnd) {
+  const maxSec = DEFAULT_COLD_OPEN_MAX_SEC;
+  const sceneDuration = sceneEnd - sceneStart;
+
+  if (sceneDuration > COLD_OPEN_CTA_TAIL_SEC + maxSec) {
+    const videoOutSec = sceneEnd - COLD_OPEN_CTA_TAIL_SEC;
+    const videoInSec = Math.max(sceneStart, videoOutSec - maxSec);
+    return { videoInSec, videoOutSec };
+  }
+
+  if (sceneDuration > maxSec * 2) {
+    const mid = (sceneStart + sceneEnd) / 2;
+    const videoInSec = Math.max(sceneStart, mid - maxSec / 2);
+    const videoOutSec = Math.min(sceneEnd, videoInSec + maxSec);
+    return { videoInSec, videoOutSec };
+  }
+
+  const duration = Math.min(maxSec, sceneDuration);
+  const videoInSec = Math.max(sceneStart, sceneEnd - duration);
+  return { videoInSec, videoOutSec: sceneEnd };
+}
+
 function prependColdOpenTease(mainOutput, hint, timelineIndex, { allowBrollReuse = false } = {}) {
   const firstSegment = mainOutput.timeline[0];
   if (firstSegment?.segmentId === COLD_OPEN_SEGMENT_ID
@@ -548,9 +578,7 @@ function prependColdOpenTease(mainOutput, hint, timelineIndex, { allowBrollReuse
 
   const sceneEnd = scene.endSec ?? scene.durationSec ?? DEFAULT_COLD_OPEN_MAX_SEC;
   const sceneStart = scene.startSec ?? 0;
-  const duration = Math.min(DEFAULT_COLD_OPEN_MAX_SEC, sceneEnd - sceneStart);
-  const videoInSec = Math.max(sceneStart, sceneEnd - duration);
-  const videoOutSec = sceneEnd;
+  const { videoInSec, videoOutSec } = resolveColdOpenTeaseWindow(sceneStart, sceneEnd);
 
   mainOutput.timeline.unshift({
     segmentId: COLD_OPEN_SEGMENT_ID,

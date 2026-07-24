@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 export const PIPELINE_STEPS = [
   "ingest",
+  "audio_enhancement",
   "transcribe",
   "meta_commands",
   "audio_analysis",
@@ -18,7 +19,6 @@ export const PIPELINE_STEPS = [
   "spatial_index",
   "ai_video",
   "direct",
-  "audio_enhancement",
   "review",
   "thumbnails",
   "publish",

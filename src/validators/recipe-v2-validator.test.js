@@ -1713,6 +1713,29 @@ describe("validateSalvageAndAudioQuality", () => {
     assert.ok(result.issues.some((issue) => issue.code === "AUD-QUAL-01"));
   });
 
+  it("does not flag AUD-QUAL-01 when accept is preserveAmbient-only", () => {
+    const recipe = {
+      ...baseRecipe,
+      version: "2.5",
+      audioEnhancementDecisions: [{
+        candidateId: "enh_clip01",
+        clipId: "clip01",
+        action: "accept",
+        dialogueValue: "essential",
+        reason: "ambient preserve",
+      }],
+      outputs: baseRecipe.outputs.map((output) => ({
+        ...output,
+        timeline: output.timeline.map((segment) => ({
+          ...segment,
+          preserveAmbientAudio: true,
+        })),
+      })),
+    };
+    const result = validateRecipeV2(recipe, { audioEnhancementIndex: { clips: [] } });
+    assert.ok(!result.issues.some((issue) => issue.code === "AUD-QUAL-01"));
+  });
+
   it("flags AUD-QUAL-06 when accept has failed enhancement manifest", () => {
     const recipe = {
       ...baseRecipe,

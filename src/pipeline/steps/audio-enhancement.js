@@ -1,6 +1,11 @@
 import path from "node:path";
 import fs from "node:fs";
-import { extractAudioForAnalysis, analysisAudioPath } from "../../lib/extract-audio.js";
+import {
+  extractAudioForEnhancement,
+  enhancementInputAudioPath,
+  alignAudioDuration,
+} from "../../lib/extract-audio.js";
+import { probeDuration } from "../../lib/ffmpeg.js";
 import { measureLoudness } from "../../lib/measure-loudness.js";
 import { resolveAudioEnhancementConfig } from "../../lib/audio-enhancement/config.js";
 import { runEnhancementProvider } from "../../lib/audio-enhancement/providers/index.js";
@@ -36,6 +41,38 @@ export function audioEnhancementManifestPath(workDir, clipId) {
 }
 
 /**
+ * Prefer successful enhanced WAV for Whisper when present; else null (caller uses source).
+ * Enhanced WAV is pad/trimmed to source duration so word timings stay on the source timeline.
+ */
+export function resolveEnhancedAudioForWhisper(workDir, clipId) {
+  const wavPath = enhancedAudioPath(workDir, clipId);
+  if (!fs.existsSync(wavPath)) {
+    return null;
+  }
+
+  const manifestPath = audioEnhancementManifestPath(workDir, clipId);
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const manifest = readJson(manifestPath);
+      if (manifest.status !== "succeeded" && manifest.status !== "stubbed") {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return wavPath;
+}
+
+/**
+ * Resolve media path for Whisper extract: enhanced WAV if available, else clip source.
+ */
+export function resolveWhisperMediaPath(workDir, clip) {
+  return resolveEnhancedAudioForWhisper(workDir, clip.clipId) ?? clip.sourcePath;
+}
+
+/**
  * True when every timeline use of clipId is on a preserveAmbientAudio segment.
  */
 export function clipOnlyUsedOnPreserveAmbient(recipe, clipId) {
@@ -62,6 +99,19 @@ function collectAcceptedDecisions(recipe) {
       && !clipOnlyUsedOnPreserveAmbient(recipe, decision.clipId)
     ),
   );
+}
+
+function buildEnhanceAllDecision(clipId) {
+  return {
+    candidateId: `enh_${clipId}`,
+    clipId,
+    action: "accept",
+    dialogueValue: "useful",
+    reason: "enhance_all_pre_whisper",
+    providerPreference: "auto",
+    targetDialogueLufs: -18,
+    retranscribePolicy: "if_material_improvement",
+  };
 }
 
 const ARTIFACT_MISSING_REASON_RE = /brak (udanego )?artefaktu|bez udanego artefaktu/i;
@@ -159,7 +209,7 @@ function collectSucceededManifests(enhancementIndex) {
   );
 }
 
-function applySourceVolumeDbToRecipe(recipe, clipId, sourceVolumeDb) {
+function applySourceVolumeDbToRecipe(recipe, clipId) {
   for (const output of recipe.outputs ?? []) {
     for (const segment of output.timeline ?? []) {
       if (segment.preserveAmbientAudio === true) {
@@ -167,7 +217,8 @@ function applySourceVolumeDbToRecipe(recipe, clipId, sourceVolumeDb) {
       }
       const audioClipId = segment.audioRef?.clipId ?? segment.videoRef?.clipId;
       if (audioClipId === clipId) {
-        segment.sourceVolumeDb = sourceVolumeDb;
+        // Gain is baked into the loudnormed enhanced WAV — do not double-apply at render.
+        segment.sourceVolumeDb = 0;
       }
     }
   }
@@ -178,7 +229,7 @@ async function measureQualityMetrics(audioPath, voiceLufs) {
     audioPath,
     voiceLufs,
     stub: false,
-  });
+  }).catch(() => ({}));
   const loudness = await measureLoudness(audioPath, { targetLufs: -18 }).catch(() => null);
   return {
     integratedLufs: loudness?.integratedLufs ?? null,
@@ -208,17 +259,37 @@ function buildFailedManifest({
   });
 }
 
-function writeEnhancementIndex(workDir, catalog, manifests, recipe, { perClipAnalysis = null } = {}) {
+function writeEnhancementIndex(workDir, catalog, manifests, recipe = null, { perClipAnalysis = null } = {}) {
   const index = AudioEnhancementIndexSchema.parse({
     version: "1.0",
     batchId: catalog.batchId,
     clips: manifests,
   });
-  reconcileAudioEnhancementDecisions(recipe, index, { perClipAnalysis });
   writeJson(path.join(workDir, ARTIFACTS.audioEnhancementIndex), index);
-  materializeSourceVolumeDb(recipe, index);
-  writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
+  if (recipe) {
+    reconcileAudioEnhancementDecisions(recipe, index, { perClipAnalysis });
+    materializeSourceVolumeDb(recipe, index);
+    writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
+  }
   return index;
+}
+
+function catalogClipsAlreadyEnhanced(catalog, existingIndex, workDir) {
+  const succeeded = new Map(
+    collectSucceededManifests(existingIndex).map((entry) => [entry.clipId, entry]),
+  );
+  if (!catalog?.clips?.length) {
+    return { complete: false, manifests: [] };
+  }
+  const manifests = [];
+  for (const clip of catalog.clips) {
+    const existing = succeeded.get(clip.clipId);
+    if (!existing || !fs.existsSync(enhancedAudioPath(workDir, clip.clipId))) {
+      return { complete: false, manifests: [] };
+    }
+    manifests.push(existing);
+  }
+  return { complete: true, manifests };
 }
 
 export async function enhanceClipAudio({
@@ -232,24 +303,29 @@ export async function enhanceClipAudio({
   const manifestPath = audioEnhancementManifestPath(workDir, clip.clipId);
   if (!force && fs.existsSync(manifestPath)) {
     const existing = readJson(manifestPath);
-    if (existing.candidateId === decision.candidateId && existing.status !== "failed") {
-      return AudioEnhancementManifestSchema.parse(existing);
+    // Phase 3: reuse any non-failed artifact for Whisper; candidateId may differ
+    // between enhance-all and later recipe accept metadata.
+    if (existing.status !== "failed") {
+      const wavPath = enhancedAudioPath(workDir, clip.clipId);
+      if (fs.existsSync(wavPath)) {
+        return AudioEnhancementManifestSchema.parse(existing);
+      }
     }
   }
 
   const outputPath = enhancedAudioPath(workDir, clip.clipId);
-  const analysisPath = analysisAudioPath(workDir, clip.clipId);
+  const enhancementInputPath = enhancementInputAudioPath(workDir, clip.clipId);
 
   try {
-    if (!fs.existsSync(analysisPath)) {
-      await extractAudioForAnalysis(clip.sourcePath, analysisPath);
+    if (!fs.existsSync(enhancementInputPath)) {
+      await extractAudioForEnhancement(clip.sourcePath, enhancementInputPath);
     }
 
-    const before = await measureQualityMetrics(analysisPath, null);
+    const before = await measureQualityMetrics(enhancementInputPath, null);
     const rawOutputPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.raw.wav`);
 
     const providerResult = await runEnhancementProvider({
-      inputPath: analysisPath,
+      inputPath: enhancementInputPath,
       outputPath: rawOutputPath,
       config,
       providerPreference: decision.providerPreference ?? "auto",
@@ -277,8 +353,26 @@ export async function enhanceClipAudio({
       dspChainApplied = presetKey;
     }
 
-    const normalization = await applyLoudnessNormalization(loudnormInputPath, outputPath, targetLufs);
+    const loudnormPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.loudnorm.wav`);
+    const normalization = await applyLoudnessNormalization(loudnormInputPath, loudnormPath, targetLufs);
     const sourceVolumeDb = clampGainDb(normalization.gainDb);
+
+    const sourceDurationSec = Number.isFinite(clip.durationSec) && clip.durationSec > 0
+      ? clip.durationSec
+      : await probeDuration(clip.sourcePath);
+    const { durationDeltaMs, aligned } = await alignAudioDuration(
+      loudnormPath,
+      outputPath,
+      sourceDurationSec,
+    );
+
+    const warnings = [];
+    if (aligned) {
+      warnings.push(
+        `duration_aligned: enhanced audio pad/trimmed to source ${sourceDurationSec.toFixed(3)}s `
+        + `(delta ${durationDeltaMs}ms) for Whisper/render timeline alignment`,
+      );
+    }
 
     const manifest = AudioEnhancementManifestSchema.parse({
       version: "1.0",
@@ -296,17 +390,20 @@ export async function enhanceClipAudio({
         finalIntegratedLufs: normalization.finalIntegratedLufs,
       },
       sourceVolumeDb,
+      durationDeltaMs,
       ...(dspChainApplied ? { dspChainApplied } : {}),
-      warnings: [],
+      warnings,
     });
 
     writeJson(manifestPath, manifest);
-    if (fs.existsSync(rawOutputPath)) {
-      fs.unlinkSync(rawOutputPath);
-    }
-    const polishedPath = path.join(workDir, "enhanced-audio", `${clip.clipId}.polished.wav`);
-    if (fs.existsSync(polishedPath)) {
-      fs.unlinkSync(polishedPath);
+    for (const tempName of [
+      rawOutputPath,
+      loudnormPath,
+      path.join(workDir, "enhanced-audio", `${clip.clipId}.polished.wav`),
+    ]) {
+      if (fs.existsSync(tempName)) {
+        fs.unlinkSync(tempName);
+      }
     }
     return manifest;
   } catch (error) {
@@ -326,55 +423,94 @@ export async function enhanceClipAudio({
 }
 
 export function materializeSourceVolumeDb(recipe, enhancementIndex) {
-  const byClip = new Map(
-    (enhancementIndex?.clips ?? [])
-      .filter((entry) => entry.status === "succeeded" || entry.status === "stubbed")
-      .map((entry) => [entry.clipId, entry.sourceVolumeDb ?? 0]),
-  );
+  const enhancedClipIds = (enhancementIndex?.clips ?? [])
+    .filter((entry) => entry.status === "succeeded" || entry.status === "stubbed")
+    .map((entry) => entry.clipId);
 
-  for (const [clipId, sourceVolumeDb] of byClip.entries()) {
-    applySourceVolumeDbToRecipe(recipe, clipId, sourceVolumeDb);
+  for (const clipId of enhancedClipIds) {
+    applySourceVolumeDbToRecipe(recipe, clipId);
   }
   return recipe;
 }
 
-export async function runAudioEnhancementStep({
-  workDir,
-  force = false,
-  config = resolveAudioEnhancementConfig(),
-}) {
-  const recipePath = path.join(workDir, ARTIFACTS.recipeDraft);
-  if (!fs.existsSync(recipePath)) {
-    throw new Error(`Brak ${ARTIFACTS.recipeDraft} — uruchom direct przed audio_enhancement`);
-  }
+const ENHANCEMENT_MANIFEST_RE = /^07a-audio-enhancement-(.+)\.json$/;
 
-  const catalog = readJson(path.join(workDir, ARTIFACTS.sceneCatalog));
-  const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
-  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
-  const existingIndex = fs.existsSync(indexPath) ? readJson(indexPath) : null;
-
-  if (!force && shouldUseCachedArtifact(workDir, ARTIFACTS.audioEnhancementIndex, force)) {
-    const recipe = EditRecipeV2Schema.parse(readJson(recipePath));
-    reconcileAudioEnhancementDecisions(recipe, existingIndex, { perClipAnalysis });
-    materializeSourceVolumeDb(recipe, existingIndex);
-    writeJson(recipePath, recipe);
-    return existingIndex;
-  }
-
-  const recipe = EditRecipeV2Schema.parse(readJson(recipePath));
-  const accepted = collectAcceptedDecisions(recipe);
-  const existingSucceeded = collectSucceededManifests(existingIndex);
-
-  if (!accepted.length && existingSucceeded.length > 0) {
-    reconcileAudioEnhancementDecisions(recipe, existingIndex, { perClipAnalysis });
-    materializeSourceVolumeDb(recipe, existingIndex);
-    writeJson(recipePath, recipe);
-    return AudioEnhancementIndexSchema.parse(existingIndex);
+/**
+ * Rebuild enhancement index from per-clip manifests when the index file is missing.
+ */
+export function rebuildEnhancementIndexFromDisk(workDir, catalog) {
+  if (!fs.existsSync(workDir)) {
+    return null;
   }
 
   const manifests = [];
+  for (const fileName of fs.readdirSync(workDir)) {
+    const match = fileName.match(ENHANCEMENT_MANIFEST_RE);
+    if (!match) {
+      continue;
+    }
 
-  for (const decision of accepted) {
+    const manifestPath = path.join(workDir, fileName);
+    let manifest;
+    try {
+      manifest = AudioEnhancementManifestSchema.parse(readJson(manifestPath));
+    } catch {
+      continue;
+    }
+
+    if (manifest.status !== "succeeded" && manifest.status !== "stubbed") {
+      continue;
+    }
+
+    const wavPath = enhancedAudioPath(workDir, manifest.clipId);
+    if (!fs.existsSync(wavPath)) {
+      continue;
+    }
+
+    manifests.push(manifest);
+  }
+
+  if (!manifests.length) {
+    return null;
+  }
+
+  return AudioEnhancementIndexSchema.parse({
+    version: "1.0",
+    batchId: catalog?.batchId ?? "unknown",
+    clips: manifests,
+  });
+}
+
+function resolveEnhancementIndex(workDir, catalog) {
+  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
+  if (fs.existsSync(indexPath)) {
+    return readJson(indexPath);
+  }
+  return rebuildEnhancementIndexFromDisk(workDir, catalog);
+}
+
+function maybeReconcileRecipe(workDir, recipePath, existingIndex, perClipAnalysis) {
+  if (!fs.existsSync(recipePath) || !existingIndex) {
+    return;
+  }
+  const recipe = EditRecipeV2Schema.parse(readJson(recipePath));
+  reconcileAudioEnhancementDecisions(recipe, existingIndex, { perClipAnalysis });
+  materializeSourceVolumeDb(recipe, existingIndex);
+  writeJson(recipePath, recipe);
+}
+
+async function enhanceDecisions({
+  workDir,
+  catalog,
+  decisions,
+  config,
+  perClipAnalysis,
+  force,
+  recipe = null,
+}) {
+  const manifests = [];
+
+  for (const decision of decisions) {
     const clip = catalog.clips.find((entry) => entry.clipId === decision.clipId);
     if (!clip) {
       manifests.push(AudioEnhancementManifestSchema.parse({
@@ -421,10 +557,85 @@ export async function runAudioEnhancementStep({
   return index;
 }
 
-export function loadAudioEnhancementIndex(workDir) {
-  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
-  if (!fs.existsSync(indexPath)) {
-    return null;
+/**
+ * Pre-Whisper: denoise ALL catalog clips.
+ * Recipe accept/reject gates render use (and supplies polish metadata), not materialization.
+ * When artifacts already exist for every catalog clip → reuse / reconcile no-op.
+ */
+export async function runAudioEnhancementStep({
+  workDir,
+  force = false,
+  config = resolveAudioEnhancementConfig(),
+}) {
+  const catalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
+  if (!fs.existsSync(catalogPath)) {
+    throw new Error(`Brak ${ARTIFACTS.sceneCatalog} — uruchom ingest przed audio_enhancement`);
   }
-  return readJson(indexPath);
+
+  const catalog = readJson(catalogPath);
+  const recipePath = path.join(workDir, ARTIFACTS.recipeDraft);
+  const hasRecipe = fs.existsSync(recipePath);
+  const perClipAnalysis = loadPerClipAudioAnalysisForCatalog(workDir, catalog);
+  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
+  let existingIndex = resolveEnhancementIndex(workDir, catalog);
+  if (!fs.existsSync(indexPath) && existingIndex) {
+    writeJson(indexPath, existingIndex);
+  }
+
+  if (!force && shouldUseCachedArtifact(workDir, ARTIFACTS.audioEnhancementIndex, force)) {
+    maybeReconcileRecipe(workDir, recipePath, existingIndex, perClipAnalysis);
+    return existingIndex;
+  }
+
+  const alreadyEnhanced = catalogClipsAlreadyEnhanced(catalog, existingIndex, workDir);
+  if (!force && alreadyEnhanced.complete) {
+    const index = writeEnhancementIndex(
+      workDir,
+      catalog,
+      alreadyEnhanced.manifests,
+      hasRecipe ? EditRecipeV2Schema.parse(readJson(recipePath)) : null,
+      { perClipAnalysis },
+    );
+    return index;
+  }
+
+  const recipe = hasRecipe ? EditRecipeV2Schema.parse(readJson(recipePath)) : null;
+  const acceptByClip = new Map(
+    (recipe ? collectAcceptedDecisions(recipe) : []).map((decision) => [decision.clipId, decision]),
+  );
+
+  // Always denoise every catalog clip for Whisper. Prefer recipe accept metadata (polish/LUFS)
+  // when present; reject does not skip materialization (render still honors reject).
+  const decisions = (catalog.clips ?? []).map(
+    (clip) => acceptByClip.get(clip.clipId) ?? buildEnhanceAllDecision(clip.clipId),
+  );
+
+  if (!decisions.length) {
+    return writeEnhancementIndex(workDir, catalog, [], recipe, { perClipAnalysis });
+  }
+
+  return enhanceDecisions({
+    workDir,
+    catalog,
+    decisions,
+    config,
+    perClipAnalysis,
+    force,
+    recipe,
+  });
+}
+
+export function loadAudioEnhancementIndex(workDir, catalog = null) {
+  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
+  if (fs.existsSync(indexPath)) {
+    return readJson(indexPath);
+  }
+  if (!catalog) {
+    const catalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
+    if (!fs.existsSync(catalogPath)) {
+      return null;
+    }
+    catalog = readJson(catalogPath);
+  }
+  return rebuildEnhancementIndexFromDisk(workDir, catalog);
 }

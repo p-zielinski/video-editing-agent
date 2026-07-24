@@ -170,6 +170,31 @@ export function markPreserveAmbientSegments(recipe, { wordIndexes = null } = {})
   return marked;
 }
 
+/**
+ * Remove director false-positive preserveAmbientAudio when transcript has no listen/nature cue.
+ * Run after markPreserveAmbientSegments so cue-based marks are kept.
+ * @returns {string[]} segmentIds cleared
+ */
+export function clearFalsePreserveAmbientFlags(recipe, { wordIndexes = null } = {}) {
+  const cleared = [];
+
+  for (const output of recipe?.outputs ?? []) {
+    for (const segment of output.timeline ?? []) {
+      if (segment.preserveAmbientAudio !== true) {
+        continue;
+      }
+      const transcript = collectSegmentTranscript(segment, wordIndexes);
+      if (detectsIntentionalAmbientCue(transcript)) {
+        continue;
+      }
+      delete segment.preserveAmbientAudio;
+      cleared.push(segment.segmentId);
+    }
+  }
+
+  return cleared;
+}
+
 function isAutoSpeechAcceptDecision(decision) {
   if (!decision || decision.action !== "accept") {
     return false;
@@ -413,6 +438,7 @@ export function applyAmbientShowcaseMusicDucking(recipe) {
  */
 export function enrichIntentionalAmbient(recipe, { wordIndexes = null } = {}) {
   const markedSegments = markPreserveAmbientSegments(recipe, { wordIndexes });
+  clearFalsePreserveAmbientFlags(recipe, { wordIndexes });
   const decisionsChanged = applyAmbientEnhancementRejects(recipe);
   const silenceBeatsDisabled = softDisableSilenceBeatOnPreserveAmbient(recipe);
   const duckingUpdated = applyAmbientShowcaseMusicDucking(recipe);

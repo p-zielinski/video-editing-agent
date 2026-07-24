@@ -8,9 +8,13 @@ export const DURATION_DRIFT_WARN_SEC = 1.0;
 /**
  * @param {object} segment
  * @param {object} context
- * @returns {"original"|"enhanced"|null}
+ * @returns {"original"|"enhanced"|"speech_ambient_duck"|null}
  */
 export function classifySegmentAudioSource(segment, context) {
+  if (segment?.audioSourceDuck?.mode === "speech_ambient_duck"
+    || segment?.audioSource === "speech_ambient_duck") {
+    return "speech_ambient_duck";
+  }
   const audioPath = segment?.audioSourcePath ?? null;
   if (!audioPath) {
     return null;

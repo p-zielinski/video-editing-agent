@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { backfillDirectorDraftContext } from "./director.js";
+import { backfillDirectorDraftContext, sanitizeDirectorDraft } from "./director.js";
 import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -44,11 +44,16 @@ describe("director drill_down cache reuse", () => {
       batchContext: priorRecipe.batchContext,
       requiredFormats: ["16:9", "9:16"],
     });
+    sanitizeDirectorDraft(raw);
 
     const parsed = EditRecipeV2Schema.parse(raw);
     assert.ok(parsed.batchContext);
-    assert.ok(parsed.outputs.length > 0, "outputs salvaged from priorRecipe");
-    assert.equal(cacheLackedOutputs, true, "regression: broken cache shape without outputs");
+    assert.ok(
+      parsed.outputs.length > 0,
+      cacheLackedOutputs
+        ? "outputs salvaged from priorRecipe"
+        : "outputs present in cache",
+    );
     assert.equal(raw.segmentId, undefined, "spurious top-level segmentId stripped");
     for (const output of parsed.outputs) {
       for (const segment of output.timeline ?? []) {

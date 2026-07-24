@@ -7,6 +7,7 @@ import {
   applyAmbientShowcaseMusicDucking,
   collectSegmentTranscript,
   detectsIntentionalAmbientCue,
+  clearFalsePreserveAmbientFlags,
   enrichIntentionalAmbient,
   markPreserveAmbientSegments,
   mergeAmbientShowcaseDucking,
@@ -122,6 +123,80 @@ describe("intentional-ambient", () => {
     assert.deepEqual(marked, ["seg_cue", "seg_birds"]);
     assert.equal(recipe.outputs[0].timeline[0].preserveAmbientAudio, true);
     assert.equal(recipe.outputs[0].timeline[1].preserveAmbientAudio, true);
+  });
+
+  it("clearFalsePreserveAmbientFlags clears director preserve without cue", () => {
+    const recipe = makeRecipe([
+      makeArollSeg({ segmentId: "seg_dir", preserveAmbientAudio: true }),
+    ]);
+    const wordIndexes = [{
+      clipId: "clip01",
+      words: [
+        { wordId: "w1", start: 0.5, end: 1.2, text: "hello" },
+        { wordId: "w2", start: 1.3, end: 2.0, text: "world" },
+      ],
+    }];
+
+    const cleared = clearFalsePreserveAmbientFlags(recipe, { wordIndexes });
+    assert.deepEqual(cleared, ["seg_dir"]);
+    assert.equal(recipe.outputs[0].timeline[0].preserveAmbientAudio, undefined);
+  });
+
+  it("clearFalsePreserveAmbientFlags keeps preserve when cue detected", () => {
+    const recipe = makeRecipe([
+      makeArollSeg({ segmentId: "seg_cue", preserveAmbientAudio: true }),
+    ]);
+    const wordIndexes = [{
+      clipId: "clip01",
+      words: [
+        { wordId: "w1", start: 0.5, end: 1.2, text: "posłuchajcie" },
+        { wordId: "w2", start: 1.3, end: 2.0, text: "ptaki" },
+      ],
+    }];
+
+    const cleared = clearFalsePreserveAmbientFlags(recipe, { wordIndexes });
+    assert.deepEqual(cleared, []);
+    assert.equal(recipe.outputs[0].timeline[0].preserveAmbientAudio, true);
+  });
+
+  it("mark then clear keeps cue-marked segment and clears director false positive", () => {
+    const recipe = makeRecipe([
+      makeArollSeg({
+        segmentId: "seg_cue",
+        audioIn: 0,
+        audioOut: 5,
+      }),
+      makeArollSeg({
+        segmentId: "seg_dir_false",
+        clipId: "clip02",
+        preserveAmbientAudio: true,
+        outputStart: 5,
+        outputEnd: 15,
+        audioIn: 0,
+        audioOut: 10,
+      }),
+    ]);
+    const wordIndexes = [
+      {
+        clipId: "clip01",
+        words: [
+          { wordId: "w1", start: 0.5, end: 1.2, text: "posłuchajcie" },
+          { wordId: "w2", start: 1.3, end: 2.0, text: "ptaków" },
+        ],
+      },
+      {
+        clipId: "clip02",
+        words: [
+          { wordId: "w3", start: 0.5, end: 1.0, text: "normal" },
+          { wordId: "w4", start: 1.5, end: 2.0, text: "speech" },
+        ],
+      },
+    ];
+
+    markPreserveAmbientSegments(recipe, { wordIndexes });
+    clearFalsePreserveAmbientFlags(recipe, { wordIndexes });
+    assert.equal(recipe.outputs[0].timeline[0].preserveAmbientAudio, true);
+    assert.equal(recipe.outputs[0].timeline[1].preserveAmbientAudio, undefined);
   });
 
   it("applyAmbientEnhancementRejects adds reject and flips auto-accept", () => {

@@ -248,4 +248,34 @@ describe("recipe-consistency", () => {
     assert.ok(result.fixes.some((fix) => fix.code === "CONS-LAY-02"));
     assert.equal(result.issues.filter((issue) => issue.code === "CONS-LAY-02").length, 0);
   });
+
+  it("detects CONS-TL-05 when videoOutSec exceeds clipRegistry duration", () => {
+    const recipe = minimalRecipe({
+      timeline: [baseSegment({
+        videoOutSec: 15,
+      })],
+      clipRegistry: [{
+        clipId: "clip01",
+        durationSec: 10,
+      }],
+    });
+
+    const issues = validateRecipeConsistency(recipe);
+    assert.ok(issues.some((issue) => issue.code === "CONS-TL-05"));
+  });
+
+  it("allows videoOutSec within clip duration tolerance", () => {
+    const recipe = minimalRecipe({
+      timeline: [baseSegment({
+        videoOutSec: 10.04,
+      })],
+      clipRegistry: [{
+        clipId: "clip01",
+        durationSec: 10,
+      }],
+    });
+
+    const issues = validateRecipeConsistency(recipe);
+    assert.equal(issues.filter((issue) => issue.code === "CONS-TL-05").length, 0);
+  });
 });

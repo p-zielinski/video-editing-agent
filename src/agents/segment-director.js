@@ -122,13 +122,14 @@ export function buildSegmentDirectorBrief(context, {
   );
   const segmentPick = superPlan.segmentPicks?.find((pick) => pick.segmentId === segmentId);
   const canonicalFirstSegmentId = superPlan.canonicalSegmentOrder?.[0];
+  const effectiveUserContext = userContext || timelineIndex.userContext || "";
   const notes = [
     ...superNotes,
     ...(superPlan.crossSegmentNotes ?? []),
   ].filter(Boolean);
 
   const segmentUserContext = [
-    userContext,
+    effectiveUserContext,
     `segment:${segmentId}`,
     notes.length ? `super_notes:${notes.join(" | ")}` : "",
     segmentPick?.targetKeepRatio != null

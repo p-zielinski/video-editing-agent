@@ -5,6 +5,7 @@ import {
   resolveTrackFilePath,
 } from "../editorial/music-library.js";
 import { ARTIFACTS } from "../pipeline/work-paths.js";
+import { loadAudioEnhancementIndex } from "../pipeline/steps/audio-enhancement.js";
 
 const SCENE_CATALOG_FILE = "00-scene-catalog.json";
 const SPATIAL_INDEX_FILE = "05c-spatial-index.json";
@@ -97,14 +98,6 @@ function loadAudioIndex(workDir) {
     return null;
   }
   return JSON.parse(fs.readFileSync(audioIndexPath, "utf8"));
-}
-
-function loadAudioEnhancementIndex(workDir) {
-  const indexPath = path.join(workDir, ARTIFACTS.audioEnhancementIndex);
-  if (!fs.existsSync(indexPath)) {
-    return null;
-  }
-  return JSON.parse(fs.readFileSync(indexPath, "utf8"));
 }
 
 /**

@@ -34,7 +34,7 @@ describe("buildOutputTimeline", () => {
     assert.equal(enriched[1].outputEndSec, 25);
   });
 
-  it("extends previous segment audio on J-cut with overlapSec", () => {
+  it("does not extend previous segment outputEndSec on J-cut overlap", () => {
     const output = {
       timeline: [
         {
@@ -58,7 +58,7 @@ describe("buildOutputTimeline", () => {
     };
 
     const enriched = buildOutputTimeline(output);
-    assert.equal(enriched[0].outputEndSec, 12);
+    assert.equal(enriched[0].outputEndSec, 10);
     assert.equal(enriched[1].outputStartSec, 10);
   });
 

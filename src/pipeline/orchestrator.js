@@ -79,6 +79,60 @@ function ensureManifestBatchContext(workDir, batchContext) {
   writeJson(manifestPath, manifest);
 }
 
+/**
+ * Restore userContext / batchContext from manifest when resuming past ingest
+ * with empty CLI context.
+ */
+export function hydrateContextFromManifest(workDir, context, {
+  fromStep,
+  aiVideo = false,
+  aiVideoStub = false,
+  noAiVideo = false,
+} = {}) {
+  const manifestPath = path.join(workDir, ARTIFACTS.manifest);
+  if (!fs.existsSync(manifestPath)) {
+    return context;
+  }
+
+  const manifest = readJson(manifestPath);
+  const resumingPastIngest = fromStep && stepIndex(fromStep) > stepIndex("ingest");
+  const cliContextEmpty = !String(context.userContext ?? "").trim();
+
+  if (cliContextEmpty && manifest.userContext) {
+    context.userContext = manifest.userContext;
+  }
+
+  if ((resumingPastIngest || cliContextEmpty) && manifest.batchContext) {
+    let clipCount = manifest.clipCount ?? 0;
+    const catalogPath = path.join(workDir, ARTIFACTS.sceneCatalog);
+    if (fs.existsSync(catalogPath)) {
+      clipCount = readJson(catalogPath).clips?.length ?? clipCount;
+    }
+
+    const resolved = resolveBatchContext(
+      context.userContext,
+      clipCount,
+      context.requiredFormats,
+      { contextExplicit: context.requiredFormatsExplicit },
+    );
+
+    context.batchContext = applyAiVideoCliOverrides(
+      {
+        ...resolved,
+        ...manifest.batchContext,
+        requiredFormats: context.requiredFormatsExplicit
+          ? context.requiredFormats
+          : (manifest.batchContext.requiredFormats ?? resolved.requiredFormats),
+        inputMode: manifest.batchContext.inputMode ?? resolved.inputMode,
+        notes: manifest.batchContext.notes ?? resolved.notes,
+      },
+      { aiVideo, aiVideoStub, noAiVideo },
+    );
+  }
+
+  return context;
+}
+
 export function applyAiVideoCliOverrides(
   batchContext,
   { aiVideo = false, aiVideoStub = false, noAiVideo = false } = {},
@@ -251,6 +305,12 @@ export async function runPipeline(options) {
     gptUsageTracker,
     dailyQuotaTracker,
   };
+  hydrateContextFromManifest(workDir, context, {
+    fromStep,
+    aiVideo,
+    aiVideoStub,
+    noAiVideo,
+  });
   let reviewResult = null;
   const ledger = createPipelineLedger(workDir, batchId);
   let currentStep = null;
@@ -324,6 +384,20 @@ export async function runPipeline(options) {
         recordManifestArtifactMtimes(workDir, [ARTIFACTS.manifest, ARTIFACTS.sceneCatalog]);
         });
       }
+    }
+
+    if (shouldRunStep("audio_enhancement", fromStep, toStep)) {
+      currentStep = "audio_enhancement";
+      await runTrackedStep(ledger, "audio_enhancement", async () => {
+        log.step("audio_enhancement", stepIndex("audio_enhancement") + 1, TOTAL_STEPS);
+        await runAudioEnhancementStep({ workDir, force });
+        log.stepDone();
+        const enhancementArtifacts = [ARTIFACTS.audioEnhancementIndex];
+        if (fs.existsSync(path.join(workDir, ARTIFACTS.recipeDraft))) {
+          enhancementArtifacts.push(ARTIFACTS.recipeDraft);
+        }
+        recordManifestArtifactMtimes(workDir, enhancementArtifacts);
+      });
     }
 
     if (shouldUseAnalysisPhase(fromStep, toStep, { twelvelabsEnabled })) {
@@ -525,7 +599,7 @@ export async function runPipeline(options) {
       });
     }
 
-    if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("audio_enhancement", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
+    if (shouldRunStep("direct", fromStep, toStep) || shouldRunStep("review", fromStep, toStep)) {
       const effectiveFormats = applyEffectiveRequiredFormats(context, {
         requiredFormatsExplicit,
         userContext,
@@ -548,16 +622,6 @@ export async function runPipeline(options) {
       if (usagePath) {
         recordManifestArtifactMtimes(workDir, [ARTIFACTS.gptUsage]);
       }
-      });
-    }
-
-    if (shouldRunStep("audio_enhancement", fromStep, toStep)) {
-      currentStep = "audio_enhancement";
-      await runTrackedStep(ledger, "audio_enhancement", async () => {
-      log.step("audio_enhancement", stepIndex("audio_enhancement") + 1, TOTAL_STEPS);
-      await runAudioEnhancementStep({ workDir, force });
-      log.stepDone();
-      recordManifestArtifactMtimes(workDir, [ARTIFACTS.audioEnhancementIndex, ARTIFACTS.recipeDraft]);
       });
     }
 

@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   applyAiVideoCliOverrides,
   applyEffectiveRequiredFormats,
+  hydrateContextFromManifest,
   runPipeline,
 } from "./orchestrator.js";
 import { ensureSpatialIndex } from "./steps/agents.js";
@@ -125,6 +126,49 @@ describe("orchestrator", () => {
       assert.notEqual(rebuilt.scenes[0]?.sceneId, "stale_scene");
       assert.ok(rebuilt.scenes.length >= 1);
       assert.ok(rebuilt.builtFrom);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("hydrateContextFromManifest restores userContext and batchContext when resuming past ingest", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-orch-hydrate-"));
+    try {
+      writeJson(path.join(dir, ARTIFACTS.manifest), {
+        batchId: "hydrate01",
+        userContext: "Make a travel vlog highlight reel",
+        batchContext: {
+          inputMode: "multi_clip_day",
+          theme: "travel",
+          notes: "Focus on food moments",
+          requiredFormats: ["16:9", "9:16"],
+        },
+        clipCount: 3,
+      });
+      writeJson(path.join(dir, ARTIFACTS.sceneCatalog), {
+        batchId: "hydrate01",
+        clips: [
+          { clipId: "clip01" },
+          { clipId: "clip02" },
+          { clipId: "clip03" },
+        ],
+        scenes: [],
+      });
+
+      const context = {
+        workDir: dir,
+        userContext: "",
+        requiredFormats: ["16:9", "9:16"],
+        requiredFormatsExplicit: false,
+        batchContext: { inputMode: "single_clip" },
+      };
+
+      hydrateContextFromManifest(dir, context, { fromStep: "direct" });
+
+      assert.equal(context.userContext, "Make a travel vlog highlight reel");
+      assert.equal(context.batchContext.inputMode, "multi_clip_day");
+      assert.equal(context.batchContext.notes, "Focus on food moments");
+      assert.equal(context.batchContext.theme, "travel");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

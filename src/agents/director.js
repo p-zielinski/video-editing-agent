@@ -68,6 +68,8 @@ import { buildEnhancementCandidatesBrief } from "../lib/audio-quality.js";
 import { buildEngagementRepairCandidates } from "../lib/delivery-analysis.js";
 import { chatJson, loadPrompt, MODELS } from "./openai-client.js";
 import { measureBriefPayload, warnBriefPayloadIfLarge } from "../lib/brief-metrics.js";
+import { DEFAULT_FORMAT_DIMENSIONS } from "../render/render-config.js";
+import { DEFAULT_RENDER_STYLE_PRESETS } from "../render/style-presets.js";
 
 function truncateSummary(text, maxLen = DIRECTOR_BRIEF_CAPS.L1_SUMMARY_MAX_CHARS) {
   const s = text ?? "";
@@ -503,6 +505,35 @@ function buildL1SceneSummaries(abstraction, scenes) {
       isNarrationSource: l1.isNarrationSource ?? false,
     };
   });
+}
+
+const SEGMENT_METADATA_LINE = /^(segment:|theme:|target_keep_ratio:|super_notes:)/;
+
+/**
+ * Resolve user-facing brief context, ignoring segment-director metadata-only lines.
+ */
+export function resolveDirectorBriefUserContext(userContext = "", fallback = "") {
+  const trimmed = String(userContext ?? "").trim();
+  if (!trimmed) {
+    return String(fallback ?? "").trim();
+  }
+  if (trimmed.startsWith("{")) {
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      // free-form notes that happen to start with "{"
+    }
+  }
+  const contentLines = trimmed.split("\n").filter((line) => {
+    const lineTrimmed = line.trim();
+    return lineTrimmed && !SEGMENT_METADATA_LINE.test(lineTrimmed);
+  });
+  if (contentLines.length > 0) {
+    return contentLines.join("\n").trim();
+  }
+  const fallbackTrimmed = String(fallback ?? "").trim();
+  return fallbackTrimmed || trimmed;
 }
 
 /**
@@ -1102,6 +1133,10 @@ export function buildDirectorBrief({
   workDir = null,
   aiVideoArtifact = null,
 }) {
+  const resolvedUserContext = resolveDirectorBriefUserContext(
+    userContext,
+    timelineIndex.userContext,
+  );
   const inputMode = detectInputMode(timelineIndex.clips?.length ?? 1, batchContext);
   const sortedClipRegistry = [...clipRegistry].sort(
     (a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0),
@@ -1129,7 +1164,7 @@ export function buildDirectorBrief({
     shortDurationSec,
   } = buildCreativityContext({
     creativityProfile,
-    userContext,
+    userContext: resolvedUserContext,
     batchContext,
     targetDurationSec,
     timelineIndex,
@@ -1257,7 +1292,7 @@ export function buildDirectorBrief({
     },
     inputMode,
     batchId: timelineIndex.batchId,
-    userContext: userContext || timelineIndex.userContext || "",
+    userContext: resolvedUserContext,
     sessionSummary: abstraction.L3,
     ...(abstraction.L3?.hasSeparateNarration ? { hasSeparateNarration: true } : {}),
     ...(abstraction.L3?.editorialAssessment
@@ -1741,7 +1776,7 @@ export function ensureTimelineAudioPolicies(raw, { priorRecipe } = {}) {
         continue;
       }
       // AI hooks must pull audio from the next A-roll — mute+0 fails schema (audioOutSec > 0).
-      if (segment.segmentRole === "ai_hook" && (!segment.audioPolicy || segment.audioPolicy === "mute")) {
+      if (segment.segmentRole === "ai_hook") {
         segment.audioPolicy = "from_next";
         continue;
       }
@@ -1838,11 +1873,106 @@ export function backfillDirectorDraftContext(raw, {
     raw.batchContext.requiredFormats = requiredFormats;
   }
   // Orchestrator/manifest inputMode always wins — never keep LLM single_clip on multi-clip batches.
-  if (inputMode) {
-    raw.batchContext.inputMode = inputMode;
+  const forcedInputMode = inputMode ?? batchContext.inputMode;
+  if (forcedInputMode) {
+    raw.batchContext.inputMode = forcedInputMode;
+  }
+  if (batchContext.notes != null && String(batchContext.notes).trim()) {
+    raw.batchContext.notes = batchContext.notes;
   }
   ensureTimelineAudioPolicies(raw, { priorRecipe });
   normalizeDirectorTimelineWindows(raw);
+  return raw;
+}
+
+function safeAreaToSafeZone(safeArea, width, height) {
+  const margin = Number(safeArea);
+  if (!Number.isFinite(margin) || margin <= 0) {
+    return undefined;
+  }
+  return {
+    top: Math.round(height * margin),
+    bottom: Math.round(height * margin),
+    left: Math.round(width * margin),
+    right: Math.round(width * margin),
+  };
+}
+
+function sanitizeFormatRenderPreset(formatKey, format) {
+  if (!format || typeof format !== "object" || Array.isArray(format)) {
+    return undefined;
+  }
+  const defaults = DEFAULT_RENDER_STYLE_PRESETS.formats?.[formatKey] ?? {};
+  const dims = DEFAULT_FORMAT_DIMENSIONS[formatKey] ?? DEFAULT_FORMAT_DIMENSIONS["16:9"];
+  const width = Number.isFinite(Number(format.width)) ? Number(format.width) : dims.width;
+  const height = Number.isFinite(Number(format.height)) ? Number(format.height) : dims.height;
+
+  let safeZone = format.safeZone;
+  if (!safeZone && Number.isFinite(Number(format.safeArea))) {
+    safeZone = safeAreaToSafeZone(format.safeArea, width, height);
+  }
+  if (!safeZone && defaults.safeZone) {
+    safeZone = defaults.safeZone;
+  }
+
+  const sanitized = { width, height };
+  if (safeZone) {
+    sanitized.safeZone = safeZone;
+  }
+  return sanitized;
+}
+
+export function sanitizeRenderStylePresets(presets) {
+  if (!presets || typeof presets !== "object" || Array.isArray(presets)) {
+    return presets;
+  }
+  const { formats } = presets;
+  if (!formats || typeof formats !== "object" || Array.isArray(formats)) {
+    return presets;
+  }
+  for (const formatKey of ["16:9", "9:16"]) {
+    if (!(formatKey in formats)) {
+      continue;
+    }
+    const sanitized = sanitizeFormatRenderPreset(formatKey, formats[formatKey]);
+    if (sanitized) {
+      formats[formatKey] = sanitized;
+    } else {
+      delete formats[formatKey];
+    }
+  }
+  if (Object.keys(formats).length === 0) {
+    delete presets.formats;
+  }
+  return presets;
+}
+
+/**
+ * LLM often emits a disabled stub (`enabled:false`, `text:""`, `endAtOutputSec:0`).
+ * Empty strings / non-positive ends fail Zod; enricher already treats `enabled:false` as absent.
+ */
+export function sanitizeShortsOutroBracket(raw) {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const bracket = raw.shortsOutroBracket;
+  if (bracket == null) {
+    return raw;
+  }
+  if (typeof bracket !== "object" || Array.isArray(bracket)) {
+    delete raw.shortsOutroBracket;
+    return raw;
+  }
+  if (bracket.enabled === false) {
+    delete raw.shortsOutroBracket;
+    return raw;
+  }
+  if (typeof bracket.text === "string" && bracket.text.trim() === "") {
+    delete bracket.text;
+  }
+  if (!(Number.isFinite(bracket.endAtOutputSec) && bracket.endAtOutputSec > 0)) {
+    delete bracket.endAtOutputSec;
+  }
   return raw;
 }
 
@@ -1864,6 +1994,10 @@ export function sanitizeDirectorDraft(raw, { clipRegistry } = {}) {
   if (vo && !(Number.isFinite(vo.estimatedDurationSec) && vo.estimatedDurationSec > 0)) {
     delete vo.estimatedDurationSec;
   }
+  if (raw.renderStylePresets) {
+    sanitizeRenderStylePresets(raw.renderStylePresets);
+  }
+  sanitizeShortsOutroBracket(raw);
   ensureTimelineAudioPolicies(raw);
   normalizeDirectorTimelineWindows(raw);
   return raw;
@@ -2086,6 +2220,10 @@ export function buildDrillDownUserPayload({
   keyframesByClip = null,
   aiVideoArtifact = null,
 }) {
+  const resolvedUserContext = resolveDirectorBriefUserContext(
+    userContext,
+    timelineIndex.userContext,
+  );
   const cappedSceneIds = prioritizeDrillDownSceneIds(recipe, sceneIds, abstraction, timelineIndex);
   const drillDown = drillDownSceneDetails(timelineIndex, cappedSceneIds);
   const sceneSummariesL1 = filterL1ForScenes(abstraction, cappedSceneIds);
@@ -2110,7 +2248,7 @@ export function buildDrillDownUserPayload({
     shortDurationSec,
   } = buildCreativityContext({
     creativityProfile: recipe.creativityProfile,
-    userContext,
+    userContext: resolvedUserContext,
     batchContext,
     targetDurationSec,
     timelineIndex,
@@ -2214,7 +2352,7 @@ export function buildDrillDownUserPayload({
     ...(buildAiHookBrief(aiVideoArtifact)
       ? { aiHook: buildAiHookBrief(aiVideoArtifact) }
       : {}),
-    userContext: userContext || timelineIndex.userContext || "",
+    userContext: resolvedUserContext,
     requiredFormats,
     inputMode,
     constraints: {

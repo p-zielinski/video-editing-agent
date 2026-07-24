@@ -46,6 +46,65 @@ function escapeDrawtext(text) {
     .replace(/'/g, "\\'");
 }
 
+/** Approximate glyph width for drawtext layout (bold sans). */
+const AVG_CHAR_WIDTH_RATIO = 0.58;
+
+function estimateLineWidth(text, fontSize) {
+  return text.length * fontSize * AVG_CHAR_WIDTH_RATIO;
+}
+
+function maxOverlayTextWidth(dimensions, safeMarginPct = 0.1) {
+  const frameWidth = dimensions?.width ?? 1920;
+  return frameWidth * (1 - 2 * safeMarginPct);
+}
+
+function wrapOverlayText(text, fontSize, maxWidth) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return [""];
+  }
+
+  const lines = [];
+  let current = words[0];
+
+  for (let i = 1; i < words.length; i += 1) {
+    const candidate = `${current} ${words[i]}`;
+    if (estimateLineWidth(candidate, fontSize) <= maxWidth) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = words[i];
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
+/**
+ * Wrap and/or shrink overlay text so estimated width fits inside safe margins.
+ * Short text that already fits is returned unchanged.
+ */
+export function fitOverlayText(displayText, fontSize, dimensions, safeMarginPct = 0.1) {
+  const maxWidth = maxOverlayTextWidth(dimensions, safeMarginPct);
+
+  if (estimateLineWidth(displayText, fontSize) <= maxWidth) {
+    return { text: displayText, fontSize };
+  }
+
+  let fittedSize = fontSize;
+  let lines = wrapOverlayText(displayText, fittedSize, maxWidth);
+  const widestAt = (size) => Math.max(...lines.map((line) => estimateLineWidth(line, size)));
+
+  while (fittedSize > 12 && widestAt(fittedSize) > maxWidth) {
+    const nextSize = Math.max(12, Math.floor(fittedSize * 0.92));
+    fittedSize = nextSize === fittedSize ? fittedSize - 1 : nextSize;
+    lines = wrapOverlayText(displayText, fittedSize, maxWidth);
+  }
+
+  const text = lines.length === 1 ? lines[0] : lines.join("\\n");
+  return { text, fontSize: fittedSize };
+}
+
 function roundSec(n) {
   return Math.round(n * 1000) / 1000;
 }
@@ -170,13 +229,20 @@ export function buildDrawtextFilters(overlays, { dimensions, stylePresets, forma
       overlayPosition(overlay.position ?? style.position, dimensions),
       safeZone,
     );
-    const fontSize = style.fontSizePx ?? 48;
+    const baseFontSize = style.fontSizePx ?? 48;
     const fontColor = (style.color ?? "#FFFFFF").replace("#", "0x");
     let displayText = sanitizeTextForSafety(overlay.text ?? "");
     if (style.textTransform === "uppercase") {
       displayText = displayText.toUpperCase();
     }
-    const text = escapeDrawtext(displayText);
+    const fitted = fitOverlayText(
+      displayText,
+      baseFontSize,
+      dimensions,
+      style.safeMarginPct,
+    );
+    const fontSize = fitted.fontSize;
+    const text = escapeDrawtext(fitted.text);
     const enable = `between(t,${overlay.outputStartSec},${overlay.outputEndSec})`;
     const animation = resolveOverlayAnimation(overlay, style);
 

@@ -34,8 +34,8 @@ inbox/*.MOV
 Orchestrator (`src/pipeline/orchestrator.js`) wykonuje kroki w kolejności z `PIPELINE_STEPS` (`src/pipeline/work-paths.js`):
 
 ```
-ingest → transcribe → meta_commands → audio_analysis → keyframes → twelvelabs → vision → objects
-  → index → clip_profile → abstract → topic_index → spatial_index → ai_video → direct → audio_enhancement → review
+ingest → audio_enhancement → transcribe → meta_commands → audio_analysis → keyframes → twelvelabs → vision → objects
+  → index → clip_profile → abstract → topic_index → spatial_index → ai_video → direct → review
   → thumbnails → publish
 ```
 
@@ -177,27 +177,28 @@ flowchart TD
 | # | Krok | Wejścia | Wyjścia | Technologia / rola |
 |---|------|---------|---------|-------------------|
 | 1 | `ingest` | folder `--input` | `00-manifest.json`, `00-scene-catalog.json` | FFmpeg + detekcja scen (Python); hash SHA-256 per klip |
-| 2 | `transcribe` | scene catalog, manifest (`expectedTerms`, `profanityPolicy`) | `01-words-<clipId>.json` | OpenAI Whisper; loudnorm -18 LUFS; filler + profanity tagging |
-| 3 | `meta_commands` | words, scene catalog | `01c-meta-commands-<clipId>.json` | reguły PL: overlay, boomerang, reverse |
-| 4 | `audio_analysis` | catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json` | librosa (beaty, energia, cisza, **audioQuality**) lub fallback `ffmpeg_astats`; PANNs dla wiatru |
-| 5 | `keyframes` | catalog, words | `02-keyframes-<clipId>.json` | hybrydowy sampling + FFmpeg |
-| 6 | `twelvelabs` | catalog, manifest | `03b-twelvelabs-<clipId>.json` | Routing: short GPT / live upload / chunked (patrz niżej) |
-| 7 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (mlx-vlm) |
-| 8 | `objects` | keyframes | `04-objects-<clipId>.json` | Florence-2 |
-| 9 | `index` | catalog, words, keyframes, vision, objects | `05-timeline-index.json` | agregacja czasowa batcha; wzbogaca scene catalog (`hasSpeech`, `wordRange`) |
-| 10 | `clip_profile` | timeline, catalog | `05a-clip-registry.json` | role klipów (A-roll, B-roll pool, outtakes, narration) |
-| 11 | `abstract` | timeline | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | GPT summarizer — hierarchia L1 → L2 → L3 |
-| 12 | `topic_index` | abstraction, timeline, clip registry, twelvelabs | `05b-topic-index.json` | embeddingi OpenAI + keyword — dopasowanie tematów mowy do scen B-roll |
-| 13 | `spatial_index` | timeline, objects | `05c-spatial-index.json`, `04a-faces-<clipId>.json` | face detect (OpenCV) + kotwice przestrzenne |
-| 14 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json`, `03b-twelvelabs-ai_hook_01.json` | Kling API (`kling-v3`) + analiza wygenerowanego hooka (opcjonalnie; jawny stub: lavfi) |
-| 15 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne); `editorialAssessment`, `salvagePlan`, `audioEnhancementDecisions` |
-| 16 | `audio_enhancement` | recipe draft, scene catalog | `07a-audio-enhancement-<clipId>.json`, `07b-audio-enhancement-index.json`, `enhanced-audio/<clipId>.wav`, `17-recovery-plan.json` (przy failu) | denoise (DeepFilterNet lub jawny ffmpeg/stub) + LUFS + `sourceVolumeDb` |
+| 2 | `audio_enhancement` | scene catalog | `07a-audio-enhancement-<clipId>.json`, `07b-audio-enhancement-index.json`, `enhanced-audio/<clipId>.wav` | denoise **wszystkich** klipów @ 48 kHz przed Whisper; z recepturą — reuse; accept dostarcza metadane polish/LUFS |
+| 3 | `transcribe` | scene catalog, enhanced audio (opcjonalnie), manifest | `01-words-<clipId>.json` | OpenAI Whisper; preferuje `enhanced-audio/`; loudnorm -18 LUFS; filler + profanity |
+| 4 | `meta_commands` | words, scene catalog | `01c-meta-commands-<clipId>.json` | reguły PL: overlay, boomerang, reverse |
+| 5 | `audio_analysis` | catalog, words | `01b-audio-analysis-<clipId>.json`, `05d-audio-index.json` | librosa (beaty, energia, cisza, **audioQuality**) lub fallback `ffmpeg_astats`; PANNs dla wiatru |
+| 6 | `keyframes` | catalog, words | `02-keyframes-<clipId>.json` | hybrydowy sampling + FFmpeg |
+| 7 | `twelvelabs` | catalog, manifest | `03b-twelvelabs-<clipId>.json` | Routing: short GPT / live upload / chunked (patrz niżej) |
+| 8 | `vision` | keyframes | `03-vision-<clipId>.json` | Qwen2.5-VL (mlx-vlm) |
+| 9 | `objects` | keyframes | `04-objects-<clipId>.json` | Florence-2 |
+| 10 | `index` | catalog, words, keyframes, vision, objects | `05-timeline-index.json` | agregacja czasowa batcha; wzbogaca scene catalog (`hasSpeech`, `wordRange`) |
+| 11 | `clip_profile` | timeline, catalog | `05a-clip-registry.json` | role klipów (A-roll, B-roll pool, outtakes, narration) |
+| 12 | `abstract` | timeline | `06-abstract.json`, `06-abstract-L1/L2/L3.json` | GPT summarizer — hierarchia L1 → L2 → L3 |
+| 13 | `topic_index` | abstraction, timeline, clip registry, twelvelabs | `05b-topic-index.json` | embeddingi OpenAI + keyword — dopasowanie tematów mowy do scen B-roll |
+| 14 | `spatial_index` | timeline, objects | `05c-spatial-index.json`, `04a-faces-<clipId>.json` | face detect (OpenCV) + kotwice przestrzenne |
+| 15 | `ai_video` | abstraction, timeline, clip registry (`aiVideoEnabled`) | `05e-ai-video.json`, `03b-twelvelabs-ai_hook_01.json` | Kling API (`kling-v3`) + analiza wygenerowanego hooka (opcjonalnie; jawny stub: lavfi) |
+| 16 | `direct` | indeksy + abstraction + meta_commands + ai_video | `05f-music-selection.json`, `07-edit-recipe-draft.json`, `14-recipe-provenance.json` (częściowo) | **music curator** (nano) → GPT director (+ enrichery deterministyczne); `editorialAssessment`, `salvagePlan`, `audioEnhancementDecisions` |
 | 17 | `review` | draft + enhancement index + indeksy | `08-review.json`, `09-edit-recipe-final.json` | critic/fixer loop (GPT + walidatory Zod) |
 | 18 | `thumbnails` | final recipe, indeksy | `11-thumbnail-plan.json`, `12-thumbnail-review.json`, `thumbnails/<outputId>/*.png` | GPT strategist + critic; render PNG (Sharp) |
 | 19 | `publish` | final recipe, thumbnail plan, indeksy | `15-publish-package-<outputId>.json` | metadane publikacji (tytuł, opis, tagi, rozdziały) |
 
 ### Dlaczego ta kolejność
 
+- **Audio_enhancement przed transcribe** — denoise wszystkich klipów @ 48 kHz; Whisper (i word timings) korzysta z `enhanced-audio/` gdy udany (WAV wyrównany do długości źródła).
 - **Transkrypcja przed meta_commands i audio/keyframes** — słowa z Whispera kierują meta-komendy, sampling klatek i analizę ciszy.
 - **Meta_commands przed direct** — enricher `voiceDirectives` potrzebuje artefaktów `01c-*` przed recepturą.
 - **Keyframes przed vision/objects/face** — modele wizyjne pracują na reprezentatywnych klatkach, nie na całym wideo.
@@ -206,8 +207,7 @@ flowchart TD
 - **Spatial_index przed direct** — director i `creativeMoments` potrzebują kotwic (twarz, subject, bbox) do zoomów i reframe 9:16.
 - **Ai_video przed direct** — Director widzi rzeczywisty hook i analizę TwelveLabs; enricher wstawia go tylko gdy Director go nie użył.
 - **Music curator przed direct** — nano wybiera `trackId` z shortlisty katalogu (`05f-music-selection.json`); reżyser dostaje `musicSelection` + `musicBeatGrid`, nie cały katalog.
-- **Direct przed audio_enhancement** — Director decyduje `accept|reject` per klip (`audioEnhancementDecisions`); enhancement wykonuje się tylko dla `accept`.
-- **Audio_enhancement przed review** — critic/fixer widzi manifesty i zaktualizowany draft z `sourceVolumeDb`.
+- **Direct po enhancement** — Director emituje `audioEnhancementDecisions` (accept/reject **do renderu**); denoise wszystkich klipów już zrobił krok po ingest; przy istniejących artefaktach enhancement jest no-op / reuse.
 - **Direct przed review** — GPT planuje montaż; deterministyczne walidatory i critic łapią błędy strukturalne.
 - **Thumbnails po review** — plan miniatur z finalnej receptury; publish konsumuje plan + review.
 
@@ -535,12 +535,12 @@ Gdy Director uzna, że materiał wymaga voice-over, ale użytkownik nie dostarcz
 
 ### Poprawa jakości audio (`audio_enhancement`)
 
-Po `direct`, gdy `audioEnhancementDecisions[].action === "accept"`:
+Po `ingest` (przed Whisper) — **enhance-all**: denoise każdego klipu z scene catalog @ 48 kHz. Gdy receptura już istnieje (legacy / resume), reuse istniejących WAV; decyzje `accept` dostarczają metadane (polish/LUFS), `reject` nie blokuje materializacji (tylko render).
 
 1. Denoise (domyślnie **DPDFNet** — fail hard bez cichego fallbacku; jawny `AUDIO_ENHANCEMENT_PROVIDER=ffmpeg`, `deepfilternet` lub stub `AUDIO_ENHANCEMENT_STUB=1`)
 2. Pomiar LUFS przed/po i normalizacja do `targetDialogueLufs` (domyślnie -18)
-3. Ustawienie `sourceVolumeDb` na segmentach używających klipu
-4. Render używa `enhanced-audio/<clipId>.wav` jako `audioSourcePath` (wideo z oryginału)
+3. Pad/trim WAV do długości źródła (word timings Whisper pozostają na timeline źródła)
+4. Whisper preferuje `enhanced-audio/<clipId>.wav`; render używa enhanced tylko przy `audioEnhancementDecisions` accept
 
 Przy failu providera pipeline zapisuje `17-recovery-plan.json` z komendą `node src/cli.js run --batch-id <id> --from-step audio_enhancement`. Sprawdź też `node src/cli.js recover --batch-id <id>` i `doctor`.
 

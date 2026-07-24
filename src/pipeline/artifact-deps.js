@@ -34,7 +34,16 @@ const OBJECTS_PREFIX = "04-objects-";
 export const ARTIFACT_DEPENDENCY_GRAPH = {
   [ARTIFACTS.manifest]: [],
   [ARTIFACTS.sceneCatalog]: [ARTIFACTS.manifest],
-  [CLIP_ARTIFACT_PATTERNS.words]: [ARTIFACTS.sceneCatalog],
+  [ARTIFACTS.audioEnhancementIndex]: [
+    ARTIFACTS.sceneCatalog,
+  ],
+  "07a-audio-enhancement-*": [
+    ARTIFACTS.sceneCatalog,
+  ],
+  [CLIP_ARTIFACT_PATTERNS.words]: [
+    ARTIFACTS.sceneCatalog,
+    ARTIFACTS.audioEnhancementIndex,
+  ],
   [CLIP_ARTIFACT_PATTERNS.metaCommands]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
   [CLIP_ARTIFACT_PATTERNS.audioAnalysis]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
   [CLIP_ARTIFACT_PATTERNS.keyframes]: [ARTIFACTS.sceneCatalog, CLIP_ARTIFACT_PATTERNS.words],
@@ -94,16 +103,6 @@ export const ARTIFACT_DEPENDENCY_GRAPH = {
     ARTIFACTS.audioIndex,
     ARTIFACTS.aiVideo,
     CLIP_ARTIFACT_PATTERNS.metaCommands,
-  ],
-  [ARTIFACTS.audioEnhancementIndex]: [
-    ARTIFACTS.recipeDraft,
-    ARTIFACTS.sceneCatalog,
-    CLIP_ARTIFACT_PATTERNS.audioAnalysis,
-  ],
-  "07a-audio-enhancement-*": [
-    ARTIFACTS.recipeDraft,
-    ARTIFACTS.sceneCatalog,
-    CLIP_ARTIFACT_PATTERNS.audioAnalysis,
   ],
   [ARTIFACTS.review]: [
     ARTIFACTS.recipeDraft,

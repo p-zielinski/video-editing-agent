@@ -8,7 +8,7 @@ const spatialIndex = {
     clipId: "clip01",
     anchors: [{
       type: "face",
-      bbox: [0.4, 0.2, 0.5, 0.4],
+      bbox: [0.4, 0.2, 0.25, 0.35],
     }],
   }],
 };
@@ -254,6 +254,55 @@ describe("ffmpeg-reframe", () => {
 
     assert.ok(filter);
     assert.ok(!filter.filter.match(/scale=1920:1080(?!:)/));
+  });
+
+  it("pillarboxes 9:16 subject reframe when union bbox is too wide for crop", () => {
+    const wideSubjectIndex = {
+      scenes: [{
+        sceneId: "clip17_scene001",
+        clipId: "clip17",
+        anchors: [
+          { type: "face", bbox: [0.05, 0.2, 0.35, 0.4] },
+          { type: "subject", label: "dog", bbox: [0.4, 0.25, 0.35, 0.35] },
+        ],
+      }],
+    };
+
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip01", sceneId: "clip17_scene001" },
+        videoTransform: { reframe: "subject" },
+      },
+      format: "9:16",
+      dimensions: { width: 1080, height: 1920 },
+      spatialIndex: wideSubjectIndex,
+      context,
+    });
+
+    assert.equal(filter.type, "vf");
+    assert.ok(filter.filter.includes("pad=1080:1920"));
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=decrease"));
+    assert.ok(!filter.filter.includes("crop=iw*"));
+    assert.ok(!filter.filter.includes("crop=1080:1920"));
+  });
+
+  it("crops 9:16 face reframe when single tight face fits in crop window", () => {
+    const filter = buildSegmentVideoFilter({
+      segment: {
+        videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+        videoTransform: { reframe: "face" },
+      },
+      format: "9:16",
+      dimensions: { width: 1080, height: 1920 },
+      spatialIndex,
+      context,
+    });
+
+    assert.equal(filter.type, "vf");
+    assert.match(filter.filter, /crop=iw\*[\d.]+:ih\*[\d.]+:iw\*[\d.]+:ih\*[\d.]+/);
+    assert.ok(filter.filter.includes("force_original_aspect_ratio=increase"));
+    assert.ok(filter.filter.includes("crop=1080:1920"));
+    assert.ok(!filter.filter.includes("pad="));
   });
 
   it("uses iw/ih crop expressions for partial reframe crops", () => {

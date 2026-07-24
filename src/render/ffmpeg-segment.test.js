@@ -10,6 +10,7 @@ import {
   collectBrollDesyncWarning,
   resolveWordIndexForSegment,
 } from "./ffmpeg-segment.js";
+import { buildSpeechAmbientSourcePlan } from "./audio-source-duck.js";
 import { resolveEncodeProfile } from "./render-config.js";
 import { loadFixtureArtifact } from "../test-helpers/fixture-work-dir.js";
 import { buildRenderEdl } from "./build-render-edl.js";
@@ -147,10 +148,49 @@ describe("ffmpeg-segment", () => {
     assert.match(joined, /-filter_complex/);
     assert.match(joined, /atrim=/);
     assert.match(joined, /trim=start=/);
+    assert.match(joined, /split=2/);
     assert.match(joined, /concat/);
     assert.match(joined, /-map \[vout\]/);
     assert.match(joined, /-map \[aout\]/);
     assert.match(joined, /-shortest/);
+  });
+
+  it("buildSegmentFfmpegArgs splits scaled 4K video before dead_air trims", () => {
+    const gapWordIndex = {
+      words: [
+        { wordId: "clip01_w001", word: "hello", start: 0, end: 2 },
+        { wordId: "clip01_w002", word: "world", start: 6, end: 8 },
+      ],
+    };
+    const fourKContext = {
+      clips: {
+        clip01: { sourcePath: "/tmp/video-4k.mp4", resolution: { w: 3840, h: 2160 } },
+      },
+      wordIndexes: { clip01: gapWordIndex },
+    };
+    const segment = {
+      ...baseSegment,
+      videoInSec: 0,
+      videoOutSec: 8,
+      audioInSec: 0,
+      audioOutSec: 8,
+      cuts: [{ startWordId: "clip01_w001", endWordId: "clip01_w002", reason: "dead_air" }],
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      fourKContext,
+      "/tmp/out.mp4",
+      {
+        encodeProfile,
+        dimensions: { width: 1920, height: 1080 },
+      },
+    );
+    const fcIdx = args.indexOf("-filter_complex");
+    assert.ok(fcIdx >= 0);
+    const graph = args[fcIdx + 1];
+    assert.match(graph, /scale=1920:1080/);
+    assert.match(graph, /\[vcutin\]split=2/);
+    assert.equal((graph.match(/\[vcutin\]trim/g) ?? []).length, 0);
   });
 
   it("buildSegmentFfmpegArgs adds stream_loop for loop_video", () => {
@@ -437,10 +477,30 @@ describe("ffmpeg-segment", () => {
     assert.match(graph, /atrim=2\.3:10/);
   });
 
-  it("buildSegmentFfmpegArgs uses -an for from_prev segment (video-only)", () => {
+  it("buildSegmentFfmpegArgs embeds audio for from_prev segment (JL-cut remainder)", () => {
     const segment = {
       ...baseSegment,
       audioPolicy: "from_prev",
+      overlapSec: 0.5,
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.doesNotMatch(joined, /-an/);
+    assert.doesNotMatch(joined, /anullsrc/);
+    assert.equal(args.filter((a) => a === "-i").length, 1);
+    assert.ok(args.indexOf("-c:a") >= 0);
+    assert.ok(args.includes("0:a:0?"));
+  });
+
+  it("buildSegmentFfmpegArgs uses -an for from_next segment (video-only)", () => {
+    const segment = {
+      ...baseSegment,
+      audioPolicy: "from_next",
       overlapSec: 0.5,
     };
     const { args } = buildSegmentFfmpegArgs(
@@ -652,5 +712,93 @@ describe("ffmpeg-segment", () => {
     const joined = args.join(" ");
     assert.match(joined, /-an/);
     assert.doesNotMatch(joined, /-af /);
+  });
+
+  it("buildSegmentFfmpegArgs dual-inputs enhanced+original with source duck graph", () => {
+    const plan = buildSpeechAmbientSourcePlan(
+      {
+        audioInSec: 0,
+        audioOutSec: 10,
+        preserveAmbientAudio: false,
+      },
+      [
+        { text: "hello", start: 1.0, end: 1.5 },
+        { text: "world", start: 1.6, end: 2.0 },
+      ],
+      "/tmp/enhanced.wav",
+      "/tmp/video.mp4",
+    );
+    assert.equal(plan.mode, "speech_ambient_duck");
+
+    const segment = {
+      ...baseSegment,
+      audioSourcePath: "/tmp/enhanced.wav",
+      audioSourceDuck: plan,
+      audioSourceOriginalPath: "/tmp/video.mp4",
+      audioSourceEnhancedPath: "/tmp/enhanced.wav",
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      context,
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const joined = args.join(" ");
+    assert.match(joined, /-i \/tmp\/enhanced\.wav/);
+    assert.match(joined, /-i \/tmp\/video\.mp4/);
+    assert.match(joined, /-filter_complex/);
+    assert.match(joined, /amix=inputs=2:duration=first:normalize=0:dropout_transition=0\.06/);
+    assert.match(joined, /\[enhg\]\[origg\]amix/);
+    assert.match(joined, /-map \[vout\]/);
+    assert.match(joined, /-map \[aout\]/);
+  });
+
+  it("buildSegmentFfmpegArgs source-duck + multi cuts asplits [aduck] before atrim", () => {
+    const plan = buildSpeechAmbientSourcePlan(
+      {
+        audioInSec: 0,
+        audioOutSec: 10,
+        preserveAmbientAudio: false,
+      },
+      [
+        { text: "hello", start: 1.0, end: 1.5 },
+        { text: "world", start: 5.0, end: 5.5 },
+      ],
+      "/tmp/enhanced.wav",
+      "/tmp/video.mp4",
+    );
+    assert.equal(plan.mode, "speech_ambient_duck");
+
+    const cutWords = {
+      words: [
+        { wordId: "w1", word: "a", start: 0, end: 1 },
+        { wordId: "w2", word: "b", start: 1, end: 2, isFiller: true },
+        { wordId: "w3", word: "c", start: 2, end: 3 },
+        { wordId: "w4", word: "d", start: 3, end: 4, isFiller: true },
+        { wordId: "w5", word: "e", start: 4, end: 10 },
+      ],
+    };
+    const segment = {
+      ...baseSegment,
+      audioSourcePath: "/tmp/enhanced.wav",
+      audioSourceDuck: plan,
+      audioSourceOriginalPath: "/tmp/video.mp4",
+      audioSourceEnhancedPath: "/tmp/enhanced.wav",
+      cuts: [
+        { cutId: "c1", type: "filler", startWordId: "w2", endWordId: "w2" },
+        { cutId: "c2", type: "filler", startWordId: "w4", endWordId: "w4" },
+      ],
+    };
+    const { args } = buildSegmentFfmpegArgs(
+      segment,
+      { wordIndexes: { clip01: cutWords } },
+      "/tmp/out.mp4",
+      { encodeProfile },
+    );
+    const fc = args[args.indexOf("-filter_complex") + 1];
+    assert.match(fc, /\[aduck\]asplit=3/);
+    assert.equal((fc.match(/\[aduck\]atrim/g) ?? []).length, 0);
+    assert.match(fc, /\[as0\]atrim=/);
+    assert.match(fc, /amix=inputs=2/);
   });
 });

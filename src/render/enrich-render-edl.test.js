@@ -301,4 +301,76 @@ describe("enrich-render-edl", () => {
       sourcePath,
     );
   });
+
+  it("enrichRenderEdl attaches speech_ambient_duck plan when enhanced + speech words", () => {
+    const sourcePath = "/inbox/01_talk.MOV";
+    const enhancedPath = "/work/enhanced-audio/clip01.wav";
+    const context = {
+      clips: { clip01: { sourcePath } },
+      enhancedAudioPaths: { clip01: enhancedPath },
+      wordIndexes: {
+        clip01: {
+          words: [
+            { text: "hi", start: 1.0, end: 1.4 },
+            { text: "there", start: 1.5, end: 2.0 },
+          ],
+        },
+      },
+      musicBed: null,
+    };
+
+    const edl = enrichRenderEdl({
+      outputId: "out_main",
+      format: "16:9",
+      segments: [{
+        segmentId: "seg_1",
+        audioPolicy: "from_video_ref",
+        videoRef: { clipId: "clip01" },
+        audioRef: { clipId: "clip01" },
+        audioInSec: 0,
+        audioOutSec: 10,
+        videoInSec: 0,
+        videoOutSec: 10,
+      }],
+    }, { recipe: {}, context, output: {}, spatialIndex: null });
+
+    const seg = edl.segments[0];
+    assert.equal(seg.audioSourcePath, enhancedPath);
+    assert.equal(seg.audioSource, "speech_ambient_duck");
+    assert.equal(seg.audioSourceDuck?.mode, "speech_ambient_duck");
+    assert.equal(seg.audioSourceOriginalPath, sourcePath);
+    assert.equal(seg.audioSourceEnhancedPath, enhancedPath);
+    assert.ok(seg.audioSourceDuck.windows.some((w) => w.source === "enhanced"));
+    assert.ok(seg.audioSourceDuck.windows.some((w) => w.source === "original"));
+  });
+
+  it("enrichRenderEdl skips duck plan when preserveAmbientAudio", () => {
+    const context = {
+      clips: { clip01: { sourcePath: "/inbox/01_talk.MOV" } },
+      enhancedAudioPaths: { clip01: "/work/enhanced-audio/clip01.wav" },
+      wordIndexes: {
+        clip01: { words: [{ text: "hi", start: 1.0, end: 1.4 }] },
+      },
+      musicBed: null,
+    };
+
+    const edl = enrichRenderEdl({
+      outputId: "out_main",
+      format: "16:9",
+      segments: [{
+        segmentId: "seg_1",
+        audioPolicy: "from_video_ref",
+        videoRef: { clipId: "clip01" },
+        audioRef: { clipId: "clip01" },
+        audioInSec: 0,
+        audioOutSec: 10,
+        videoInSec: 0,
+        videoOutSec: 10,
+        preserveAmbientAudio: true,
+      }],
+    }, { recipe: {}, context, output: {}, spatialIndex: null });
+
+    assert.equal(edl.segments[0].audioSource, "original");
+    assert.equal(edl.segments[0].audioSourceDuck, undefined);
+  });
 });

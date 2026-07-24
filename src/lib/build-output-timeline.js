@@ -89,18 +89,12 @@ export function buildOutputTimeline(output, options = {}) {
 
   for (let i = 0; i < output.timeline.length; i += 1) {
     const seg = output.timeline[i];
-    const overlap = seg.overlapSec ?? 0;
     const wordIndex = resolveWordIndexForSegment(seg, wordIndexes);
     const duration = resolveSegmentOutputDuration(seg, { wordIndex });
     const hasExplicitOutput = seg.outputStartSec != null && seg.outputEndSec != null;
 
-    let outputStartSec = hasExplicitOutput ? seg.outputStartSec : cursor;
-    let outputEndSec = hasExplicitOutput ? seg.outputEndSec : cursor + duration;
-
-    if (i > 0 && seg.audioPolicy === "from_prev" && overlap > 0) {
-      const prev = enriched[i - 1];
-      prev.outputEndSec = outputStartSec + overlap;
-    }
+    const outputStartSec = hasExplicitOutput ? seg.outputStartSec : cursor;
+    const outputEndSec = hasExplicitOutput ? seg.outputEndSec : cursor + duration;
 
     enriched.push({ ...seg, outputStartSec, outputEndSec });
     cursor = hasExplicitOutput ? outputEndSec : cursor + duration;

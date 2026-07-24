@@ -20,13 +20,12 @@ export function overlapAtBoundary(segments, index) {
 }
 
 /**
- * Segments that borrow neighbor audio render video-only at segment pass.
+ * Segments with an audio stream in the segment MP4 (JL-cut compositor input).
+ * from_next is video-only; from_prev embeds own audio for the non-overlap tail.
  */
 export function segmentHasEmbeddedAudio(segment) {
   const policy = segment.audioPolicy ?? "from_video_ref";
-  return policy !== "from_prev"
-    && policy !== "from_next"
-    && policy !== "mute";
+  return policy !== "from_next" && policy !== "mute";
 }
 
 function segmentVideoDurationSec(segment) {
@@ -74,10 +73,17 @@ export function buildJlVideoInputFilter(segIdx, segments) {
   return `${chain}[${outLabel}]`;
 }
 
+function segmentRenderedTimelineSpanSec(segment) {
+  if (segment.outputStartSec != null && segment.outputEndSec != null) {
+    return Math.max(0.01, segment.outputEndSec - segment.outputStartSec);
+  }
+  return resolveSegmentOutputDuration(segment, { wordIndex: segment.wordIndex ?? null });
+}
+
 function totalOutputDurationSec(segments) {
   let total = 0;
   for (let i = 0; i < segments.length; i += 1) {
-    total += segmentVideoDurationSec(segments[i]);
+    total += segmentRenderedTimelineSpanSec(segments[i]);
     if (i > 0) {
       total -= overlapAtBoundary(segments, i);
     }
@@ -188,24 +194,50 @@ export function buildJlCutFilterComplex(segmentPaths, segments, crossfadeAtBound
     const policy = segments[i].audioPolicy ?? "from_video_ref";
 
     if (policy === "from_prev" && i > 0) {
-      const carryDur = segmentVideoDurationSec(segments[i]);
+      const videoDur = segmentVideoDurationSec(segments[i]);
       const overlap = overlapAtBoundary(segments, i);
+      const carryDur = overlap;
+      const remainderDur = Math.max(0, videoDur - overlap);
       const prevIdx = i - 1;
       const prevAudioDur = segmentRenderedAudioDur(segments[prevIdx]);
       const carryStart = Math.max(0, prevAudioDur - overlap);
-      const carryLabel = `[carry${i}]`;
 
-      parts.push(
-        `[${prevIdx}:a]asetpts=PTS-STARTPTS[pa${prevIdx}];`
-        + `[pa${prevIdx}]atrim=start=${carryStart}:duration=${carryDur},asetpts=PTS-STARTPTS${carryLabel}`,
-      );
+      let segAudioLabel = null;
+
+      if (carryDur > 0) {
+        const carryLabel = `[carry${i}]`;
+        parts.push(
+          `[${prevIdx}:a]asetpts=PTS-STARTPTS[pa${prevIdx}];`
+          + `[pa${prevIdx}]atrim=start=${carryStart}:duration=${carryDur},asetpts=PTS-STARTPTS${carryLabel}`,
+        );
+        segAudioLabel = carryLabel;
+      }
+
+      if (remainderDur > 0) {
+        const ownLabel = `[own${i}]`;
+        parts.push(
+          `[${i}:a]asetpts=PTS-STARTPTS[raw${i}own];`
+          + `[raw${i}own]atrim=start=${overlap}:duration=${remainderDur},asetpts=PTS-STARTPTS${ownLabel}`,
+        );
+        if (segAudioLabel) {
+          const combinedLabel = `[seg${i}a]`;
+          parts.push(`${segAudioLabel}${ownLabel}concat=n=2:v=0:a=1${combinedLabel}`);
+          segAudioLabel = combinedLabel;
+        } else {
+          segAudioLabel = ownLabel;
+        }
+      }
+
+      if (!segAudioLabel) {
+        continue;
+      }
 
       if (audioChain) {
         const outLabel = `[aout${i}]`;
-        mergeAudioStreams(parts, audioChain, carryLabel, overlap, outLabel);
+        mergeAudioStreams(parts, audioChain, segAudioLabel, overlap, outLabel);
         audioChain = outLabel;
       } else {
-        audioChain = carryLabel;
+        audioChain = segAudioLabel;
       }
       continue;
     }

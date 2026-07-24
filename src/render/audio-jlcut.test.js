@@ -36,8 +36,8 @@ describe("audio-jlcut", () => {
     ]), true);
   });
 
-  it("segmentHasEmbeddedAudio is false for from_prev/from_next/mute", () => {
-    assert.equal(segmentHasEmbeddedAudio({ audioPolicy: "from_prev" }), false);
+  it("segmentHasEmbeddedAudio reflects segment-pass audio embedding", () => {
+    assert.equal(segmentHasEmbeddedAudio({ audioPolicy: "from_prev" }), true);
     assert.equal(segmentHasEmbeddedAudio({ audioPolicy: "from_next" }), false);
     assert.equal(segmentHasEmbeddedAudio({ audioPolicy: "mute" }), false);
     assert.equal(segmentHasEmbeddedAudio({ audioPolicy: "from_video_ref" }), true);
@@ -114,13 +114,15 @@ describe("audio-jlcut", () => {
     ];
     const built = buildJlCutFilterComplex(["/a.mp4", "/b.mp4", "/c.mp4"], segments);
 
-    assert.ok(!built.filterComplex.includes("[2:a]"), "from_prev segment must not reference its own audio");
+    assert.ok(built.filterComplex.includes("[2:a]"), "from_prev segment uses own audio after overlap carry");
     assert.ok(!built.filterComplex.includes("anullsrc"));
     assert.ok(built.filterComplex.includes("[carry2]"));
+    assert.ok(built.filterComplex.includes("[own2]"));
     assert.ok(built.filterComplex.includes("[1:a]"));
     assert.ok(built.filterComplex.includes("atrim=start="));
     assert.ok(built.filterComplex.includes("acrossfade=d=0.5"));
-    assert.ok(built.filterComplex.includes("duration=20"));
+    assert.ok(built.filterComplex.includes("duration=0.5"));
+    assert.ok(built.filterComplex.includes("duration=19.5"));
     assert.ok(built.filterComplex.includes("apad=whole_dur=41.5"));
     assert.equal(built.audioMap, "[outa]");
   });
@@ -184,9 +186,40 @@ describe("audio-jlcut", () => {
     ];
     const built = buildJlCutFilterComplex(["/a.mp4", "/b.mp4"], segments);
     assert.ok(!built.filterComplex.includes("anullsrc"));
-    assert.ok(!built.filterComplex.includes("[1:a]"));
-    assert.ok(built.filterComplex.includes("[carry1]"));
+    assert.ok(built.filterComplex.includes("[1:a]"));
+    assert.ok(!built.filterComplex.includes("[carry1]"));
+    assert.ok(built.filterComplex.includes("[own1]"));
+    assert.ok(built.filterComplex.includes("duration=8"));
     assert.ok(built.filterComplex.includes("concat=n=2:v=0:a=1"));
+  });
+
+  it("from_prev carry uses overlapSec not full next video duration", () => {
+    const segments = [
+      {
+        audioPolicy: "from_video_ref",
+        videoInSec: 0,
+        videoOutSec: 4,
+        audioInSec: 0,
+        audioOutSec: 4,
+        overlapSec: 0,
+      },
+      {
+        audioPolicy: "from_prev",
+        overlapSec: 0.4,
+        videoInSec: 0,
+        videoOutSec: 6,
+        outputStartSec: 4,
+        outputEndSec: 10,
+      },
+    ];
+    const built = buildJlCutFilterComplex(["/a.mp4", "/b.mp4"], segments);
+
+    assert.ok(built.filterComplex.includes("duration=0.4"), "carry from prev is overlapSec only");
+    assert.ok(built.filterComplex.includes("duration=5.6"), "remainder uses next segment own audio");
+    assert.ok(!built.filterComplex.includes("duration=6"), "must not carry full next video duration");
+    assert.ok(built.filterComplex.includes("[carry1]"));
+    assert.ok(built.filterComplex.includes("[own1]"));
+    assert.ok(built.filterComplex.includes("[1:a]"));
   });
 
   it("builds filter_complex with video xfade when crossfadeAtBoundaries provided", () => {

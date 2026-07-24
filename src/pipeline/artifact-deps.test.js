@@ -79,6 +79,26 @@ describe("artifact-deps", () => {
     );
   });
 
+  it("audioEnhancementIndex depends on sceneCatalog only (pre-whisper)", () => {
+    assert.deepEqual(
+      ARTIFACT_DEPENDENCY_GRAPH[ARTIFACTS.audioEnhancementIndex],
+      [ARTIFACTS.sceneCatalog],
+    );
+    assert.ok(
+      !ARTIFACT_DEPENDENCY_GRAPH[ARTIFACTS.audioEnhancementIndex].includes(
+        ARTIFACTS.recipeDraft,
+      ),
+    );
+  });
+
+  it("words depend on audioEnhancementIndex", () => {
+    assert.ok(
+      ARTIFACT_DEPENDENCY_GRAPH[CLIP_ARTIFACT_PATTERNS.words].includes(
+        ARTIFACTS.audioEnhancementIndex,
+      ),
+    );
+  });
+
   it("isArtifactStale returns true when artifact is missing", () => {
     assert.equal(isArtifactStale(workDir, ARTIFACTS.timelineIndex), true);
     assert.equal(isArtifactStale(workDir, ARTIFACTS.words("clip01")), true);

@@ -1,4 +1,5 @@
 import { isHookTechniqueId } from "../editorial/shorts-retention.js";
+import { buildSpeechAmbientSourcePlan } from "./audio-source-duck.js";
 
 function resolveVideoSourcePath(segment, context) {
   const clipId = segment.videoRef?.clipId;
@@ -15,39 +16,98 @@ function resolveVideoSourcePath(segment, context) {
   return clip.sourcePath ?? null;
 }
 
-function resolveAudioSourcePath(segment, context) {
-  // Intentional ambient showcase: never substitute denoised WAV for this segment.
-  const allowEnhanced = segment.preserveAmbientAudio !== true;
-  const enhancedForClip = (clipId) => (
-    allowEnhanced ? (context.enhancedAudioPaths?.[clipId] ?? null) : null
-  );
+function resolveClipOriginalPath(clipId, context) {
+  return clipId ? context.clips[clipId]?.sourcePath ?? null : null;
+}
 
+/**
+ * Original camera/source audio path (never enhanced WAV).
+ */
+function resolveOriginalAudioSourcePath(segment, context) {
   switch (segment.audioPolicy) {
     case "external":
       return context.musicBed?.trackFilePath ?? null;
-    case "from_audio_ref": {
-      const clipId = segment.audioRef?.clipId;
-      return enhancedForClip(clipId)
-        ?? (clipId ? context.clips[clipId]?.sourcePath ?? null : null);
-    }
+    case "from_audio_ref":
+      return resolveClipOriginalPath(segment.audioRef?.clipId, context);
     case "mute":
       return null;
     case "from_prev":
     case "from_next":
     case "from_video_ref":
-    default: {
-      const clipId = segment.videoRef?.clipId ?? segment.audioRef?.clipId;
-      return enhancedForClip(clipId)
-        ?? (clipId ? context.clips[clipId]?.sourcePath ?? null : null);
-    }
+    default:
+      return resolveClipOriginalPath(
+        segment.videoRef?.clipId ?? segment.audioRef?.clipId,
+        context,
+      );
   }
 }
 
+function resolveEnhancedAudioSourcePath(segment, context) {
+  if (segment.preserveAmbientAudio === true) {
+    return null;
+  }
+  if (segment.audioPolicy === "external" || segment.audioPolicy === "mute") {
+    return null;
+  }
+  const clipId = segment.audioPolicy === "from_audio_ref"
+    ? segment.audioRef?.clipId
+    : (segment.videoRef?.clipId ?? segment.audioRef?.clipId);
+  return clipId ? context.enhancedAudioPaths?.[clipId] ?? null : null;
+}
+
+function resolveAudioSourcePath(segment, context) {
+  // Intentional ambient showcase: never substitute denoised WAV for this segment.
+  const enhanced = resolveEnhancedAudioSourcePath(segment, context);
+  const original = resolveOriginalAudioSourcePath(segment, context);
+  return enhanced ?? original;
+}
+
+function resolveWordsForSegment(segment, context) {
+  const clipId = segment.audioRef?.clipId ?? segment.videoRef?.clipId;
+  if (!clipId) {
+    return null;
+  }
+  return context.wordIndexes?.[clipId]?.words
+    ?? segment.wordIndex?.words
+    ?? null;
+}
+
 /**
- * Classify resolved audio path as original | enhanced for fidelity logging.
- * @returns {"original"|"enhanced"|null}
+ * Attach speech↔ambient source-duck plan when both original + enhanced exist.
+ */
+export function resolveAudioSourceDuckFields(segment, context) {
+  if (segment.audioPolicy === "external" || segment.audioPolicy === "mute") {
+    return {};
+  }
+
+  const originalPath = resolveOriginalAudioSourcePath(segment, context);
+  const enhancedPath = resolveEnhancedAudioSourcePath(segment, context);
+  const plan = buildSpeechAmbientSourcePlan(
+    segment,
+    resolveWordsForSegment(segment, context),
+    enhancedPath,
+    originalPath,
+  );
+
+  if (plan.mode !== "speech_ambient_duck") {
+    return {};
+  }
+
+  return {
+    audioSourceDuck: plan,
+    audioSourceOriginalPath: plan.originalPath,
+    audioSourceEnhancedPath: plan.enhancedPath,
+  };
+}
+
+/**
+ * Classify resolved audio path as original | enhanced | speech_ambient_duck.
+ * @returns {"original"|"enhanced"|"speech_ambient_duck"|null}
  */
 export function resolveAudioSourceKind(segment, context, audioSourcePath = null) {
+  if (segment.audioSourceDuck?.mode === "speech_ambient_duck") {
+    return "speech_ambient_duck";
+  }
   const resolvedPath = audioSourcePath ?? resolveAudioSourcePath(segment, context);
   if (!resolvedPath) {
     return null;
@@ -378,12 +438,20 @@ export function clampCreativeMomentsToHookWindow(moments, hookWindowSec) {
  */
 export function enrichRenderEdl(edl, { recipe, context, output, spatialIndex }) {
   let segments = edl.segments.map((segment) => {
+    const duckFields = segment.audioSourceDuck
+      ? {}
+      : resolveAudioSourceDuckFields(segment, context);
     const audioSourcePath = segment.audioSourcePath ?? resolveAudioSourcePath(segment, context);
-    return {
+    const enriched = {
       ...segment,
+      ...duckFields,
       videoSourcePath: segment.videoSourcePath ?? resolveVideoSourcePath(segment, context),
       audioSourcePath,
-      audioSource: segment.audioSource ?? resolveAudioSourceKind(segment, context, audioSourcePath),
+    };
+    return {
+      ...enriched,
+      audioSource: segment.audioSource
+        ?? resolveAudioSourceKind(enriched, context, audioSourcePath),
     };
   });
 
@@ -431,6 +499,8 @@ export function enrichRenderEdl(edl, { recipe, context, output, spatialIndex }) 
 export {
   resolveVideoSourcePath,
   resolveAudioSourcePath,
+  resolveOriginalAudioSourcePath,
+  resolveEnhancedAudioSourcePath,
   attachSpatialRef,
   projectHookTitleOverlays,
   projectPatternInterruptTextOverlays,

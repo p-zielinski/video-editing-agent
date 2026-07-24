@@ -26,6 +26,7 @@ import { validateMultiClipChronology } from "./chronology.js";
 import { validateSpeechCoverage } from "./speech-coverage.js";
 import { validateBrollStrategy } from "./broll-strategy.js";
 import { validateNarrative } from "./narrative.js";
+import { clipOnlyUsedOnPreserveAmbient } from "../pipeline/steps/audio-enhancement.js";
 import { validateAiVideoSegments } from "../editorial/ai-hook-enrich.js";
 import { validateBrandSafetyText } from "./brand-safety.js";
 import { resolveSfxById, resolveSfxByTag } from "../editorial/sfx-library.js";
@@ -1027,6 +1028,9 @@ export function validateSalvageAndAudioQuality(recipe, {
     if (decision.action !== "accept") {
       continue;
     }
+    if (clipOnlyUsedOnPreserveAmbient(recipe, decision.clipId)) {
+      continue;
+    }
     const manifest = enhancementByClip.get(decision.clipId);
     if (!manifest || (manifest.status !== "succeeded" && manifest.status !== "stubbed")) {
       const recoveryHint = manifest?.status === "failed"
@@ -1298,4 +1302,4 @@ export function validateRecipeV2(recipe, {
   };
 }
 
-export { buildSceneUsageRegistryV2 };
+export { buildSceneUsageRegistryV2, buildClipDurationMap };

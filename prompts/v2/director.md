@@ -228,8 +228,8 @@ Wzorzec jak `aiHookDecision` — tylko `accept|reject` per kandydat z `enhanceme
 ```
 
 - `reject` gdy dialog jest `dispensable` lub clipping uniemożliwia naprawę
-- Nie wpisuj ścieżek plików — krok `audio_enhancement` materializuje enhanced WAV po `direct`
-- Enhancement tylko dla klipów z mową (`hasSpeech`)
+- Nie wpisuj ścieżek plików — `audio_enhancement` denoise’uje wszystkie klipy **przed Whisper**; Twoje `accept|reject` decyduje tylko, czy render użyje enhanced WAV
+- `accept` głównie dla klipów z mową (`hasSpeech`); `reject` / ambient preserve dla B-roll bez dialogu
 
 ### Naprawa monotonii głosu (delivery engagement)
 

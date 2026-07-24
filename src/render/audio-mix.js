@@ -541,8 +541,50 @@ export function buildAudioMixFilterGraph({
     return { filters, mixInputs: ["[voice]"], inputCount: 0, needsMix: true, voiceOnly: true };
   }
 
-  filters.push(`${mixInputs.join("")}amix=inputs=${mixInputs.length}:duration=first:dropout_transition=2[aout]`);
+  filters.push(
+    `${mixInputs.join("")}amix=inputs=${mixInputs.length}:duration=first:normalize=0:dropout_transition=0[aout]`,
+  );
   return { filters, mixInputs, inputCount, needsMix: true, outputLabel: "[aout]" };
+}
+
+/**
+ * Seconds of bed audio needed from musicInSec through musicOutSec.
+ */
+export function resolveMusicBedRequiredSec(mixSegment) {
+  const musicOutSec = mixSegment?.musicOutSec;
+  if (musicOutSec == null) {
+    return null;
+  }
+  const musicInSec = mixSegment?.musicInSec ?? 0;
+  return Math.max(0, musicOutSec - musicInSec);
+}
+
+/**
+ * Loop the bed when catalog duration (after musicInSec) is shorter than the mix window.
+ */
+export function shouldLoopMusicBed({ bedDurationSec, musicInSec = 0, musicOutSec }) {
+  if (bedDurationSec == null || bedDurationSec <= 0 || musicOutSec == null) {
+    return false;
+  }
+  const requiredSec = Math.max(0, musicOutSec - musicInSec);
+  const availableSec = Math.max(0, bedDurationSec - musicInSec);
+  const EPSILON_SEC = 0.05;
+  return requiredSec > 0 && availableSec + EPSILON_SEC < requiredSec;
+}
+
+/**
+ * FFmpeg input args for the music bed (optional stream_loop when bed is shorter than mix window).
+ */
+export function buildMusicBedInputArgs(bedPath, { musicInSec = 0, loop = false } = {}) {
+  const args = [];
+  if (loop) {
+    args.push("-stream_loop", "-1");
+  }
+  if (musicInSec > 0) {
+    args.push("-ss", String(musicInSec));
+  }
+  args.push("-i", bedPath);
+  return args;
 }
 
 /**
@@ -714,7 +756,12 @@ export async function applyAudioMix(inputPath, outputPath, {
 
   if (resolvedBedPath) {
     const musicIn = mixSegment?.musicInSec ?? 0;
-    args.push("-ss", String(musicIn), "-i", resolvedBedPath);
+    const loopBed = shouldLoopMusicBed({
+      bedDurationSec: bed?.durationSec ?? context.musicBed?.durationSec ?? null,
+      musicInSec: musicIn,
+      musicOutSec: mixSegment?.musicOutSec ?? null,
+    });
+    args.push(...buildMusicBedInputArgs(resolvedBedPath, { musicInSec: musicIn, loop: loopBed }));
     nextInput += 1;
   }
 

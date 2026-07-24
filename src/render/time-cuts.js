@@ -53,11 +53,19 @@ export function applyVideoTimeCutsToRange({
     return `${videoLabel}setpts=PTS-STARTPTS[vout]`;
   }
 
+  if (keepRanges.length === 1) {
+    const range = keepRanges[0];
+    return `${videoLabel}trim=start=${range.start}:end=${range.end},setpts=PTS-STARTPTS[vout]`;
+  }
+
+  const n = keepRanges.length;
+  const splitOutputs = keepRanges.map((_, i) => `[vts${i}]`).join("");
+  const split = `${videoLabel}split=${n}${splitOutputs}`;
   const parts = keepRanges.map((range, i) =>
-    `${videoLabel}trim=start=${range.start}:end=${range.end},setpts=PTS-STARTPTS[vtc${i}]`,
+    `[vts${i}]trim=start=${range.start}:end=${range.end},setpts=PTS-STARTPTS[vtc${i}]`,
   );
   const concatInputs = keepRanges.map((_, i) => `[vtc${i}]`).join("");
-  return `${parts.join(";")};${concatInputs}concat=n=${keepRanges.length}:v=1:a=0[vout]`;
+  return `${split};${parts.join(";")};${concatInputs}concat=n=${n}:v=1:a=0[vout]`;
 }
 
 export function applyAudioTimeCutsToRange({
@@ -74,11 +82,21 @@ export function applyAudioTimeCutsToRange({
   }
 
   const inputLabel = singleInput ? "[0:a]" : audioFilter.replace(/\[aout\]$/, "");
+
+  if (keepRanges.length === 1) {
+    const range = keepRanges[0];
+    return `${inputLabel}atrim=${range.start}:${range.end},asetpts=PTS-STARTPTS[aout]`;
+  }
+
+  // Intermediate labels ([aduck]/[async]/…) cannot be consumed twice — asplit first.
+  const n = keepRanges.length;
+  const splitOutputs = keepRanges.map((_, i) => `[ats${i}]`).join("");
+  const split = `${inputLabel}asplit=${n}${splitOutputs}`;
   const parts = keepRanges.map((range, i) =>
-    `${inputLabel}atrim=${range.start}:${range.end},asetpts=PTS-STARTPTS[atc${i}]`,
+    `[ats${i}]atrim=${range.start}:${range.end},asetpts=PTS-STARTPTS[atc${i}]`,
   );
   const concatInputs = keepRanges.map((_, i) => `[atc${i}]`).join("");
-  return `${parts.join(";")};${concatInputs}concat=n=${keepRanges.length}:v=0:a=1[aout]`;
+  return `${split};${parts.join(";")};${concatInputs}concat=n=${n}:v=0:a=1[aout]`;
 }
 
 function findSegmentForOutputSec(timeline, outputSec) {

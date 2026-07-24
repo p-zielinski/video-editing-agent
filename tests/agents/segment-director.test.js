@@ -61,6 +61,42 @@ describe("segment-director brief parity", () => {
     assert.ok(brief.emotionalBeatHints == null || Array.isArray(brief.emotionalBeatHints));
   });
 
+  it("uses timelineIndex.userContext when CLI userContext is empty", () => {
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = {
+      ...loadFixture("timeline-index.json"),
+      userContext: "Keep the cooking montage energetic",
+    };
+    const superPlan = {
+      segmentOrder: ["seg001"],
+      segmentPicks: [{ segmentId: "seg001", priority: 1 }],
+      globalTheme: "food vlog",
+      creativityProfile: { level: "balanced" },
+    };
+
+    const brief = buildSegmentDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry: [{ clipId: "clip01", sortIndex: 0 }],
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      audioIndex: null,
+      audioMixDefaults: null,
+      perClipAnalysis: null,
+      wordIndexes: [],
+      userContext: "",
+      requiredFormats: ["16:9"],
+      batchContext: {},
+      keyframesByClip: {},
+    }, {
+      segmentId: "seg001",
+      sceneIds: ["clip01_scene001"],
+      superPlan,
+    });
+
+    assert.match(brief.userContext, /cooking montage/);
+  });
+
   it("scopes wordIndexes to clips present in segment timeline", () => {
     const abstraction = loadFixture("abstraction.json");
     const baseTimeline = loadFixture("timeline-index.json");

@@ -23,6 +23,7 @@ import { ExecutionStateSchema } from "../schemas/execution-state.js";
 
 const STEP_ARTIFACT_CHECKS = [
   { step: "ingest", artifacts: [ARTIFACTS.manifest, ARTIFACTS.sceneCatalog] },
+  { step: "audio_enhancement", artifacts: [ARTIFACTS.audioEnhancementIndex] },
   { step: "index", artifacts: [ARTIFACTS.timelineIndex] },
   { step: "clip_profile", artifacts: [ARTIFACTS.clipRegistry] },
   { step: "abstract", artifacts: [ARTIFACTS.abstraction] },
@@ -36,6 +37,7 @@ const STEP_ARTIFACT_CHECKS = [
 const KNOWN_BATCH_ARTIFACTS = [
   ARTIFACTS.manifest,
   ARTIFACTS.sceneCatalog,
+  ARTIFACTS.audioEnhancementIndex,
   ARTIFACTS.timelineIndex,
   ARTIFACTS.clipRegistry,
   ARTIFACTS.topicIndex,

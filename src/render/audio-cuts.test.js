@@ -36,8 +36,9 @@ describe("audio-cuts", () => {
       singleInput: true,
     });
     assert.match(filter, /concat/);
-    assert.match(filter, /atrim=0:0\.3/);
-    assert.match(filter, /atrim=0\.6:1/);
+    assert.match(filter, /\[0:a\]asplit=2\[as0\]\[as1\]/);
+    assert.match(filter, /\[as0\]atrim=0:0\.3/);
+    assert.match(filter, /\[as1\]atrim=0\.6:1/);
   });
 
   it("builds separate-input audio filter chain", () => {
@@ -45,12 +46,48 @@ describe("audio-cuts", () => {
       audioFilter: "[1:a]",
       cuts: [{ startWordId: "clip01_w0002", endWordId: "clip01_w0002", reason: "filler" }],
       wordIndex,
-      rangeStartSec: 8,
-      rangeEndSec: 15,
+      rangeStartSec: 0,
+      rangeEndSec: 1,
       singleInput: false,
     });
-    assert.match(filter, /\[1:a\]atrim/);
+    assert.match(filter, /\[1:a\]asplit=2/);
+    assert.match(filter, /\[as0\]atrim=0:0\.3/);
+    assert.match(filter, /\[as1\]atrim=0\.6:1/);
     assert.match(filter, /concat/);
+  });
+
+  it("asplits intermediate duck label before multi-range atrim", () => {
+    const filter = applyAudioCutsToRange({
+      audioFilter: "[aduck]",
+      cuts: [{ startWordId: "clip01_w0002", endWordId: "clip01_w0002", reason: "filler" }],
+      wordIndex,
+      rangeStartSec: 0,
+      rangeEndSec: 1,
+      singleInput: false,
+    });
+    assert.match(filter, /\[aduck\]asplit=2\[as0\]\[as1\]/);
+    assert.equal((filter.match(/\[aduck\]atrim/g) ?? []).length, 0);
+    assert.match(filter, /\[as0\]atrim=0:0\.3/);
+    assert.match(filter, /\[as1\]atrim=0\.6:1/);
+  });
+
+  it("uses single atrim without asplit when one keep range", () => {
+    const filter = applyAudioCutsToRange({
+      audioFilter: "[aduck]",
+      cuts: [{ startWordId: "clip01_w0001", endWordId: "clip01_w0001", reason: "filler" }],
+      wordIndex: {
+        words: [
+          { wordId: "clip01_w0001", word: "yyy", start: 0, end: 0.3, isFiller: true },
+          { wordId: "clip01_w0002", word: "hello", start: 0.3, end: 1.0 },
+        ],
+      },
+      rangeStartSec: 0,
+      rangeEndSec: 1,
+      singleInput: false,
+    });
+    assert.match(filter, /\[aduck\]atrim=0\.3:1,asetpts=PTS-STARTPTS\[aout\]/);
+    assert.doesNotMatch(filter, /asplit=/);
+    assert.doesNotMatch(filter, /concat/);
   });
 
   it("computeCutsRemovedSec sums removed word duration", () => {
@@ -84,9 +121,29 @@ describe("audio-cuts", () => {
       rangeStartSec: 0,
       rangeEndSec: 1,
     });
-    assert.match(filter, /trim=start=0:end=0\.3/);
-    assert.match(filter, /trim=start=0\.6:end=1/);
+    assert.match(filter, /\[vcutin\]split=2\[vs0\]\[vs1\]/);
+    assert.match(filter, /\[vs0\]trim=start=0:end=0\.3/);
+    assert.match(filter, /\[vs1\]trim=start=0\.6:end=1/);
     assert.match(filter, /concat=n=2:v=1:a=0\[vout\]/);
+    assert.equal((filter.match(/\[vcutin\]trim/g) ?? []).length, 0);
+  });
+
+  it("applyVideoCutsToRange uses single trim without split when one keep range", () => {
+    const filter = applyVideoCutsToRange({
+      videoLabel: "[vcutin]",
+      cuts: [{ startWordId: "clip01_w0001", endWordId: "clip01_w0001", reason: "filler" }],
+      wordIndex: {
+        words: [
+          { wordId: "clip01_w0001", word: "yyy", start: 0, end: 0.3, isFiller: true },
+          { wordId: "clip01_w0002", word: "hello", start: 0.3, end: 1.0 },
+        ],
+      },
+      rangeStartSec: 0,
+      rangeEndSec: 1,
+    });
+    assert.match(filter, /\[vcutin\]trim=start=0\.3:end=1,setpts=PTS-STARTPTS\[vout\]/);
+    assert.doesNotMatch(filter, /split=/);
+    assert.doesNotMatch(filter, /concat/);
   });
 
   it("applyVideoCutsToRange passes through when no cuts", () => {

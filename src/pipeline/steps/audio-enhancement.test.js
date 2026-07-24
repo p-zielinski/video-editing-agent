@@ -9,9 +9,30 @@ import {
   enhancedAudioPath,
   reconcileAudioEnhancementDecisions,
   clipOnlyUsedOnPreserveAmbient,
+  rebuildEnhancementIndexFromDisk,
+  loadAudioEnhancementIndex,
+  resolveEnhancedAudioForWhisper,
+  resolveWhisperMediaPath,
 } from "./audio-enhancement.js";
 import { EditRecipeV2Schema } from "../../schemas/edit-recipe-v2.js";
 import { ARTIFACTS, readJson, writeJson } from "../work-paths.js";
+import { runFfmpeg } from "../../lib/ffmpeg.js";
+
+async function writeSilentSourceWav(filePath, durationSec = 0.5) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  await runFfmpeg([
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=frequency=440:sample_rate=48000:duration=${durationSec}`,
+    "-acodec",
+    "pcm_s16le",
+    "-ac",
+    "1",
+    filePath,
+  ], { label: "test tone wav" });
+}
 
 describe("audio-enhancement step", () => {
   let workDir;
@@ -24,7 +45,11 @@ describe("audio-enhancement step", () => {
     fs.rmSync(workDir, { recursive: true, force: true });
   });
 
-  it("skips enhancement when no accept decisions", async () => {
+  it("with recipe reject and no artifacts still enhance-alls for Whisper", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-enh-reject-all-"));
+    const sourcePath = path.join(dir, "clip01.wav");
+    await writeSilentSourceWav(sourcePath, 0.4);
+
     const recipe = EditRecipeV2Schema.parse({
       version: "2.5",
       batchId: "test",
@@ -48,27 +73,31 @@ describe("audio-enhancement step", () => {
       }],
     });
 
-    writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
-    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+    writeJson(path.join(dir, ARTIFACTS.recipeDraft), recipe);
+    writeJson(path.join(dir, ARTIFACTS.sceneCatalog), {
       batchId: "test",
       clips: [{
         clipId: "clip01",
-        sourcePath: path.join(workDir, "fake.mov"),
-        fileName: "fake.mov",
-        durationSec: 10,
+        sourcePath,
+        fileName: "clip01.wav",
+        durationSec: 0.4,
       }],
     });
 
     const index = await runAudioEnhancementStep({
-      workDir,
+      workDir: dir,
       force: true,
       config: { provider: "stub", stub: true, required: false },
     });
 
-    assert.equal(index.clips.length, 0);
+    assert.equal(index.clips.length, 1);
+    assert.ok(["succeeded", "stubbed"].includes(index.clips[0].status));
+    assert.ok(fs.existsSync(enhancedAudioPath(dir, "clip01")));
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it("materializeSourceVolumeDb updates segments for enhanced clip", () => {
+  it("materializeSourceVolumeDb clears sourceVolumeDb because gain is in enhanced WAV", () => {
     const recipe = EditRecipeV2Schema.parse({
       version: "2.5",
       batchId: "test",
@@ -105,7 +134,7 @@ describe("audio-enhancement step", () => {
       }],
     });
 
-    assert.equal(recipe.outputs[0].timeline[0].sourceVolumeDb, 4.5);
+    assert.equal(recipe.outputs[0].timeline[0].sourceVolumeDb, 0);
   });
 
   it("enhancedAudioPath resolves under work dir", () => {
@@ -158,6 +187,10 @@ describe("audio-enhancement step", () => {
   });
 
   it("does not overwrite enhancement index when accepted is empty but index has succeeded clips", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-enh-reuse-rej-"));
+    const sourcePath = path.join(dir, "clip16.wav");
+    await writeSilentSourceWav(sourcePath, 0.4);
+
     const recipe = EditRecipeV2Schema.parse({
       version: "2.5",
       batchId: "test",
@@ -202,24 +235,28 @@ describe("audio-enhancement step", () => {
         status: "succeeded",
         provider: "dpdfnet",
         sourceVolumeDb: 12,
+        outputPath: "enhanced-audio/clip16.wav",
       }],
     };
 
-    writeJson(path.join(workDir, ARTIFACTS.recipeDraft), recipe);
-    writeJson(path.join(workDir, ARTIFACTS.audioEnhancementIndex), existingIndex);
-    writeJson(path.join(workDir, ARTIFACTS.sceneCatalog), {
+    writeJson(path.join(dir, ARTIFACTS.recipeDraft), recipe);
+    writeJson(path.join(dir, ARTIFACTS.audioEnhancementIndex), existingIndex);
+    writeJson(path.join(dir, ARTIFACTS.audioEnhancementManifest("clip16")), existingIndex.clips[0]);
+    fs.mkdirSync(path.join(dir, "enhanced-audio"), { recursive: true });
+    fs.copyFileSync(sourcePath, enhancedAudioPath(dir, "clip16"));
+    writeJson(path.join(dir, ARTIFACTS.sceneCatalog), {
       batchId: "test",
       clips: [{
         clipId: "clip16",
-        sourcePath: path.join(workDir, "fake.mov"),
-        fileName: "fake.mov",
-        durationSec: 10,
+        sourcePath,
+        fileName: "clip16.wav",
+        durationSec: 0.4,
       }],
     });
 
     const index = await runAudioEnhancementStep({
-      workDir,
-      force: true,
+      workDir: dir,
+      force: false,
       config: { provider: "stub", stub: true, required: false },
     });
 
@@ -227,9 +264,80 @@ describe("audio-enhancement step", () => {
     assert.equal(index.clips[0].clipId, "clip16");
     assert.equal(index.clips[0].status, "succeeded");
 
-    const updatedRecipe = readJson(path.join(workDir, ARTIFACTS.recipeDraft));
+    const updatedRecipe = readJson(path.join(dir, ARTIFACTS.recipeDraft));
     assert.equal(updatedRecipe.audioEnhancementDecisions[0].action, "accept");
-    assert.equal(updatedRecipe.outputs[0].timeline[0].sourceVolumeDb, 12);
+    assert.equal(updatedRecipe.outputs[0].timeline[0].sourceVolumeDb, 0);
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("recipe accept metadata is used when re-enhancing a catalog clip", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-enh-accept-meta-"));
+    const sourcePath = path.join(dir, "clip_acc.wav");
+    await writeSilentSourceWav(sourcePath, 0.4);
+
+    const recipe = EditRecipeV2Schema.parse({
+      version: "2.5",
+      batchId: "accept-meta",
+      batchContext: {
+        inputMode: "single_clip",
+        requiredFormats: ["16:9"],
+      },
+      outputs: [{
+        outputId: "main_16x9",
+        format: "16:9",
+        outputKind: "main",
+        title: "Test",
+        timeline: [{
+          segmentId: "seg01",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip_acc", sceneId: "clip_acc_scene001" },
+          audioRef: { clipId: "clip_acc", sceneId: "clip_acc_scene001" },
+          videoInSec: 0,
+          videoOutSec: 0.4,
+          audioInSec: 0,
+          audioOutSec: 0.4,
+          audioPolicy: "from_video_ref",
+        }],
+      }],
+      audioEnhancementDecisions: [{
+        candidateId: "enh_clip_acc",
+        clipId: "clip_acc",
+        action: "accept",
+        dialogueValue: "essential",
+        reason: "Director accept with target LUFS",
+        providerPreference: "auto",
+        targetDialogueLufs: -18,
+      }],
+    });
+
+    writeJson(path.join(dir, ARTIFACTS.recipeDraft), recipe);
+    writeJson(path.join(dir, ARTIFACTS.sceneCatalog), {
+      batchId: "accept-meta",
+      clips: [{
+        clipId: "clip_acc",
+        sourcePath,
+        fileName: "clip_acc.wav",
+        durationSec: 0.4,
+      }],
+    });
+
+    const index = await runAudioEnhancementStep({
+      workDir: dir,
+      force: true,
+      config: { provider: "stub", stub: true, required: false },
+    });
+
+    assert.equal(index.clips.length, 1);
+    assert.equal(index.clips[0].clipId, "clip_acc");
+    assert.ok(["succeeded", "stubbed"].includes(index.clips[0].status));
+    assert.ok(fs.existsSync(enhancedAudioPath(dir, "clip_acc")));
+
+    const updatedRecipe = readJson(path.join(dir, ARTIFACTS.recipeDraft));
+    assert.equal(updatedRecipe.audioEnhancementDecisions[0].action, "accept");
+    assert.equal(updatedRecipe.outputs[0].timeline[0].sourceVolumeDb, 0);
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("reconcileAudioEnhancementDecisions preserves intentional_ambient_preserve reject", () => {
@@ -322,6 +430,7 @@ describe("audio-enhancement step", () => {
             audioOutSec: 5,
             audioPolicy: "from_video_ref",
             preserveAmbientAudio: true,
+            sourceVolumeDb: -9,
           },
           {
             segmentId: "seg_normal",
@@ -346,7 +455,144 @@ describe("audio-enhancement step", () => {
       }],
     });
 
-    assert.equal(recipe.outputs[0].timeline[0].sourceVolumeDb ?? 0, 0);
-    assert.equal(recipe.outputs[0].timeline[1].sourceVolumeDb, 6);
+    assert.equal(recipe.outputs[0].timeline[0].sourceVolumeDb, -9);
+    assert.equal(recipe.outputs[0].timeline[1].sourceVolumeDb, 0);
+  });
+
+  it("rebuildEnhancementIndexFromDisk rebuilds index from manifests and WAV files", () => {
+    const orphanWorkDir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-audio-enh-orphan-"));
+    const clipId = "clip32";
+    const wavPath = enhancedAudioPath(orphanWorkDir, clipId);
+    fs.mkdirSync(path.dirname(wavPath), { recursive: true });
+    fs.writeFileSync(wavPath, "fake-wav");
+
+    writeJson(path.join(orphanWorkDir, ARTIFACTS.audioEnhancementManifest(clipId)), {
+      version: "1.0",
+      candidateId: "enh_clip32",
+      clipId,
+      status: "succeeded",
+      provider: "stub",
+      sourceVolumeDb: 8,
+      normalization: { targetLufs: -18, gainDb: 8 },
+    });
+
+    const index = rebuildEnhancementIndexFromDisk(orphanWorkDir, { batchId: "test" });
+    assert.equal(index.clips.length, 1);
+    assert.equal(index.clips[0].clipId, clipId);
+
+    const loaded = loadAudioEnhancementIndex(orphanWorkDir, { batchId: "test" });
+    assert.equal(loaded.clips[0].clipId, clipId);
+
+    fs.rmSync(orphanWorkDir, { recursive: true, force: true });
+  });
+
+  it("enhance-all without recipe denoises every catalog clip", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-enh-all-"));
+    const sourcePath = path.join(dir, "clip_a.wav");
+    await writeSilentSourceWav(sourcePath, 0.4);
+
+    writeJson(path.join(dir, ARTIFACTS.sceneCatalog), {
+      batchId: "enh-all",
+      clips: [{
+        clipId: "clip_a",
+        sourcePath,
+        fileName: "clip_a.wav",
+        durationSec: 0.4,
+      }],
+    });
+
+    const index = await runAudioEnhancementStep({
+      workDir: dir,
+      force: true,
+      config: { provider: "stub", stub: true, required: false },
+    });
+
+    assert.equal(index.clips.length, 1);
+    assert.equal(index.clips[0].clipId, "clip_a");
+    assert.ok(["succeeded", "stubbed"].includes(index.clips[0].status));
+    assert.ok(fs.existsSync(enhancedAudioPath(dir, "clip_a")));
+    assert.ok(fs.existsSync(path.join(dir, ARTIFACTS.audioEnhancementManifest("clip_a"))));
+    assert.equal(fs.existsSync(path.join(dir, ARTIFACTS.recipeDraft)), false);
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("idempotent re-run skips work when manifests and WAVs exist", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-enh-idem-"));
+    const sourcePath = path.join(dir, "clip_b.wav");
+    await writeSilentSourceWav(sourcePath, 0.4);
+
+    writeJson(path.join(dir, ARTIFACTS.sceneCatalog), {
+      batchId: "enh-idem",
+      clips: [{
+        clipId: "clip_b",
+        sourcePath,
+        fileName: "clip_b.wav",
+        durationSec: 0.4,
+      }],
+    });
+
+    const first = await runAudioEnhancementStep({
+      workDir: dir,
+      force: true,
+      config: { provider: "stub", stub: true, required: false },
+    });
+    assert.equal(first.clips.length, 1);
+
+    const wavPath = enhancedAudioPath(dir, "clip_b");
+    const manifestPath = path.join(dir, ARTIFACTS.audioEnhancementManifest("clip_b"));
+    const wavMtime = fs.statSync(wavPath).mtimeMs;
+    const manifestMtime = fs.statSync(manifestPath).mtimeMs;
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const second = await runAudioEnhancementStep({
+      workDir: dir,
+      force: false,
+      config: { provider: "stub", stub: true, required: false },
+    });
+
+    assert.equal(second.clips.length, 1);
+    assert.equal(second.clips[0].clipId, "clip_b");
+    assert.equal(fs.statSync(wavPath).mtimeMs, wavMtime);
+    assert.equal(fs.statSync(manifestPath).mtimeMs, manifestMtime);
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("resolveWhisperMediaPath prefers successful enhanced WAV", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vea-whisper-pref-"));
+    const sourcePath = path.join(dir, "source.mov");
+    const clip = { clipId: "clip_w", sourcePath };
+    fs.writeFileSync(sourcePath, "fake");
+
+    assert.equal(resolveWhisperMediaPath(dir, clip), sourcePath);
+    assert.equal(resolveEnhancedAudioForWhisper(dir, "clip_w"), null);
+
+    const wavPath = enhancedAudioPath(dir, "clip_w");
+    fs.mkdirSync(path.dirname(wavPath), { recursive: true });
+    fs.writeFileSync(wavPath, "enhanced");
+    writeJson(path.join(dir, ARTIFACTS.audioEnhancementManifest("clip_w")), {
+      version: "1.0",
+      candidateId: "enh_clip_w",
+      clipId: "clip_w",
+      status: "succeeded",
+      provider: "stub",
+    });
+
+    assert.equal(resolveEnhancedAudioForWhisper(dir, "clip_w"), wavPath);
+    assert.equal(resolveWhisperMediaPath(dir, clip), wavPath);
+
+    writeJson(path.join(dir, ARTIFACTS.audioEnhancementManifest("clip_w")), {
+      version: "1.0",
+      candidateId: "enh_clip_w",
+      clipId: "clip_w",
+      status: "failed",
+      provider: "stub",
+      warnings: ["boom"],
+    });
+    assert.equal(resolveWhisperMediaPath(dir, clip), sourcePath);
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

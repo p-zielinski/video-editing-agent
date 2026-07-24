@@ -2,6 +2,7 @@ import { buildAudioIndexSummary } from "./audio-index-summary.js";
 import { buildTopicIndexSummary } from "./topic-index-summary.js";
 import { resolveRecipeNarrativeProfile } from "../lib/narrative-profile.js";
 import { filterWordsForScene } from "../lib/timeline-index.js";
+import { sampleWordsAcrossScene } from "../lib/word-sampling.js";
 
 const MAX_WORDS_PER_SCENE = 80;
 
@@ -41,9 +42,10 @@ export function buildTranscriptExcerpts(
   return (timelineIndex.scenes ?? [])
     .filter((scene) => scene.hasSpeech && (!idSet || idSet.has(scene.sceneId)))
     .map((scene) => {
-      const words = filterWordsForScene(scene, timelineIndex.words ?? [])
-        .slice(0, maxWordsPerScene)
-        .map((w) => ({
+      const words = sampleWordsAcrossScene(
+        filterWordsForScene(scene, timelineIndex.words ?? []),
+        maxWordsPerScene,
+      ).map((w) => ({
           wordId: w.wordId,
           word: w.displayWord ?? w.word,
           start: w.start,

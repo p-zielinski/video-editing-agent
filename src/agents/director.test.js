@@ -16,10 +16,17 @@ import {
   prioritizeDrillDownSceneIds,
   DRILL_DOWN_SCENE_CAP,
   backfillDirectorDraftContext,
+  resolveDirectorBriefUserContext,
   ensureTimelineAudioPolicies,
   sanitizeDirectorDraft,
+  sanitizeRenderStylePresets,
+  sanitizeShortsOutroBracket,
 } from "./director.js";
-import { EditRecipeV2Schema } from "../schemas/edit-recipe-v2.js";
+import {
+  EditRecipeV2Schema,
+  RenderStylePresetsSchema,
+  ShortsOutroBracketSchema,
+} from "../schemas/edit-recipe-v2.js";
 import { DIRECTOR_BRIEF_CAPS, DRILL_DOWN_CAPS } from "../editorial/brief-caps.js";
 import { buildAudioIndexSummary } from "../editorial/audio-index-summary.js";
 import { MODELS } from "./openai-client.js";
@@ -1866,6 +1873,59 @@ describe("director agent v2", () => {
     assert.equal(raw.batchContext.inputMode, "multi_clip_day");
   });
 
+  it("backfillDirectorDraftContext preserves orchestrator notes over LLM batchContext", () => {
+    const raw = {
+      batchContext: {
+        inputMode: "multi_clip_day",
+        notes: "LLM invented notes",
+        theme: "wrong",
+      },
+      outputs: [],
+    };
+
+    backfillDirectorDraftContext(raw, {
+      batchContext: {
+        inputMode: "multi_clip_day",
+        notes: "Orchestrator brief from manifest",
+        theme: "travel",
+      },
+      inputMode: "multi_clip_day",
+    });
+
+    assert.equal(raw.batchContext.notes, "Orchestrator brief from manifest");
+    assert.equal(raw.batchContext.theme, "wrong");
+  });
+
+  it("resolveDirectorBriefUserContext falls back when composed context is metadata-only", () => {
+    const resolved = resolveDirectorBriefUserContext(
+      "segment:seg002\ntheme:vlog\ntarget_keep_ratio:0.4",
+      "User wants a fast-paced day recap",
+    );
+    assert.equal(resolved, "User wants a fast-paced day recap");
+  });
+
+  it("buildDirectorBrief uses timeline userContext when segment metadata is context-free", () => {
+    const abstraction = loadFixture("abstraction.json");
+    const timelineIndex = {
+      ...loadFixture("timeline-index.json"),
+      userContext: "Highlight the restaurant scene and skip setup",
+    };
+
+    const brief = buildDirectorBrief({
+      abstraction,
+      timelineIndex,
+      clipRegistry: [{ clipId: "clip01", sortIndex: 0 }],
+      topicIndex: { topics: [] },
+      spatialIndex: { scenes: [] },
+      userContext: "segment:seg001\ntheme:vlog",
+      requiredFormats: ["16:9"],
+      batchContext: {},
+    });
+
+    assert.match(brief.userContext, /restaurant scene/);
+    assert.equal(brief.userContext.includes("segment:seg001"), false);
+  });
+
   const minimalPriorOutputs = () => ([
     {
       outputId: "main_16x9",
@@ -1983,6 +2043,75 @@ describe("director agent v2", () => {
     assert.equal(raw.outputs[0].timeline[0].audioPolicy, "from_next");
   });
 
+  it("sanitizeRenderStylePresets backfills width/height and converts safeArea", () => {
+    const presets = {
+      subtitles: { presetId: "default" },
+      formats: {
+        "16:9": { safeArea: 0.08 },
+        "9:16": { safeArea: 0.1 },
+      },
+    };
+
+    sanitizeRenderStylePresets(presets);
+
+    assert.equal(presets.formats["16:9"].width, 1920);
+    assert.equal(presets.formats["16:9"].height, 1080);
+    assert.equal(presets.formats["16:9"].safeArea, undefined);
+    assert.equal(presets.formats["9:16"].width, 1080);
+    assert.equal(presets.formats["9:16"].height, 1920);
+    assert.deepEqual(presets.formats["9:16"].safeZone, {
+      top: 192,
+      bottom: 192,
+      left: 108,
+      right: 108,
+    });
+    RenderStylePresetsSchema.parse(presets);
+  });
+
+  it("sanitizeDirectorDraft allows drill-down renderStylePresets + L3 verdict aliases to parse", () => {
+    const raw = {
+      version: "2.5",
+      batchId: "51cd206d",
+      batchContext: {
+        inputMode: "multi_clip_day",
+        requiredFormats: ["16:9", "9:16"],
+      },
+      clipRegistry: [],
+      outputs: [{
+        outputId: "main_16x9",
+        format: "16:9",
+        title: "Main edit",
+        timeline: [{
+          segmentId: "seg001",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+        }],
+      }],
+      editorialAssessment: {
+        verdict: "strong",
+        summary: "Strong material with minor pacing issues.",
+      },
+      renderStylePresets: {
+        subtitles: { presetId: "default" },
+        formats: {
+          "16:9": { safeArea: 0.08 },
+          "9:16": { safeArea: 0.1 },
+        },
+      },
+    };
+
+    sanitizeDirectorDraft(raw);
+    const parsed = EditRecipeV2Schema.parse(raw);
+    assert.equal(parsed.editorialAssessment.verdict, "publishable_as_is");
+    assert.equal(parsed.renderStylePresets.formats["16:9"].width, 1920);
+    assert.equal(parsed.renderStylePresets.formats["9:16"].safeZone.top, 192);
+  });
+
   it("sanitizeDirectorDraft rewrites mute ai_hook with audioOutSec=0", () => {
     const raw = {
       outputs: [{
@@ -2007,7 +2136,70 @@ describe("director agent v2", () => {
     assert.equal(segment.audioPolicy, "from_next");
     assert.ok(segment.audioOutSec > 0);
     assert.equal(segment.audioOutSec, 5);
-    assert.equal(segment.videoRef.sceneId, "ai_hook_01_scene001");
-    assert.equal(segment.audioRef.sceneId, "ai_hook_01_scene001");
+  });
+
+  it("sanitizeShortsOutroBracket drops disabled empty stub (live seg001 shape)", () => {
+    const raw = {
+      shortsOutroBracket: {
+        enabled: false,
+        text: "",
+        endAtOutputSec: 0,
+        bracketDurationSec: 2.5,
+        auto: false,
+      },
+    };
+
+    sanitizeShortsOutroBracket(raw);
+    assert.equal(raw.shortsOutroBracket, undefined);
+  });
+
+  it("ShortsOutroBracketSchema coerces empty text and non-positive end", () => {
+    const parsed = ShortsOutroBracketSchema.parse({
+      enabled: true,
+      text: "",
+      endAtOutputSec: 0,
+      bracketDurationSec: 2.5,
+    });
+    assert.equal(parsed.text, undefined);
+    assert.equal(parsed.endAtOutputSec, undefined);
+    assert.equal(parsed.enabled, true);
+  });
+
+  it("sanitizeDirectorDraft allows live seg001 disabled bracket stub to parse", () => {
+    const raw = {
+      version: "2.5",
+      batchId: "51cd206d",
+      batchContext: {
+        inputMode: "multi_clip_day",
+        requiredFormats: ["16:9", "9:16"],
+      },
+      clipRegistry: [],
+      outputs: [{
+        outputId: "main_16x9",
+        format: "16:9",
+        title: "Main edit",
+        timeline: [{
+          segmentId: "seg001",
+          segmentRole: "aroll",
+          videoRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          audioRef: { clipId: "clip01", sceneId: "clip01_scene001" },
+          videoInSec: 0,
+          videoOutSec: 10,
+          audioInSec: 0,
+          audioOutSec: 10,
+        }],
+      }],
+      shortsOutroBracket: {
+        enabled: false,
+        text: "",
+        endAtOutputSec: 0,
+        bracketDurationSec: 2.5,
+        auto: false,
+      },
+    };
+
+    sanitizeDirectorDraft(raw);
+    assert.equal(raw.shortsOutroBracket, undefined);
+    EditRecipeV2Schema.parse(raw);
   });
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildDrawtextFilters,
   buildOverlayAlphaExpression,
+  fitOverlayText,
   resolveOverlayAnimation,
 } from "./ffmpeg-graphics.js";
 import { DEFAULT_RENDER_STYLE_PRESETS } from "./style-presets.js";
@@ -245,5 +246,68 @@ describe("ffmpeg-graphics", () => {
     assert.ok(filter.includes("alpha='"));
     assert.ok(filter.includes("if(lt(t\\,10)"));
     assert.ok(filter.includes("1080"));
+  });
+
+  it("wraps or shrinks long emphasis text to fit 1920 frame safe margins", () => {
+    const longText = "This is a very long emphasis overlay that would overflow without wrapping or shrinking";
+    assert.ok(longText.length >= 60, "fixture should represent a long emphasis overlay");
+
+    const filter = drawtextFilter(buildDrawtextFilters(
+      [{
+        text: longText,
+        style: "emphasis",
+        outputStartSec: 0,
+        outputEndSec: 3,
+      }],
+      {
+        dimensions: { width: 1920, height: 1080 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    ));
+
+    const fontsizeMatch = filter.match(/fontsize=(\d+)/);
+    assert.ok(fontsizeMatch, "expected fontsize in drawtext filter");
+    const fontsize = Number(fontsizeMatch[1]);
+    const hasWrap = filter.includes("\\n");
+    const fitsViaShrink = fontsize < 56;
+
+    assert.ok(
+      hasWrap || fitsViaShrink,
+      "expected wrapped lines (\\n) or reduced fontsize for long emphasis overlay",
+    );
+
+    const fitted = fitOverlayText(
+      longText,
+      56,
+      { width: 1920, height: 1080 },
+      DEFAULT_RENDER_STYLE_PRESETS.overlays.emphasis.safeMarginPct,
+    );
+    const maxWidth = 1920 * (1 - 2 * 0.1);
+    const lines = fitted.text.split("\\n");
+    for (const line of lines) {
+      assert.ok(
+        line.length * fitted.fontSize * 0.58 <= maxWidth + 1,
+        `line "${line}" should fit within safe width`,
+      );
+    }
+  });
+
+  it("keeps short emphasis overlay fontsize and single-line text unchanged", () => {
+    const filter = drawtextFilter(buildDrawtextFilters(
+      [{
+        text: "WOW",
+        style: "emphasis",
+        outputStartSec: 0,
+        outputEndSec: 2,
+      }],
+      {
+        dimensions: { width: 1920, height: 1080 },
+        stylePresets: DEFAULT_RENDER_STYLE_PRESETS,
+      },
+    ));
+
+    assert.ok(filter.includes("fontsize=56"));
+    assert.ok(filter.includes("text='WOW'"));
+    assert.ok(!filter.includes("\\n"));
   });
 });
