@@ -2,7 +2,7 @@
 
 A local lab that tried to turn raw clips into an MP4 by asking models to analyze the footage, write an edit plan, and hand that plan to FFmpeg.
 
-Status: not a product. In the author's runs the pipeline produced files, and those files were bad edits. Do not treat a finished MP4 as evidence that the edit is usable.
+Status: lab dump, not a product. In the author's runs the pipeline produced MP4s, and those files were bad edits. The main hole is not a flipped-frame render bug. The director has no bar for rejecting uninteresting spans, so it glues a full timeline, the same shape as scoring every email at least near 40% suspicious. An automaton like this will not replace a paid editor; trends would need a continuous outside feed this repo does not provide. See `docs/STATUS.md`. Do not treat a finished MP4 as evidence that the edit is usable.
 
 ## What it tried
 
@@ -17,7 +17,7 @@ The tree still contains that machinery: Node CLI, Python analysis scripts, promp
 ## What failed in the author's runs
 
 - **Context dropped.** Batch context passed on the command line did not stay attached to later decisions. The director planned as if that brief was thinner than what was typed.
-- **Inverted frames.** Some stitched shots came out upside down or otherwise flipped. The render path did not reliably carry orientation through the concat.
+- **Inverted frames.** Some stitched shots came out upside down or otherwise flipped. That is a render symptom, not the root cause named in `docs/STATUS.md`.
 - **Odd cuts.** Boundaries landed in the middle of speech or motion, and neighboring shots did not belong next to each other.
 - **No bar for "interesting".** The director glued clips into a timeline because they existed and fit a schema. It had no working test for whether a span was worth keeping. Asking a model "is this cut interesting?" behaved like asking "is this email suspicious?": a soft yes on almost everything, so the recipe filled up.
 
